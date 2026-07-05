@@ -1,0 +1,272 @@
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import pg from "pg";
+import fs from "node:fs/promises";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+import WebSocket from "ws";
+
+const pool = process.env.DATABASE_URL ? new pg.Pool({ connectionString: process.env.DATABASE_URL }) : undefined;
+let supabase: SupabaseClient | undefined;
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+export async function ensureSchema() {
+  if (hasSupabaseConfig()) return;
+  if (!pool) throw new Error("Set DATABASE_URL or SUPABASE_URL + SUPABASE_SERVICE_ROLE_KEY");
+
+  const schemaPath = path.resolve(__dirname, "../schema.sql");
+  await pool.query(await fs.readFile(schemaPath, "utf8"));
+}
+
+export async function upsertLaunch(input: {
+  id: bigint;
+  token: string;
+  creator: string;
+  name: string;
+  symbol: string;
+  contractURI: string;
+  txHash: string;
+  blockNumber?: bigint;
+}) {
+  if (hasSupabaseConfig()) {
+    await runSupabase(
+      getSupabase()
+        .from("launches")
+        .upsert(
+          {
+            scope: indexerScope(),
+            id: input.id.toString(),
+            token: input.token,
+            creator: input.creator,
+            name: input.name,
+            symbol: input.symbol,
+            contract_uri: input.contractURI,
+            created_tx: input.txHash,
+            created_block: input.blockNumber?.toString()
+          },
+          { onConflict: "scope,id" }
+        )
+    );
+    return;
+  }
+
+  if (!pool) throw new Error("Database client is not configured");
+  await pool.query(
+    `insert into launches (scope, id, token, creator, name, symbol, contract_uri, created_tx, created_block)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+     on conflict (scope, id) do update set
+       token = excluded.token,
+       creator = excluded.creator,
+       name = excluded.name,
+       symbol = excluded.symbol,
+       contract_uri = excluded.contract_uri,
+       created_tx = excluded.created_tx,
+       created_block = coalesce(excluded.created_block, launches.created_block)`,
+    [
+      indexerScope(),
+      input.id.toString(),
+      input.token,
+      input.creator,
+      input.name,
+      input.symbol,
+      input.contractURI,
+      input.txHash,
+      input.blockNumber?.toString()
+    ]
+  );
+}
+
+export async function updateLaunchState(input: {
+  id: bigint;
+  status: "live" | "ready" | "graduated";
+  raisedEth: bigint;
+  graduationTargetEth: bigint;
+  progress: number;
+  volumeEth: bigint;
+  creatorAllocation: bigint;
+  tokenCreatedAt: bigint;
+}) {
+  if (hasSupabaseConfig()) {
+    await runSupabase(
+      getSupabase()
+        .from("launches")
+        .update({
+          status: input.status,
+          raised_eth: input.raisedEth.toString(),
+          graduation_target_eth: input.graduationTargetEth.toString(),
+          progress: input.progress,
+          volume_eth: input.volumeEth.toString(),
+          creator_allocation: input.creatorAllocation.toString(),
+          token_created_at: input.tokenCreatedAt.toString()
+        })
+        .eq("id", input.id.toString())
+        .eq("scope", indexerScope())
+    );
+    return;
+  }
+
+  if (!pool) throw new Error("Database client is not configured");
+  await pool.query(
+    `update launches
+     set status = $3,
+         raised_eth = $4,
+         graduation_target_eth = $5,
+         progress = $6,
+         volume_eth = $7,
+         creator_allocation = $8,
+         token_created_at = $9
+     where scope = $1 and id = $2`,
+    [
+      indexerScope(),
+      input.id.toString(),
+      input.status,
+      input.raisedEth.toString(),
+      input.graduationTargetEth.toString(),
+      input.progress,
+      input.volumeEth.toString(),
+      input.creatorAllocation.toString(),
+      input.tokenCreatedAt.toString()
+    ]
+  );
+}
+
+export async function insertTrade(input: {
+  launchId: bigint;
+  trader: string;
+  side: "buy" | "sell";
+  ethAmount: bigint;
+  tokenAmount: bigint;
+  txHash: string;
+  blockNumber?: bigint;
+}) {
+  if (hasSupabaseConfig()) {
+    await runSupabase(
+      getSupabase()
+        .from("trades")
+        .upsert(
+          {
+            scope: indexerScope(),
+            launch_id: input.launchId.toString(),
+            trader: input.trader,
+            side: input.side,
+            eth_amount: input.ethAmount.toString(),
+            token_amount: input.tokenAmount.toString(),
+            tx_hash: input.txHash,
+            block_number: input.blockNumber?.toString()
+          },
+          { onConflict: "scope,tx_hash,side,launch_id", ignoreDuplicates: true }
+        )
+    );
+    return;
+  }
+
+  if (!pool) throw new Error("Database client is not configured");
+  await pool.query(
+    `insert into trades (scope, launch_id, trader, side, eth_amount, token_amount, tx_hash, block_number)
+     values ($1, $2, $3, $4, $5, $6, $7, $8)
+     on conflict (scope, tx_hash, side, launch_id) do nothing`,
+    [
+      indexerScope(),
+      input.launchId.toString(),
+      input.trader,
+      input.side,
+      input.ethAmount.toString(),
+      input.tokenAmount.toString(),
+      input.txHash,
+      input.blockNumber?.toString()
+    ]
+  );
+}
+
+export async function markGraduated(input: { launchId: bigint; token: string; positionId: string; txHash: string; blockNumber?: bigint }) {
+  if (hasSupabaseConfig()) {
+    await runSupabase(
+      getSupabase()
+        .from("graduations")
+        .upsert(
+          {
+            scope: indexerScope(),
+            launch_id: input.launchId.toString(),
+            token: input.token,
+            position_id: input.positionId,
+            tx_hash: input.txHash,
+            block_number: input.blockNumber?.toString()
+          },
+          { onConflict: "scope,launch_id", ignoreDuplicates: true }
+        )
+    );
+    await runSupabase(
+      getSupabase()
+        .from("launches")
+        .update({ status: "graduated" })
+        .eq("id", input.launchId.toString())
+        .eq("scope", indexerScope())
+    );
+    return;
+  }
+
+  if (!pool) throw new Error("Database client is not configured");
+  await pool.query(
+    `insert into graduations (scope, launch_id, token, position_id, tx_hash, block_number)
+     values ($1, $2, $3, $4, $5, $6)
+     on conflict (scope, launch_id) do nothing`,
+    [indexerScope(), input.launchId.toString(), input.token, input.positionId, input.txHash, input.blockNumber?.toString()]
+  );
+  await pool.query("update launches set status = 'graduated' where scope = $1 and id = $2", [
+    indexerScope(),
+    input.launchId.toString()
+  ]);
+}
+
+export async function getIndexerState(key: string): Promise<bigint | undefined> {
+  if (hasSupabaseConfig()) {
+    const { data, error } = await getSupabase().from("indexer_state").select("value").eq("key", key).maybeSingle();
+    if (error) throw error;
+    return data?.value ? BigInt(data.value) : undefined;
+  }
+
+  if (!pool) throw new Error("Database client is not configured");
+  const result = await pool.query("select value from indexer_state where key = $1", [key]);
+  if (!result.rowCount) return undefined;
+  return BigInt(result.rows[0].value);
+}
+
+export async function setIndexerState(key: string, value: bigint) {
+  if (hasSupabaseConfig()) {
+    await runSupabase(
+      getSupabase()
+        .from("indexer_state")
+        .upsert({ key, value: value.toString(), updated_at: new Date().toISOString() }, { onConflict: "key" })
+    );
+    return;
+  }
+
+  if (!pool) throw new Error("Database client is not configured");
+  await pool.query(
+    `insert into indexer_state (key, value, updated_at)
+     values ($1, $2, now())
+     on conflict (key) do update set value = excluded.value, updated_at = now()`,
+    [key, value.toString()]
+  );
+}
+
+function hasSupabaseConfig() {
+  return Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY);
+}
+
+function indexerScope() {
+  return process.env.INDEXER_SCOPE || "legacy";
+}
+
+function getSupabase() {
+  supabase ??= createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, {
+    auth: { persistSession: false },
+    realtime: { transport: WebSocket as never }
+  });
+  return supabase;
+}
+
+async function runSupabase<T>(query: PromiseLike<{ data: T | null; error: unknown }>) {
+  const { error } = await query;
+  if (error) throw error;
+}

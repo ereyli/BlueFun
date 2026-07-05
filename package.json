@@ -1,0 +1,25 @@
+{
+  "name": "bluefun",
+  "private": true,
+  "workspaces": [
+    "apps/web",
+    "apps/indexer"
+  ],
+  "scripts": {
+    "start": "npm run start -w apps/web",
+    "test:contracts": "forge test",
+    "dev:web": "npm run dev -w apps/web",
+    "dev:indexer": "npm run dev -w apps/indexer",
+    "build": "npm run build --workspaces --if-present"
+  },
+  "dependencies": {
+    "@rainbow-me/rainbowkit": "^2.2.11"
+  },
+  "overrides": {
+    "next": {
+      "postcss": "^8.5.10"
+    },
+    "viem": "^2.54.1",
+    "ws": "^8.21.0"
+  }
+}

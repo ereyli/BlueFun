@@ -1,0 +1,15 @@
+node_modules/
+.next/
+out/
+contracts/out/
+cache/
+broadcast/
+coverage/
+.env
+.env*
+.env.local
+!.env*.example
+!**/.env*.example
+.DS_Store
+npm-debug.log*
+*.log

@@ -1,0 +1,23 @@
+{
+  "name": "@bluefun/indexer",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "build": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.110.0",
+    "dotenv": "^16.4.7",
+    "pg": "^8.13.1",
+    "tsx": "^4.19.2",
+    "viem": "^2.54.1",
+    "ws": "^8.21.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "@types/pg": "^8.11.10",
+    "@types/ws": "^8.18.1",
+    "typescript": "^5.7.2"
+  }
+}

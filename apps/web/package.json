@@ -1,0 +1,33 @@
+{
+  "name": "@bluefun/web",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.110.0",
+    "@tanstack/react-query": "^5.62.7",
+    "lightweight-charts": "^5.2.0",
+    "lucide-react": "^0.468.0",
+    "next": "^15.5.20",
+    "pg": "^8.13.1",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "viem": "^2.54.1",
+    "wagmi": "^2.19.5",
+    "ws": "^8.21.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.2",
+    "@types/pg": "^8.11.10",
+    "@types/react": "^19.0.1",
+    "@types/react-dom": "^19.0.2",
+    "@types/ws": "^8.18.1",
+    "eslint": "^9.17.0",
+    "eslint-config-next": "^15.5.20",
+    "typescript": "^5.7.2"
+  }
+}
