@@ -44,14 +44,14 @@ export async function getDeployedLaunches(): Promise<DeployedLaunch[]> {
   if (!addresses.launchFactory || !addresses.bondingCurveMarket) return [];
 
   if (process.env.POSTGRES_INDEXER_ENABLED === "true") {
-    const [dbLaunches, onchainLaunches] = await Promise.all([
-      getDbLaunches().catch(() => undefined),
-      getLaunchesFromMarket().catch((error) => {
-        console.error("Failed to load onchain launch fallback", error);
-        return [];
-      })
-    ]);
-    return mergeLaunches(dbLaunches ?? [], onchainLaunches);
+    const dbLaunches = await getDbLaunches().catch(() => undefined);
+    if (dbLaunches) return dbLaunches;
+    if (!onchainFallbackEnabled()) return [];
+
+    return getLaunchesFromMarket().catch((error) => {
+      console.error("Failed to load onchain launch fallback", error);
+      return [];
+    });
   }
 
   try {
@@ -64,6 +64,12 @@ export async function getDeployedLaunches(): Promise<DeployedLaunch[]> {
 
 export async function getDeployedLaunch(id: string): Promise<DeployedLaunch | undefined> {
   if (!addresses.bondingCurveMarket) return undefined;
+
+  if (process.env.POSTGRES_INDEXER_ENABLED === "true") {
+    const dbLaunches = await getDbLaunches().catch(() => undefined);
+    const dbLaunch = dbLaunches?.find((launch) => launch.id === id);
+    if (dbLaunch || !onchainFallbackEnabled()) return dbLaunch;
+  }
 
   try {
     return await getLaunchFromMarket(BigInt(id));
@@ -79,7 +85,8 @@ export async function getLaunchTrades(id: string): Promise<DeployedTrade[]> {
   if (process.env.POSTGRES_INDEXER_ENABLED === "true") {
     const { getDbTrades } = await import("@/lib/db-launches");
     const dbTrades = await getDbTrades(id).catch(() => undefined);
-    if (dbTrades?.length) return dbTrades;
+    if (dbTrades) return dbTrades;
+    if (!onchainFallbackEnabled()) return [];
 
     return getRecentOnchainTrades(id).catch((error) => {
       console.error("Failed to load recent onchain trade fallback", error);
@@ -88,6 +95,11 @@ export async function getLaunchTrades(id: string): Promise<DeployedTrade[]> {
   }
 
   return getRecentOnchainTrades(id).catch(() => []);
+}
+
+function onchainFallbackEnabled() {
+  return process.env.NEXT_PUBLIC_ONCHAIN_FALLBACK_ENABLED === "true"
+    || process.env.ONCHAIN_FALLBACK_ENABLED === "true";
 }
 
 function trimEth(value: string) {
