@@ -18,8 +18,10 @@ const market = process.env.BONDING_CURVE_MARKET as `0x${string}` | undefined;
 const graduationManager = process.env.GRADUATION_MANAGER as `0x${string}` | undefined;
 const startBlock = BigInt(process.env.START_BLOCK || process.env.NEXT_PUBLIC_DEPLOYMENT_BLOCK || "43545419");
 const chunkSize = BigInt(process.env.LOG_CHUNK_SIZE || "1900");
-const pollMs = Number(process.env.POLL_MS || "12000");
+const pollMs = Number(process.env.POLL_MS || "30000");
 const confirmations = BigInt(process.env.CONFIRMATIONS || "3");
+let isPolling = false;
+let nextPollDelayMs = pollMs;
 
 if (!launchFactory || !market || !graduationManager) {
   throw new Error("Set LAUNCH_FACTORY, BONDING_CURVE_MARKET and GRADUATION_MANAGER");
@@ -47,10 +49,32 @@ console.log("BlueFun indexer starting", {
   scope: process.env.INDEXER_SCOPE
 });
 
-await backfillLoop();
-setInterval(() => {
-  backfillLoop().catch((error) => console.error("Indexer poll failed", error));
-}, pollMs);
+await runIndexerPoll();
+scheduleNextPoll();
+
+function scheduleNextPoll() {
+  setTimeout(async () => {
+    await runIndexerPoll();
+    scheduleNextPoll();
+  }, nextPollDelayMs);
+}
+
+async function runIndexerPoll() {
+  if (isPolling) return;
+  isPolling = true;
+  try {
+    await backfillLoop();
+    nextPollDelayMs = pollMs;
+  } catch (error) {
+    const rateLimited = isRateLimitError(error);
+    nextPollDelayMs = rateLimited
+      ? Math.min(Math.max(nextPollDelayMs * 2, 60_000), 300_000)
+      : pollMs;
+    console.error(rateLimited ? "Indexer RPC rate limited; backing off" : "Indexer poll failed", error);
+  } finally {
+    isPolling = false;
+  }
+}
 
 async function backfillLoop() {
   const head = await client.getBlockNumber();
@@ -237,4 +261,9 @@ async function refreshLaunchState(launchId: bigint) {
     creatorAllocation: state[8],
     tokenCreatedAt: state[11]
   });
+}
+
+function isRateLimitError(error: unknown) {
+  const text = error instanceof Error ? `${error.message} ${JSON.stringify(error)}` : String(error);
+  return text.toLowerCase().includes("rate limit") || text.toLowerCase().includes("over rate limit");
 }
