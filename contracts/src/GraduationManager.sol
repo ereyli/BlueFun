@@ -39,16 +39,16 @@ contract GraduationManager is PolicyGuard, ReentrancyGuard {
             uint256 creatorAllocation
         ) = market.graduationLiquidity(launchId);
 
-        (,,,,,,,,,,,,,, bool graduationReady, bool graduated) = market.launches(launchId);
+        (,,,,,,,,,,,,,,, bool graduationReady, bool graduated) = market.launches(launchId);
         if (!graduationReady) revert NotReady();
         if (graduated) revert AlreadyGraduated();
         if (ethAmount == 0 || liquidityTokenAmount == 0) revert NoLiquidity();
         if (!liquidityLocker.isDexBacked()) revert LiquidityLockerNotDexBacked();
 
-        IB20(token).mint(address(liquidityLocker), liquidityTokenAmount);
         if (creatorAllocation > 0) {
-            IB20(token).mint(creator, creatorAllocation);
+            market.withdrawGraduationTokens(launchId, creator, creatorAllocation);
         }
+        market.withdrawGraduationTokens(launchId, address(liquidityLocker), liquidityTokenAmount);
 
         uint256 withdrawn = market.withdrawGraduationEth(launchId, payable(address(this)));
         positionId = liquidityLocker.lockLiquidity{value: withdrawn}(launchId, token, liquidityTokenAmount);

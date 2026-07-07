@@ -63,7 +63,7 @@ contract FairCurveLaunchpadTest is Test {
 
     function testCreateLaunchAndBuy() public {
         (uint256 launchId, address token) = _createLaunch("Buyable", "BUY", 10 ether);
-        (,,,,, uint256 graduationTarget,,,,,,,,,,) = market.launches(launchId);
+        (,,,,,, uint256 graduationTarget,,,,,,,,,,) = market.launches(launchId);
         assertEq(graduationTarget, factory.GRADUATION_ETH_TARGET());
 
         uint256 quote;
@@ -87,8 +87,10 @@ contract FairCurveLaunchpadTest is Test {
         );
 
         assertGt(IB20(token).balanceOf(creator), 0);
-        (,,,, uint256 realEthReserve, uint256 graduationTarget,,,,,,,,,,) = market.launches(launchId);
+        (,,,, uint256 realEthReserve, uint256 grossEthRaised, uint256 graduationTarget,,,,,,,,,,) =
+            market.launches(launchId);
         assertGt(realEthReserve, 0.9 ether);
+        assertEq(grossEthRaised, 1 ether);
         assertEq(graduationTarget, 5 ether);
     }
 
@@ -105,10 +107,29 @@ contract FairCurveLaunchpadTest is Test {
     function testMaxSupplyIsOneBillionAndCreatorAllocationIsZero() public {
         (uint256 launchId, address token) = _createLaunch("FixedSupply", "FIX", 10 ether);
 
-        (,,,,,, uint256 maxSupply,, uint256 creatorAllocation,,,,,,,) = market.launches(launchId);
+        (,,,,,,, uint256 maxSupply,, uint256 creatorAllocation,,,,,,,) = market.launches(launchId);
         assertEq(maxSupply, 1_000_000_000 ether);
         assertEq(creatorAllocation, 0);
         assertEq(IB20(token).supplyCap(), 1_000_000_000 ether);
+        assertEq(IB20(token).totalSupply(), 1_000_000_000 ether);
+        assertEq(IB20(token).balanceOf(address(market)), 1_000_000_000 ether);
+        assertFalse(IB20(token).hasRole(IB20(token).MINT_ROLE(), address(market)));
+        assertFalse(IB20(token).hasRole(IB20(token).MINT_ROLE(), address(graduation)));
+        assertFalse(IB20(token).hasRole(IB20(token).MINT_ROLE(), address(b20Factory)));
+    }
+
+    function testExactFiveEthGrossGraduates() public {
+        (uint256 launchId,) = _createLaunch("FiveGross", "FIVE", 10 ether);
+        vm.warp(block.timestamp + 61);
+
+        vm.prank(buyer);
+        market.buy{value: 5 ether}(launchId, 0, block.timestamp + 1 hours);
+
+        (,,,, uint256 realEthReserve, uint256 grossEthRaised, uint256 graduationTarget,,,,,,,,, bool ready,) =
+            market.launches(launchId);
+        assertTrue(ready);
+        assertEq(grossEthRaised, graduationTarget);
+        assertEq(realEthReserve, 4.95 ether);
     }
 
     function testBuyRefundsExcessAtGraduation() public {
@@ -119,10 +140,12 @@ contract FairCurveLaunchpadTest is Test {
         vm.prank(buyer);
         market.buy{value: 10 ether}(launchId, 0, block.timestamp + 1 hours);
 
-        (,,,, uint256 realEthReserve, uint256 graduationTarget,,,,,,,,, bool ready,) = market.launches(launchId);
+        (,,,, uint256 realEthReserve, uint256 grossEthRaised, uint256 graduationTarget,,,,,,,,, bool ready,) =
+            market.launches(launchId);
         assertTrue(ready);
-        assertTrue(realEthReserve >= graduationTarget);
-        assertTrue(beforeBalance - buyer.balance < 6 ether);
+        assertEq(grossEthRaised, graduationTarget);
+        assertEq(realEthReserve, 4.95 ether);
+        assertEq(beforeBalance - buyer.balance, 5 ether);
     }
 
     function testSellBeforeGraduation() public {
@@ -140,6 +163,35 @@ contract FairCurveLaunchpadTest is Test {
         market.sell(launchId, bought / 2, quote - 1, block.timestamp + 1 hours);
 
         assertGt(seller.balance, 9 ether);
+        assertEq(IB20(token).totalSupply(), 1_000_000_000 ether);
+    }
+
+    function testSellReturnsTokensToReusableMarketReserve() public {
+        (uint256 launchId, address token) = _createLaunch("Reusable", "REUSE", 10 ether);
+        vm.warp(block.timestamp + 61);
+
+        uint256 startingMarketBalance = IB20(token).balanceOf(address(market));
+
+        vm.prank(seller);
+        uint256 bought = market.buy{value: 1 ether}(launchId, 0, block.timestamp + 1 hours);
+        uint256 marketBalanceAfterBuy = IB20(token).balanceOf(address(market));
+        assertEq(startingMarketBalance - marketBalanceAfterBuy, bought);
+
+        uint256 sold = bought / 2;
+        vm.prank(seller);
+        IB20(token).approve(address(market), sold);
+        vm.prank(seller);
+        market.sell(launchId, sold, 0, block.timestamp + 1 hours);
+
+        assertEq(IB20(token).totalSupply(), 1_000_000_000 ether);
+        assertEq(IB20(token).balanceOf(address(market)), marketBalanceAfterBuy + sold);
+
+        vm.prank(buyer);
+        market.buy{value: 10 ether}(launchId, 0, block.timestamp + 1 hours);
+        graduation.graduate(launchId);
+
+        assertEq(IB20(token).totalSupply(), 1_000_000_000 ether);
+        assertEq(IB20(token).balanceOf(address(market)), 0);
     }
 
     function testWalletCapAndAntiSniping() public {
@@ -218,15 +270,18 @@ contract FairCurveLaunchpadTest is Test {
         vm.prank(buyer);
         market.buy{value: 5.2 ether}(launchId, 0, block.timestamp + 1 hours);
 
-        (,,,,,,,,,,,,,, bool ready, bool graduatedBefore) = market.launches(launchId);
+        (,,,,,,,,,,,,,,, bool ready, bool graduatedBefore) = market.launches(launchId);
         assertTrue(ready);
         assertFalse(graduatedBefore);
 
         graduation.graduate(launchId);
 
-        (,,,,,,,,,,,,,, bool readyAfter, bool graduatedAfter) = market.launches(launchId);
+        (,,,,,,,,,,,,,,, bool readyAfter, bool graduatedAfter) = market.launches(launchId);
         assertTrue(readyAfter);
         assertTrue(graduatedAfter);
+        assertEq(IB20(token).totalSupply(), 1_000_000_000 ether);
+        assertEq(IB20(token).balanceOf(address(market)), 0);
+        assertGt(IB20(token).balanceOf(address(locker)), 0);
         assertFalse(IB20(token).hasRole(IB20(token).MINT_ROLE(), address(market)));
         assertFalse(IB20(token).hasRole(IB20(token).MINT_ROLE(), address(graduation)));
         assertFalse(IB20(token).hasRole(IB20(token).DEFAULT_ADMIN_ROLE(), address(graduation)));

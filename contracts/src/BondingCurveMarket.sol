@@ -48,6 +48,7 @@ contract BondingCurveMarket is Ownable, ReentrancyGuard {
         uint256 virtualTokenReserve;
         uint256 virtualEthReserve;
         uint256 realEthReserve;
+        uint256 grossEthRaised;
         uint256 graduationEthTarget;
         uint256 maxSupply;
         uint256 perWalletCap;
@@ -149,6 +150,7 @@ contract BondingCurveMarket is Ownable, ReentrancyGuard {
             virtualTokenReserve: curve.virtualTokenReserve,
             virtualEthReserve: curve.virtualEthReserve,
             realEthReserve: 0,
+            grossEthRaised: 0,
             graduationEthTarget: curve.graduationEthTarget,
             maxSupply: curve.maxSupply,
             perWalletCap: config.perWalletCap,
@@ -240,11 +242,13 @@ contract BondingCurveMarket is Ownable, ReentrancyGuard {
         launch.virtualEthReserve += netEthIn;
         launch.virtualTokenReserve -= tokensOut;
         launch.realEthReserve += netEthIn;
+        launch.grossEthRaised += grossEthIn;
         purchased[launchId][buyer] += tokensOut;
         pendingFees[feeRecipient] += platformFee;
         pendingFees[launch.creator] += creatorFee;
 
-        IB20(launch.token).mint(buyer, tokensOut);
+        if (IB20(launch.token).balanceOf(address(this)) < tokensOut) revert InsufficientReserve();
+        IB20(launch.token).transfer(buyer, tokensOut);
 
         if (refund > 0) {
             (bool refunded,) = buyer.call{value: refund}("");
@@ -253,9 +257,9 @@ contract BondingCurveMarket is Ownable, ReentrancyGuard {
 
         emit TokensBought(launchId, buyer, grossEthIn, tokensOut, platformFee, creatorFee);
 
-        if (launch.realEthReserve >= launch.graduationEthTarget) {
+        if (launch.grossEthRaised >= launch.graduationEthTarget) {
             launch.graduationReady = true;
-            emit GraduationReady(launchId, launch.realEthReserve);
+            emit GraduationReady(launchId, launch.grossEthRaised);
         }
     }
 
@@ -279,6 +283,7 @@ contract BondingCurveMarket is Ownable, ReentrancyGuard {
         launch.virtualEthReserve -= grossEthOut;
         launch.virtualTokenReserve += tokenAmount;
         launch.realEthReserve -= grossEthOut;
+        launch.grossEthRaised -= grossEthOut;
         pendingFees[feeRecipient] += platformFee;
         pendingFees[launch.creator] += creatorFee;
 
@@ -296,11 +301,18 @@ contract BondingCurveMarket is Ownable, ReentrancyGuard {
     {
         LaunchState storage launch = launches[launchId];
         if (launch.token == address(0)) revert LaunchNotFound();
-        uint256 minted = IB20(launch.token).totalSupply();
-        uint256 available = launch.maxSupply > minted + launch.creatorAllocation
-            ? launch.maxSupply - minted - launch.creatorAllocation
-            : 0;
+        uint256 marketBalance = IB20(launch.token).balanceOf(address(this));
+        uint256 available = marketBalance > launch.creatorAllocation ? marketBalance - launch.creatorAllocation : 0;
         return (launch.token, launch.creator, launch.realEthReserve, available, launch.creatorAllocation);
+    }
+
+    function withdrawGraduationTokens(uint256 launchId, address to, uint256 amount) external onlyGraduationManager {
+        LaunchState storage launch = launches[launchId];
+        if (launch.token == address(0)) revert LaunchNotFound();
+        if (to == address(0) || amount == 0) revert ZeroAmount();
+        if (!launch.graduationReady || launch.graduated) revert TradingClosed();
+        if (IB20(launch.token).balanceOf(address(this)) < amount) revert InsufficientReserve();
+        IB20(launch.token).transfer(to, amount);
     }
 
     function markGraduated(uint256 launchId) external onlyGraduationManager {
@@ -388,18 +400,12 @@ contract BondingCurveMarket is Ownable, ReentrancyGuard {
 
     function _cappedGrossEthIn(LaunchState storage launch, uint256 ethIn) internal view returns (uint256 grossEthIn) {
         if (ethIn == 0) revert ZeroAmount();
-        uint256 remainingNetEth = launch.graduationEthTarget > launch.realEthReserve
-            ? launch.graduationEthTarget - launch.realEthReserve
+        uint256 remainingGrossEth = launch.graduationEthTarget > launch.grossEthRaised
+            ? launch.graduationEthTarget - launch.grossEthRaised
             : 0;
-        if (remainingNetEth == 0) revert TradingClosed();
+        if (remainingGrossEth == 0) revert TradingClosed();
 
-        uint16 feeBps = launch.platformFeeBps + launch.creatorFeeBps;
-        uint256 grossNeeded = _grossForNet(remainingNetEth, feeBps);
-        grossEthIn = ethIn > grossNeeded ? grossNeeded : ethIn;
+        grossEthIn = ethIn > remainingGrossEth ? remainingGrossEth : ethIn;
     }
 
-    function _grossForNet(uint256 netAmount, uint16 feeBps) internal pure returns (uint256) {
-        uint256 denominator = B20Constants.BPS - feeBps;
-        return (netAmount * B20Constants.BPS + denominator - 1) / denominator;
-    }
 }

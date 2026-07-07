@@ -25,6 +25,7 @@ export const marketAbi = [
       { name: "virtualTokenReserve", type: "uint256" },
       { name: "virtualEthReserve", type: "uint256" },
       { name: "realEthReserve", type: "uint256" },
+      { name: "grossEthRaised", type: "uint256" },
       { name: "graduationEthTarget", type: "uint256" },
       { name: "maxSupply", type: "uint256" },
       { name: "perWalletCap", type: "uint256" },

@@ -154,15 +154,15 @@ async function getLaunchFromMarket(
     launchEvent?.symbol ? Promise.resolve(launchEvent.symbol) : readTokenString(token, "symbol", `B20-${id.toString()}`)
   ]);
 
-  const realEthReserve = state[4];
-  const graduationEthTarget = state[5];
-  const maxSupply = state[6];
+  const grossEthRaised = state[5];
+  const graduationEthTarget = state[6];
+  const maxSupply = state[7];
   const virtualTokenReserve = state[2];
   const virtualEthReserve = state[3];
   const fdvEth = virtualTokenReserve === 0n ? 0n : (virtualEthReserve * maxSupply) / virtualTokenReserve;
   const priceEth = virtualTokenReserve === 0n ? 0n : (virtualEthReserve * 1_000_000_000_000_000_000n) / virtualTokenReserve;
-  const progress = graduationEthTarget === 0n ? 0 : Number((realEthReserve * 100n) / graduationEthTarget);
-  const status: DeployedLaunch["status"] = state[15] ? "Graduated" : state[14] ? "Ready" : "Live";
+  const progress = graduationEthTarget === 0n ? 0 : Number((grossEthRaised * 100n) / graduationEthTarget);
+  const status: DeployedLaunch["status"] = state[16] ? "Graduated" : state[15] ? "Ready" : "Live";
   const contractURI = launchEvent?.contractURI || "";
   const metadata = await readTokenMetadata(contractURI).catch((): TokenMetadata => ({}));
 
@@ -175,12 +175,12 @@ async function getLaunchFromMarket(
     contractURI,
     imageURI: metadata.imageURI,
     status,
-    raised: `${trimEth(formatEther(realEthReserve))} ETH`,
+    raised: `${trimEth(formatEther(grossEthRaised))} ETH`,
     target: `${trimEth(formatEther(graduationEthTarget))} ETH`,
     progress: Math.min(progress, 100),
     holders: "onchain",
-    volume: `${trimEth(formatEther(realEthReserve))} ETH`,
-    age: formatAge(Number(state[11])),
+    volume: `${trimEth(formatEther(grossEthRaised))} ETH`,
+    age: formatAge(Number(state[12])),
     risk: status === "Graduated" ? "Adminless" : "B20 gated",
     price: `${trimPriceEth(formatEther(priceEth))} ETH`,
     marketCap: `${trimEth(formatEther(fdvEth))} ETH`

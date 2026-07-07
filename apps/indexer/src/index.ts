@@ -246,20 +246,20 @@ async function refreshLaunchState(launchId: bigint) {
     args: [launchId]
   });
 
-  const realEthReserve = state[4];
-  const graduationEthTarget = state[5];
-  const progress = graduationEthTarget === 0n ? 0 : Number((realEthReserve * 100n) / graduationEthTarget);
-  const status = state[15] ? "graduated" : state[14] ? "ready" : "live";
+  const grossEthRaised = state[5];
+  const graduationEthTarget = state[6];
+  const progress = graduationEthTarget === 0n ? 0 : Number((grossEthRaised * 100n) / graduationEthTarget);
+  const status = state[16] ? "graduated" : state[15] ? "ready" : "live";
 
   await updateLaunchState({
     id: launchId,
     status,
-    raisedEth: realEthReserve,
+    raisedEth: grossEthRaised,
     graduationTargetEth: graduationEthTarget,
     progress: Math.min(progress, 100),
-    volumeEth: realEthReserve,
-    creatorAllocation: state[8],
-    tokenCreatedAt: state[11]
+    volumeEth: grossEthRaised,
+    creatorAllocation: state[9],
+    tokenCreatedAt: state[12]
   });
 }
 

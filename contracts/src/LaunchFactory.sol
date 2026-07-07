@@ -117,7 +117,7 @@ contract LaunchFactory is Ownable, PolicyGuard {
             revert UnsafeCreatorAllocation();
         }
 
-        bytes[] memory initCalls = new bytes[](4);
+        bytes[] memory initCalls = new bytes[](5);
         IB20Factory.B20AssetCreateParams memory params = IB20Factory.B20AssetCreateParams({
             version: 1,
             name: metadata.name,
@@ -130,8 +130,9 @@ contract LaunchFactory is Ownable, PolicyGuard {
         bytes32 mintRole = keccak256("MINT_ROLE");
         initCalls[0] = abi.encodeCall(IB20.updateSupplyCap, (curve.maxSupply));
         initCalls[1] = abi.encodeCall(IB20.updateContractURI, (metadata.contractURI));
-        initCalls[2] = abi.encodeCall(IB20.grantRole, (mintRole, address(market)));
-        initCalls[3] = abi.encodeCall(IB20.grantRole, (mintRole, graduationManager));
+        initCalls[2] = abi.encodeCall(IB20.grantRole, (mintRole, address(b20Factory)));
+        initCalls[3] = abi.encodeCall(IB20.mint, (address(market), curve.maxSupply));
+        initCalls[4] = abi.encodeCall(IB20.revokeRole, (mintRole, address(b20Factory)));
 
         token = b20Factory.createB20(IB20Factory.B20Variant.ASSET, metadata.salt, encodedParams, initCalls);
         BondingCurveMarket.CurveConfig memory fixedCurve = BondingCurveMarket.CurveConfig({

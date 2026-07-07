@@ -62,9 +62,10 @@ For a quick frontend-only fallback without Postgres, keep `POSTGRES_INDEXER_ENAB
 
 ## Base Sepolia deployment
 
-- `BondingCurveMarket`: `0x6e77d6418b9065cc947dba95bd1cbba3ca881318`
-- `UniswapV4LiquidityLocker`: `0xeb3e83ab91bd44959ace28b5f1cccb79b4b4092d`
-- `GraduationManager`: `0x504e4237d93310ae29980208e95d928666528b84`
-- `LaunchFactory`: `0x76ab1405fbc28e6df6b02dc0c38b1486842ff294`
-- Deployment block: `43613084`
-- Graduation target: fixed `5 ETH`
+- `BondingCurveMarket`: `0x63c1E321822529D86d10f02bc910636Bb85F0831`
+- `UniswapV4LiquidityLocker`: `0xc395473A08912A4CAfC6Ab3CCd65Eb5229B3fdE8`
+- `GraduationManager`: `0x79bCAbD89870d578BdbD00D87E3532d74d0093AD`
+- `LaunchFactory`: `0x6fe3582939f5a25fF5AFAbC59562eA560936AB35`
+- Deployment block: `43826794`
+- Indexer scope: `84532:0x6fe3582939f5a25ff5afabc59562ea560936ab35:0x63c1e321822529d86d10f02bc910636bb85f0831:43826794`
+- Graduation target: fixed `5 ETH` gross raised; curve fees are deducted before DEX liquidity is locked.
