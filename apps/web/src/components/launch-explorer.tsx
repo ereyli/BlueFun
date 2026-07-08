@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, useTransition, type ReactNode } from "rea
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { Activity, Clock, Grid2X2, Rocket, Search, Settings, ShieldCheck, SlidersHorizontal, Sparkles, Trophy } from "lucide-react";
+import { isFeaturedLaunch, isTrustedLaunch } from "@/lib/featured-launches";
 import { compactUsd, parseDisplayAmount } from "@/lib/market-math";
 import type { DeployedLaunch } from "@/lib/onchain-launches";
 import { ipfsToGatewayUrl } from "@/lib/token-metadata";
@@ -109,11 +110,12 @@ export function LaunchExplorer({ launches }: { launches: DeployedLaunch[] }) {
           <div className="trending-rail">
             {trendingLaunches.map((launch) => {
               const featured = isFeaturedLaunch(launch);
+              const trusted = isTrustedLaunch(launch);
               return (
               <Link className={featured ? "trending-card featured" : "trending-card"} href={`/launch/${launch.id}`} key={`trend-${launch.id}-${launch.token}`}>
                 <TokenAvatar launch={launch} />
                 <div className="trending-copy">
-                  <strong>{launch.symbol}{featured ? <span>Featured</span> : null}</strong>
+                  <strong>{launch.symbol}{trusted ? <span>Trusted</span> : featured ? <span>Featured</span> : null}</strong>
                   <span>MC {formatUsdFromEthText(launch.marketCap, ethUsd)}</span>
                 </div>
                 <div className="trending-progress">
@@ -166,6 +168,7 @@ export function LaunchExplorer({ launches }: { launches: DeployedLaunch[] }) {
         <div className="token-grid">
           {filteredLaunches.map((launch, index) => {
             const featured = isFeaturedLaunch(launch);
+            const trusted = isTrustedLaunch(launch);
             return (
             <Link className={featured ? "token-card featured" : "token-card"} href={`/launch/${launch.id}`} key={`${launch.id}-${launch.token}`}>
               <div className="token-card-main">
@@ -173,7 +176,7 @@ export function LaunchExplorer({ launches }: { launches: DeployedLaunch[] }) {
                 <div className="token-card-copy">
                   <div className="token-card-head">
                     <div>
-                      <div className="token-title">{launch.name}{featured ? <span>Featured</span> : null}</div>
+                      <div className="token-title">{launch.name}{trusted ? <span>Trusted</span> : featured ? <span>Featured</span> : null}</div>
                       <div className="token-symbol">${launch.symbol}</div>
                     </div>
                     <span className={launch.status === "Live" ? "token-status live" : "token-status"}>{launch.status}</span>
@@ -203,21 +206,6 @@ export function LaunchExplorer({ launches }: { launches: DeployedLaunch[] }) {
         </div>
       )}
     </section>
-  );
-}
-
-function isFeaturedLaunch(launch: DeployedLaunch) {
-  const raw = process.env.NEXT_PUBLIC_FEATURED_TOKENS || "BLUE";
-  const featured = raw
-    .split(",")
-    .map((value) => value.trim().toLowerCase())
-    .filter(Boolean);
-  if (!featured.length) return false;
-  return featured.some((value) =>
-    value === launch.symbol.toLowerCase()
-      || value === launch.name.toLowerCase()
-      || value === launch.token.toLowerCase()
-      || value === launch.id
   );
 }
 

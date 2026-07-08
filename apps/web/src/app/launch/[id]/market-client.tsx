@@ -31,6 +31,7 @@ import {
   parseDisplayAmount,
   shortAddress
 } from "@/lib/market-math";
+import { isTrustedLaunch } from "@/lib/featured-launches";
 import type { DeployedLaunch, DeployedTrade } from "@/lib/onchain-launches";
 import { siteUrl } from "@/lib/site-url";
 import { ipfsToGatewayUrl } from "@/lib/token-metadata";
@@ -227,6 +228,8 @@ export function MarketClient({ id, launch, trades }: { id: string; launch?: Depl
     return <div className="empty">Loading market from Base...</div>;
   }
 
+  const trusted = isTrustedLaunch(launch);
+
   return (
     <div className="trade-layout">
       <section>
@@ -236,6 +239,7 @@ export function MarketClient({ id, launch, trades }: { id: string; launch?: Depl
             <div className="market-title-block">
               <div className="market-title-row">
                 <h1>{launch.name}</h1>
+                {trusted ? <span className="trusted-badge"><ShieldCheck size={13} />Trusted</span> : null}
                 <span className={launch.status === "Live" ? "token-status live" : "token-status"}>{launch.status}</span>
               </div>
               <div className="market-meta">
@@ -393,7 +397,7 @@ export function MarketClient({ id, launch, trades }: { id: string; launch?: Depl
         <section className="safety-card">
           <div className="safety-head">
             <span><ShieldCheck size={16} /> Safety</span>
-            <strong>{launch.status}</strong>
+            <strong>{trusted ? "Trusted" : launch.status}</strong>
           </div>
           <div className="safety-foot">
             <span>Supply</span>

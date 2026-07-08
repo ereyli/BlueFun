@@ -10,7 +10,8 @@
     "test:contracts": "forge test",
     "dev:web": "npm run dev -w apps/web",
     "dev:indexer": "npm run dev -w apps/indexer",
-    "build": "npm run build --workspaces --if-present"
+    "build": "npm run build -w apps/web",
+    "build:all": "npm run build --workspaces --if-present"
   },
   "dependencies": {
     "@rainbow-me/rainbowkit": "^2.2.11"
