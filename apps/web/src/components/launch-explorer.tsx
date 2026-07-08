@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, useTransition, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Grid2X2, Rocket, Search, Settings, ShieldCheck, SlidersHorizontal, Sparkles } from "lucide-react";
+import { Activity, Clock, Grid2X2, Rocket, Search, Settings, ShieldCheck, SlidersHorizontal, Sparkles, Trophy } from "lucide-react";
 import { compactUsd, parseDisplayAmount } from "@/lib/market-math";
 import type { DeployedLaunch } from "@/lib/onchain-launches";
 import { ipfsToGatewayUrl } from "@/lib/token-metadata";
@@ -65,17 +65,60 @@ export function LaunchExplorer({ launches }: { launches: DeployedLaunch[] }) {
     });
   }, [filter, launches, query]);
 
+  const stats = useMemo(() => {
+    const totalVolumeEth = launches.reduce((sum, launch) => sum + parseDisplayAmount(launch.volume), 0);
+    const highestMarketCapEth = launches.reduce((max, launch) => Math.max(max, parseDisplayAmount(launch.marketCap)), 0);
+    const creatorCount = new Set(launches.map((launch) => launch.creator.toLowerCase())).size;
+    return {
+      tokens: launches.length.toLocaleString("en-US"),
+      volume: formatUsdFromEthNumber(totalVolumeEth, ethUsd),
+      highestMarketCap: formatUsdFromEthNumber(highestMarketCapEth, ethUsd),
+      creators: creatorCount.toLocaleString("en-US")
+    };
+  }, [ethUsd, launches]);
+
+  const trendingLaunches = useMemo(() => {
+    return [...launches]
+      .sort((a, b) => b.progress - a.progress || parseDisplayAmount(b.marketCap) - parseDisplayAmount(a.marketCap))
+      .slice(0, 8);
+  }, [launches]);
+
   return (
     <section className="explorer-shell">
-      <div className="hero explorer-hero">
-        <div className="explorer-title">
-          <h1>Live B20 launches</h1>
-          <span className="pill">Base Sepolia</span>
+      <div className="explorer-stats-grid" aria-label="Launchpad metrics">
+        <MetricCard label="Tokens" value={stats.tokens} detail="Total launched" />
+        <MetricCard label="Volume" value={stats.volume} detail="Indexed curve volume" />
+        <MetricCard label="Highest MC" value={stats.highestMarketCap} detail="Top live valuation" />
+        <MetricCard label="Creators" value={stats.creators} detail="Unique launchers" />
+      </div>
+
+      <div className="trending-section">
+        <div className="section-row">
+          <div className="section-title"><Activity size={18} />Trending</div>
+          <Link className="button primary compact" href="/launch"><Rocket size={15} />Launch</Link>
         </div>
-        <div className={isPending ? "live-sync syncing" : "live-sync"}>
-          <span className="dot green" />
-          {isPending ? "Syncing" : "Live sync"}
-        </div>
+        {trendingLaunches.length === 0 ? (
+          <div className="empty compact-empty">No launches indexed yet.</div>
+        ) : (
+          <div className="trending-rail">
+            {trendingLaunches.map((launch) => (
+              <Link className="trending-card" href={`/launch/${launch.id}`} key={`trend-${launch.id}-${launch.token}`}>
+                <TokenAvatar launch={launch} />
+                <div className="trending-copy">
+                  <strong>{launch.symbol}</strong>
+                  <span>MC {formatUsdFromEthText(launch.marketCap, ethUsd)}</span>
+                </div>
+                <div className="trending-progress">
+                  <div><span>Progress</span><b>{launch.progress}%</b></div>
+                  <div className="progress"><span style={{ width: `${launch.progress}%` }} /></div>
+                </div>
+              </Link>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="explore-toolbar">
         <div className="searchbar">
           <Search size={18} color="var(--blue)" />
           <input
@@ -84,16 +127,20 @@ export function LaunchExplorer({ launches }: { launches: DeployedLaunch[] }) {
             value={query}
           />
         </div>
+        <div className={isPending ? "live-sync syncing" : "live-sync"}>
+          <span className="dot green" />
+          {isPending ? "Syncing" : "Live"}
+        </div>
       </div>
 
       <div className="explore-controls">
         <div className="feed-tabs" role="tablist" aria-label="Launch filters">
           <FilterButton active={filter === "Live"} onClick={() => setFilter("Live")}><Sparkles size={14} />Live</FilterButton>
-          <FilterButton active={filter === "New"} onClick={() => setFilter("New")}>New</FilterButton>
+          <FilterButton active={filter === "New"} onClick={() => setFilter("New")}><Clock size={14} />Newest</FilterButton>
           <FilterButton active={filter === "Ready"} onClick={() => setFilter("Ready")}>Ready</FilterButton>
-          <FilterButton active={filter === "Graduated"} onClick={() => setFilter("Graduated")}>Graduated</FilterButton>
+          <FilterButton active={filter === "Graduated"} onClick={() => setFilter("Graduated")}><Rocket size={14} />Graduated</FilterButton>
           <FilterButton active={filter === "Safe"} onClick={() => setFilter("Safe")}><ShieldCheck size={14} />Safe</FilterButton>
-          <FilterButton active={filter === "Progress"} onClick={() => setFilter("Progress")}>Progress</FilterButton>
+          <FilterButton active={filter === "Progress"} onClick={() => setFilter("Progress")}><Trophy size={14} />Progress</FilterButton>
         </div>
         <div className="view-controls">
           <button className="icon-control" type="button" aria-label="Open filters"><SlidersHorizontal size={17} /></button>
@@ -110,35 +157,35 @@ export function LaunchExplorer({ launches }: { launches: DeployedLaunch[] }) {
         <div className="token-grid">
           {filteredLaunches.map((launch, index) => (
             <Link className="token-card" href={`/launch/${launch.id}`} key={`${launch.id}-${launch.token}`}>
-              <div className={index === 0 ? "token-art hot" : "token-art"}>
-                {launch.imageURI ? (
-                  <img className="token-image" src={ipfsToGatewayUrl(launch.imageURI)} alt={launch.name} />
-                ) : (
-                  <>
-                    <div className="token-symbol-art">{launch.symbol.slice(0, 4)}</div>
-                    <div className="spark" />
-                  </>
-                )}
-              </div>
-              <div>
-                <div className="token-card-head">
-                  <div>
-                    <div className="token-title">{launch.name}</div>
-                    <div className="token-symbol">${launch.symbol}</div>
+              <div className="token-card-main">
+                <TokenAvatar launch={launch} hot={index === 0} />
+                <div className="token-card-copy">
+                  <div className="token-card-head">
+                    <div>
+                      <div className="token-title">{launch.name}</div>
+                      <div className="token-symbol">${launch.symbol}</div>
+                    </div>
+                    <span className={launch.status === "Live" ? "token-status live" : "token-status"}>{launch.status}</span>
                   </div>
-                  <span className={launch.status === "Live" ? "token-status live" : "token-status"}>{launch.status}</span>
+                  <p className="token-description">
+                    {launch.status === "Graduated" ? "DEX ready market" : "B20 curve launch"}
+                  </p>
                 </div>
-                <div className="token-money">{formatUsdFromEthText(launch.marketCap, ethUsd)} <span>MC</span></div>
-                <div className="token-mini-grid">
-                  <span className="raised-chip"><Rocket size={13} />{launch.raised}</span>
-                  <span className="bond-chip">{launch.progress}% bonded</span>
-                </div>
-                <div className="token-foot">
-                  <span>{launch.creator.slice(0, 6)}...{launch.creator.slice(-4)}</span>
-                  <span>{launch.age}</span>
-                </div>
+              </div>
+              <div className="token-progress-row">
+                <span>Graduation Progress</span>
+                <b>{launch.progress}%</b>
               </div>
               <div className="progress"><span style={{ width: `${launch.progress}%` }} /></div>
+              <div className="token-stat-row">
+                <div><span>Market Cap</span><strong>{formatUsdFromEthText(launch.marketCap, ethUsd)}</strong></div>
+                <div><span>Raised</span><strong>{launch.raised}</strong></div>
+                <div><span>Age</span><strong>{launch.age}</strong></div>
+              </div>
+              <div className="token-foot">
+                <span>By {launch.creator.slice(0, 6)}...{launch.creator.slice(-4)}</span>
+                <span>{launch.status === "Graduated" ? "DEX" : "Curve"}</span>
+              </div>
             </Link>
           ))}
         </div>
@@ -149,6 +196,10 @@ export function LaunchExplorer({ launches }: { launches: DeployedLaunch[] }) {
 
 function formatUsdFromEthText(value: string, ethUsd: number | null) {
   const ethValue = parseDisplayAmount(value);
+  return formatUsdFromEthNumber(ethValue, ethUsd);
+}
+
+function formatUsdFromEthNumber(ethValue: number, ethUsd: number | null) {
   if (!ethUsd || !Number.isFinite(ethValue) || ethValue <= 0) return "$-";
   return compactUsd(ethValue * ethUsd);
 }
@@ -158,5 +209,30 @@ function FilterButton({ active, children, onClick }: { active: boolean; children
     <button className={active ? "feed-tab active" : "feed-tab"} onClick={onClick} role="tab" type="button" aria-selected={active}>
       {children}
     </button>
+  );
+}
+
+function MetricCard({ detail, label, value }: { detail: string; label: string; value: string }) {
+  return (
+    <div className="explorer-metric-card">
+      <span>{label}</span>
+      <strong>{value}</strong>
+      <small>{detail}</small>
+    </div>
+  );
+}
+
+function TokenAvatar({ hot, launch }: { hot?: boolean; launch: DeployedLaunch }) {
+  return (
+    <div className={hot ? "token-art hot" : "token-art"}>
+      {launch.imageURI ? (
+        <img className="token-image" src={ipfsToGatewayUrl(launch.imageURI)} alt={launch.name} />
+      ) : (
+        <>
+          <div className="token-symbol-art">{launch.symbol.slice(0, 4)}</div>
+          <div className="spark" />
+        </>
+      )}
+    </div>
   );
 }
