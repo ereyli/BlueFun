@@ -2,7 +2,7 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import pg from "pg";
 import { formatEther, getAddress } from "viem";
 import WebSocket from "ws";
-import { addresses, chain } from "@/lib/contracts";
+import { addresses, chain, indexerScope as configuredIndexerScope } from "@/lib/contracts";
 import type { DeployedLaunch, DeployedTrade } from "@/lib/onchain-launches";
 import { readTokenMetadata } from "@/lib/token-metadata";
 
@@ -223,7 +223,7 @@ function getSupabase() {
 }
 
 function indexerScope() {
-  const configured = process.env.NEXT_PUBLIC_INDEXER_SCOPE;
+  const configured = configuredIndexerScope();
   if (configured) return configured;
   return `${chain.id}:${addresses.launchFactory?.toLowerCase()}:${addresses.bondingCurveMarket?.toLowerCase()}:${addresses.deploymentBlock.toString()}`;
 }

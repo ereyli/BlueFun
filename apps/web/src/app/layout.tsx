@@ -6,8 +6,10 @@ import { Providers } from "@/components/providers";
 import { WalletButton } from "@/components/wallet-button";
 import { RouteFeedback } from "@/components/route-feedback";
 import { SideNav } from "@/components/side-nav";
+import { siteUrl } from "@/lib/site-url";
 
 export const metadata: Metadata = {
+  metadataBase: new URL(siteUrl("/")),
   title: "BlueFun",
   description: "Safe and fair B20 token launchpad for Base.",
   icons: {
@@ -32,10 +34,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               </Link>
               <SideNav />
               <Link className="button primary wide" href="/launch">Create</Link>
+              <a className="sidebar-social-link" href="https://x.com/B20base" target="_blank" rel="noreferrer" aria-label="BlueFun on X">
+                <span className="x-icon" aria-hidden="true">X</span>
+                <span>@B20base</span>
+              </a>
             </aside>
             <section className="content">
               <header className="topbar">
-                <div className="top-search">Search for coins, tickers and creators...</div>
                 <Link className="button primary" href="/launch">Create</Link>
                 <WalletButton />
               </header>

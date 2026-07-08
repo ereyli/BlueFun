@@ -46,6 +46,8 @@ export function LaunchExplorer({ launches }: { launches: DeployedLaunch[] }) {
   const filteredLaunches = useMemo(() => {
     const normalizedQuery = query.trim().toLowerCase();
     const sorted = [...launches].sort((a, b) => {
+      const featuredDelta = Number(isFeaturedLaunch(b)) - Number(isFeaturedLaunch(a));
+      if (featuredDelta !== 0) return featuredDelta;
       if (filter === "Progress") return b.progress - a.progress;
       return Number(b.id) - Number(a.id);
     });
@@ -79,7 +81,11 @@ export function LaunchExplorer({ launches }: { launches: DeployedLaunch[] }) {
 
   const trendingLaunches = useMemo(() => {
     return [...launches]
-      .sort((a, b) => b.progress - a.progress || parseDisplayAmount(b.marketCap) - parseDisplayAmount(a.marketCap))
+      .sort((a, b) => {
+        const featuredDelta = Number(isFeaturedLaunch(b)) - Number(isFeaturedLaunch(a));
+        if (featuredDelta !== 0) return featuredDelta;
+        return b.progress - a.progress || parseDisplayAmount(b.marketCap) - parseDisplayAmount(a.marketCap);
+      })
       .slice(0, 8);
   }, [launches]);
 
@@ -101,11 +107,13 @@ export function LaunchExplorer({ launches }: { launches: DeployedLaunch[] }) {
           <div className="empty compact-empty">No launches indexed yet.</div>
         ) : (
           <div className="trending-rail">
-            {trendingLaunches.map((launch) => (
-              <Link className="trending-card" href={`/launch/${launch.id}`} key={`trend-${launch.id}-${launch.token}`}>
+            {trendingLaunches.map((launch) => {
+              const featured = isFeaturedLaunch(launch);
+              return (
+              <Link className={featured ? "trending-card featured" : "trending-card"} href={`/launch/${launch.id}`} key={`trend-${launch.id}-${launch.token}`}>
                 <TokenAvatar launch={launch} />
                 <div className="trending-copy">
-                  <strong>{launch.symbol}</strong>
+                  <strong>{launch.symbol}{featured ? <span>Featured</span> : null}</strong>
                   <span>MC {formatUsdFromEthText(launch.marketCap, ethUsd)}</span>
                 </div>
                 <div className="trending-progress">
@@ -113,7 +121,8 @@ export function LaunchExplorer({ launches }: { launches: DeployedLaunch[] }) {
                   <div className="progress"><span style={{ width: `${launch.progress}%` }} /></div>
                 </div>
               </Link>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>
@@ -155,14 +164,16 @@ export function LaunchExplorer({ launches }: { launches: DeployedLaunch[] }) {
         </div>
       ) : (
         <div className="token-grid">
-          {filteredLaunches.map((launch, index) => (
-            <Link className="token-card" href={`/launch/${launch.id}`} key={`${launch.id}-${launch.token}`}>
+          {filteredLaunches.map((launch, index) => {
+            const featured = isFeaturedLaunch(launch);
+            return (
+            <Link className={featured ? "token-card featured" : "token-card"} href={`/launch/${launch.id}`} key={`${launch.id}-${launch.token}`}>
               <div className="token-card-main">
                 <TokenAvatar launch={launch} hot={index === 0} />
                 <div className="token-card-copy">
                   <div className="token-card-head">
                     <div>
-                      <div className="token-title">{launch.name}</div>
+                      <div className="token-title">{launch.name}{featured ? <span>Featured</span> : null}</div>
                       <div className="token-symbol">${launch.symbol}</div>
                     </div>
                     <span className={launch.status === "Live" ? "token-status live" : "token-status"}>{launch.status}</span>
@@ -187,10 +198,26 @@ export function LaunchExplorer({ launches }: { launches: DeployedLaunch[] }) {
                 <span>{launch.status === "Graduated" ? "DEX" : "Curve"}</span>
               </div>
             </Link>
-          ))}
+            );
+          })}
         </div>
       )}
     </section>
+  );
+}
+
+function isFeaturedLaunch(launch: DeployedLaunch) {
+  const raw = process.env.NEXT_PUBLIC_FEATURED_TOKENS || "BLUE";
+  const featured = raw
+    .split(",")
+    .map((value) => value.trim().toLowerCase())
+    .filter(Boolean);
+  if (!featured.length) return false;
+  return featured.some((value) =>
+    value === launch.symbol.toLowerCase()
+      || value === launch.name.toLowerCase()
+      || value === launch.token.toLowerCase()
+      || value === launch.id
   );
 }
 

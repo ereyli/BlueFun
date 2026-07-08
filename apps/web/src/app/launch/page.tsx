@@ -2,10 +2,10 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { decodeEventLog, parseEther, keccak256, toBytes } from "viem";
+import { decodeEventLog, formatEther, parseEther, keccak256, toBytes } from "viem";
 import { useAccount, useWaitForTransactionReceipt, useWriteContract } from "wagmi";
 import { BadgeCheck, CheckCircle2, ImagePlus, Info, Loader2, LockKeyhole, Rocket, ShieldCheck, UploadCloud } from "lucide-react";
-import { addresses, FAIR_GRADUATION_TARGET_ETH, launchFactoryAbi } from "@/lib/contracts";
+import { addresses, chain, FAIR_GRADUATION_TARGET_ETH, FAIR_LAUNCH_FEE_ETH, launchFactoryAbi } from "@/lib/contracts";
 import { WalletButton } from "@/components/wallet-button";
 
 export default function LaunchPage() {
@@ -51,6 +51,8 @@ export default function LaunchPage() {
     isConnected
   });
   const isWorking = isImageUploading || isMetadataUploading || isPending || receipt.isLoading;
+  const launchFeeEth = parseEther(FAIR_LAUNCH_FEE_ETH);
+  const totalLaunchValue = launchFeeEth + initialBuyEth;
 
   useEffect(() => {
     if (!name.trim() || !symbol.trim() || !imageUri || metadataUploadKey === metadataKey) return;
@@ -120,7 +122,7 @@ export default function LaunchPage() {
           antiSnipingMaxBuy: parseEther("500000000")
         }
       ],
-      value: initialBuyEth
+      value: totalLaunchValue
     });
   }
 
@@ -184,7 +186,7 @@ export default function LaunchPage() {
             <div>
               <span className="muted">Preview</span>
               <h2>{name.trim() || "Your B20 token"}</h2>
-              <p className="muted">${symbol.trim() || "SYMBOL"} · creator first buy {initialBuy || "0"} ETH</p>
+              <p className="muted">${symbol.trim() || "SYMBOL"} · first buy {initialBuy || "0"} ETH · fee {FAIR_LAUNCH_FEE_ETH} ETH</p>
             </div>
             <div className="launch-preview-stat">
               <span>Target</span>
@@ -207,7 +209,7 @@ export default function LaunchPage() {
           {!isConnected ? (
             <div className="notice">
               <strong>Connect wallet to launch</strong>
-              <span>Transactions are sent on Base Sepolia and require a connected wallet.</span>
+              <span>Transactions are sent on Base and require a connected wallet.</span>
               <WalletButton />
             </div>
           ) : null}
@@ -281,6 +283,10 @@ export default function LaunchPage() {
             <strong>Bonding target is fixed</strong>
             <span>{FAIR_GRADUATION_TARGET_ETH} ETH graduation, then DEX LP lock.</span>
           </div>
+          <div className="fixed-rule subtle-rule">
+            <strong>Launch fee</strong>
+            <span>{FAIR_LAUNCH_FEE_ETH} ETH platform fee. This keeps spam launches expensive.</span>
+          </div>
           {initialBuyTooLarge ? <p className="danger-text">Creator initial buy is capped at the 5 ETH graduation target.</p> : null}
           <button className="button primary" disabled={disabled || isWorking || !isConnected} onClick={submit}>
             {isWorking ? <Loader2 className="spin" size={16} /> : metadataUri ? <Rocket size={16} /> : <UploadCloud size={16} />}
@@ -289,6 +295,7 @@ export default function LaunchPage() {
           <div className="launch-status-stack">
             {disabledReason ? <LaunchNotice tone="info">{disabledReason}</LaunchNotice> : null}
             {metadataUri && !receipt.isSuccess ? <LaunchNotice tone="success">Media is ready. You can launch whenever you are set.</LaunchNotice> : null}
+            {metadataUri && !receipt.isSuccess ? <LaunchNotice tone="info">Total wallet confirmation will be {formatEth(totalLaunchValue)} ETH.</LaunchNotice> : null}
             {hash && !receipt.isSuccess ? <LaunchNotice tone="info">Launch submitted. Waiting for confirmation.</LaunchNotice> : null}
             {receipt.isSuccess ? (
               <LaunchNotice tone="success">
@@ -332,7 +339,7 @@ function LaunchChecklist({
   token: string;
 }) {
   const marketHref = launchId ? `/launch/${launchId}` : "";
-  const basescanHref = token ? `https://sepolia.basescan.org/token/${token}` : "";
+  const basescanHref = token ? `${chain.blockExplorers.default.url}/token/${token}` : "";
   const items = [
     { label: "Token deployed", done: Boolean(token) },
     { label: "Initial buy processed", done: hasInitialBuy || Boolean(launchId) },
@@ -404,6 +411,12 @@ function parsePositiveEther(value: string) {
   } catch {
     return 0n;
   }
+}
+
+function formatEth(value: bigint) {
+  const [whole, fraction = ""] = formatEther(value).split(".");
+  const trimmed = fraction.slice(0, 6).replace(/0+$/, "");
+  return trimmed ? `${whole}.${trimmed}` : whole;
 }
 
 async function uploadImage(file: File) {

@@ -20,6 +20,7 @@ contract FairCurveLaunchpadTest is Test {
     address buyer = address(0xB0B);
     address seller = address(0x51E11);
     address feeRecipient = address(0xFEE);
+    uint256 launchFee = 0.002 ether;
 
     MockActivationRegistry activation;
     MockPolicyRegistry policy;
@@ -44,7 +45,8 @@ contract FairCurveLaunchpadTest is Test {
             IActivationRegistry(address(activation)),
             IPolicyRegistry(address(policy)),
             market,
-            address(graduation)
+            address(graduation),
+            payable(feeRecipient)
         );
         market.configure(address(factory), address(graduation), feeRecipient);
         activation.setActivated(B20Constants.B20_ASSET_FEATURE, true);
@@ -58,7 +60,7 @@ contract FairCurveLaunchpadTest is Test {
         activation.setActivated(B20Constants.B20_ASSET_FEATURE, false);
         vm.prank(creator);
         vm.expectRevert(LaunchFactory.B20AssetNotActivated.selector);
-        factory.createLaunch(_metadata("Gated", "GATE", "ipfs://gated", "gated"), _curve(10 ether), _config());
+        factory.createLaunch{value: launchFee}(_metadata("Gated", "GATE", "ipfs://gated", "gated"), _curve(10 ether), _config());
     }
 
     function testCreateLaunchAndBuy() public {
@@ -80,7 +82,7 @@ contract FairCurveLaunchpadTest is Test {
 
     function testCreatorCanInitialBuyDuringLaunch() public {
         vm.prank(creator);
-        (uint256 launchId, address token) = factory.createLaunch{value: 1 ether}(
+        (uint256 launchId, address token) = factory.createLaunch{value: launchFee + 1 ether}(
             _metadata("Initial", "INIT", "ipfs://initial", "initial"),
             _curve(10 ether),
             _config()
@@ -97,7 +99,7 @@ contract FairCurveLaunchpadTest is Test {
     function testCreatorInitialBuyIsCapped() public {
         vm.prank(creator);
         vm.expectRevert(LaunchFactory.InitialBuyTooLarge.selector);
-        factory.createLaunch{value: 6 ether}(
+        factory.createLaunch{value: launchFee + 6 ether}(
             _metadata("TooMuch", "MUCH", "ipfs://initial", "too-much"),
             _curve(10 ether),
             _config()
@@ -196,7 +198,7 @@ contract FairCurveLaunchpadTest is Test {
 
     function testWalletCapAndAntiSniping() public {
         vm.prank(creator);
-        (uint256 launchId,) = factory.createLaunch(
+        (uint256 launchId,) = factory.createLaunch{value: launchFee}(
             _metadata("Guarded", "GUARD", "ipfs://guard", "guard"),
             _curve(10 ether),
             _config()
@@ -213,7 +215,7 @@ contract FairCurveLaunchpadTest is Test {
 
         vm.prank(creator);
         vm.expectRevert(LaunchFactory.UnsafeTradingConfig.selector);
-        factory.createLaunch(_metadata("Unsafe", "BAD", "ipfs://bad", "bad"), _curve(10 ether), config);
+        factory.createLaunch{value: launchFee}(_metadata("Unsafe", "BAD", "ipfs://bad", "bad"), _curve(10 ether), config);
     }
 
     function testFeeSplitAndCreatorCanClaim() public {
@@ -231,6 +233,23 @@ contract FairCurveLaunchpadTest is Test {
 
         assertEq(market.pendingFees(creator), 0);
         assertEq(creator.balance, beforeBalance + pendingCreatorFees);
+    }
+
+    function testLaunchFeeIsRequiredAndClaimable() public {
+        vm.prank(creator);
+        vm.expectRevert(LaunchFactory.InsufficientLaunchFee.selector);
+        factory.createLaunch(_metadata("NoFee", "NOF", "ipfs://nofee", "nofee"), _curve(10 ether), _config());
+
+        uint256 beforePending = factory.pendingLaunchFees();
+        _createLaunch("PaidFee", "PAID", 10 ether);
+        assertEq(factory.pendingLaunchFees(), beforePending + launchFee);
+
+        uint256 beforeTreasury = feeRecipient.balance;
+        uint256 claimable = factory.pendingLaunchFees();
+        factory.claimLaunchFees();
+
+        assertEq(factory.pendingLaunchFees(), 0);
+        assertEq(feeRecipient.balance, beforeTreasury + claimable);
     }
 
     function testEmergencyCloseRequiresTimelockAndOnlyUnbonded() public {
@@ -303,12 +322,13 @@ contract FairCurveLaunchpadTest is Test {
             IActivationRegistry(address(activation)),
             IPolicyRegistry(address(policy)),
             market,
-            address(unsafeGraduation)
+            address(unsafeGraduation),
+            payable(feeRecipient)
         );
         market.configure(address(unsafeFactory), address(unsafeGraduation), feeRecipient);
 
         vm.prank(creator);
-        (uint256 launchId,) = unsafeFactory.createLaunch(
+        (uint256 launchId,) = unsafeFactory.createLaunch{value: launchFee}(
             _metadata("NoDex", "NODEX", "ipfs://nodex", "nodex"),
             _curve(10 ether),
             _config()
@@ -348,7 +368,7 @@ contract FairCurveLaunchpadTest is Test {
         BondingCurveMarket.LaunchConfig memory config
     ) internal returns (uint256 launchId, address token) {
         vm.prank(creator);
-        return factory.createLaunch(_metadata(name, symbol, "ipfs://meta", name), _curve(graduationTarget), config);
+        return factory.createLaunch{value: launchFee}(_metadata(name, symbol, "ipfs://meta", name), _curve(graduationTarget), config);
     }
 
     function _metadata(string memory name, string memory symbol, string memory uri, string memory saltText)

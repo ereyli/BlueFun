@@ -1,18 +1,40 @@
-import { baseSepoliaChain } from "@/lib/base-sepolia-chain";
+import { baseChain } from "@/lib/base-chain";
 
-export const chain = baseSepoliaChain;
+export const chain = baseChain;
 
-export const addresses = {
-  launchFactory: process.env.NEXT_PUBLIC_LAUNCH_FACTORY as `0x${string}` | undefined,
-  bondingCurveMarket: process.env.NEXT_PUBLIC_BONDING_CURVE_MARKET as `0x${string}` | undefined,
-  graduationManager: process.env.NEXT_PUBLIC_GRADUATION_MANAGER as `0x${string}` | undefined,
-  activationRegistry: "0x8453000000000000000000000000000000000001" as `0x${string}`,
-  deploymentBlock: BigInt(process.env.NEXT_PUBLIC_DEPLOYMENT_BLOCK || "43545419")
+const MAINNET_DEPLOYMENT = {
+  launchFactory: undefined as `0x${string}` | undefined,
+  bondingCurveMarket: undefined as `0x${string}` | undefined,
+  graduationManager: undefined as `0x${string}` | undefined,
+  deploymentBlock: 0n
 };
 
+export const addresses = {
+  launchFactory: MAINNET_DEPLOYMENT.launchFactory,
+  bondingCurveMarket: MAINNET_DEPLOYMENT.bondingCurveMarket,
+  graduationManager: MAINNET_DEPLOYMENT.graduationManager,
+  activationRegistry: "0x8453000000000000000000000000000000000001" as `0x${string}`,
+  deploymentBlock: MAINNET_DEPLOYMENT.deploymentBlock
+};
+
+export function indexerScope() {
+  if (!addresses.launchFactory || !addresses.bondingCurveMarket || addresses.deploymentBlock === 0n) return "";
+  return `${chain.id}:${addresses.launchFactory.toLowerCase()}:${addresses.bondingCurveMarket.toLowerCase()}:${addresses.deploymentBlock.toString()}`;
+}
+
 export const FAIR_GRADUATION_TARGET_ETH = "5";
+export const FAIR_LAUNCH_FEE_ETH = "0.002";
 
 export const launchFactoryAbi = [
+  {
+    type: "event",
+    name: "LaunchFeePaid",
+    inputs: [
+      { indexed: true, name: "launchId", type: "uint256" },
+      { indexed: true, name: "creator", type: "address" },
+      { indexed: false, name: "amount", type: "uint256" }
+    ]
+  },
   {
     type: "event",
     name: "LaunchCreated",
@@ -24,6 +46,27 @@ export const launchFactoryAbi = [
       { indexed: false, name: "symbol", type: "string" },
       { indexed: false, name: "contractURI", type: "string" }
     ]
+  },
+  {
+    type: "function",
+    name: "LAUNCH_FEE",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "uint256" }]
+  },
+  {
+    type: "function",
+    name: "pendingLaunchFees",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "uint256" }]
+  },
+  {
+    type: "function",
+    name: "claimLaunchFees",
+    stateMutability: "nonpayable",
+    inputs: [],
+    outputs: [{ name: "amount", type: "uint256" }]
   },
   {
     type: "function",

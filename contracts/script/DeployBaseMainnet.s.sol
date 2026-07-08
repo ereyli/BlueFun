@@ -22,8 +22,10 @@ interface Vm {
     function stopBroadcast() external;
 }
 
-contract DeployBaseSepolia {
+contract DeployBaseMainnet {
     Vm internal constant vm = Vm(address(uint160(uint256(keccak256("hevm cheat code")))));
+    address internal constant UNISWAP_V4_POSITION_MANAGER = 0x7C5f5A4bBd8fD63184577525326123B519429bDc;
+    address internal constant PERMIT2 = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
 
     event Deployed(
         address bondingCurveMarket,
@@ -37,16 +39,14 @@ contract DeployBaseSepolia {
         uint256 deployerPrivateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
         address deployer = vm.addr(deployerPrivateKey);
         address feeRecipient = vm.envAddress("FEE_RECIPIENT");
-        address positionManager = vm.envAddress("UNISWAP_V4_POSITION_MANAGER");
-        address permit2 = vm.envAddress("PERMIT2");
 
         vm.startBroadcast(deployerPrivateKey);
 
         BondingCurveMarket market = new BondingCurveMarket(deployer, feeRecipient);
         UniswapV4LiquidityLocker locker = new UniswapV4LiquidityLocker(
             deployer,
-            IUniswapV4PositionManager(positionManager),
-            IPermit2AllowanceTransfer(permit2),
+            IUniswapV4PositionManager(UNISWAP_V4_POSITION_MANAGER),
+            IPermit2AllowanceTransfer(PERMIT2),
             3_000,
             60,
             address(0)
@@ -63,7 +63,8 @@ contract DeployBaseSepolia {
             IActivationRegistry(B20Constants.ACTIVATION_REGISTRY),
             IPolicyRegistry(B20Constants.POLICY_REGISTRY),
             market,
-            address(graduation)
+            address(graduation),
+            payable(feeRecipient)
         );
         market.configure(address(factory), address(graduation), feeRecipient);
 

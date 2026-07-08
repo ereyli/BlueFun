@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 import { formatEther, maxUint256, parseEther, zeroAddress } from "viem";
-import { useAccount, useBalance, useReadContract, useWaitForTransactionReceipt, useWriteContract } from "wagmi";
+import { useAccount, useBalance, useReadContract, useReadContracts, useWaitForTransactionReceipt, useWriteContract } from "wagmi";
 import { ArrowDownUp, Copy, ExternalLink, Loader2, LockKeyhole, RotateCcw, Settings, ShieldCheck, Sparkles } from "lucide-react";
 import {
   CandlestickSeries,
@@ -17,14 +17,14 @@ import {
   type ISeriesApi,
   type UTCTimestamp
 } from "lightweight-charts";
-import { addresses, b20TokenAbi, bondingCurveAbi, graduationManagerAbi } from "@/lib/contracts";
+import { uniswapChainName } from "@/lib/base-chain";
+import { addresses, b20TokenAbi, bondingCurveAbi, chain, graduationManagerAbi, indexerScope } from "@/lib/contracts";
 import {
   CURVE_FEE_RATE,
   TOTAL_SUPPLY,
   calculatePriceImpact,
   compactTokenAmount,
   compactUsd,
-  formatEthAmount,
   formatPercent,
   formatUsdFromEthText,
   formatUsdPrice,
@@ -32,6 +32,7 @@ import {
   shortAddress
 } from "@/lib/market-math";
 import type { DeployedLaunch, DeployedTrade } from "@/lib/onchain-launches";
+import { siteUrl } from "@/lib/site-url";
 import { ipfsToGatewayUrl } from "@/lib/token-metadata";
 
 export function MarketClient({ id, launch, trades }: { id: string; launch?: DeployedLaunch; trades: DeployedTrade[] }) {
@@ -71,13 +72,6 @@ export function MarketClient({ id, launch, trades }: { id: string; launch?: Depl
     args: [address!],
     query: { enabled: Boolean(addresses.bondingCurveMarket && address) }
   });
-  const creatorFeeBalance = useReadContract({
-    address: addresses.bondingCurveMarket,
-    abi: bondingCurveAbi,
-    functionName: "pendingFees",
-    args: [launch?.creator ?? zeroAddress],
-    query: { enabled: Boolean(addresses.bondingCurveMarket && launch?.creator) }
-  });
   const tokenAllowance = useReadContract({
     address: launch?.token,
     abi: b20TokenAbi,
@@ -91,20 +85,6 @@ export function MarketClient({ id, launch, trades }: { id: string; launch?: Depl
     functionName: "balanceOf",
     args: [address ?? zeroAddress],
     query: { enabled: Boolean(mode === "sell" && launch?.token && address) }
-  });
-  const creatorTokenBalance = useReadContract({
-    address: launch?.token,
-    abi: b20TokenAbi,
-    functionName: "balanceOf",
-    args: [launch?.creator ?? zeroAddress],
-    query: { enabled: Boolean(launch?.token && launch?.creator) }
-  });
-  const curveTokenBalance = useReadContract({
-    address: launch?.token,
-    abi: b20TokenAbi,
-    functionName: "balanceOf",
-    args: [addresses.bondingCurveMarket ?? zeroAddress],
-    query: { enabled: Boolean(launch?.token && addresses.bondingCurveMarket) }
   });
   const quotedOut = mode === "buy" ? buyQuote.data?.[0] : sellQuote.data?.[0];
   const minOut = quotedOut ? applySlippage(quotedOut, slippageBps) : 0n;
@@ -140,7 +120,7 @@ export function MarketClient({ id, launch, trades }: { id: string; launch?: Depl
   useEffect(() => {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-    const scope = process.env.NEXT_PUBLIC_INDEXER_SCOPE;
+    const scope = indexerScope();
     if (!supabaseUrl || !supabaseAnonKey || !scope) return;
 
     const supabase = createClient(supabaseUrl, supabaseAnonKey, {
@@ -244,7 +224,7 @@ export function MarketClient({ id, launch, trades }: { id: string; launch?: Depl
   }
 
   if (!launch) {
-    return <div className="empty">Loading market from Base Sepolia...</div>;
+    return <div className="empty">Loading market from Base...</div>;
   }
 
   return (
@@ -265,7 +245,10 @@ export function MarketClient({ id, launch, trades }: { id: string; launch?: Depl
               </div>
             </div>
             <div className="market-actions">
-              <a className="button primary" href={`https://sepolia.basescan.org/token/${launch.token}`} target="_blank" rel="noreferrer">
+              <a className="button x-share-button" href={xShareUrl(launch, id)} target="_blank" rel="noreferrer">
+                <span className="x-share-icon">X</span>Share
+              </a>
+              <a className="button primary" href={`${chain.blockExplorers.default.url}/token/${launch.token}`} target="_blank" rel="noreferrer">
                 <ExternalLink size={16} />BaseScan
               </a>
               <button className="button" onClick={() => navigator.clipboard.writeText(launch.token)}>
@@ -288,10 +271,8 @@ export function MarketClient({ id, launch, trades }: { id: string; launch?: Depl
             <MarketStats
               launch={launch}
               trades={trades}
-              creatorFeeBalance={creatorFeeBalance.data ?? 0n}
-              creatorTokenBalance={creatorTokenBalance.data ?? 0n}
-              curveTokenBalance={curveTokenBalance.data ?? 0n}
             />
+            <HolderDistribution launch={launch} trades={trades} />
             <ProjectInfo launch={launch} />
             <RecentTrades trades={trades} symbol={launch.symbol} />
           </div>
@@ -299,125 +280,128 @@ export function MarketClient({ id, launch, trades }: { id: string; launch?: Depl
       </section>
 
       <aside className="trade-box">
-        <section className="trade-card">
-          <div className="trade-tabs">
-            <button className={mode === "buy" ? "active" : ""} onClick={() => setMode("buy")} type="button">Buy</button>
-            <button className={mode === "sell" ? "active" : ""} onClick={() => setMode("sell")} type="button">Sell</button>
-          </div>
-          <div className="form">
-            {!isConnected ? (
-              <div className="notice compact">
-                <strong>Connect wallet</strong>
-                <span>Wallet connection is required before trading.</span>
-              </div>
-            ) : null}
-            <div className="field">
-              <div className="field-head">
-                <label>{mode === "buy" ? "ETH in" : `${launch.symbol} amount`}</label>
-                {mode === "sell" ? (
-                  <button className="balance-button" onClick={() => setSellPercent(100n)} type="button">
-                    Balance {formatTokenBalance(sellBalance)} {launch.symbol}
-                  </button>
-                ) : null}
-              </div>
-              <input className="amount-input" value={amount} onChange={(event) => setAmount(event.target.value)} />
+        {launch.status === "Graduated" ? (
+          <GraduatedTradeCard launch={launch} />
+        ) : (
+          <section className="trade-card">
+            <div className="trade-tabs">
+              <button className={mode === "buy" ? "active" : ""} onClick={() => setMode("buy")} type="button">Buy</button>
+              <button className={mode === "sell" ? "active" : ""} onClick={() => setMode("sell")} type="button">Sell</button>
             </div>
-            <div className="quote-box">
-              <div className="quote-head">
-                <span>{quoteLoading ? "Quoting..." : mode === "buy" ? "Estimated tokens" : "Estimated ETH"}</span>
-                <button
-                  className={settingsOpen ? "settings-button active" : "settings-button"}
-                  onClick={() => setSettingsOpen((open) => !open)}
-                  type="button"
-                  aria-label="Trade settings"
-                >
-                  <Settings size={15} />
-                </button>
-              </div>
-              <strong>{quotedOut ? formatQuote(quotedOut, mode === "buy" ? launch.symbol : "ETH") : "-"}</strong>
-              <small>Minimum after {Number(slippageBps) / 100}% slippage: {minOut ? formatQuote(minOut, mode === "buy" ? launch.symbol : "ETH") : "-"}</small>
-              <small>Price impact: {formatPercent(priceImpact)}</small>
-            </div>
-            {settingsOpen ? (
-              <div className="trade-settings-panel">
-                <div className="settings-panel-head">
-                  <strong>Trade settings</strong>
-                  <span>Slippage</span>
+            <div className="form">
+              {!isConnected ? (
+                <div className="notice compact">
+                  <strong>Connect wallet</strong>
+                  <span>Wallet connection is required before trading.</span>
                 </div>
-                <div className="slippage-row">
-                  {[50n, 100n, 200n, 300n].map((value) => (
-                    <button
-                      className={slippageBps === value ? "selected" : ""}
-                      key={value.toString()}
-                      onClick={() => setSlippageBps(value)}
-                      type="button"
-                    >
-                      {Number(value) / 100}%
+              ) : null}
+              <div className="field">
+                <div className="field-head">
+                  <label>{mode === "buy" ? "ETH in" : `${launch.symbol} amount`}</label>
+                  {mode === "sell" ? (
+                    <button className="balance-button" onClick={() => setSellPercent(100n)} type="button">
+                      Balance {formatTokenBalance(sellBalance)} {launch.symbol}
                     </button>
-                  ))}
+                  ) : null}
                 </div>
+                <input className="amount-input" value={amount} onChange={(event) => setAmount(event.target.value)} />
               </div>
-            ) : null}
-            {mode === "buy" ? (
-              <>
-                <div className="quick-grid">
-                  <button type="button" onClick={() => setAmount("0.01")}>0.01</button>
-                  <button type="button" onClick={() => setAmount("0.05")}>0.05</button>
-                  <button type="button" onClick={() => setAmount("0.1")}>0.1</button>
+              <div className="quote-box">
+                <div className="quote-head">
+                  <span>{quoteLoading ? "Quoting..." : mode === "buy" ? "Estimated tokens" : "Estimated ETH"}</span>
+                  <button
+                    className={settingsOpen ? "settings-button active" : "settings-button"}
+                    onClick={() => setSettingsOpen((open) => !open)}
+                    type="button"
+                    aria-label="Trade settings"
+                  >
+                    <Settings size={15} />
+                  </button>
                 </div>
-                <button className="button primary" disabled={tradeDisabled} onClick={buy}>
-                  {isWorking ? <Loader2 className="spin" size={16} /> : <ArrowDownUp size={16} />}
-                  {isPending ? "Confirm in wallet" : receipt.isLoading ? "Buying" : exceedsEthBalance ? "Insufficient ETH" : `Buy $${launch.symbol}`}
-                </button>
-              </>
-            ) : (
-              <>
-                <div className="quick-grid sell-grid">
-                  <button type="button" onClick={() => setSellPercent(25n)}>25%</button>
-                  <button type="button" onClick={() => setSellPercent(50n)}>50%</button>
-                  <button type="button" onClick={() => setSellPercent(75n)}>75%</button>
-                  <button type="button" onClick={() => setSellPercent(100n)}>Max</button>
+                <strong>{quotedOut ? formatQuote(quotedOut, mode === "buy" ? launch.symbol : "ETH") : "-"}</strong>
+                <small>Minimum after {Number(slippageBps) / 100}% slippage: {minOut ? formatQuote(minOut, mode === "buy" ? launch.symbol : "ETH") : "-"}</small>
+                <small>Price impact: {formatPercent(priceImpact)}</small>
+              </div>
+              {settingsOpen ? (
+                <div className="trade-settings-panel">
+                  <div className="settings-panel-head">
+                    <strong>Trade settings</strong>
+                    <span>Slippage</span>
+                  </div>
+                  <div className="slippage-row">
+                    {[50n, 100n, 200n, 300n].map((value) => (
+                      <button
+                        className={slippageBps === value ? "selected" : ""}
+                        key={value.toString()}
+                        onClick={() => setSlippageBps(value)}
+                        type="button"
+                      >
+                        {Number(value) / 100}%
+                      </button>
+                    ))}
+                  </div>
                 </div>
-                <button className="button primary" disabled={tradeDisabled} onClick={needsSellApproval ? approveSell : sell}>
-                  {isWorking ? <Loader2 className="spin" size={16} /> : <ArrowDownUp size={16} />}
-                  {isPending
-                    ? "Confirm in wallet"
-                    : receipt.isLoading
-                      ? needsSellApproval ? "Approving" : "Selling"
-                      : exceedsSellBalance ? "Insufficient balance" : needsSellApproval ? `Approve $${launch.symbol}` : `Sell $${launch.symbol}`}
-                </button>
-                <span className="trade-helper">
-                  {needsSellApproval ? "One-time unlimited approval for smoother sells." : "Approval ready."}
-                </span>
-              </>
-            )}
-            <div className="trade-status-stack">
-              {quoteLoading ? <TradeStatus tone="info">Quote is updating.</TradeStatus> : null}
-              {isPending ? <TradeStatus tone="info">Confirm this order in your wallet.</TradeStatus> : null}
-              {hash && !receipt.isSuccess && !isPending ? <TradeStatus tone="info">Order submitted. Waiting for confirmation.</TradeStatus> : null}
-              {receipt.isSuccess ? <TradeStatus tone="success">Order confirmed. Market data is refreshing.</TradeStatus> : null}
-              {exceedsEthBalance ? <TradeStatus tone="danger">Not enough ETH for this order.</TradeStatus> : null}
-              {exceedsSellBalance ? <TradeStatus tone="danger">Insufficient token balance.</TradeStatus> : null}
-              {error ? <TradeStatus tone="danger">{friendlyTradeError(error.message)}</TradeStatus> : null}
+              ) : null}
+              {mode === "buy" ? (
+                <>
+                  <div className="quick-grid">
+                    <button type="button" onClick={() => setAmount("0.01")}>0.01</button>
+                    <button type="button" onClick={() => setAmount("0.05")}>0.05</button>
+                    <button type="button" onClick={() => setAmount("0.1")}>0.1</button>
+                  </div>
+                  <button className="button primary" disabled={tradeDisabled} onClick={buy}>
+                    {isWorking ? <Loader2 className="spin" size={16} /> : <ArrowDownUp size={16} />}
+                    {isPending ? "Confirm in wallet" : receipt.isLoading ? "Buying" : exceedsEthBalance ? "Insufficient ETH" : `Buy $${launch.symbol}`}
+                  </button>
+                </>
+              ) : (
+                <>
+                  <div className="quick-grid sell-grid">
+                    <button type="button" onClick={() => setSellPercent(25n)}>25%</button>
+                    <button type="button" onClick={() => setSellPercent(50n)}>50%</button>
+                    <button type="button" onClick={() => setSellPercent(75n)}>75%</button>
+                    <button type="button" onClick={() => setSellPercent(100n)}>Max</button>
+                  </div>
+                  <button className="button primary" disabled={tradeDisabled} onClick={needsSellApproval ? approveSell : sell}>
+                    {isWorking ? <Loader2 className="spin" size={16} /> : <ArrowDownUp size={16} />}
+                    {isPending
+                      ? "Confirm in wallet"
+                      : receipt.isLoading
+                        ? needsSellApproval ? "Approving" : "Selling"
+                        : exceedsSellBalance ? "Insufficient balance" : needsSellApproval ? `Approve $${launch.symbol}` : `Sell $${launch.symbol}`}
+                  </button>
+                  <span className="trade-helper">
+                    {needsSellApproval ? "One-time unlimited approval for smoother sells." : "Approval ready."}
+                  </span>
+                </>
+              )}
+              <div className="trade-status-stack">
+                {quoteLoading ? <TradeStatus tone="info">Quote is updating.</TradeStatus> : null}
+                {isPending ? <TradeStatus tone="info">Confirm this order in your wallet.</TradeStatus> : null}
+                {hash && !receipt.isSuccess && !isPending ? <TradeStatus tone="info">Order submitted. Waiting for confirmation.</TradeStatus> : null}
+                {receipt.isSuccess ? <TradeStatus tone="success">Order confirmed. Market data is refreshing.</TradeStatus> : null}
+                {exceedsEthBalance ? <TradeStatus tone="danger">Not enough ETH for this order.</TradeStatus> : null}
+                {exceedsSellBalance ? <TradeStatus tone="danger">Insufficient token balance.</TradeStatus> : null}
+                {error ? <TradeStatus tone="danger">{friendlyTradeError(error.message)}</TradeStatus> : null}
+              </div>
             </div>
-          </div>
-        </section>
+          </section>
+        )}
+
+        <TokenChat launch={launch} launchId={id} wallet={address} isConnected={isConnected} />
 
         <section className="safety-card">
           <div className="safety-head">
             <span><ShieldCheck size={16} /> Safety</span>
             <strong>{launch.status}</strong>
           </div>
-          <div className="safety-grid">
-            <span><ShieldCheck size={15} /> Supply capped</span>
-            <span><LockKeyhole size={15} /> LP locked at bond</span>
-            <span><Sparkles size={15} /> Adminless after bond</span>
-          </div>
           <div className="safety-foot">
-            <span>Curve fee</span>
+            <span>Supply</span>
+            <strong>Capped</strong>
+            <span>Bond</span>
+            <strong>LP lock</strong>
+            <span>Fee</span>
             <strong>1.00%</strong>
-            <span>Creator</span>
-            <strong>{launch.creator.slice(0, 6)}...{launch.creator.slice(-4)}</strong>
           </div>
           {launch.status === "Ready" ? (
             <button className="button primary wide" disabled={!addresses.graduationManager || !isConnected || isWorking} onClick={graduate}>
@@ -447,8 +431,156 @@ export function MarketClient({ id, launch, trades }: { id: string; launch?: Depl
   );
 }
 
+type ChatMessage = {
+  id: string;
+  wallet: string;
+  text: string;
+  createdAt: number;
+};
+
+function TokenChat({
+  isConnected,
+  launch,
+  launchId,
+  wallet
+}: {
+  isConnected: boolean;
+  launch: DeployedLaunch;
+  launchId: string;
+  wallet?: `0x${string}`;
+}) {
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [draft, setDraft] = useState("");
+  const [status, setStatus] = useState("");
+  const [sending, setSending] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    async function loadMessages() {
+      try {
+        const response = await fetch(`/api/chat/messages?token=${launch.token}`, { cache: "no-store" });
+        const payload = await response.json() as { messages?: ChatMessage[] };
+        if (active) setMessages(payload.messages ?? []);
+      } catch {
+        if (active) setStatus("Chat is reconnecting.");
+      }
+    }
+    loadMessages();
+    const interval = window.setInterval(loadMessages, 3_000);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
+  }, [launch.token]);
+
+  async function sendMessage() {
+    if (!wallet || !isConnected || sending) return;
+    const text = draft.trim();
+    if (!text) return;
+    setSending(true);
+    setStatus("");
+    try {
+      const response = await fetch("/api/chat/send", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ launchId, token: launch.token, wallet, text })
+      });
+      const payload = await response.json() as { message?: ChatMessage; error?: string };
+      if (!response.ok || !payload.message) {
+        setStatus(payload.error || "Message could not be sent.");
+        return;
+      }
+      setDraft("");
+      setMessages((current) => [...current, payload.message!].slice(-20));
+    } catch {
+      setStatus("Message could not be sent.");
+    } finally {
+      setSending(false);
+    }
+  }
+
+  return (
+    <section className="token-chat-card">
+      <div className="token-chat-head">
+        <div>
+          <h2>Community chat</h2>
+          <span>Last 20 messages fade over time</span>
+        </div>
+        <strong>{messages.length}</strong>
+      </div>
+      <div className="token-chat-feed">
+        {messages.length === 0 ? (
+          <div className="token-chat-empty">Start the conversation.</div>
+        ) : (
+          messages.map((message) => (
+            <div className="token-chat-message" key={message.id}>
+              <div>
+                <strong>{shortAddress(message.wallet)}</strong>
+                <span>{formatChatAge(message.createdAt)}</span>
+              </div>
+              <p>{message.text}</p>
+            </div>
+          ))
+        )}
+      </div>
+      <div className="token-chat-compose">
+        <input
+          disabled={!isConnected}
+          maxLength={240}
+          onChange={(event) => setDraft(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") sendMessage();
+          }}
+          placeholder={isConnected ? `Message $${launch.symbol}` : "Connect wallet to chat"}
+          value={draft}
+        />
+        <button className="button primary" disabled={!isConnected || sending || !draft.trim()} onClick={sendMessage} type="button">
+          {sending ? <Loader2 className="spin" size={14} /> : null}
+          Send
+        </button>
+      </div>
+      {status ? <p className="token-chat-status">{status}</p> : null}
+    </section>
+  );
+}
+
 function TradeStatus({ children, tone }: { children: React.ReactNode; tone: "info" | "success" | "danger" }) {
   return <p className={`trade-status ${tone}`}>{children}</p>;
+}
+
+function xShareUrl(launch: DeployedLaunch, id: string) {
+  const text = `Trade ${launch.name} ($${launch.symbol}) on BlueFun`;
+  const url = siteUrl(`/launch/${id}`);
+  return `https://x.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`;
+}
+
+function GraduatedTradeCard({ launch }: { launch: DeployedLaunch }) {
+  return (
+    <section className="graduated-trade-card">
+      <div className="graduated-badge">
+        <Sparkles size={16} />
+        Graduated
+      </div>
+      <div className="graduated-card-copy">
+        <h2>Liquidity locked</h2>
+        <p>
+          Bonding curve trading is complete. This market now trades through the locked Uniswap liquidity pool.
+        </p>
+      </div>
+      <div className="graduated-checks">
+        <span><ShieldCheck size={15} />Graduated</span>
+        <span><LockKeyhole size={15} />LP locked</span>
+        <span><Sparkles size={15} />Adminless token</span>
+      </div>
+      <a className="button primary wide" href={uniswapSwapUrl(launch.token)} target="_blank" rel="noreferrer">
+        <ExternalLink size={16} />
+        Trade on Uniswap
+      </a>
+      <a className="button wide" href={`${chain.blockExplorers.default.url}/token/${launch.token}`} target="_blank" rel="noreferrer">
+        View token
+      </a>
+    </section>
+  );
 }
 
 function ProjectInfo({ launch }: { launch: DeployedLaunch }) {
@@ -481,6 +613,10 @@ function ProjectInfo({ launch }: { launch: DeployedLaunch }) {
   );
 }
 
+function uniswapSwapUrl(token: `0x${string}`) {
+  return `https://app.uniswap.org/swap?chain=${uniswapChainName}&inputCurrency=ETH&outputCurrency=${token}`;
+}
+
 function RecentTrades({ trades, symbol }: { trades: DeployedTrade[]; symbol: string }) {
   const recent = useMemo(() => trades
     .slice()
@@ -500,7 +636,7 @@ function RecentTrades({ trades, symbol }: { trades: DeployedTrade[]; symbol: str
           {recent.map((trade) => (
             <a
               className="trade-feed-row"
-              href={`https://sepolia.basescan.org/tx/${trade.txHash}`}
+              href={`${chain.blockExplorers.default.url}/tx/${trade.txHash}`}
               key={`${trade.txHash}-${trade.side}-${trade.tokenAmount}`}
               target="_blank"
               rel="noreferrer"
@@ -519,16 +655,10 @@ function RecentTrades({ trades, symbol }: { trades: DeployedTrade[]; symbol: str
 
 function MarketStats({
   launch,
-  trades,
-  creatorFeeBalance,
-  creatorTokenBalance,
-  curveTokenBalance
+  trades
 }: {
   launch: DeployedLaunch;
   trades: DeployedTrade[];
-  creatorFeeBalance: bigint;
-  creatorTokenBalance: bigint;
-  curveTokenBalance: bigint;
 }) {
   const stats = useMemo(() => {
     const unique = new Set<string>();
@@ -569,19 +699,14 @@ function MarketStats({
   return (
     <section className="market-stats-panel">
       <div className="market-stats-head">
-        <h2>Market stats</h2>
+        <h2>Activity</h2>
         <span>{launch.progress}% bonded</span>
       </div>
       <div className="market-stats-grid">
-        <div><span>Total buys</span><strong>{stats.buys}</strong></div>
-        <div><span>Total sells</span><strong>{stats.sells}</strong></div>
-        <div><span>Unique traders</span><strong>{stats.uniqueTraders}</strong></div>
-        <div><span>Creator fees</span><strong>{formatEthAmount(creatorFeeBalance)}</strong></div>
-      </div>
-      <div className="distribution-strip">
-        <div><span>Creator holding</span><strong>{compactTokenAmount(formatEther(creatorTokenBalance))} {launch.symbol}</strong></div>
-        <div><span>Curve contract</span><strong>{compactTokenAmount(formatEther(curveTokenBalance))} {launch.symbol}</strong></div>
-        <div><span>Curve-est. holders</span><strong>{stats.topCurveWallets.length || "0"}</strong></div>
+        <div><span>Buys</span><strong>{stats.buys}</strong></div>
+        <div><span>Sells</span><strong>{stats.sells}</strong></div>
+        <div><span>Traders</span><strong>{stats.uniqueTraders}</strong></div>
+        <div><span>Net flow</span><strong>{compactTokenAmount(String(stats.netTokens))} {launch.symbol}</strong></div>
       </div>
       {stats.topCurveWallets.length ? (
         <div className="holder-mini-list">
@@ -592,6 +717,114 @@ function MarketStats({
       ) : null}
     </section>
   );
+}
+
+function HolderDistribution({ launch, trades }: { launch: DeployedLaunch; trades: DeployedTrade[] }) {
+  const candidateWallets = useMemo(() => {
+    const netByWallet = new Map<`0x${string}`, number>();
+
+    for (const trade of trades) {
+      if (!trade.trader) continue;
+      const tokens = parseDisplayAmount(trade.tokenAmount);
+      const current = netByWallet.get(trade.trader) || 0;
+      netByWallet.set(trade.trader, trade.side === "buy" ? current + tokens : current - tokens);
+    }
+
+    return Array.from(netByWallet.entries())
+      .filter(([wallet, amount]) => amount > 0 && wallet.toLowerCase() !== launch.creator.toLowerCase())
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 18)
+      .map(([wallet]) => wallet);
+  }, [launch.creator, trades]);
+
+  const holderAddresses = useMemo(() => {
+    const values = [
+      addresses.bondingCurveMarket,
+      launch.creator,
+      ...candidateWallets
+    ].filter(Boolean) as `0x${string}`[];
+    return Array.from(new Map(values.map((value) => [value.toLowerCase(), value])).values());
+  }, [candidateWallets, launch.creator]);
+
+  const balances = useReadContracts({
+    contracts: holderAddresses.map((holder) => ({
+      address: launch.token,
+      abi: b20TokenAbi,
+      functionName: "balanceOf",
+      args: [holder]
+    })),
+    query: { enabled: Boolean(launch.token && holderAddresses.length) }
+  });
+
+  const rows = useMemo(() => {
+    const balanceResults = balances.data as Array<{ result?: unknown }> | undefined;
+    return holderAddresses
+      .map((holder, index) => {
+        const result = balanceResults?.[index]?.result;
+        const balance = typeof result === "bigint" ? result : 0n;
+        const amount = Number(formatEther(balance));
+        const percent = TOTAL_SUPPLY > 0 ? (amount / TOTAL_SUPPLY) * 100 : 0;
+        const isCurve = addresses.bondingCurveMarket?.toLowerCase() === holder.toLowerCase();
+        const isCreator = launch.creator.toLowerCase() === holder.toLowerCase();
+        return {
+          holder,
+          label: isCurve ? "Bonding curve" : isCreator ? "Creator" : shortAddress(holder),
+          balance,
+          percent,
+          tone: isCurve ? "curve" : isCreator ? "creator" : "holder"
+        };
+      })
+      .filter((row) => row.balance > 0n)
+      .sort((a, b) => Number(b.balance - a.balance))
+      .slice(0, 20);
+  }, [balances.data, holderAddresses, launch.creator]);
+
+  if (!rows.length) return null;
+
+  return (
+    <section className="holder-distribution-panel">
+      <div className="holder-distribution-head">
+        <div>
+          <h2>Top holders</h2>
+          <p>Largest tracked balances from launch activity.</p>
+        </div>
+        <span>Top {rows.length}</span>
+      </div>
+      <div className="holder-distribution-list">
+        {rows.map((row, index) => (
+          <div className="holder-row" key={row.holder}>
+            <div className="holder-row-top">
+              <em>{index + 1}</em>
+              <span className={`holder-dot ${row.tone}`} />
+              <strong>{row.label}</strong>
+              <small>{formatHolderPercent(row.percent)}</small>
+            </div>
+            <div className="holder-bar">
+              <span style={{ width: `${Math.min(row.percent, 100)}%` }} />
+            </div>
+            <div className="holder-row-bottom">
+              <span>{compactTokenAmount(formatEther(row.balance))} {launch.symbol}</span>
+              <code>{shortAddress(row.holder)}</code>
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function formatHolderPercent(value: number) {
+  if (!Number.isFinite(value) || value <= 0) return "0%";
+  if (value < 0.01) return "<0.01%";
+  return `${value.toLocaleString("en-US", { maximumFractionDigits: 2 })}%`;
+}
+
+function formatChatAge(createdAt: number) {
+  const seconds = Math.max(0, Math.floor((Date.now() - createdAt) / 1000));
+  if (seconds < 60) return "now";
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m`;
+  return `${Math.floor(minutes / 60)}h`;
 }
 
 function TokenAvatar({ launch, className }: { launch: DeployedLaunch; className: string }) {

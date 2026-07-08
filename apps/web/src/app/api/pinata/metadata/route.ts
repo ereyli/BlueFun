@@ -78,7 +78,7 @@ export async function POST(request: Request) {
         discord: discord || undefined
       },
       attributes: [
-        { trait_type: "Network", value: "Base Sepolia" },
+        { trait_type: "Network", value: "Base" },
         { trait_type: "Launchpad", value: "BlueFun" },
         { trait_type: "Graduation Target", value: "5 ETH" }
       ]

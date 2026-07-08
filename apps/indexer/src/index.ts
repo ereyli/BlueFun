@@ -1,7 +1,8 @@
 import "dotenv/config";
 import { createPublicClient, http } from "viem";
-import { baseSepolia } from "viem/chains";
+import { base } from "viem/chains";
 import { graduationAbi, launchFactoryAbi, marketAbi } from "./abi.js";
+import { chainId, defaultRpcUrl, deploymentScope, mainnetDeployment } from "./deployment.js";
 import {
   ensureSchema,
   getIndexerState,
@@ -12,11 +13,11 @@ import {
   upsertLaunch
 } from "./db.js";
 
-const rpcUrl = process.env.BASE_RPC_URL || "https://sepolia.base.org";
-const launchFactory = process.env.LAUNCH_FACTORY as `0x${string}` | undefined;
-const market = process.env.BONDING_CURVE_MARKET as `0x${string}` | undefined;
-const graduationManager = process.env.GRADUATION_MANAGER as `0x${string}` | undefined;
-const startBlock = BigInt(process.env.START_BLOCK || process.env.NEXT_PUBLIC_DEPLOYMENT_BLOCK || "43545419");
+const rpcUrl = process.env.BASE_RPC_URL || defaultRpcUrl;
+const launchFactory = mainnetDeployment.launchFactory;
+const market = mainnetDeployment.bondingCurveMarket;
+const graduationManager = mainnetDeployment.graduationManager;
+const startBlock = mainnetDeployment.startBlock;
 const chunkSize = BigInt(process.env.LOG_CHUNK_SIZE || "1900");
 const pollMs = Number(process.env.POLL_MS || "30000");
 const confirmations = BigInt(process.env.CONFIRMATIONS || "3");
@@ -31,7 +32,7 @@ const launchFactoryAddress = launchFactory;
 const marketAddress = market;
 const graduationManagerAddress = graduationManager;
 const stateScope = `${launchFactoryAddress.toLowerCase()}:${marketAddress.toLowerCase()}:${startBlock.toString()}`;
-process.env.INDEXER_SCOPE ||= `${baseSepolia.id}:${stateScope}`;
+process.env.INDEXER_SCOPE ||= deploymentScope() || `${chainId}:${stateScope}`;
 
 type LaunchMetadata = {
   description?: string;
@@ -42,7 +43,7 @@ type LaunchMetadata = {
 };
 
 const client = createPublicClient({
-  chain: baseSepolia,
+  chain: base,
   transport: http(rpcUrl)
 });
 

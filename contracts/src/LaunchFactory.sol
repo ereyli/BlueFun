@@ -17,6 +17,8 @@ contract LaunchFactory is Ownable, PolicyGuard {
     error UnsafeCurveConfig();
     error UnsafeTradingConfig();
     error InitialBuyTooLarge();
+    error InsufficientLaunchFee();
+    error LaunchFeeClaimFailed();
 
     struct TokenMetadata {
         string name;
@@ -29,7 +31,9 @@ contract LaunchFactory is Ownable, PolicyGuard {
     IActivationRegistry public immutable activationRegistry;
     BondingCurveMarket public immutable market;
     address public immutable graduationManager;
+    address payable public immutable launchFeeRecipient;
     uint256 public constant GRADUATION_ETH_TARGET = 5 ether;
+    uint256 public constant LAUNCH_FEE = 0.002 ether;
     uint256 public constant VIRTUAL_TOKEN_RESERVE = 1_000_000_000 ether;
     uint256 public constant VIRTUAL_ETH_RESERVE = 1.25 ether;
     uint256 public constant MAX_SUPPLY = 1_000_000_000 ether;
@@ -42,6 +46,7 @@ contract LaunchFactory is Ownable, PolicyGuard {
     uint256 public constant ANTI_SNIPING_MAX_BUY = 500_000_000 ether;
     bool public activationGateEnabled = true;
     uint16 public maxCreatorAllocationBps = 1_500;
+    uint256 public pendingLaunchFees;
 
     event LaunchCreated(
         uint256 indexed launchId,
@@ -53,6 +58,8 @@ contract LaunchFactory is Ownable, PolicyGuard {
     );
     event ActivationGateUpdated(bool enabled);
     event MaxCreatorAllocationUpdated(uint16 maxCreatorAllocationBps);
+    event LaunchFeePaid(uint256 indexed launchId, address indexed creator, uint256 amount);
+    event LaunchFeesClaimed(address indexed recipient, uint256 amount);
 
     constructor(
         address initialOwner,
@@ -60,15 +67,20 @@ contract LaunchFactory is Ownable, PolicyGuard {
         IActivationRegistry activationRegistry_,
         IPolicyRegistry policyRegistry_,
         BondingCurveMarket market_,
-        address graduationManager_
+        address graduationManager_,
+        address payable launchFeeRecipient_
     ) Ownable(initialOwner) PolicyGuard(policyRegistry_) {
-        if (address(b20Factory_) == address(0) || address(market_) == address(0) || graduationManager_ == address(0)) {
+        if (
+            address(b20Factory_) == address(0) || address(market_) == address(0) || graduationManager_ == address(0)
+                || launchFeeRecipient_ == address(0)
+        ) {
             revert InvalidLaunchConfig();
         }
         b20Factory = b20Factory_;
         activationRegistry = activationRegistry_;
         market = market_;
         graduationManager = graduationManager_;
+        launchFeeRecipient = launchFeeRecipient_;
     }
 
     function setActivationGateEnabled(bool enabled) external onlyOwner {
@@ -110,7 +122,11 @@ contract LaunchFactory is Ownable, PolicyGuard {
         ) {
             revert UnsafeTradingConfig();
         }
-        if (msg.value > MAX_INITIAL_BUY_ETH) {
+        if (msg.value < LAUNCH_FEE) {
+            revert InsufficientLaunchFee();
+        }
+        uint256 initialBuyValue = msg.value - LAUNCH_FEE;
+        if (initialBuyValue > MAX_INITIAL_BUY_ETH) {
             revert InitialBuyTooLarge();
         }
         if (curve.maxSupply == 0 || config.creatorAllocation > (curve.maxSupply * maxCreatorAllocationBps) / B20Constants.BPS) {
@@ -142,11 +158,22 @@ contract LaunchFactory is Ownable, PolicyGuard {
             maxSupply: curve.maxSupply
         });
         launchId = market.registerLaunch(token, msg.sender, fixedCurve, config);
+        pendingLaunchFees += LAUNCH_FEE;
+        emit LaunchFeePaid(launchId, msg.sender, LAUNCH_FEE);
 
-        if (msg.value > 0) {
-            market.initialBuyFor{value: msg.value}(launchId, msg.sender, 0);
+        if (initialBuyValue > 0) {
+            market.initialBuyFor{value: initialBuyValue}(launchId, msg.sender, 0);
         }
 
         emit LaunchCreated(launchId, token, msg.sender, metadata.name, metadata.symbol, metadata.contractURI);
+    }
+
+    function claimLaunchFees() external onlyOwner returns (uint256 amount) {
+        amount = pendingLaunchFees;
+        if (amount == 0) revert InsufficientLaunchFee();
+        pendingLaunchFees = 0;
+        (bool ok,) = launchFeeRecipient.call{value: amount}("");
+        if (!ok) revert LaunchFeeClaimFailed();
+        emit LaunchFeesClaimed(launchFeeRecipient, amount);
     }
 }

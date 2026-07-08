@@ -1,5 +1,5 @@
 import { createPublicClient, formatEther, getAddress, http, zeroAddress } from "viem";
-import { baseSepoliaChain } from "@/lib/base-sepolia-chain";
+import { baseChain } from "@/lib/base-chain";
 import { addresses, b20TokenAbi, bondingCurveAbi, launchFactoryAbi } from "@/lib/contracts";
 import { getDbLaunches } from "@/lib/db-launches";
 import { readTokenMetadata, type TokenMetadata } from "@/lib/token-metadata";
@@ -41,8 +41,8 @@ export type DeployedTrade = {
 };
 
 const publicClient = createPublicClient({
-  chain: baseSepoliaChain,
-  transport: http(process.env.NEXT_PUBLIC_BASE_SEPOLIA_RPC_URL || "https://sepolia.base.org")
+  chain: baseChain,
+  transport: http(process.env.NEXT_PUBLIC_BASE_RPC_URL || "https://mainnet.base.org")
 });
 
 export async function getDeployedLaunches(): Promise<DeployedLaunch[]> {
