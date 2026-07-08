@@ -106,13 +106,17 @@ button:disabled,
 
 .brand-mark {
   align-items: center;
-  background: var(--blue);
-  border-radius: 9px;
-  color: var(--blue-ink);
   display: inline-flex;
   height: 34px;
   justify-content: center;
   width: 34px;
+}
+
+.brand-mark img {
+  border-radius: 9px;
+  display: block;
+  height: 32px;
+  width: 32px;
 }
 
 .side-nav {
@@ -2468,9 +2472,6 @@ body {
 }
 
 .brand-mark {
-  background: linear-gradient(145deg, var(--blue), #164cff);
-  border-radius: 12px;
-  box-shadow: 0 10px 22px rgba(0, 82, 255, 0.22);
   height: 32px;
   width: 32px;
 }

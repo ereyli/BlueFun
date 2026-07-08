@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
-import { Rocket } from "lucide-react";
 import "./globals.css";
 import { Providers } from "@/components/providers";
 import { WalletButton } from "@/components/wallet-button";
@@ -9,7 +9,11 @@ import { SideNav } from "@/components/side-nav";
 
 export const metadata: Metadata = {
   title: "BlueFun",
-  description: "Safe and fair B20 token launchpad for Base."
+  description: "Safe and fair B20 token launchpad for Base.",
+  icons: {
+    icon: "/brand/favicon.png",
+    apple: "/brand/apple-touch-icon.png"
+  }
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -21,7 +25,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <div className="shell">
             <aside className="sidebar">
               <Link className="brand" href="/">
-                <span className="brand-mark"><Rocket size={17} /></span>
+                <span className="brand-mark">
+                  <Image src="/brand/funblue-icon.png" alt="" width={32} height={32} priority />
+                </span>
                 <span>BlueFun</span>
               </Link>
               <SideNav />
