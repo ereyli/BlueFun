@@ -51,7 +51,9 @@ contract MockB20 is IB20 {
     }
 
     modifier onlyAdminOrBootstrap() {
-        if (!(bootstrapOpen && msg.sender == factory) && !hasRole[DEFAULT_ADMIN_ROLE][msg.sender]) revert UnauthorizedRole();
+        if (!(bootstrapOpen && msg.sender == factory) && !hasRole[DEFAULT_ADMIN_ROLE][msg.sender]) {
+            revert UnauthorizedRole();
+        }
         _;
     }
 

@@ -106,7 +106,10 @@ contract LaunchFactory is Ownable, PolicyGuard {
         if (activationGateEnabled && !activationRegistry.isActivated(B20Constants.B20_ASSET_FEATURE)) {
             revert B20AssetNotActivated();
         }
-        if (bytes(metadata.name).length == 0 || bytes(metadata.symbol).length == 0 || bytes(metadata.contractURI).length == 0) {
+        if (
+            bytes(metadata.name).length == 0 || bytes(metadata.symbol).length == 0
+                || bytes(metadata.contractURI).length == 0
+        ) {
             revert InvalidLaunchConfig();
         }
         if (
@@ -118,7 +121,8 @@ contract LaunchFactory is Ownable, PolicyGuard {
         if (
             config.perWalletCap != PER_WALLET_CAP || config.creatorAllocation != CREATOR_ALLOCATION
                 || config.platformFeeBps != PLATFORM_FEE_BPS || config.creatorFeeBps != CREATOR_FEE_BPS
-                || config.antiSnipingDuration != ANTI_SNIPING_DURATION || config.antiSnipingMaxBuy != ANTI_SNIPING_MAX_BUY
+                || config.antiSnipingDuration != ANTI_SNIPING_DURATION
+                || config.antiSnipingMaxBuy != ANTI_SNIPING_MAX_BUY
         ) {
             revert UnsafeTradingConfig();
         }
@@ -129,17 +133,16 @@ contract LaunchFactory is Ownable, PolicyGuard {
         if (initialBuyValue > MAX_INITIAL_BUY_ETH) {
             revert InitialBuyTooLarge();
         }
-        if (curve.maxSupply == 0 || config.creatorAllocation > (curve.maxSupply * maxCreatorAllocationBps) / B20Constants.BPS) {
+        if (
+            curve.maxSupply == 0
+                || config.creatorAllocation > (curve.maxSupply * maxCreatorAllocationBps) / B20Constants.BPS
+        ) {
             revert UnsafeCreatorAllocation();
         }
 
         bytes[] memory initCalls = new bytes[](5);
         IB20Factory.B20AssetCreateParams memory params = IB20Factory.B20AssetCreateParams({
-            version: 1,
-            name: metadata.name,
-            symbol: metadata.symbol,
-            initialAdmin: graduationManager,
-            decimals: 18
+            version: 1, name: metadata.name, symbol: metadata.symbol, initialAdmin: graduationManager, decimals: 18
         });
 
         bytes memory encodedParams = abi.encode(params);

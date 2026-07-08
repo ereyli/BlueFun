@@ -16,12 +16,7 @@ contract MockB20Factory is IB20Factory {
         B20AssetCreateParams memory decoded = abi.decode(params, (B20AssetCreateParams));
         bytes32 finalSalt = keccak256(abi.encode(msg.sender, salt));
         MockB20 b20 = new MockB20{salt: finalSalt}(
-            decoded.name,
-            decoded.symbol,
-            decoded.decimals,
-            "",
-            decoded.initialAdmin,
-            address(this)
+            decoded.name, decoded.symbol, decoded.decimals, "", decoded.initialAdmin, address(this)
         );
         token = address(b20);
         isB20[token] = true;

@@ -25,6 +25,8 @@ contract BondingCurveMarket is Ownable, ReentrancyGuard {
     error EmergencyNotScheduled();
     error InvalidEmergencyRecipient();
     error LaunchEmergencyClosed();
+    error AlreadyConfigured();
+    error TokenTransferFailed();
 
     struct CurveConfig {
         uint256 virtualTokenReserve;
@@ -67,6 +69,7 @@ contract BondingCurveMarket is Ownable, ReentrancyGuard {
     address public feeRecipient;
     uint256 public launchCount;
     uint256 public constant EMERGENCY_DELAY = 48 hours;
+    bool public configured;
 
     mapping(uint256 launchId => LaunchState) public launches;
     mapping(uint256 launchId => mapping(address trader => uint256 amount)) public purchased;
@@ -122,12 +125,14 @@ contract BondingCurveMarket is Ownable, ReentrancyGuard {
     receive() external payable {}
 
     function configure(address launchFactory_, address graduationManager_, address feeRecipient_) external onlyOwner {
+        if (configured) revert AlreadyConfigured();
         if (launchFactory_ == address(0) || graduationManager_ == address(0) || feeRecipient_ == address(0)) {
             revert InvalidLaunchConfig();
         }
         launchFactory = launchFactory_;
         graduationManager = graduationManager_;
         feeRecipient = feeRecipient_;
+        configured = true;
     }
 
     function registerLaunch(address token, address creator, CurveConfig calldata curve, LaunchConfig calldata config)
@@ -188,6 +193,8 @@ contract BondingCurveMarket is Ownable, ReentrancyGuard {
         LaunchState storage launch = launches[launchId];
         if (launch.token == address(0)) revert LaunchNotFound();
         if (tokenAmount == 0) revert ZeroAmount();
+        if (emergencyClosed[launchId]) revert LaunchEmergencyClosed();
+        if (launch.graduated || launch.graduationReady) revert TradingClosed();
         uint256 k = launch.virtualTokenReserve * launch.virtualEthReserve;
         uint256 newTokenReserve = launch.virtualTokenReserve + tokenAmount;
         grossEthOut = launch.virtualEthReserve - (k / newTokenReserve);
@@ -248,7 +255,7 @@ contract BondingCurveMarket is Ownable, ReentrancyGuard {
         pendingFees[launch.creator] += creatorFee;
 
         if (IB20(launch.token).balanceOf(address(this)) < tokensOut) revert InsufficientReserve();
-        IB20(launch.token).transfer(buyer, tokensOut);
+        if (!IB20(launch.token).transfer(buyer, tokensOut)) revert TokenTransferFailed();
 
         if (refund > 0) {
             (bool refunded,) = buyer.call{value: refund}("");
@@ -287,7 +294,9 @@ contract BondingCurveMarket is Ownable, ReentrancyGuard {
         pendingFees[feeRecipient] += platformFee;
         pendingFees[launch.creator] += creatorFee;
 
-        IB20(launch.token).transferFrom(msg.sender, address(this), tokenAmount);
+        if (!IB20(launch.token).transferFrom(msg.sender, address(this), tokenAmount)) {
+            revert TokenTransferFailed();
+        }
         (bool ok,) = msg.sender.call{value: ethOut}("");
         if (!ok) revert InsufficientReserve();
 
@@ -312,22 +321,29 @@ contract BondingCurveMarket is Ownable, ReentrancyGuard {
         if (to == address(0) || amount == 0) revert ZeroAmount();
         if (!launch.graduationReady || launch.graduated) revert TradingClosed();
         if (IB20(launch.token).balanceOf(address(this)) < amount) revert InsufficientReserve();
-        IB20(launch.token).transfer(to, amount);
+        if (!IB20(launch.token).transfer(to, amount)) revert TokenTransferFailed();
     }
 
     function markGraduated(uint256 launchId) external onlyGraduationManager {
         LaunchState storage launch = launches[launchId];
         if (launch.token == address(0)) revert LaunchNotFound();
-        launch.graduationReady = true;
+        if (!launch.graduationReady || launch.graduated) revert TradingClosed();
         launch.graduated = true;
         launch.realEthReserve = 0;
         emit TradingMarkedGraduated(launchId);
     }
 
-    function withdrawGraduationEth(uint256 launchId, address payable to) external onlyGraduationManager returns (uint256 amount) {
+    function withdrawGraduationEth(uint256 launchId, address payable to)
+        external
+        onlyGraduationManager
+        returns (uint256 amount)
+    {
         LaunchState storage launch = launches[launchId];
         if (launch.token == address(0)) revert LaunchNotFound();
+        if (to == address(0)) revert ZeroAmount();
+        if (!launch.graduationReady || launch.graduated) revert TradingClosed();
         amount = launch.realEthReserve;
+        if (amount == 0) revert ZeroAmount();
         launch.realEthReserve = 0;
         (bool ok,) = to.call{value: amount}("");
         if (!ok) revert InsufficientReserve();
@@ -400,12 +416,10 @@ contract BondingCurveMarket is Ownable, ReentrancyGuard {
 
     function _cappedGrossEthIn(LaunchState storage launch, uint256 ethIn) internal view returns (uint256 grossEthIn) {
         if (ethIn == 0) revert ZeroAmount();
-        uint256 remainingGrossEth = launch.graduationEthTarget > launch.grossEthRaised
-            ? launch.graduationEthTarget - launch.grossEthRaised
-            : 0;
+        uint256 remainingGrossEth =
+            launch.graduationEthTarget > launch.grossEthRaised ? launch.graduationEthTarget - launch.grossEthRaised : 0;
         if (remainingGrossEth == 0) revert TradingClosed();
 
         grossEthIn = ethIn > remainingGrossEth ? remainingGrossEth : ethIn;
     }
-
 }

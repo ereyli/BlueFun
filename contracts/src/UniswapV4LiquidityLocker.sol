@@ -29,6 +29,13 @@ interface IUniswapV4PositionManager {
     function modifyLiquidities(bytes calldata unlockData, uint256 deadline) external payable;
 }
 
+interface IUniswapV4StateView {
+    function getSlot0(bytes32 poolId)
+        external
+        view
+        returns (uint160 sqrtPriceX96, int24 tick, uint24 protocolFee, uint24 lpFee);
+}
+
 contract UniswapV4LiquidityLocker is ILiquidityLocker {
     using FullMath for uint256;
 
@@ -40,6 +47,8 @@ contract UniswapV4LiquidityLocker is ILiquidityLocker {
     error PositionMintFailed();
     error NotOwner();
     error AlreadyConfigured();
+    error TokenApprovalFailed();
+    error NoUsablePool();
 
     uint256 private constant Q96 = 0x1000000000000000000000000;
     uint256 private constant Q192 = 0x1000000000000000000000000000000000000000000000000;
@@ -51,10 +60,12 @@ contract UniswapV4LiquidityLocker is ILiquidityLocker {
     uint8 private constant ACTION_MINT_POSITION = 0x02;
     uint8 private constant ACTION_SETTLE_PAIR = 0x0d;
     uint8 private constant ACTION_SWEEP = 0x14;
+    uint256 private constant POOL_PRICE_TOLERANCE_BPS = 100;
 
     address public immutable owner;
     address public graduationManager;
     IUniswapV4PositionManager public immutable positionManager;
+    IUniswapV4StateView public immutable stateView;
     IPermit2AllowanceTransfer public immutable permit2;
     uint24 public immutable poolFee;
     int24 public immutable tickSpacing;
@@ -68,6 +79,7 @@ contract UniswapV4LiquidityLocker is ILiquidityLocker {
         uint256 tokenId;
         uint128 liquidity;
         uint160 sqrtPriceX96;
+        uint24 poolFee;
         uint64 lockedAt;
     }
 
@@ -84,18 +96,20 @@ contract UniswapV4LiquidityLocker is ILiquidityLocker {
     constructor(
         address owner_,
         IUniswapV4PositionManager positionManager_,
+        IUniswapV4StateView stateView_,
         IPermit2AllowanceTransfer permit2_,
         uint24 poolFee_,
         int24 tickSpacing_,
         address hooks_
     ) {
         if (
-            owner_ == address(0) || address(positionManager_) == address(0)
+            owner_ == address(0) || address(positionManager_) == address(0) || address(stateView_) == address(0)
                 || address(permit2_) == address(0)
         ) revert InvalidAddress();
         if (poolFee_ == 0 || tickSpacing_ != 60 || hooks_ != address(0)) revert InvalidPoolConfig();
         owner = owner_;
         positionManager = positionManager_;
+        stateView = stateView_;
         permit2 = permit2_;
         poolFee = poolFee_;
         tickSpacing = tickSpacing_;
@@ -127,44 +141,21 @@ contract UniswapV4LiquidityLocker is ILiquidityLocker {
         uint128 liquidity = _liquidityForAmounts(sqrtPriceX96, msg.value, tokenAmount);
         if (liquidity == 0) revert ZeroLiquidity();
 
+        IUniswapV4PositionManager.PoolKey memory pool = _selectPool(token, sqrtPriceX96);
+
         uint256 tokenId = positionManager.nextTokenId();
-        IERC20Minimal(token).approve(address(permit2), tokenAmount);
+        if (!IERC20Minimal(token).approve(address(permit2), tokenAmount)) revert TokenApprovalFailed();
         permit2.approve(token, address(positionManager), uint160(tokenAmount), type(uint48).max);
 
-        IUniswapV4PositionManager.PoolKey memory pool = IUniswapV4PositionManager.PoolKey({
-            currency0: address(0),
-            currency1: token,
-            fee: poolFee,
-            tickSpacing: tickSpacing,
-            hooks: hooks
-        });
-
-        bytes[] memory calls = new bytes[](2);
-        calls[0] = abi.encodeCall(IUniswapV4PositionManager.initializePool, (pool, sqrtPriceX96));
-
-        bytes memory actions =
-            abi.encodePacked(ACTION_MINT_POSITION, ACTION_SETTLE_PAIR, ACTION_SWEEP, ACTION_SWEEP);
+        bytes memory actions = abi.encodePacked(ACTION_MINT_POSITION, ACTION_SETTLE_PAIR, ACTION_SWEEP, ACTION_SWEEP);
         bytes[] memory params = new bytes[](4);
-        params[0] = abi.encode(
-            pool,
-            MIN_TICK_60,
-            MAX_TICK_60,
-            liquidity,
-            msg.value,
-            tokenAmount,
-            address(this),
-            bytes("")
-        );
+        params[0] =
+            abi.encode(pool, MIN_TICK_60, MAX_TICK_60, liquidity, msg.value, tokenAmount, address(this), bytes(""));
         params[1] = abi.encode(pool.currency0, pool.currency1);
         params[2] = abi.encode(pool.currency0, address(this));
         params[3] = abi.encode(pool.currency1, address(this));
 
-        calls[1] = abi.encodeCall(
-            IUniswapV4PositionManager.modifyLiquidities,
-            (abi.encode(actions, params), block.timestamp + 30 minutes)
-        );
-
-        positionManager.multicall{value: msg.value}(calls);
+        positionManager.modifyLiquidities{value: msg.value}(abi.encode(actions, params), block.timestamp + 30 minutes);
         uint128 mintedLiquidity = positionManager.getPositionLiquidity(tokenId);
         if (mintedLiquidity == 0) revert PositionMintFailed();
 
@@ -177,10 +168,67 @@ contract UniswapV4LiquidityLocker is ILiquidityLocker {
             tokenId: tokenId,
             liquidity: mintedLiquidity,
             sqrtPriceX96: sqrtPriceX96,
+            poolFee: pool.fee,
             lockedAt: uint64(block.timestamp)
         });
 
         emit LiquidityPositionLocked(positionId, launchId, token, tokenAmount, msg.value);
+    }
+
+    function _selectPool(address token, uint160 expectedSqrtPriceX96)
+        private
+        returns (IUniswapV4PositionManager.PoolKey memory selectedPool)
+    {
+        for (uint256 i = 0; i < 4; i++) {
+            IUniswapV4PositionManager.PoolKey memory pool = IUniswapV4PositionManager.PoolKey({
+                currency0: address(0), currency1: token, fee: _candidateFee(i), tickSpacing: tickSpacing, hooks: hooks
+            });
+
+            (bool initialized, uint160 currentSqrtPriceX96) = _poolSqrtPrice(pool);
+            if (initialized) {
+                if (_priceWithinTolerance(currentSqrtPriceX96, expectedSqrtPriceX96)) return pool;
+                continue;
+            }
+
+            try positionManager.initializePool(pool, expectedSqrtPriceX96) returns (int24) {
+                return pool;
+            } catch {
+                (initialized, currentSqrtPriceX96) = _poolSqrtPrice(pool);
+                if (initialized && _priceWithinTolerance(currentSqrtPriceX96, expectedSqrtPriceX96)) return pool;
+            }
+        }
+
+        revert NoUsablePool();
+    }
+
+    function _candidateFee(uint256 index) private view returns (uint24) {
+        if (index == 0) return poolFee;
+        if (index == 1 && poolFee != 10_000) return 10_000;
+        if (index == 2 && poolFee != 500) return 500;
+        if (index == 3 && poolFee != 100) return 100;
+        return 3_000;
+    }
+
+    function _poolSqrtPrice(IUniswapV4PositionManager.PoolKey memory pool)
+        private
+        view
+        returns (bool initialized, uint160 sqrtPriceX96)
+    {
+        try stateView.getSlot0(_poolId(pool)) returns (uint160 current, int24, uint24, uint24) {
+            return (current != 0, current);
+        } catch {
+            return (false, 0);
+        }
+    }
+
+    function _poolId(IUniswapV4PositionManager.PoolKey memory pool) private pure returns (bytes32) {
+        return keccak256(abi.encode(pool));
+    }
+
+    function _priceWithinTolerance(uint160 actual, uint160 expected) private pure returns (bool) {
+        uint160 lower = uint160((uint256(expected) * (10_000 - POOL_PRICE_TOLERANCE_BPS)) / 10_000);
+        uint160 upper = uint160((uint256(expected) * (10_000 + POOL_PRICE_TOLERANCE_BPS)) / 10_000);
+        return actual >= lower && actual <= upper;
     }
 
     function _sqrtPriceX96(uint256 tokenAmount, uint256 ethAmount) private pure returns (uint160) {

@@ -60,7 +60,9 @@ contract FairCurveLaunchpadTest is Test {
         activation.setActivated(B20Constants.B20_ASSET_FEATURE, false);
         vm.prank(creator);
         vm.expectRevert(LaunchFactory.B20AssetNotActivated.selector);
-        factory.createLaunch{value: launchFee}(_metadata("Gated", "GATE", "ipfs://gated", "gated"), _curve(10 ether), _config());
+        factory.createLaunch{value: launchFee}(
+            _metadata("Gated", "GATE", "ipfs://gated", "gated"), _curve(10 ether), _config()
+        );
     }
 
     function testCreateLaunchAndBuy() public {
@@ -83,9 +85,7 @@ contract FairCurveLaunchpadTest is Test {
     function testCreatorCanInitialBuyDuringLaunch() public {
         vm.prank(creator);
         (uint256 launchId, address token) = factory.createLaunch{value: launchFee + 1 ether}(
-            _metadata("Initial", "INIT", "ipfs://initial", "initial"),
-            _curve(10 ether),
-            _config()
+            _metadata("Initial", "INIT", "ipfs://initial", "initial"), _curve(10 ether), _config()
         );
 
         assertGt(IB20(token).balanceOf(creator), 0);
@@ -100,9 +100,7 @@ contract FairCurveLaunchpadTest is Test {
         vm.prank(creator);
         vm.expectRevert(LaunchFactory.InitialBuyTooLarge.selector);
         factory.createLaunch{value: launchFee + 6 ether}(
-            _metadata("TooMuch", "MUCH", "ipfs://initial", "too-much"),
-            _curve(10 ether),
-            _config()
+            _metadata("TooMuch", "MUCH", "ipfs://initial", "too-much"), _curve(10 ether), _config()
         );
     }
 
@@ -199,9 +197,7 @@ contract FairCurveLaunchpadTest is Test {
     function testWalletCapAndAntiSniping() public {
         vm.prank(creator);
         (uint256 launchId,) = factory.createLaunch{value: launchFee}(
-            _metadata("Guarded", "GUARD", "ipfs://guard", "guard"),
-            _curve(10 ether),
-            _config()
+            _metadata("Guarded", "GUARD", "ipfs://guard", "guard"), _curve(10 ether), _config()
         );
 
         vm.prank(buyer);
@@ -215,7 +211,9 @@ contract FairCurveLaunchpadTest is Test {
 
         vm.prank(creator);
         vm.expectRevert(LaunchFactory.UnsafeTradingConfig.selector);
-        factory.createLaunch{value: launchFee}(_metadata("Unsafe", "BAD", "ipfs://bad", "bad"), _curve(10 ether), config);
+        factory.createLaunch{value: launchFee}(
+            _metadata("Unsafe", "BAD", "ipfs://bad", "bad"), _curve(10 ether), config
+        );
     }
 
     function testFeeSplitAndCreatorCanClaim() public {
@@ -233,6 +231,22 @@ contract FairCurveLaunchpadTest is Test {
 
         assertEq(market.pendingFees(creator), 0);
         assertEq(creator.balance, beforeBalance + pendingCreatorFees);
+    }
+
+    function testMarketConfigureIsOneTimeOnly() public {
+        vm.expectRevert(BondingCurveMarket.AlreadyConfigured.selector);
+        market.configure(address(factory), address(graduation), feeRecipient);
+    }
+
+    function testGraduationWithdrawalsRequireReadyLaunch() public {
+        (uint256 launchId,) = _createLaunch("GuardedReserve", "GRSV", 10 ether);
+
+        vm.prank(buyer);
+        market.buy{value: 1 ether}(launchId, 0, block.timestamp + 1 hours);
+
+        vm.prank(address(graduation));
+        vm.expectRevert(BondingCurveMarket.TradingClosed.selector);
+        market.withdrawGraduationEth(launchId, payable(address(graduation)));
     }
 
     function testLaunchFeeIsRequiredAndClaimable() public {
@@ -308,35 +322,30 @@ contract FairCurveLaunchpadTest is Test {
 
     function testGraduationRequiresDexBackedLocker() public {
         ProtocolLiquidityLocker escrowLocker = new ProtocolLiquidityLocker(address(this));
-        GraduationManager unsafeGraduation = new GraduationManager(
-            market,
-            escrowLocker,
-            IPolicyRegistry(address(policy))
-        );
+        BondingCurveMarket unsafeMarket = new BondingCurveMarket(address(this), feeRecipient);
+        GraduationManager unsafeGraduation =
+            new GraduationManager(unsafeMarket, escrowLocker, IPolicyRegistry(address(policy)));
         escrowLocker.setGraduationManager(address(unsafeGraduation));
-        market.configure(address(factory), address(unsafeGraduation), feeRecipient);
 
         LaunchFactory unsafeFactory = new LaunchFactory(
             address(this),
             b20Factory,
             IActivationRegistry(address(activation)),
             IPolicyRegistry(address(policy)),
-            market,
+            unsafeMarket,
             address(unsafeGraduation),
             payable(feeRecipient)
         );
-        market.configure(address(unsafeFactory), address(unsafeGraduation), feeRecipient);
+        unsafeMarket.configure(address(unsafeFactory), address(unsafeGraduation), feeRecipient);
 
         vm.prank(creator);
         (uint256 launchId,) = unsafeFactory.createLaunch{value: launchFee}(
-            _metadata("NoDex", "NODEX", "ipfs://nodex", "nodex"),
-            _curve(10 ether),
-            _config()
+            _metadata("NoDex", "NODEX", "ipfs://nodex", "nodex"), _curve(10 ether), _config()
         );
 
         vm.warp(block.timestamp + 61);
         vm.prank(buyer);
-        market.buy{value: 5.2 ether}(launchId, 0, block.timestamp + 1 hours);
+        unsafeMarket.buy{value: 5.2 ether}(launchId, 0, block.timestamp + 1 hours);
 
         vm.expectRevert(GraduationManager.LiquidityLockerNotDexBacked.selector);
         unsafeGraduation.graduate(launchId);
@@ -368,7 +377,9 @@ contract FairCurveLaunchpadTest is Test {
         BondingCurveMarket.LaunchConfig memory config
     ) internal returns (uint256 launchId, address token) {
         vm.prank(creator);
-        return factory.createLaunch{value: launchFee}(_metadata(name, symbol, "ipfs://meta", name), _curve(graduationTarget), config);
+        return factory.createLaunch{value: launchFee}(
+            _metadata(name, symbol, "ipfs://meta", name), _curve(graduationTarget), config
+        );
     }
 
     function _metadata(string memory name, string memory symbol, string memory uri, string memory saltText)
@@ -377,10 +388,7 @@ contract FairCurveLaunchpadTest is Test {
         returns (LaunchFactory.TokenMetadata memory)
     {
         return LaunchFactory.TokenMetadata({
-            name: name,
-            symbol: symbol,
-            contractURI: uri,
-            salt: keccak256(bytes(saltText))
+            name: name, symbol: symbol, contractURI: uri, salt: keccak256(bytes(saltText))
         });
     }
 
@@ -403,5 +411,4 @@ contract FairCurveLaunchpadTest is Test {
             antiSnipingMaxBuy: 500_000_000 ether
         });
     }
-
 }

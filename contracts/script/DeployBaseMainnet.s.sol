@@ -9,6 +9,7 @@ import {GraduationManager} from "../src/GraduationManager.sol";
 import {LaunchFactory} from "../src/LaunchFactory.sol";
 import {
     IPermit2AllowanceTransfer,
+    IUniswapV4StateView,
     IUniswapV4PositionManager,
     UniswapV4LiquidityLocker
 } from "../src/UniswapV4LiquidityLocker.sol";
@@ -25,6 +26,7 @@ interface Vm {
 contract DeployBaseMainnet {
     Vm internal constant vm = Vm(address(uint160(uint256(keccak256("hevm cheat code")))));
     address internal constant UNISWAP_V4_POSITION_MANAGER = 0x7C5f5A4bBd8fD63184577525326123B519429bDc;
+    address internal constant UNISWAP_V4_STATE_VIEW = 0xA3c0c9b65baD0b08107Aa264b0f3dB444b867A71;
     address internal constant PERMIT2 = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
 
     event Deployed(
@@ -46,6 +48,7 @@ contract DeployBaseMainnet {
         UniswapV4LiquidityLocker locker = new UniswapV4LiquidityLocker(
             deployer,
             IUniswapV4PositionManager(UNISWAP_V4_POSITION_MANAGER),
+            IUniswapV4StateView(UNISWAP_V4_STATE_VIEW),
             IPermit2AllowanceTransfer(PERMIT2),
             3_000,
             60,

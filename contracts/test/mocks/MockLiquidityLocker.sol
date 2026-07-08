@@ -13,7 +13,13 @@ contract MockLiquidityLocker is ILiquidityLocker {
 
     mapping(bytes32 positionId => Position position) public positions;
 
-    event MockPositionLocked(bytes32 indexed positionId, uint256 indexed launchId, address indexed token, uint256 tokenAmount, uint256 ethAmount);
+    event MockPositionLocked(
+        bytes32 indexed positionId,
+        uint256 indexed launchId,
+        address indexed token,
+        uint256 tokenAmount,
+        uint256 ethAmount
+    );
 
     function isDexBacked() external pure returns (bool) {
         return true;
@@ -25,12 +31,8 @@ contract MockLiquidityLocker is ILiquidityLocker {
         returns (bytes32 positionId)
     {
         positionId = keccak256(abi.encode(block.chainid, launchId, token, tokenAmount, msg.value));
-        positions[positionId] = Position({
-            launchId: launchId,
-            token: token,
-            tokenAmount: tokenAmount,
-            ethAmount: msg.value
-        });
+        positions[positionId] =
+            Position({launchId: launchId, token: token, tokenAmount: tokenAmount, ethAmount: msg.value});
         emit MockPositionLocked(positionId, launchId, token, tokenAmount, msg.value);
     }
 }
