@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 import { formatEther, maxUint256, parseEther, zeroAddress } from "viem";
-import { useAccount, useReadContract, useWaitForTransactionReceipt, useWriteContract } from "wagmi";
+import { useAccount, useBalance, useReadContract, useWaitForTransactionReceipt, useWriteContract } from "wagmi";
 import { ArrowDownUp, Copy, ExternalLink, Loader2, LockKeyhole, RotateCcw, Settings, ShieldCheck, Sparkles } from "lucide-react";
 import {
   CandlestickSeries,
@@ -45,6 +45,10 @@ export function MarketClient({ id, launch, trades }: { id: string; launch?: Depl
   const { data: hash, error, writeContract, isPending } = useWriteContract();
   const receipt = useWaitForTransactionReceipt({ hash });
   const parsedAmount = parsePositiveEther(amount);
+  const ethBalance = useBalance({
+    address,
+    query: { enabled: Boolean(address) }
+  });
   const readEnabled = Boolean(addresses.bondingCurveMarket && parsedAmount > 0n);
   const buyQuote = useReadContract({
     address: addresses.bondingCurveMarket,
@@ -119,7 +123,8 @@ export function MarketClient({ id, launch, trades }: { id: string; launch?: Depl
   const hasSellAllowance = mode !== "sell" || Boolean(tokenAllowance.data && tokenAllowance.data >= parsedAmount);
   const needsSellApproval = mode === "sell" && parsedAmount > 0n && !hasSellAllowance;
   const exceedsSellBalance = mode === "sell" && parsedAmount > sellBalance;
-  const tradeDisabled = !addresses.bondingCurveMarket || !isConnected || isWorking || parsedAmount === 0n || exceedsSellBalance || (!needsSellApproval && minOut === 0n);
+  const exceedsEthBalance = mode === "buy" && Boolean(ethBalance.data) && parsedAmount > (ethBalance.data?.value ?? 0n);
+  const tradeDisabled = !addresses.bondingCurveMarket || !isConnected || isWorking || parsedAmount === 0n || exceedsEthBalance || exceedsSellBalance || (!needsSellApproval && minOut === 0n);
 
   useEffect(() => {
     if (!receipt.isSuccess) return;
@@ -362,7 +367,7 @@ export function MarketClient({ id, launch, trades }: { id: string; launch?: Depl
                 </div>
                 <button className="button primary" disabled={tradeDisabled} onClick={buy}>
                   {isWorking ? <Loader2 className="spin" size={16} /> : <ArrowDownUp size={16} />}
-                  {isPending ? "Confirm in wallet" : receipt.isLoading ? "Buying" : `Buy $${launch.symbol}`}
+                  {isPending ? "Confirm in wallet" : receipt.isLoading ? "Buying" : exceedsEthBalance ? "Insufficient ETH" : `Buy $${launch.symbol}`}
                 </button>
               </>
             ) : (
@@ -391,6 +396,7 @@ export function MarketClient({ id, launch, trades }: { id: string; launch?: Depl
               {isPending ? <TradeStatus tone="info">Confirm this order in your wallet.</TradeStatus> : null}
               {hash && !receipt.isSuccess && !isPending ? <TradeStatus tone="info">Order submitted. Waiting for confirmation.</TradeStatus> : null}
               {receipt.isSuccess ? <TradeStatus tone="success">Order confirmed. Market data is refreshing.</TradeStatus> : null}
+              {exceedsEthBalance ? <TradeStatus tone="danger">Not enough ETH for this order.</TradeStatus> : null}
               {exceedsSellBalance ? <TradeStatus tone="danger">Insufficient token balance.</TradeStatus> : null}
               {error ? <TradeStatus tone="danger">{friendlyTradeError(error.message)}</TradeStatus> : null}
             </div>
