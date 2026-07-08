@@ -7,7 +7,31 @@ export type TokenMetadata = {
   discord?: string;
 };
 
+const METADATA_CACHE_TTL_MS = 5 * 60 * 1000;
+const METADATA_TIMEOUT_MS = 2_000;
+const metadataCache = new Map<string, { data?: TokenMetadata; expiresAt: number; promise?: Promise<TokenMetadata> }>();
+
 export async function readTokenMetadata(contractURI: string): Promise<TokenMetadata> {
+  if (!contractURI) return {};
+
+  const cached = metadataCache.get(contractURI);
+  if (cached?.data && cached.expiresAt > Date.now()) return cached.data;
+  if (cached?.promise) return cached.promise;
+
+  const promise = loadTokenMetadata(contractURI);
+  metadataCache.set(contractURI, { expiresAt: Date.now() + METADATA_CACHE_TTL_MS, promise });
+
+  try {
+    const data = await promise;
+    metadataCache.set(contractURI, { data, expiresAt: Date.now() + METADATA_CACHE_TTL_MS });
+    return data;
+  } catch {
+    metadataCache.delete(contractURI);
+    return {};
+  }
+}
+
+async function loadTokenMetadata(contractURI: string): Promise<TokenMetadata> {
   if (!contractURI) return {};
 
   const urls = ipfsToGatewayUrls(contractURI);
@@ -16,8 +40,8 @@ export async function readTokenMetadata(contractURI: string): Promise<TokenMetad
   for (const url of urls) {
     try {
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 6_000);
-      const response = await fetch(url, { signal: controller.signal, next: { revalidate: 30 } });
+      const timeout = setTimeout(() => controller.abort(), METADATA_TIMEOUT_MS);
+      const response = await fetch(url, { signal: controller.signal, next: { revalidate: 300 } });
       clearTimeout(timeout);
 
       if (!response.ok) continue;

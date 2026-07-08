@@ -19,7 +19,8 @@ export async function getDbLaunches(): Promise<DeployedLaunch[] | undefined> {
         .select("id, token, creator, name, symbol, contract_uri, description, website_url, twitter_url, telegram_url, discord_url, status, raised_eth, graduation_target_eth, progress, volume_eth, token_created_at, created_block")
         .eq("scope", indexerScope())
         .gte("created_block", addresses.deploymentBlock.toString())
-        .order("id", { ascending: false });
+        .order("id", { ascending: false })
+        .limit(80);
 
       if (response.error && isMissingSocialColumnError(response.error)) {
         response = await getSupabase()
@@ -27,7 +28,8 @@ export async function getDbLaunches(): Promise<DeployedLaunch[] | undefined> {
           .select("id, token, creator, name, symbol, contract_uri, status, raised_eth, graduation_target_eth, progress, volume_eth, token_created_at, created_block")
           .eq("scope", indexerScope())
           .gte("created_block", addresses.deploymentBlock.toString())
-          .order("id", { ascending: false });
+          .order("id", { ascending: false })
+          .limit(80);
       }
 
       if (response.error) throw response.error;
@@ -48,7 +50,8 @@ export async function getDbLaunches(): Promise<DeployedLaunch[] | undefined> {
        from launches
        where scope = $1
          and created_block >= $2
-       order by id desc`
+       order by id desc
+       limit 80`
     , [indexerScope(), addresses.deploymentBlock.toString()]), 300);
 
     return mapRows(result.rows);
@@ -74,8 +77,9 @@ export async function getDbTrades(launchId: string): Promise<DeployedTrade[] | u
         .eq("scope", indexerScope())
         .eq("launch_id", launchId)
         .gte("block_number", addresses.deploymentBlock.toString())
-        .order("block_number", { ascending: true })
-        .order("id", { ascending: true });
+        .order("block_number", { ascending: false })
+        .order("id", { ascending: false })
+        .limit(250);
 
       if (error) throw error;
       return mapTrades(data ?? []);
@@ -94,7 +98,8 @@ export async function getDbTrades(launchId: string): Promise<DeployedTrade[] | u
        where scope = $1
          and launch_id = $2
          and block_number >= $3
-       order by block_number asc, id asc`,
+       order by block_number desc, id desc
+       limit 250`,
       [indexerScope(), launchId, addresses.deploymentBlock.toString()]
     ), 300);
 
@@ -148,7 +153,7 @@ function cleanDbText(value: unknown) {
 }
 
 function mapTrades(rows: Array<Record<string, unknown>>): DeployedTrade[] {
-  return rows.map((row) => ({
+  return rows.slice().reverse().map((row) => ({
     side: row.side === "sell" ? "sell" : "buy",
     trader: row.trader ? getAddress(String(row.trader)) as `0x${string}` : undefined,
     ethAmount: `${trimEth(formatEther(parseDbBigInt(row.eth_amount)))} ETH`,

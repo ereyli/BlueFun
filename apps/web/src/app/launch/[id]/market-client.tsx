@@ -114,7 +114,7 @@ export function MarketClient({ id, launch, trades }: { id: string; launch?: Depl
   }, [receipt.isSuccess, router]);
 
   useEffect(() => {
-    const interval = window.setInterval(() => router.refresh(), 6_000);
+    const interval = window.setInterval(() => router.refresh(), 20_000);
     return () => window.clearInterval(interval);
   }, [router]);
 
@@ -470,7 +470,7 @@ function TokenChat({
       }
     }
     loadMessages();
-    const interval = window.setInterval(loadMessages, 3_000);
+    const interval = window.setInterval(loadMessages, 8_000);
     return () => {
       active = false;
       window.clearInterval(interval);

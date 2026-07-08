@@ -21,7 +21,7 @@ export function LaunchExplorer({ launches }: { launches: DeployedLaunch[] }) {
   useEffect(() => {
     const interval = window.setInterval(() => {
       startTransition(() => router.refresh());
-    }, 6_000);
+    }, 30_000);
     return () => window.clearInterval(interval);
   }, [router]);
 
