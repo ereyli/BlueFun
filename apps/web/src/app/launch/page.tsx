@@ -16,6 +16,11 @@ export default function LaunchPage() {
   const [imageUri, setImageUri] = useState("");
   const [metadataUri, setMetadataUri] = useState("");
   const [metadataUploadKey, setMetadataUploadKey] = useState("");
+  const [description, setDescription] = useState("");
+  const [website, setWebsite] = useState("");
+  const [twitter, setTwitter] = useState("");
+  const [telegram, setTelegram] = useState("");
+  const [discord, setDiscord] = useState("");
   const [uploadError, setUploadError] = useState("");
   const [isImageUploading, setIsImageUploading] = useState(false);
   const [isMetadataUploading, setIsMetadataUploading] = useState(false);
@@ -29,7 +34,9 @@ export default function LaunchPage() {
   const salt = useMemo(() => keccak256(toBytes(`${name}:${symbol}:${Date.now()}`)), [name, symbol]);
   const initialBuyEth = parsePositiveEther(initialBuy);
   const initialBuyTooLarge = initialBuyEth > parseEther("1");
-  const metadataKey = imageUri ? `${name.trim()}:${symbol.trim()}:${imageUri}` : "";
+  const metadataKey = imageUri
+    ? `${name.trim()}:${symbol.trim()}:${imageUri}:${description.trim()}:${website.trim()}:${twitter.trim()}:${telegram.trim()}:${discord.trim()}`
+    : "";
   const disabled = !addresses.launchFactory || !name.trim() || !symbol.trim() || !imageUri || !metadataUri || initialBuyTooLarge;
   const disabledReason = getDisabledReason({
     hasFactory: Boolean(addresses.launchFactory),
@@ -83,7 +90,7 @@ export default function LaunchPage() {
     if (!launchMetadataUri || metadataUploadKey !== metadataKey) {
       if (!imageUri) return;
       try {
-        launchMetadataUri = await uploadMetadata(name.trim(), symbol.trim(), imageUri);
+        launchMetadataUri = await uploadMetadata(name.trim(), symbol.trim(), imageUri, getProjectDetails());
         setMetadataUri(launchMetadataUri);
         setMetadataUploadKey(metadataKey);
       } catch (metadataError) {
@@ -142,7 +149,7 @@ export default function LaunchPage() {
     try {
       setIsMetadataUploading(true);
       setUploadError("");
-      const preparedMetadataUri = await uploadMetadata(tokenName, tokenSymbol, uploadedImageUri);
+      const preparedMetadataUri = await uploadMetadata(tokenName, tokenSymbol, uploadedImageUri, getProjectDetails());
       setMetadataUri(preparedMetadataUri);
       setMetadataUploadKey(nextMetadataKey);
     } catch (metadataError) {
@@ -150,6 +157,16 @@ export default function LaunchPage() {
     } finally {
       setIsMetadataUploading(false);
     }
+  }
+
+  function getProjectDetails() {
+    return {
+      description: description.trim(),
+      website: website.trim(),
+      twitter: twitter.trim(),
+      telegram: telegram.trim(),
+      discord: discord.trim()
+    };
   }
 
   return (
@@ -201,6 +218,39 @@ export default function LaunchPage() {
           <div className="field">
             <label>Symbol</label>
             <input placeholder="Ticker" value={symbol} onChange={(event) => setSymbol(event.target.value.toUpperCase())} />
+          </div>
+          <div className="project-details-card">
+            <div className="project-details-head">
+              <strong>Project details</strong>
+              <span>Shown on the market page</span>
+            </div>
+            <div className="field">
+              <label>Description</label>
+              <textarea
+                maxLength={500}
+                placeholder="What is this token about?"
+                value={description}
+                onChange={(event) => setDescription(event.target.value)}
+              />
+            </div>
+            <div className="social-input-grid">
+              <div className="field">
+                <label>Website</label>
+                <input placeholder="funblue.xyz" value={website} onChange={(event) => setWebsite(event.target.value)} />
+              </div>
+              <div className="field">
+                <label>X</label>
+                <input placeholder="x.com/project" value={twitter} onChange={(event) => setTwitter(event.target.value)} />
+              </div>
+              <div className="field">
+                <label>Telegram</label>
+                <input placeholder="t.me/project" value={telegram} onChange={(event) => setTelegram(event.target.value)} />
+              </div>
+              <div className="field">
+                <label>Discord</label>
+                <input placeholder="discord.gg/project" value={discord} onChange={(event) => setDiscord(event.target.value)} />
+              </div>
+            </div>
           </div>
           <div className="field">
             <label>Token image</label>
@@ -371,11 +421,21 @@ async function uploadImage(file: File) {
   return result.imageUri;
 }
 
-async function uploadMetadata(name: string, symbol: string, imageUri: string) {
+async function uploadMetadata(
+  name: string,
+  symbol: string,
+  imageUri: string,
+  details?: { description: string; website: string; twitter: string; telegram: string; discord: string }
+) {
   const form = new FormData();
   form.append("imageUri", imageUri);
   form.append("name", name);
   form.append("symbol", symbol);
+  form.append("description", details?.description || "");
+  form.append("website", details?.website || "");
+  form.append("twitter", details?.twitter || "");
+  form.append("telegram", details?.telegram || "");
+  form.append("discord", details?.discord || "");
 
   const response = await fetch("/api/pinata/metadata", {
     method: "POST",

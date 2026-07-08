@@ -14,15 +14,24 @@ export async function getDbLaunches(): Promise<DeployedLaunch[] | undefined> {
 
   try {
     if (hasSupabaseConfig()) {
-      const { data, error } = await getSupabase()
+      let response: { data: Array<Record<string, unknown>> | null; error: { message?: string; details?: string } | null } = await getSupabase()
         .from("launches")
-        .select("id, token, creator, name, symbol, contract_uri, status, raised_eth, graduation_target_eth, progress, volume_eth, token_created_at, created_block")
+        .select("id, token, creator, name, symbol, contract_uri, description, website_url, twitter_url, telegram_url, discord_url, status, raised_eth, graduation_target_eth, progress, volume_eth, token_created_at, created_block")
         .eq("scope", indexerScope())
         .gte("created_block", addresses.deploymentBlock.toString())
         .order("id", { ascending: false });
 
-      if (error) throw error;
-      return mapRows(data ?? []);
+      if (response.error && isMissingSocialColumnError(response.error)) {
+        response = await getSupabase()
+          .from("launches")
+          .select("id, token, creator, name, symbol, contract_uri, status, raised_eth, graduation_target_eth, progress, volume_eth, token_created_at, created_block")
+          .eq("scope", indexerScope())
+          .gte("created_block", addresses.deploymentBlock.toString())
+          .order("id", { ascending: false });
+      }
+
+      if (response.error) throw response.error;
+      return mapRows(response.data ?? []);
     }
 
     if (!process.env.DATABASE_URL) return undefined;
@@ -33,7 +42,8 @@ export async function getDbLaunches(): Promise<DeployedLaunch[] | undefined> {
       max: 2
     });
     const result = await withTimeout(pool.query(
-      `select id, token, creator, name, symbol, contract_uri, status, raised_eth,
+      `select id, token, creator, name, symbol, contract_uri, description,
+              website_url, twitter_url, telegram_url, discord_url, status, raised_eth,
               graduation_target_eth, progress, volume_eth, token_created_at
        from launches
        where scope = $1
@@ -46,6 +56,11 @@ export async function getDbLaunches(): Promise<DeployedLaunch[] | undefined> {
     console.error("Failed to read launches from database", error);
     return undefined;
   }
+}
+
+function isMissingSocialColumnError(error: { message?: string; details?: string }) {
+  const text = `${error.message || ""} ${error.details || ""}`.toLowerCase();
+  return ["description", "website_url", "twitter_url", "telegram_url", "discord_url"].some((column) => text.includes(column));
 }
 
 export async function getDbTrades(launchId: string): Promise<DeployedTrade[] | undefined> {
@@ -106,7 +121,12 @@ async function mapRows(rows: Array<Record<string, unknown>>): Promise<DeployedLa
       name: String(row.name),
       symbol: String(row.symbol),
       contractURI,
+      description: cleanDbText(row.description) || metadata.description,
       imageURI: metadata.imageURI,
+      website: cleanDbText(row.website_url) || metadata.website,
+      twitter: cleanDbText(row.twitter_url) || metadata.twitter,
+      telegram: cleanDbText(row.telegram_url) || metadata.telegram,
+      discord: cleanDbText(row.discord_url) || metadata.discord,
       status,
       raised: `${trimEth(formatEther(raised))} ETH`,
       target: `${trimEth(formatEther(target))} ETH`,
@@ -119,6 +139,12 @@ async function mapRows(rows: Array<Record<string, unknown>>): Promise<DeployedLa
       marketCap: "Live"
     };
   }));
+}
+
+function cleanDbText(value: unknown) {
+  if (typeof value !== "string") return undefined;
+  const clean = value.trim();
+  return clean || undefined;
 }
 
 function mapTrades(rows: Array<Record<string, unknown>>): DeployedTrade[] {

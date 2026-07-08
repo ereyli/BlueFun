@@ -25,6 +25,11 @@ export async function upsertLaunch(input: {
   name: string;
   symbol: string;
   contractURI: string;
+  description?: string;
+  website?: string;
+  twitter?: string;
+  telegram?: string;
+  discord?: string;
   txHash: string;
   blockNumber?: bigint;
 }) {
@@ -41,6 +46,11 @@ export async function upsertLaunch(input: {
             name: input.name,
             symbol: input.symbol,
             contract_uri: input.contractURI,
+            description: input.description || null,
+            website_url: input.website || null,
+            twitter_url: input.twitter || null,
+            telegram_url: input.telegram || null,
+            discord_url: input.discord || null,
             created_tx: input.txHash,
             created_block: input.blockNumber?.toString()
           },
@@ -52,14 +62,22 @@ export async function upsertLaunch(input: {
 
   if (!pool) throw new Error("Database client is not configured");
   await pool.query(
-    `insert into launches (scope, id, token, creator, name, symbol, contract_uri, created_tx, created_block)
-     values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+    `insert into launches (
+       scope, id, token, creator, name, symbol, contract_uri, description,
+       website_url, twitter_url, telegram_url, discord_url, created_tx, created_block
+     )
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
      on conflict (scope, id) do update set
        token = excluded.token,
        creator = excluded.creator,
        name = excluded.name,
        symbol = excluded.symbol,
        contract_uri = excluded.contract_uri,
+       description = excluded.description,
+       website_url = excluded.website_url,
+       twitter_url = excluded.twitter_url,
+       telegram_url = excluded.telegram_url,
+       discord_url = excluded.discord_url,
        created_tx = excluded.created_tx,
        created_block = coalesce(excluded.created_block, launches.created_block)`,
     [
@@ -70,6 +88,11 @@ export async function upsertLaunch(input: {
       input.name,
       input.symbol,
       input.contractURI,
+      input.description || null,
+      input.website || null,
+      input.twitter || null,
+      input.telegram || null,
+      input.discord || null,
       input.txHash,
       input.blockNumber?.toString()
     ]

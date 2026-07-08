@@ -287,6 +287,7 @@ export function MarketClient({ id, launch, trades }: { id: string; launch?: Depl
               creatorTokenBalance={creatorTokenBalance.data ?? 0n}
               curveTokenBalance={curveTokenBalance.data ?? 0n}
             />
+            <ProjectInfo launch={launch} />
             <RecentTrades trades={trades} symbol={launch.symbol} />
           </div>
         </div>
@@ -442,6 +443,36 @@ export function MarketClient({ id, launch, trades }: { id: string; launch?: Depl
 
 function TradeStatus({ children, tone }: { children: React.ReactNode; tone: "info" | "success" | "danger" }) {
   return <p className={`trade-status ${tone}`}>{children}</p>;
+}
+
+function ProjectInfo({ launch }: { launch: DeployedLaunch }) {
+  const links = [
+    { label: "Website", href: launch.website },
+    { label: "X", href: launch.twitter },
+    { label: "Telegram", href: launch.telegram },
+    { label: "Discord", href: launch.discord }
+  ].filter((link): link is { label: string; href: string } => Boolean(link.href));
+
+  if (!launch.description && links.length === 0) return null;
+
+  return (
+    <section className="project-info-panel">
+      <div className="project-info-head">
+        <h2>Project</h2>
+        <span>{links.length ? `${links.length} links` : "Description"}</span>
+      </div>
+      {launch.description ? <p>{launch.description}</p> : null}
+      {links.length ? (
+        <div className="project-link-row">
+          {links.map((link) => (
+            <a href={link.href} key={link.label} target="_blank" rel="noreferrer">
+              {link.label}<ExternalLink size={13} />
+            </a>
+          ))}
+        </div>
+      ) : null}
+    </section>
+  );
 }
 
 function RecentTrades({ trades, symbol }: { trades: DeployedTrade[]; symbol: string }) {

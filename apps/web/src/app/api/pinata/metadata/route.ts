@@ -28,6 +28,11 @@ export async function POST(request: Request) {
   const existingImageUri = cleanText(form.get("imageUri"), 120);
   const name = cleanText(form.get("name"), 80);
   const symbol = cleanText(form.get("symbol"), 20).toUpperCase();
+  const description = cleanText(form.get("description"), 500);
+  const website = cleanUrl(form.get("website"));
+  const twitter = cleanUrl(form.get("twitter"));
+  const telegram = cleanUrl(form.get("telegram"));
+  const discord = cleanUrl(form.get("discord"));
 
   if (!name || !symbol) {
     return NextResponse.json({ error: "Token name and symbol are required before uploading metadata." }, { status: 400 });
@@ -63,8 +68,15 @@ export async function POST(request: Request) {
     const metadata = {
       name,
       symbol,
-      description: `${name} (${symbol}) launched on BlueFun on Base Sepolia.`,
+      description: description || `${name} (${symbol}) launched on BlueFun.`,
       image: imageUri,
+      external_url: website || undefined,
+      socials: {
+        website: website || undefined,
+        twitter: twitter || undefined,
+        telegram: telegram || undefined,
+        discord: discord || undefined
+      },
       attributes: [
         { trait_type: "Network", value: "Base Sepolia" },
         { trait_type: "Launchpad", value: "BlueFun" },
@@ -118,6 +130,20 @@ async function pinataFetch<T>(url: string, init: RequestInit): Promise<T> {
 function cleanText(value: FormDataEntryValue | null, maxLength: number) {
   if (typeof value !== "string") return "";
   return value.trim().slice(0, maxLength);
+}
+
+function cleanUrl(value: FormDataEntryValue | null) {
+  if (typeof value !== "string") return "";
+  const raw = value.trim().slice(0, 240);
+  if (!raw) return "";
+  const candidate = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
+  try {
+    const url = new URL(candidate);
+    if (url.protocol !== "https:" && url.protocol !== "http:") return "";
+    return url.toString();
+  } catch {
+    return "";
+  }
 }
 
 function safeFileName(name: string) {

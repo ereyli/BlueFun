@@ -6,6 +6,11 @@ create table if not exists launches (
   name text not null,
   symbol text not null,
   contract_uri text not null,
+  description text,
+  website_url text,
+  twitter_url text,
+  telegram_url text,
+  discord_url text,
   status text not null default 'live',
   raised_eth numeric not null default 0,
   graduation_target_eth numeric not null default 0,
@@ -27,6 +32,11 @@ alter table launches add column if not exists volume_eth numeric not null defaul
 alter table launches add column if not exists creator_allocation numeric not null default 0;
 alter table launches add column if not exists created_block numeric;
 alter table launches add column if not exists token_created_at numeric;
+alter table launches add column if not exists description text;
+alter table launches add column if not exists website_url text;
+alter table launches add column if not exists twitter_url text;
+alter table launches add column if not exists telegram_url text;
+alter table launches add column if not exists discord_url text;
 
 create table if not exists trades (
   id bigserial primary key,

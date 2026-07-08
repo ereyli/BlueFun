@@ -168,7 +168,7 @@ export function LaunchExplorer({ launches }: { launches: DeployedLaunch[] }) {
                     <span className={launch.status === "Live" ? "token-status live" : "token-status"}>{launch.status}</span>
                   </div>
                   <p className="token-description">
-                    {launch.status === "Graduated" ? "DEX ready market" : "B20 curve launch"}
+                    {launch.description || (launch.status === "Graduated" ? "DEX ready market" : "B20 curve launch")}
                   </p>
                 </div>
               </div>

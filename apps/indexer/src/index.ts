@@ -33,6 +33,14 @@ const graduationManagerAddress = graduationManager;
 const stateScope = `${launchFactoryAddress.toLowerCase()}:${marketAddress.toLowerCase()}:${startBlock.toString()}`;
 process.env.INDEXER_SCOPE ||= `${baseSepolia.id}:${stateScope}`;
 
+type LaunchMetadata = {
+  description?: string;
+  website?: string;
+  twitter?: string;
+  telegram?: string;
+  discord?: string;
+};
+
 const client = createPublicClient({
   chain: baseSepolia,
   transport: http(rpcUrl)
@@ -188,6 +196,7 @@ function stateKey(key: string) {
 }
 
 async function handleLaunchCreated(log: Awaited<ReturnType<typeof client.getContractEvents<typeof launchFactoryAbi, "LaunchCreated">>>[number]) {
+  const metadata: LaunchMetadata = await readLaunchMetadata(log.args.contractURI || "").catch(() => ({}));
   await upsertLaunch({
     id: log.args.launchId!,
     token: log.args.token!,
@@ -195,10 +204,73 @@ async function handleLaunchCreated(log: Awaited<ReturnType<typeof client.getCont
     name: log.args.name!,
     symbol: log.args.symbol!,
     contractURI: log.args.contractURI!,
+    description: metadata.description,
+    website: metadata.website,
+    twitter: metadata.twitter,
+    telegram: metadata.telegram,
+    discord: metadata.discord,
     txHash: log.transactionHash,
     blockNumber: log.blockNumber
   });
   await refreshLaunchState(log.args.launchId!);
+}
+
+async function readLaunchMetadata(contractURI: string): Promise<LaunchMetadata> {
+  for (const url of ipfsToGatewayUrls(contractURI)) {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 8_000);
+      const response = await fetch(url, { signal: controller.signal });
+      clearTimeout(timeout);
+      if (!response.ok) continue;
+      const metadata = await response.json() as {
+        description?: unknown;
+        external_url?: unknown;
+        socials?: Record<string, unknown>;
+      };
+      return {
+        description: cleanMetadataText(metadata.description, 500),
+        website: cleanMetadataUrl(metadata.socials?.website) || cleanMetadataUrl(metadata.external_url),
+        twitter: cleanMetadataUrl(metadata.socials?.twitter),
+        telegram: cleanMetadataUrl(metadata.socials?.telegram),
+        discord: cleanMetadataUrl(metadata.socials?.discord)
+      };
+    } catch {
+      // Try the next gateway.
+    }
+  }
+  return {};
+}
+
+function ipfsToGatewayUrls(uri: string) {
+  if (!uri) return [];
+  if (uri.startsWith("https://") || uri.startsWith("http://")) return [uri];
+  if (!uri.startsWith("ipfs://")) return [];
+  const cidPath = uri.replace("ipfs://", "");
+  const gateway = process.env.PINATA_GATEWAY_URL || "https://gateway.pinata.cloud/ipfs";
+  return [
+    `${gateway.replace(/\/$/, "")}/${cidPath}`,
+    `https://ipfs.io/ipfs/${cidPath}`,
+    `https://cloudflare-ipfs.com/ipfs/${cidPath}`
+  ];
+}
+
+function cleanMetadataText(value: unknown, maxLength: number) {
+  if (typeof value !== "string") return undefined;
+  const clean = value.trim().replace(/\s+/g, " ").slice(0, maxLength);
+  return clean || undefined;
+}
+
+function cleanMetadataUrl(value: unknown) {
+  if (typeof value !== "string") return undefined;
+  const clean = value.trim().slice(0, 240);
+  if (!clean) return undefined;
+  try {
+    const url = new URL(clean);
+    return url.protocol === "https:" || url.protocol === "http:" ? url.toString() : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 async function handleTokensBought(log: Awaited<ReturnType<typeof client.getContractEvents<typeof marketAbi, "TokensBought">>>[number]) {

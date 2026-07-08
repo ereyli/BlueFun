@@ -11,7 +11,12 @@ export type DeployedLaunch = {
   name: string;
   symbol: string;
   contractURI: string;
+  description?: string;
   imageURI?: string;
+  website?: string;
+  twitter?: string;
+  telegram?: string;
+  discord?: string;
   status: "Live" | "Ready" | "Graduated";
   raised: string;
   target: string;
@@ -173,7 +178,12 @@ async function getLaunchFromMarket(
     name,
     symbol,
     contractURI,
+    description: metadata.description,
     imageURI: metadata.imageURI,
+    website: metadata.website,
+    twitter: metadata.twitter,
+    telegram: metadata.telegram,
+    discord: metadata.discord,
     status,
     raised: `${trimEth(formatEther(grossEthRaised))} ETH`,
     target: `${trimEth(formatEther(graduationEthTarget))} ETH`,
@@ -488,7 +498,12 @@ function mergeLaunches(dbLaunches: DeployedLaunch[], onchainLaunches: DeployedLa
       ...indexed,
       ...launch,
       contractURI: launch.contractURI || indexed?.contractURI || "",
-      imageURI: launch.imageURI || indexed?.imageURI
+      description: launch.description || indexed?.description,
+      imageURI: launch.imageURI || indexed?.imageURI,
+      website: launch.website || indexed?.website,
+      twitter: launch.twitter || indexed?.twitter,
+      telegram: launch.telegram || indexed?.telegram,
+      discord: launch.discord || indexed?.discord
     });
   }
 

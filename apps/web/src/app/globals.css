@@ -1102,6 +1102,64 @@ button:disabled,
   width: 100%;
 }
 
+.field textarea {
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--text);
+  font: inherit;
+  font-size: 15px;
+  min-height: 92px;
+  outline: none;
+  padding: 13px 16px;
+  resize: vertical;
+  width: 100%;
+}
+
+.field input:focus,
+.field textarea:focus {
+  border-color: rgba(0, 0, 255, 0.42);
+  box-shadow: 0 0 0 4px rgba(0, 0, 255, 0.07);
+}
+
+.project-details-card {
+  background: linear-gradient(135deg, rgba(239, 244, 255, 0.74), rgba(255, 255, 255, 0.92));
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+}
+
+.project-details-head {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+}
+
+.project-details-head strong {
+  color: var(--text);
+  font-size: 14px;
+}
+
+.project-details-head span {
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.social-input-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.social-input-grid .field input {
+  font-size: 14px;
+  min-height: 46px;
+  padding: 0 12px;
+}
+
 .field-help {
   color: var(--muted);
   font-size: 12px;
@@ -1564,13 +1622,31 @@ button:disabled,
   padding: 14px;
 }
 
+.project-info-panel {
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+}
+
 .market-stats-head {
   align-items: center;
   display: flex;
   justify-content: space-between;
 }
 
+.project-info-head {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+}
+
 .market-stats-head h2 {
+  font-size: 16px;
+  margin: 0;
+}
+
+.project-info-head h2 {
   font-size: 16px;
   margin: 0;
 }
@@ -1583,6 +1659,44 @@ button:disabled,
   font-size: 12px;
   font-weight: 900;
   padding: 5px 9px;
+}
+
+.project-info-head span {
+  background: var(--blue-soft);
+  border: 1px solid rgba(0, 0, 255, 0.12);
+  border-radius: 999px;
+  color: var(--blue);
+  font-size: 12px;
+  font-weight: 900;
+  padding: 5px 9px;
+}
+
+.project-info-panel p {
+  color: #59698f;
+  font-size: 14px;
+  font-weight: 720;
+  line-height: 1.45;
+  margin: 0;
+}
+
+.project-link-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.project-link-row a {
+  align-items: center;
+  background: #ffffff;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--blue);
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 900;
+  gap: 5px;
+  padding: 7px 10px;
+  text-decoration: none;
 }
 
 .market-stats-grid,
@@ -2535,6 +2649,7 @@ body {
 }
 
 .market-stats-panel,
+.project-info-panel,
 .recent-trades {
   padding: 12px 14px;
 }
@@ -3156,6 +3271,7 @@ body {
 }
 
 .market-stats-panel,
+.project-info-panel,
 .recent-trades {
   gap: 8px;
   padding: 11px 12px;
@@ -3642,7 +3758,8 @@ body {
   }
 
   .market-stats-grid,
-  .distribution-strip {
+  .distribution-strip,
+  .social-input-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -3652,5 +3769,17 @@ body {
 
   .explorer-title {
     min-width: 0;
+  }
+}
+
+@media (max-width: 620px) {
+  .social-input-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .project-details-head {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 3px;
   }
 }

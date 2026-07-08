@@ -1,5 +1,10 @@
 export type TokenMetadata = {
+  description?: string;
   imageURI?: string;
+  website?: string;
+  twitter?: string;
+  telegram?: string;
+  discord?: string;
 };
 
 export async function readTokenMetadata(contractURI: string): Promise<TokenMetadata> {
@@ -16,9 +21,19 @@ export async function readTokenMetadata(contractURI: string): Promise<TokenMetad
       clearTimeout(timeout);
 
       if (!response.ok) continue;
-      const metadata = (await response.json()) as { image?: unknown };
+      const metadata = (await response.json()) as {
+        description?: unknown;
+        external_url?: unknown;
+        image?: unknown;
+        socials?: Record<string, unknown>;
+      };
       return {
-        imageURI: typeof metadata.image === "string" ? metadata.image : undefined
+        description: cleanMetadataText(metadata.description, 500),
+        imageURI: typeof metadata.image === "string" ? metadata.image : undefined,
+        website: cleanMetadataUrl(metadata.socials?.website) || cleanMetadataUrl(metadata.external_url),
+        twitter: cleanMetadataUrl(metadata.socials?.twitter),
+        telegram: cleanMetadataUrl(metadata.socials?.telegram),
+        discord: cleanMetadataUrl(metadata.socials?.discord)
       };
     } catch {
       // Try the next gateway.
@@ -26,6 +41,24 @@ export async function readTokenMetadata(contractURI: string): Promise<TokenMetad
   }
 
   return {};
+}
+
+function cleanMetadataText(value: unknown, maxLength: number) {
+  if (typeof value !== "string") return undefined;
+  const clean = value.trim().replace(/\s+/g, " ").slice(0, maxLength);
+  return clean || undefined;
+}
+
+function cleanMetadataUrl(value: unknown) {
+  if (typeof value !== "string") return undefined;
+  const clean = value.trim().slice(0, 240);
+  if (!clean) return undefined;
+  try {
+    const url = new URL(clean);
+    return url.protocol === "https:" || url.protocol === "http:" ? url.toString() : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 export function ipfsToGatewayUrl(uri?: string) {
