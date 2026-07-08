@@ -3567,12 +3567,30 @@ body {
 }
 
 .token-grid {
-  grid-template-columns: repeat(5, minmax(160px, 1fr));
+  align-items: start;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 360px));
 }
 
 .token-card {
-  border-radius: 20px;
+  border-radius: 16px;
   gap: 8px;
+  max-width: 360px;
+  padding: 12px;
+}
+
+.token-card-main {
+  gap: 10px;
+  grid-template-columns: 58px minmax(0, 1fr);
+}
+
+.token-card-main .token-art {
+  border-radius: 14px;
+  height: 58px;
+  width: 58px;
+}
+
+.token-symbol-art {
+  font-size: 22px;
 }
 
 .token-title {
@@ -3583,6 +3601,40 @@ body {
   font-size: 12px;
 }
 
+.token-description {
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 1;
+  display: -webkit-box;
+  font-size: 12px;
+  margin-top: 5px;
+  overflow: hidden;
+}
+
+.token-progress-row {
+  font-size: 11px;
+}
+
+.token-card .progress {
+  height: 6px;
+}
+
+.token-stat-row {
+  gap: 8px;
+}
+
+.token-stat-row span {
+  font-size: 10px;
+}
+
+.token-stat-row strong {
+  font-size: 12px;
+  margin-top: 2px;
+}
+
+.token-foot {
+  font-size: 11px;
+}
+
 .token-money {
   font-size: 16px;
 }
@@ -3591,6 +3643,59 @@ body {
   font-size: 10px;
   min-height: 21px;
   padding: 0 7px;
+}
+
+.section-title {
+  font-size: 18px;
+}
+
+.trending-section {
+  gap: 9px;
+}
+
+.trending-rail {
+  gap: 10px;
+  grid-auto-columns: minmax(250px, 300px);
+  padding-bottom: 4px;
+}
+
+.trending-card {
+  align-items: center;
+  border-radius: 16px;
+  gap: 10px;
+  grid-template-columns: 42px minmax(0, 1fr);
+  min-height: 86px;
+  padding: 10px;
+}
+
+.trending-card .token-art {
+  border-radius: 12px;
+  height: 42px;
+  width: 42px;
+}
+
+.trending-card .token-symbol-art {
+  font-size: 16px;
+}
+
+.trending-copy strong {
+  font-size: 14px;
+}
+
+.trending-copy span {
+  font-size: 11px;
+}
+
+.trending-progress {
+  gap: 4px;
+}
+
+.trending-progress div:first-child {
+  font-size: 11px;
+}
+
+.trending-progress .progress {
+  height: 6px;
 }
 
 .market-title-row h1 {
