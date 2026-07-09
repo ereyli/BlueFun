@@ -337,6 +337,22 @@ async function refreshLaunchState(launchId: bigint) {
 }
 
 function isRateLimitError(error: unknown) {
-  const text = error instanceof Error ? `${error.message} ${JSON.stringify(error)}` : String(error);
-  return text.toLowerCase().includes("rate limit") || text.toLowerCase().includes("over rate limit");
+  const text = error instanceof Error ? `${error.message} ${safeJsonStringify(error)}` : String(error);
+  const normalized = text.toLowerCase();
+  return normalized.includes("rate limit")
+    || normalized.includes("over rate limit")
+    || normalized.includes("compute units")
+    || normalized.includes("throughput")
+    || normalized.includes("code\":429")
+    || normalized.includes("code: 429");
+}
+
+function safeJsonStringify(value: unknown) {
+  try {
+    return JSON.stringify(value, (_key, nestedValue) =>
+      typeof nestedValue === "bigint" ? nestedValue.toString() : nestedValue
+    );
+  } catch {
+    return "";
+  }
 }
