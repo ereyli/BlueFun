@@ -10,6 +10,7 @@ import { siteUrl } from "@/lib/site-url";
 import { NetworkSelector } from "@/components/network-selector";
 import { Suspense } from "react";
 import { ChainLink } from "@/components/chain-link";
+import { NetworkIcon } from "@/components/network-icon";
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl("/")),
@@ -44,6 +45,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               </ChainLink></Suspense>
               <Suspense fallback={null}><SideNav /></Suspense>
               <Suspense fallback={<Link className="button primary wide" href="/launch">Create</Link>}><ChainLink className="button primary wide" href="/launch">Create</ChainLink></Suspense>
+              <div className="sidebar-network-note">
+                <span className="sidebar-network-icons"><NetworkIcon chainId={8453} size={25} /><NetworkIcon chainId={4663} size={25} /></span>
+                <span><strong>Multichain</strong><small>Base + Robinhood live</small></span>
+              </div>
               <a className="sidebar-social-link" href="https://x.com/B20base" target="_blank" rel="noreferrer" aria-label="BlueFun on X">
                 <span className="x-icon" aria-hidden="true">X</span>
                 <span>@B20base</span>
@@ -54,9 +59,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 <Link className="mobile-brand" href="/" aria-label="BlueFun home">
                   <Image src="/brand/funblue-icon.png" alt="" width={32} height={32} priority />
                 </Link>
-                <Suspense fallback={null}><NetworkSelector /></Suspense>
-                <Suspense fallback={<Link className="button primary" href="/launch">Create</Link>}><ChainLink className="button primary" href="/launch">Create</ChainLink></Suspense>
-                <WalletButton />
+                <div className="topbar-actions">
+                  <Suspense fallback={<Link className="button primary" href="/launch">Create</Link>}><ChainLink className="button primary topbar-create" href="/launch">Create</ChainLink></Suspense>
+                  <Suspense fallback={null}><NetworkSelector /></Suspense>
+                  <WalletButton />
+                </div>
               </header>
               <main className="main">{children}</main>
             </section>

@@ -3,12 +3,13 @@
 import { useEffect, useMemo, useState, useTransition, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Activity, Clock, Grid2X2, Rocket, Search, Settings, ShieldCheck, SlidersHorizontal, Sparkles, Trophy } from "lucide-react";
+import { Activity, BarChart3, Clock, Coins, Crown, Grid2X2, Rocket, Search, Settings, ShieldCheck, SlidersHorizontal, Sparkles, Trophy, Users } from "lucide-react";
 import { isFeaturedLaunch, isTrustedLaunch } from "@/lib/featured-launches";
 import { compactUsd, parseDisplayAmount } from "@/lib/market-math";
 import type { DbLaunchMetrics } from "@/lib/db-launches";
 import type { DeployedLaunch } from "@/lib/onchain-launches";
 import { ipfsToGatewayUrl } from "@/lib/token-metadata";
+import { NetworkIcon, networkMeta } from "@/components/network-icon";
 
 type Filter = "Live" | "New" | "Ready" | "Graduated" | "Safe" | "Progress";
 
@@ -18,6 +19,7 @@ export function LaunchExplorer({ launches, metrics, chainId = 8453 }: { launches
   const [filter, setFilter] = useState<Filter>("New");
   const [ethUsd, setEthUsd] = useState<number | null>(null);
   const [isPending, startTransition] = useTransition();
+  const activeNetwork = networkMeta(chainId);
 
   useEffect(() => {
     const interval = window.setInterval(() => {
@@ -93,11 +95,30 @@ export function LaunchExplorer({ launches, metrics, chainId = 8453 }: { launches
 
   return (
     <section className="explorer-shell">
+      <section className="launchpad-intro">
+        <div className="launchpad-intro-copy">
+          <div className="launchpad-eyebrow"><NetworkIcon chainId={chainId} size={22} /><span>{activeNetwork.name} launchpad</span><i>Live</i></div>
+          <h1>Launch bold ideas.<br /><span>Trade them early.</span></h1>
+          <p>Fair curves, transparent rules and permanently locked liquidity—built for communities, not insiders.</p>
+          <div className="launchpad-intro-actions">
+            <Link className="button primary hero-action" href={`/launch?chain=${chainId}`}><Rocket size={17} />Create a token</Link>
+            <span className="intro-trust"><ShieldCheck size={16} />Auditable onchain</span>
+          </div>
+        </div>
+        <div className="launchpad-orbit" aria-hidden="true">
+          <div className="orbit-ring ring-one" />
+          <div className="orbit-ring ring-two" />
+          <div className="orbit-core"><NetworkIcon chainId={chainId} size={54} /></div>
+          <span className="orbit-chip chip-one">Fair launch</span>
+          <span className="orbit-chip chip-two">LP locked</span>
+          <span className="orbit-chip chip-three">Live markets</span>
+        </div>
+      </section>
       <div className="explorer-stats-grid" aria-label="Launchpad metrics">
-        <MetricCard label="Tokens" value={stats.tokens} detail="Total launched" />
-        <MetricCard label="Volume" value={stats.volume} detail="Total buy/sell volume" />
-        <MetricCard label="Highest MC" value={stats.highestMarketCap} detail="Top live valuation" />
-        <MetricCard label="Creators" value={stats.creators} detail="Unique launchers" />
+        <MetricCard icon={<Coins size={18} />} label="Tokens" value={stats.tokens} detail="Total launched" />
+        <MetricCard icon={<BarChart3 size={18} />} label="Volume" value={stats.volume} detail="Total buy/sell volume" />
+        <MetricCard icon={<Crown size={18} />} label="Highest MC" value={stats.highestMarketCap} detail="Top live valuation" />
+        <MetricCard icon={<Users size={18} />} label="Creators" value={stats.creators} detail="Unique launchers" />
       </div>
 
       <div className="trending-section">
@@ -106,7 +127,7 @@ export function LaunchExplorer({ launches, metrics, chainId = 8453 }: { launches
           <Link className="button primary compact" href={`/launch?chain=${chainId}`}><Rocket size={15} />Launch</Link>
         </div>
         {trendingLaunches.length === 0 ? (
-          <div className="empty compact-empty">No launches indexed yet.</div>
+          <div className="empty compact-empty"><Sparkles size={18} /><span>Fresh launches will shine here.</span></div>
         ) : (
           <div className="trending-rail">
             {trendingLaunches.map((launch) => {
@@ -162,8 +183,11 @@ export function LaunchExplorer({ launches, metrics, chainId = 8453 }: { launches
       </div>
 
       {filteredLaunches.length === 0 ? (
-        <div className="empty">
-          {launches.length === 0 ? "No live launches yet. New launches appear here automatically." : "No launches match this view."}
+        <div className="empty premium-empty">
+          <div className="empty-orb"><Rocket size={27} /></div>
+          <strong>{launches.length === 0 ? `Be first on ${activeNetwork.name}` : "No matching launches"}</strong>
+          <span>{launches.length === 0 ? "Create the first fair token and start the market." : "Try another search or filter."}</span>
+          {launches.length === 0 ? <Link className="button primary compact" href={`/launch?chain=${chainId}`}>Launch a token</Link> : null}
         </div>
       ) : (
         <div className="token-grid">
@@ -199,7 +223,7 @@ export function LaunchExplorer({ launches, metrics, chainId = 8453 }: { launches
               </div>
               <div className="token-foot">
                 <span>By {launch.creator.slice(0, 6)}...{launch.creator.slice(-4)}</span>
-                <span>{launch.status === "Graduated" ? "DEX" : "Curve"}</span>
+                <span className="token-chain"><NetworkIcon chainId={launch.chainId} size={16} />{launch.status === "Graduated" ? "DEX" : networkMeta(launch.chainId).name}</span>
               </div>
             </Link>
             );
@@ -228,10 +252,10 @@ function FilterButton({ active, children, onClick }: { active: boolean; children
   );
 }
 
-function MetricCard({ detail, label, value }: { detail: string; label: string; value: string }) {
+function MetricCard({ detail, icon, label, value }: { detail: string; icon: ReactNode; label: string; value: string }) {
   return (
     <div className="explorer-metric-card">
-      <span>{label}</span>
+      <div className="metric-label"><i>{icon}</i><span>{label}</span></div>
       <strong>{value}</strong>
       <small>{detail}</small>
     </div>

@@ -8,6 +8,7 @@ import { BadgeCheck, CheckCircle2, ImagePlus, Info, Loader2, LockKeyhole, Rocket
 import { contractsForChain, FAIR_GRADUATION_TARGET_ETH, FAIR_LAUNCH_FEE_ETH, launchFactoryAbi } from "@/lib/contracts";
 import { WalletButton } from "@/components/wallet-button";
 import { useSearchParams } from "next/navigation";
+import { NetworkIcon } from "@/components/network-icon";
 
 export default function LaunchPage() {
   return <Suspense fallback={<div className="empty">Loading launch form...</div>}><LaunchPageContent /></Suspense>;
@@ -185,6 +186,7 @@ function LaunchPageContent() {
     <div className="launch-page">
       <section className="launch-intro">
         <div className="launch-hero-panel">
+          <div className="launch-network-chip"><NetworkIcon chainId={activeChainId} size={22} /><span>Launching on <strong>{chain.name}</strong></span></div>
           <h1>Create a fair launch.</h1>
           <p className="muted">
             Add metadata, choose an optional first buy, and publish directly to the bonding curve.
