@@ -112,9 +112,9 @@ function isMissingSocialColumnError(error: { message?: string; details?: string 
   return ["description", "website_url", "twitter_url", "telegram_url", "discord_url"].some((column) => text.includes(column));
 }
 
-function isMissingMarketCapColumnError(error: { message?: string; details?: string }) {
+function isMissingTradeColumnError(error: { message?: string; details?: string }) {
   const text = `${error.message || ""} ${error.details || ""}`.toLowerCase();
-  return text.includes("market_cap_eth");
+  return text.includes("market_cap_eth") || text.includes("source");
 }
 
 export async function getDbTrades(launchId: string): Promise<DeployedTrade[] | undefined> {
@@ -124,7 +124,7 @@ export async function getDbTrades(launchId: string): Promise<DeployedTrade[] | u
     if (hasSupabaseConfig()) {
       let response: { data: Array<Record<string, unknown>> | null; error: { message?: string; details?: string } | null } = await getSupabase()
         .from("trades")
-        .select("side, trader, eth_amount, token_amount, market_cap_eth, tx_hash, block_number, created_at")
+        .select("side, source, trader, eth_amount, token_amount, market_cap_eth, tx_hash, block_number, created_at")
         .eq("scope", indexerScope())
         .eq("launch_id", launchId)
         .gte("block_number", addresses.deploymentBlock.toString())
@@ -132,7 +132,7 @@ export async function getDbTrades(launchId: string): Promise<DeployedTrade[] | u
         .order("id", { ascending: false })
         .limit(250);
 
-      if (response.error && isMissingMarketCapColumnError(response.error)) {
+      if (response.error && isMissingTradeColumnError(response.error)) {
         response = await getSupabase()
           .from("trades")
           .select("side, trader, eth_amount, token_amount, tx_hash, block_number, created_at")
@@ -156,7 +156,7 @@ export async function getDbTrades(launchId: string): Promise<DeployedTrade[] | u
       max: 2
     });
     const result = await withTimeout(pool.query(
-      `select side, trader, eth_amount, token_amount, market_cap_eth, tx_hash, block_number, created_at
+      `select side, source, trader, eth_amount, token_amount, market_cap_eth, tx_hash, block_number, created_at
        from trades
        where scope = $1
          and launch_id = $2
@@ -218,6 +218,7 @@ function cleanDbText(value: unknown) {
 function mapTrades(rows: Array<Record<string, unknown>>): DeployedTrade[] {
   return rows.slice().reverse().map((row) => ({
     side: row.side === "sell" ? "sell" : "buy",
+    source: row.source === "uniswap_v4" ? "uniswap_v4" : "curve",
     trader: row.trader ? getAddress(String(row.trader)) as `0x${string}` : undefined,
     ethAmount: `${trimEth(formatEther(parseDbBigInt(row.eth_amount)))} ETH`,
     tokenAmount: trimEth(formatEther(parseDbBigInt(row.token_amount))),

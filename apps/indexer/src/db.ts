@@ -157,6 +157,7 @@ export async function insertTrade(input: {
   launchId: bigint;
   trader: string;
   side: "buy" | "sell";
+  source?: "curve" | "uniswap_v4";
   ethAmount: bigint;
   tokenAmount: bigint;
   marketCapEth?: bigint;
@@ -169,6 +170,7 @@ export async function insertTrade(input: {
       .update({
         trader: input.trader,
         side: input.side,
+        source: input.source || "curve",
         eth_amount: input.ethAmount.toString(),
         token_amount: input.tokenAmount.toString(),
         market_cap_eth: input.marketCapEth?.toString() ?? null,
@@ -191,6 +193,7 @@ export async function insertTrade(input: {
             launch_id: input.launchId.toString(),
             trader: input.trader,
             side: input.side,
+            source: input.source || "curve",
             eth_amount: input.ethAmount.toString(),
             token_amount: input.tokenAmount.toString(),
             market_cap_eth: input.marketCapEth?.toString() ?? null,
@@ -208,10 +211,11 @@ export async function insertTrade(input: {
     `update trades
      set trader = $4,
          side = $5,
-         eth_amount = $6,
-         token_amount = $7,
-         block_number = $8,
-         market_cap_eth = $9
+         source = $6,
+         eth_amount = $7,
+         token_amount = $8,
+         block_number = $9,
+         market_cap_eth = $10
      where scope = $1 and launch_id = $2 and tx_hash = $3 and side = $5`,
     [
       indexerScope(),
@@ -219,6 +223,7 @@ export async function insertTrade(input: {
       input.txHash,
       input.trader,
       input.side,
+      input.source || "curve",
       input.ethAmount.toString(),
       input.tokenAmount.toString(),
       input.blockNumber?.toString(),
@@ -228,14 +233,15 @@ export async function insertTrade(input: {
   if ((existing.rowCount ?? 0) > 0) return;
 
   await pool.query(
-    `insert into trades (scope, launch_id, trader, side, eth_amount, token_amount, market_cap_eth, tx_hash, block_number)
-     values ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+    `insert into trades (scope, launch_id, trader, side, source, eth_amount, token_amount, market_cap_eth, tx_hash, block_number)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
      on conflict (scope, tx_hash, side, launch_id) do nothing`,
     [
       indexerScope(),
       input.launchId.toString(),
       input.trader,
       input.side,
+      input.source || "curve",
       input.ethAmount.toString(),
       input.tokenAmount.toString(),
       input.marketCapEth?.toString() ?? null,

@@ -40,6 +40,11 @@ import { blueFunV4PoolKey, buildV4EthToTokenSwap, buildV4TokenToEthSwap } from "
 const MAX_UINT160 = (1n << 160n) - 1n;
 const MAX_UINT48 = 281_474_976_710_655;
 
+type DexPairSnapshot = {
+  priceUsd: number;
+  marketCap: number;
+};
+
 export function MarketClient({ id, launch, trades }: { id: string; launch?: DeployedLaunch; trades: DeployedTrade[] }) {
   const router = useRouter();
   const [mode, setMode] = useState<"buy" | "sell">("buy");
@@ -47,6 +52,7 @@ export function MarketClient({ id, launch, trades }: { id: string; launch?: Depl
   const [slippageBps, setSlippageBps] = useState(200n);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [ethUsd, setEthUsd] = useState<number | null>(null);
+  const [dexPair, setDexPair] = useState<DexPairSnapshot | null>(null);
   const { address, isConnected } = useAccount();
   const { data: hash, error, writeContract, isPending } = useWriteContract();
   const receipt = useWaitForTransactionReceipt({ hash });
@@ -164,6 +170,8 @@ export function MarketClient({ id, launch, trades }: { id: string; launch?: Depl
   const displayMarketCap = latestMarketCapEth ? `${latestMarketCapEth} ETH` : launch?.marketCap ?? "Live";
   const latestPriceEth = latestMarketCapEth ? parseDisplayAmount(latestMarketCapEth) / TOTAL_SUPPLY : 0;
   const displayPrice = latestPriceEth > 0 ? `${decimalStringFromNumber(latestPriceEth.toPrecision(18))} ETH` : launch?.price ?? "Live";
+  const displayMarketCapText = isGraduated && dexPair?.marketCap ? compactUsd(dexPair.marketCap) : formatUsdFromEthText(displayMarketCap, ethUsd);
+  const displayPriceText = isGraduated && dexPair?.priceUsd ? formatUsdPrice(dexPair.priceUsd) : formatUsdFromEthText(displayPrice, ethUsd, true);
 
   useEffect(() => {
     if (!receipt.isSuccess) return;
@@ -231,6 +239,33 @@ export function MarketClient({ id, launch, trades }: { id: string; launch?: Depl
       window.clearInterval(interval);
     };
   }, []);
+
+  useEffect(() => {
+    if (!isGraduated || !launch?.token) {
+      setDexPair(null);
+      return;
+    }
+
+    let active = true;
+    async function loadDexPair() {
+      try {
+        const response = await fetch(`/api/dexscreener/token/${launch?.token}`, { cache: "no-store" });
+        const payload = await response.json() as { pair?: Partial<DexPairSnapshot> | null };
+        const priceUsd = Number(payload.pair?.priceUsd);
+        const marketCap = Number(payload.pair?.marketCap);
+        if (active) setDexPair(Number.isFinite(priceUsd) && priceUsd > 0 && Number.isFinite(marketCap) && marketCap > 0 ? { priceUsd, marketCap } : null);
+      } catch {
+        if (active) setDexPair(null);
+      }
+    }
+
+    loadDexPair();
+    const interval = window.setInterval(loadDexPair, 30_000);
+    return () => {
+      active = false;
+      window.clearInterval(interval);
+    };
+  }, [isGraduated, launch?.token]);
 
   function buy() {
     if (!addresses.bondingCurveMarket || parsedAmount === 0n || minOut === 0n) return;
@@ -385,8 +420,8 @@ export function MarketClient({ id, launch, trades }: { id: string; launch?: Depl
             </span>
           </div>
           <div className="market-header-stats">
-            <div><span>Market cap</span><strong>{formatUsdFromEthText(displayMarketCap, ethUsd)}</strong></div>
-            <div><span>Price</span><strong>{formatUsdFromEthText(displayPrice, ethUsd, true)}</strong></div>
+            <div><span>Market cap</span><strong>{displayMarketCapText}</strong></div>
+            <div><span>Price</span><strong>{displayPriceText}</strong></div>
             <div><span>Raised</span><strong>{launch.raised}</strong></div>
             <div><span>Bonded</span><strong>{launch.progress}%</strong></div>
           </div>
@@ -395,7 +430,7 @@ export function MarketClient({ id, launch, trades }: { id: string; launch?: Depl
 
         <div className="chart-panel">
           <div className="curve-state compact">
-            <TradeChart trades={trades} symbol={launch.symbol} ethUsd={ethUsd} />
+            <TradeChart trades={trades} status={launch.status} symbol={launch.symbol} ethUsd={ethUsd} />
             <MarketStats
               launch={launch}
               trades={trades}
@@ -1264,7 +1299,7 @@ function decimalStringFromNumber(value: string) {
   return `${digits.slice(0, point)}.${digits.slice(point)}`.replace(/0+$/, "").replace(/\.$/, "") || "0";
 }
 
-function TradeChart({ trades, symbol, ethUsd }: { trades: DeployedTrade[]; symbol: string; ethUsd: number | null }) {
+function TradeChart({ trades, status, symbol, ethUsd }: { trades: DeployedTrade[]; status: DeployedLaunch["status"]; symbol: string; ethUsd: number | null }) {
   const chartRef = useRef<HTMLDivElement | null>(null);
   const chartApiRef = useRef<IChartApi | null>(null);
   const candleSeriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
@@ -1273,7 +1308,7 @@ function TradeChart({ trades, symbol, ethUsd }: { trades: DeployedTrade[]; symbo
   const userTouchedChartRef = useRef(false);
   const [chartMode, setChartMode] = useState<"marketCap" | "price">("marketCap");
   const [intervalMinutes, setIntervalMinutes] = useState(1);
-  const { candles, volume, latestValue } = useMemo(() => buildChartData(trades, chartMode, ethUsd, intervalMinutes), [trades, chartMode, ethUsd, intervalMinutes]);
+  const { candles, volume, latestValue } = useMemo(() => buildChartData(trades, chartMode, ethUsd, intervalMinutes, status === "Graduated"), [trades, chartMode, ethUsd, intervalMinutes, status]);
   const chartTitle = chartMode === "marketCap" ? `${symbol} market cap` : `${symbol} price`;
   function resetChart() {
     userTouchedChartRef.current = false;
@@ -1426,9 +1461,11 @@ function TradeChart({ trades, symbol, ethUsd }: { trades: DeployedTrade[]; symbo
   );
 }
 
-function buildChartData(trades: DeployedTrade[], chartMode: "marketCap" | "price", ethUsd: number | null, intervalMinutes: number) {
+function buildChartData(trades: DeployedTrade[], chartMode: "marketCap" | "price", ethUsd: number | null, intervalMinutes: number, graduated: boolean) {
   let virtualEthReserve = 1.25;
   let virtualTokenReserve = TOTAL_SUPPLY;
+  const hasV4Trades = trades.some((trade) => trade.source === "uniswap_v4");
+  const chartTrades = graduated && hasV4Trades ? trades.filter((trade) => trade.source === "uniswap_v4") : trades;
   const buckets = new Map<number, {
     open: number;
     high: number;
@@ -1438,7 +1475,7 @@ function buildChartData(trades: DeployedTrade[], chartMode: "marketCap" | "price
     side: DeployedTrade["side"];
   }>();
 
-  trades
+  chartTrades
     .slice()
     .sort((a, b) => Number(BigInt(a.blockNumber || "0") - BigInt(b.blockNumber || "0")) || Date.parse(a.createdAt || "0") - Date.parse(b.createdAt || "0"))
     .forEach((trade, index) => {
@@ -1446,7 +1483,7 @@ function buildChartData(trades: DeployedTrade[], chartMode: "marketCap" | "price
     const tokens = parseDisplayAmount(trade.tokenAmount);
     if (eth <= 0 || tokens <= 0) return;
 
-    let marketCapEth = trade.marketCapEth ? parseDisplayAmount(trade.marketCapEth) : 0;
+    let marketCapEth = trade.source === "uniswap_v4" ? (eth / tokens) * TOTAL_SUPPLY : trade.marketCapEth ? parseDisplayAmount(trade.marketCapEth) : 0;
     if (marketCapEth <= 0) {
       if (trade.side === "buy") {
         const netEth = eth * (1 - CURVE_FEE_RATE);

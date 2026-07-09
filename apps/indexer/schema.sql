@@ -44,6 +44,7 @@ create table if not exists trades (
   launch_id numeric not null,
   trader text not null,
   side text not null check (side in ('buy', 'sell')),
+  source text not null default 'curve',
   eth_amount numeric not null,
   token_amount numeric not null,
   market_cap_eth numeric,
@@ -55,6 +56,15 @@ create table if not exists trades (
 alter table trades add column if not exists scope text not null default 'legacy';
 alter table trades add column if not exists block_number numeric;
 alter table trades add column if not exists market_cap_eth numeric;
+alter table trades add column if not exists source text not null default 'curve';
+update trades t
+set source = 'uniswap_v4'
+from graduations g
+where t.scope = g.scope
+  and t.launch_id = g.launch_id
+  and t.block_number is not null
+  and g.block_number is not null
+  and t.block_number >= g.block_number;
 drop index if exists trades_tx_side_launch_idx;
 create unique index if not exists trades_scope_tx_side_launch_idx on trades (scope, tx_hash, side, launch_id);
 create index if not exists trades_scope_launch_id_idx on trades (scope, launch_id);
