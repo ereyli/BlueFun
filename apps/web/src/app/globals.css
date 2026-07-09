@@ -2409,7 +2409,7 @@ button:disabled,
   border: 1px solid var(--line);
   border-radius: 9px;
   display: grid;
-  gap: 4px;
+  gap: 8px;
   padding: 10px;
 }
 
@@ -2450,6 +2450,37 @@ button:disabled,
   color: var(--text);
   font-size: 16px;
   line-height: 1.2;
+  overflow-wrap: anywhere;
+}
+
+.quote-breakdown {
+  display: grid;
+  gap: 7px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.quote-breakdown span {
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(0, 0, 255, 0.08);
+  border-radius: 10px;
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  padding: 7px 8px;
+}
+
+.quote-breakdown small {
+  color: var(--muted);
+  font-size: 10.5px;
+  font-weight: 750;
+  line-height: 1.1;
+}
+
+.quote-breakdown b {
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 900;
+  line-height: 1.15;
   overflow-wrap: anywhere;
 }
 
@@ -4265,47 +4296,8 @@ body {
   order: 2;
 }
 
-.trade-box .safety-card {
-  gap: 10px;
-  order: 3;
-  padding: 12px;
-}
-
 .trade-box .side-compact-card {
-  order: 4;
-}
-
-.trade-box .safety-card .safety-grid {
-  display: none;
-}
-
-.trade-box .safety-head span {
-  font-size: 13px;
-}
-
-.trade-box .safety-head strong {
-  font-size: 10.5px;
-  padding: 4px 8px;
-}
-
-.trade-box .safety-foot {
-  background: rgba(0, 0, 255, 0.035);
-  border: 1px solid rgba(0, 0, 255, 0.1);
-  border-radius: 10px;
-  display: grid;
-  font-size: 10.5px;
-  gap: 5px 8px;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  padding: 9px;
-}
-
-.trade-box .safety-foot span,
-.trade-box .safety-foot strong {
-  text-align: left;
-}
-
-.trade-box .safety-foot strong {
-  font-size: 11.5px;
+  order: 3;
 }
 
 @media (max-width: 1180px) {

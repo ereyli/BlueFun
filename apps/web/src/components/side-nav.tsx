@@ -2,12 +2,11 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Home, Rocket, ShieldCheck } from "lucide-react";
+import { Home, Rocket } from "lucide-react";
 
 const items = [
   { href: "/", label: "Explore", icon: Home },
-  { href: "/launch", label: "Create", icon: Rocket },
-  { href: "/graduation", label: "Graduation", icon: ShieldCheck }
+  { href: "/launch", label: "Create", icon: Rocket }
 ];
 
 export function SideNav() {

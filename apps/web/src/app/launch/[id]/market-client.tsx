@@ -479,8 +479,16 @@ export function MarketClient({ id, launch, trades }: { id: string; launch?: Depl
                   </button>
                 </div>
                 <strong>{quotedOut ? formatQuote(quotedOut, mode === "buy" ? launch.symbol : "ETH") : "-"}</strong>
-                <small>Minimum after {Number(slippageBps) / 100}% slippage: {minOut ? formatQuote(minOut, mode === "buy" ? launch.symbol : "ETH") : "-"}</small>
-                <small>Price impact: {formatPercent(priceImpact)}</small>
+                <div className="quote-breakdown">
+                  <span>
+                    <small>Min received</small>
+                    <b>{minOut ? formatQuote(minOut, mode === "buy" ? launch.symbol : "ETH") : "-"}</b>
+                  </span>
+                  <span>
+                    <small>Impact</small>
+                    <b>{formatPercent(priceImpact)}</b>
+                  </span>
+                </div>
               </div>
               {settingsOpen ? (
                 <div className="trade-settings-panel">
@@ -550,26 +558,18 @@ export function MarketClient({ id, launch, trades }: { id: string; launch?: Depl
 
         <TokenChat launch={launch} launchId={id} wallet={address} isConnected={isConnected} />
 
-        <section className="safety-card">
-          <div className="safety-head">
-            <span><ShieldCheck size={16} /> Safety</span>
-            <strong>{trusted ? "Trusted" : launch.status}</strong>
-          </div>
-          <div className="safety-foot">
-            <span>Supply</span>
-            <strong>Capped</strong>
-            <span>Bond</span>
-            <strong>LP lock</strong>
-            <span>Fee</span>
-            <strong>1.00%</strong>
-          </div>
-          {launch.status === "Ready" ? (
+        {launch.status === "Ready" ? (
+          <section className="side-compact-card">
+            <div className="side-card-head">
+              <span>Graduation ready</span>
+              <strong>Uniswap v4</strong>
+            </div>
             <button className="button primary wide" disabled={!addresses.graduationManager || !isConnected || isWorking} onClick={graduate}>
               {isWorking ? <Loader2 className="spin" size={16} /> : <LockKeyhole size={16} />}
               {isPending ? "Confirm in wallet" : receipt.isLoading ? "Graduating" : "Graduate to Uniswap v4"}
             </button>
-          ) : null}
-        </section>
+          </section>
+        ) : null}
 
         <section className="side-compact-card">
           <div className="side-card-head">
@@ -826,8 +826,16 @@ function GraduatedTradeCard({
             </button>
           </div>
           <strong>{quote ? formatQuote(quote, mode === "buy" ? launch.symbol : "ETH") : "-"}</strong>
-          <small>Minimum after {Number(slippageBps) / 100}% slippage: {minOut ? formatQuote(minOut, mode === "buy" ? launch.symbol : "ETH") : "-"}</small>
-          <small>{quoteFromFallback ? "Estimate: latest indexed pool price" : "Route: BlueFun locked Uniswap v4 pool"}</small>
+          <div className="quote-breakdown">
+            <span>
+              <small>Min received</small>
+              <b>{minOut ? formatQuote(minOut, mode === "buy" ? launch.symbol : "ETH") : "-"}</b>
+            </span>
+            <span>
+              <small>Route</small>
+              <b>{quoteFromFallback ? "Indexed price" : "Uniswap v4"}</b>
+            </span>
+          </div>
         </div>
         {settingsOpen ? (
           <div className="trade-settings-panel">
