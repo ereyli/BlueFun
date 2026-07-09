@@ -3982,13 +3982,12 @@ body {
 
 .token-grid {
   align-items: start;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 360px));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .token-card {
   border-radius: 16px;
   gap: 8px;
-  max-width: 360px;
   padding: 12px;
 }
 
@@ -4075,6 +4074,36 @@ body {
   text-transform: uppercase;
 }
 
+.official-market-note {
+  align-items: center;
+  background: rgba(245, 248, 255, 0.88);
+  border: 1px solid rgba(185, 202, 235, 0.72);
+  border-radius: 12px;
+  color: #58698f;
+  display: flex;
+  font-size: 12px;
+  font-weight: 780;
+  gap: 8px;
+  line-height: 1.35;
+  margin-top: 12px;
+  padding: 10px 12px;
+}
+
+.official-market-note svg {
+  color: #0052ff;
+  flex: 0 0 auto;
+}
+
+.official-market-note.trusted {
+  background: linear-gradient(135deg, rgba(23, 178, 106, 0.13), rgba(0, 82, 255, 0.08));
+  border-color: rgba(23, 178, 106, 0.24);
+  color: #0d6842;
+}
+
+.official-market-note.trusted svg {
+  color: #0f8a55;
+}
+
 .section-title {
   font-size: 18px;
 }
@@ -4139,14 +4168,21 @@ body {
 
 .token-card.featured,
 .trending-card.featured {
-  border-color: rgba(0, 82, 255, 0.34);
-  box-shadow: 0 14px 34px rgba(0, 82, 255, 0.12), inset 0 0 0 1px rgba(23, 178, 106, 0.12);
+  background:
+    radial-gradient(circle at 12% 0%, rgba(0, 82, 255, 0.16), transparent 33%),
+    radial-gradient(circle at 92% 18%, rgba(23, 178, 106, 0.18), transparent 30%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(244, 249, 255, 0.96));
+  border-color: rgba(0, 82, 255, 0.5);
+  box-shadow:
+    0 18px 42px rgba(0, 82, 255, 0.15),
+    0 8px 22px rgba(23, 178, 106, 0.08),
+    inset 0 0 0 1px rgba(23, 178, 106, 0.2);
   position: relative;
 }
 
 .token-card.featured::after,
 .trending-card.featured::after {
-  background: linear-gradient(90deg, #0052ff, #17b26a);
+  background: linear-gradient(90deg, #0052ff, #17b26a, #66d9ff);
   border-radius: 999px;
   content: "";
   height: 3px;
@@ -4270,7 +4306,7 @@ body {
 
 @media (max-width: 1180px) {
   .token-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .featured-row {
@@ -4288,7 +4324,7 @@ body {
 
 @media (max-width: 1480px) and (min-width: 1181px) {
   .token-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }
 

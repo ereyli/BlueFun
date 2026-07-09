@@ -260,6 +260,14 @@ export function MarketClient({ id, launch, trades }: { id: string; launch?: Depl
               </button>
             </div>
           </div>
+          <div className={trusted ? "official-market-note trusted" : "official-market-note"}>
+            <ShieldCheck size={15} />
+            <span>
+              {trusted
+                ? "Trusted BlueFun market. Official trading stays on the curve until graduation."
+                : "Official BlueFun trading is on this curve until graduation. External pools may be unofficial."}
+            </span>
+          </div>
           <div className="market-header-stats">
             <div><span>Market cap</span><strong>{formatUsdFromEthText(launch.marketCap, ethUsd)}</strong></div>
             <div><span>Price</span><strong>{formatUsdFromEthText(launch.price, ethUsd, true)}</strong></div>

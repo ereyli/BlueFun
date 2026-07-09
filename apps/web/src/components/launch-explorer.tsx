@@ -116,8 +116,8 @@ export function LaunchExplorer({ launches, metrics }: { launches: DeployedLaunch
               <Link className={featured ? "trending-card featured" : "trending-card"} href={`/launch/${launch.id}`} key={`trend-${launch.id}-${launch.token}`}>
                 <TokenAvatar launch={launch} />
                 <div className="trending-copy">
-                  <strong>{launch.symbol}{trusted ? <span>Trusted</span> : featured ? <span>Featured</span> : null}</strong>
-                  <span>MC {formatUsdFromEthText(launch.marketCap, ethUsd)}</span>
+                  <strong>{launch.symbol}{trusted ? <span>Trusted</span> : null}</strong>
+                  <span>Raised {launch.raised}</span>
                 </div>
                 <div className="trending-progress">
                   <div><span>Progress</span><b>{launch.progress}%</b></div>
@@ -177,7 +177,7 @@ export function LaunchExplorer({ launches, metrics }: { launches: DeployedLaunch
                 <div className="token-card-copy">
                   <div className="token-card-head">
                     <div>
-                      <div className="token-title">{launch.name}{trusted ? <span>Trusted</span> : featured ? <span>Featured</span> : null}</div>
+                      <div className="token-title">{launch.name}{trusted ? <span>Trusted</span> : null}</div>
                       <div className="token-symbol">${launch.symbol}</div>
                     </div>
                     <span className={launch.status === "Live" ? "token-status live" : "token-status"}>{launch.status}</span>
@@ -193,9 +193,9 @@ export function LaunchExplorer({ launches, metrics }: { launches: DeployedLaunch
               </div>
               <div className="progress"><span style={{ width: `${launch.progress}%` }} /></div>
               <div className="token-stat-row">
-                <div><span>Market Cap</span><strong>{formatUsdFromEthText(launch.marketCap, ethUsd)}</strong></div>
+                <div><span>Volume</span><strong>{launch.volume}</strong></div>
                 <div><span>Raised</span><strong>{launch.raised}</strong></div>
-                <div><span>Age</span><strong>{launch.age}</strong></div>
+                <div><span>Progress</span><strong>{launch.progress}%</strong></div>
               </div>
               <div className="token-foot">
                 <span>By {launch.creator.slice(0, 6)}...{launch.creator.slice(-4)}</span>
