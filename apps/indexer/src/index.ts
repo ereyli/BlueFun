@@ -1,8 +1,8 @@
 import "dotenv/config";
-import { createPublicClient, encodeAbiParameters, getAddress, http, keccak256, zeroAddress } from "viem";
+import { createPublicClient, encodeAbiParameters, fallback, getAddress, http, keccak256, zeroAddress } from "viem";
 import { base } from "viem/chains";
 import { graduationAbi, launchFactoryAbi, marketAbi, poolManagerAbi } from "./abi.js";
-import { chainId, defaultRpcUrl, deploymentScope, mainnetDeployment } from "./deployment.js";
+import { chainId, defaultRpcUrls, deploymentScope, mainnetDeployment } from "./deployment.js";
 import {
   ensureSchema,
   getGraduatedLaunches,
@@ -14,7 +14,11 @@ import {
   upsertLaunch
 } from "./db.js";
 
-const rpcUrl = process.env.BASE_RPC_URL || defaultRpcUrl;
+const rpcUrls = uniqueUrls([
+  ...splitRpcUrls(process.env.BASE_RPC_URL),
+  ...splitRpcUrls(process.env.BASE_RPC_FALLBACK_URLS),
+  ...defaultRpcUrls
+]);
 const launchFactory = mainnetDeployment.launchFactory;
 const market = mainnetDeployment.bondingCurveMarket;
 const graduationManager = mainnetDeployment.graduationManager;
@@ -48,7 +52,7 @@ type LaunchMetadata = {
 
 const client = createPublicClient({
   chain: base,
-  transport: http(rpcUrl)
+  transport: fallback(rpcUrls.map((url) => http(url)), { rank: true, retryCount: 1 })
 });
 
 await ensureSchema();
@@ -59,6 +63,7 @@ console.log("BlueFun indexer starting", {
   startBlock: startBlock.toString(),
   chunkSize: chunkSize.toString(),
   confirmations: confirmations.toString(),
+  rpcEndpoints: rpcUrls.length.toString(),
   scope: process.env.INDEXER_SCOPE
 });
 
@@ -70,6 +75,17 @@ function scheduleNextPoll() {
     await runIndexerPoll();
     scheduleNextPoll();
   }, nextPollDelayMs);
+}
+
+function splitRpcUrls(value?: string) {
+  return (value || "")
+    .split(",")
+    .map((url) => url.trim())
+    .filter(Boolean);
+}
+
+function uniqueUrls(urls: string[]) {
+  return Array.from(new Set(urls));
 }
 
 async function runIndexerPoll() {
@@ -209,7 +225,7 @@ async function backfillUniswapV4Swaps(latest: bigint) {
     if (launch.blockNumber && launch.blockNumber < firstGraduationBlock) firstGraduationBlock = launch.blockNumber;
   }
 
-  let fromBlock = (await getIndexerState(stateKey("uniswap_v4_swaps_last_block"))) ?? firstGraduationBlock;
+  let fromBlock = (await getIndexerState(stateKey("uniswap_v4_swaps_v2_last_block"))) ?? firstGraduationBlock;
   if (fromBlock < firstGraduationBlock) fromBlock = firstGraduationBlock;
   if (fromBlock > latest) return;
 
@@ -230,7 +246,7 @@ async function backfillUniswapV4Swaps(latest: bigint) {
       await handleUniswapV4Swap(log, pool.launchId);
     }
 
-    await setIndexerState(stateKey("uniswap_v4_swaps_last_block"), toBlock + 1n);
+    await setIndexerState(stateKey("uniswap_v4_swaps_v2_last_block"), toBlock + 1n);
     fromBlock = toBlock + 1n;
   }
 }
@@ -362,7 +378,7 @@ async function handleUniswapV4Swap(
   const amount1 = log.args.amount1!;
   if (amount0 === 0n || amount1 === 0n) return;
 
-  const side = amount0 > 0n ? "buy" : "sell";
+  const side = amount0 < 0n ? "buy" : "sell";
   const ethAmount = absBigInt(amount0);
   const tokenAmount = absBigInt(amount1);
   const trader = await readTransactionSender(log.transactionHash).catch(() => log.args.sender!);

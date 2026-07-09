@@ -1,4 +1,7 @@
 import { defineChain } from "viem";
+import { baseRpcUrls } from "@/lib/rpc";
+
+const rpcUrls = baseRpcUrls();
 
 export const baseChain = defineChain({
   id: 8453,
@@ -9,8 +12,8 @@ export const baseChain = defineChain({
     symbol: "ETH"
   },
   rpcUrls: {
-    default: { http: [process.env.NEXT_PUBLIC_BASE_RPC_URL || "https://mainnet.base.org"] },
-    public: { http: [process.env.NEXT_PUBLIC_BASE_RPC_URL || "https://mainnet.base.org"] }
+    default: { http: rpcUrls },
+    public: { http: rpcUrls }
   },
   blockExplorers: {
     default: {

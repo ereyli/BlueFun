@@ -1,5 +1,11 @@
 export const chainId = 8453;
 export const defaultRpcUrl = "https://mainnet.base.org";
+export const defaultRpcUrls = [
+  defaultRpcUrl,
+  "https://base-rpc.publicnode.com",
+  "https://1rpc.io/base",
+  "https://base.meowrpc.com"
+];
 
 export const mainnetDeployment = {
   launchFactory: "0xf65ebfdacb1a8e0a8217185aae44f489e53b88f9" as `0x${string}`,

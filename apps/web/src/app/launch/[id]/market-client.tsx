@@ -118,12 +118,19 @@ export function MarketClient({ id, launch, trades }: { id: string; launch?: Depl
         hookData: "0x"
       }
     ],
-    query: { enabled: Boolean(isGraduated && launch?.token && parsedAmount > 0n) }
+    query: {
+      enabled: Boolean(isGraduated && launch?.token && parsedAmount > 0n),
+      refetchOnWindowFocus: false,
+      retry: 1,
+      staleTime: 8_000
+    }
   });
   const quotedOut = mode === "buy" ? buyQuote.data?.[0] : sellQuote.data?.[0];
   const minOut = quotedOut ? applySlippage(quotedOut, slippageBps) : 0n;
   const quoteLoading = mode === "buy" ? buyQuote.isLoading : sellQuote.isLoading;
-  const graduatedQuotedOut = graduatedQuote.data?.[0];
+  const fallbackGraduatedQuote = useMemo(() => estimateGraduatedQuoteFromTrades(trades, mode, parsedAmount), [mode, parsedAmount, trades]);
+  const quoteFromFallback = Boolean(!graduatedQuote.data?.[0] && graduatedQuote.error && fallbackGraduatedQuote);
+  const graduatedQuotedOut = graduatedQuote.data?.[0] ?? (quoteFromFallback ? fallbackGraduatedQuote : undefined);
   const graduatedMinOut = graduatedQuotedOut ? applySlippage(graduatedQuotedOut, slippageBps) : 0n;
   const isWorking = isPending || receipt.isLoading;
   const sellBalance = tokenBalance.data ?? 0n;
@@ -411,7 +418,8 @@ export function MarketClient({ id, launch, trades }: { id: string; launch?: Depl
             onSell={sellGraduated}
             quote={graduatedQuotedOut}
             quoteError={graduatedQuote.error?.message}
-            quoteLoading={graduatedQuote.isLoading || graduatedQuote.isFetching}
+            quoteFromFallback={quoteFromFallback}
+            quoteLoading={(graduatedQuote.isLoading || graduatedQuote.isFetching) && !graduatedQuotedOut}
             receiptSuccess={Boolean(receipt.isSuccess)}
             sellBalance={sellBalance}
             setAmount={setAmount}
@@ -715,6 +723,7 @@ function GraduatedTradeCard({
   onSell,
   quote,
   quoteError,
+  quoteFromFallback,
   quoteLoading,
   receiptSuccess,
   sellBalance,
@@ -746,6 +755,7 @@ function GraduatedTradeCard({
   onSell: () => void;
   quote?: bigint;
   quoteError?: string;
+  quoteFromFallback: boolean;
   quoteLoading: boolean;
   receiptSuccess: boolean;
   sellBalance: bigint;
@@ -807,7 +817,7 @@ function GraduatedTradeCard({
           </div>
           <strong>{quote ? formatQuote(quote, mode === "buy" ? launch.symbol : "ETH") : "-"}</strong>
           <small>Minimum after {Number(slippageBps) / 100}% slippage: {minOut ? formatQuote(minOut, mode === "buy" ? launch.symbol : "ETH") : "-"}</small>
-          <small>Route: BlueFun locked Uniswap v4 pool</small>
+          <small>{quoteFromFallback ? "Estimate: latest indexed pool price" : "Route: BlueFun locked Uniswap v4 pool"}</small>
         </div>
         {settingsOpen ? (
           <div className="trade-settings-panel">
@@ -884,7 +894,8 @@ function GraduatedTradeCard({
           {receiptSuccess ? <TradeStatus tone="success">Order confirmed. Market data is refreshing.</TradeStatus> : null}
           {exceedsEthBalance ? <TradeStatus tone="danger">Not enough ETH for this order.</TradeStatus> : null}
           {exceedsSellBalance ? <TradeStatus tone="danger">Insufficient token balance.</TradeStatus> : null}
-          {quoteError ? <TradeStatus tone="danger">Uniswap pool quote is not available yet.</TradeStatus> : null}
+          {quoteError && quoteFromFallback ? <TradeStatus tone="info">Live quote is rate limited; using the latest indexed pool price.</TradeStatus> : null}
+          {quoteError && !quoteFromFallback ? <TradeStatus tone="danger">Uniswap pool quote is not available yet.</TradeStatus> : null}
           {error ? <TradeStatus tone="danger">{friendlyTradeError(error)}</TradeStatus> : null}
         </div>
       </div>
@@ -1189,6 +1200,50 @@ function formatTokenBalance(value: bigint) {
   if (numeric >= 1_000_000) return `${(numeric / 1_000_000).toLocaleString("en-US", { maximumFractionDigits: 2 })}M`;
   if (numeric >= 1_000) return `${(numeric / 1_000).toLocaleString("en-US", { maximumFractionDigits: 2 })}K`;
   return numeric.toLocaleString("en-US", { maximumFractionDigits: 4 });
+}
+
+function estimateGraduatedQuoteFromTrades(trades: DeployedTrade[], mode: "buy" | "sell", amountIn: bigint) {
+  if (amountIn <= 0n) return undefined;
+  const latest = trades
+    .slice()
+    .reverse()
+    .find((trade) => parseDisplayAmount(trade.ethAmount) > 0 && parseDisplayAmount(trade.tokenAmount) > 0);
+  if (!latest) return undefined;
+
+  const eth = parseDisplayAmount(latest.ethAmount);
+  const tokens = parseDisplayAmount(latest.tokenAmount);
+  const ethPerToken = eth / tokens;
+  const input = Number(formatEther(amountIn));
+  if (!Number.isFinite(ethPerToken) || ethPerToken <= 0 || !Number.isFinite(input) || input <= 0) return undefined;
+
+  const estimated = mode === "buy" ? input / ethPerToken : input * ethPerToken;
+  return parseApproximateEther(estimated);
+}
+
+function parseApproximateEther(value: number) {
+  if (!Number.isFinite(value) || value <= 0) return undefined;
+  const fixed = value >= 1
+    ? value.toFixed(18)
+    : value.toPrecision(18);
+  const normalized = decimalStringFromNumber(fixed);
+  try {
+    const parsed = parseEther(normalized);
+    return parsed > 0n ? parsed : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function decimalStringFromNumber(value: string) {
+  if (!/[eE]/.test(value)) return value.replace(/0+$/, "").replace(/\.$/, "") || "0";
+  const [coefficient, exponentText = "0"] = value.toLowerCase().split("e");
+  const exponent = Number(exponentText);
+  const [whole, fraction = ""] = coefficient.replace("+", "").split(".");
+  const digits = `${whole}${fraction}`.replace(/^0+/, "") || "0";
+  const point = whole.length + exponent;
+  if (point <= 0) return `0.${"0".repeat(Math.abs(point))}${digits}`.replace(/0+$/, "").replace(/\.$/, "") || "0";
+  if (point >= digits.length) return `${digits}${"0".repeat(point - digits.length)}`;
+  return `${digits.slice(0, point)}.${digits.slice(point)}`.replace(/0+$/, "").replace(/\.$/, "") || "0";
 }
 
 function TradeChart({ trades, symbol, ethUsd }: { trades: DeployedTrade[]; symbol: string; ethUsd: number | null }) {

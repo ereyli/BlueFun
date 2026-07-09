@@ -163,6 +163,22 @@ export async function insertTrade(input: {
   blockNumber?: bigint;
 }) {
   if (hasSupabaseConfig()) {
+    const existing = await getSupabase()
+      .from("trades")
+      .update({
+        trader: input.trader,
+        side: input.side,
+        eth_amount: input.ethAmount.toString(),
+        token_amount: input.tokenAmount.toString(),
+        block_number: input.blockNumber?.toString()
+      })
+      .eq("scope", indexerScope())
+      .eq("launch_id", input.launchId.toString())
+      .eq("tx_hash", input.txHash)
+      .select("id");
+    if (existing.error) throw existing.error;
+    if ((existing.data ?? []).length > 0) return;
+
     await runSupabase(
       getSupabase()
         .from("trades")
@@ -184,6 +200,27 @@ export async function insertTrade(input: {
   }
 
   if (!pool) throw new Error("Database client is not configured");
+  const existing = await pool.query(
+    `update trades
+     set trader = $4,
+         side = $5,
+         eth_amount = $6,
+         token_amount = $7,
+         block_number = $8
+     where scope = $1 and launch_id = $2 and tx_hash = $3`,
+    [
+      indexerScope(),
+      input.launchId.toString(),
+      input.txHash,
+      input.trader,
+      input.side,
+      input.ethAmount.toString(),
+      input.tokenAmount.toString(),
+      input.blockNumber?.toString()
+    ]
+  );
+  if ((existing.rowCount ?? 0) > 0) return;
+
   await pool.query(
     `insert into trades (scope, launch_id, trader, side, eth_amount, token_amount, tx_hash, block_number)
      values ($1, $2, $3, $4, $5, $6, $7, $8)

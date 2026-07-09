@@ -1,7 +1,8 @@
-import { createPublicClient, formatEther, getAddress, http, zeroAddress } from "viem";
+import { createPublicClient, fallback, formatEther, getAddress, http, zeroAddress } from "viem";
 import { baseChain } from "@/lib/base-chain";
 import { addresses, b20TokenAbi, bondingCurveAbi, launchFactoryAbi } from "@/lib/contracts";
 import { getDbLaunches } from "@/lib/db-launches";
+import { baseRpcUrls } from "@/lib/rpc";
 import { readTokenMetadata, type TokenMetadata } from "@/lib/token-metadata";
 
 export type DeployedLaunch = {
@@ -42,7 +43,7 @@ export type DeployedTrade = {
 
 const publicClient = createPublicClient({
   chain: baseChain,
-  transport: http(process.env.NEXT_PUBLIC_BASE_RPC_URL || "https://mainnet.base.org")
+  transport: fallback(baseRpcUrls().map((url) => http(url)), { rank: true, retryCount: 1 })
 });
 
 export async function getDeployedLaunches(): Promise<DeployedLaunch[]> {
