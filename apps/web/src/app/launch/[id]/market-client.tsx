@@ -18,7 +18,7 @@ import {
   type UTCTimestamp
 } from "lightweight-charts";
 import { uniswapChainName } from "@/lib/base-chain";
-import { addresses, b20TokenAbi, bondingCurveAbi, chain, graduationManagerAbi, indexerScope } from "@/lib/contracts";
+import { addresses, b20TokenAbi, bondingCurveAbi, chain, graduationManagerAbi, indexerScope, permit2Abi, universalRouterAbi, uniswapV4Addresses, uniswapV4QuoterAbi } from "@/lib/contracts";
 import {
   CURVE_FEE_RATE,
   TOTAL_SUPPLY,
@@ -35,6 +35,10 @@ import { isTrustedLaunch } from "@/lib/featured-launches";
 import type { DeployedLaunch, DeployedTrade } from "@/lib/onchain-launches";
 import { siteUrl } from "@/lib/site-url";
 import { ipfsToGatewayUrl } from "@/lib/token-metadata";
+import { blueFunV4PoolKey, buildV4EthToTokenSwap, buildV4TokenToEthSwap } from "@/lib/uniswap-v4-swap";
+
+const MAX_UINT160 = (1n << 160n) - 1n;
+const MAX_UINT48 = 281_474_976_710_655;
 
 export function MarketClient({ id, launch, trades }: { id: string; launch?: DeployedLaunch; trades: DeployedTrade[] }) {
   const router = useRouter();
@@ -47,11 +51,12 @@ export function MarketClient({ id, launch, trades }: { id: string; launch?: Depl
   const { data: hash, error, writeContract, isPending } = useWriteContract();
   const receipt = useWaitForTransactionReceipt({ hash });
   const parsedAmount = parsePositiveEther(amount);
+  const isGraduated = launch?.status === "Graduated";
   const ethBalance = useBalance({
     address,
     query: { enabled: Boolean(address) }
   });
-  const readEnabled = Boolean(addresses.bondingCurveMarket && parsedAmount > 0n);
+  const readEnabled = Boolean(addresses.bondingCurveMarket && parsedAmount > 0n && !isGraduated);
   const buyQuote = useReadContract({
     address: addresses.bondingCurveMarket,
     abi: bondingCurveAbi,
@@ -78,7 +83,7 @@ export function MarketClient({ id, launch, trades }: { id: string; launch?: Depl
     abi: b20TokenAbi,
     functionName: "allowance",
     args: [address ?? zeroAddress, addresses.bondingCurveMarket ?? zeroAddress],
-    query: { enabled: Boolean(mode === "sell" && launch?.token && address && addresses.bondingCurveMarket) }
+    query: { enabled: Boolean(!isGraduated && mode === "sell" && launch?.token && address && addresses.bondingCurveMarket) }
   });
   const tokenBalance = useReadContract({
     address: launch?.token,
@@ -87,9 +92,39 @@ export function MarketClient({ id, launch, trades }: { id: string; launch?: Depl
     args: [address ?? zeroAddress],
     query: { enabled: Boolean(mode === "sell" && launch?.token && address) }
   });
+  const graduatedTokenPermit2Allowance = useReadContract({
+    address: launch?.token,
+    abi: b20TokenAbi,
+    functionName: "allowance",
+    args: [address ?? zeroAddress, uniswapV4Addresses.permit2],
+    query: { enabled: Boolean(isGraduated && mode === "sell" && launch?.token && address) }
+  });
+  const graduatedPermit2RouterAllowance = useReadContract({
+    address: uniswapV4Addresses.permit2,
+    abi: permit2Abi,
+    functionName: "allowance",
+    args: [address ?? zeroAddress, launch?.token ?? zeroAddress, uniswapV4Addresses.universalRouter],
+    query: { enabled: Boolean(isGraduated && mode === "sell" && launch?.token && address) }
+  });
+  const graduatedQuote = useReadContract({
+    address: uniswapV4Addresses.quoter,
+    abi: uniswapV4QuoterAbi,
+    functionName: "quoteExactInputSingle",
+    args: [
+      {
+        poolKey: blueFunV4PoolKey(launch?.token ?? zeroAddress),
+        zeroForOne: mode === "buy",
+        exactAmount: parsedAmount,
+        hookData: "0x"
+      }
+    ],
+    query: { enabled: Boolean(isGraduated && launch?.token && parsedAmount > 0n) }
+  });
   const quotedOut = mode === "buy" ? buyQuote.data?.[0] : sellQuote.data?.[0];
   const minOut = quotedOut ? applySlippage(quotedOut, slippageBps) : 0n;
   const quoteLoading = mode === "buy" ? buyQuote.isLoading : sellQuote.isLoading;
+  const graduatedQuotedOut = graduatedQuote.data?.[0];
+  const graduatedMinOut = graduatedQuotedOut ? applySlippage(graduatedQuotedOut, slippageBps) : 0n;
   const isWorking = isPending || receipt.isLoading;
   const sellBalance = tokenBalance.data ?? 0n;
   const spotPriceEth = launch ? parseDisplayAmount(launch.price) : 0;
@@ -106,12 +141,23 @@ export function MarketClient({ id, launch, trades }: { id: string; launch?: Depl
   const exceedsSellBalance = mode === "sell" && parsedAmount > sellBalance;
   const exceedsEthBalance = mode === "buy" && Boolean(ethBalance.data) && parsedAmount > (ethBalance.data?.value ?? 0n);
   const tradeDisabled = !addresses.bondingCurveMarket || !isConnected || isWorking || parsedAmount === 0n || exceedsEthBalance || exceedsSellBalance || (!needsSellApproval && minOut === 0n);
+  const permit2Amount = graduatedPermit2RouterAllowance.data?.[0] ?? 0n;
+  const permit2Expiration = graduatedPermit2RouterAllowance.data?.[1] ?? 0;
+  const needsGraduatedTokenApproval = Boolean(isGraduated && mode === "sell" && parsedAmount > 0n && (graduatedTokenPermit2Allowance.data ?? 0n) < parsedAmount);
+  const needsGraduatedPermit2Approval = Boolean(isGraduated && mode === "sell" && parsedAmount > 0n && !needsGraduatedTokenApproval && (permit2Amount < parsedAmount || BigInt(permit2Expiration) <= BigInt(Math.floor(Date.now() / 1000) + 900)));
+  const graduatedBuyDisabled = !launch || !isConnected || isWorking || mode !== "buy" || parsedAmount === 0n || exceedsEthBalance || graduatedMinOut === 0n;
+  const graduatedSellDisabled = !launch || !isConnected || isWorking || mode !== "sell" || parsedAmount === 0n || exceedsSellBalance || (!needsGraduatedTokenApproval && !needsGraduatedPermit2Approval && graduatedMinOut === 0n);
 
   useEffect(() => {
     if (!receipt.isSuccess) return;
     const timeout = window.setTimeout(() => router.refresh(), 1_200);
+    tokenAllowance.refetch();
+    tokenBalance.refetch();
+    graduatedTokenPermit2Allowance.refetch();
+    graduatedPermit2RouterAllowance.refetch();
+    graduatedQuote.refetch();
     return () => window.clearTimeout(timeout);
-  }, [receipt.isSuccess, router]);
+  }, [graduatedPermit2RouterAllowance, graduatedQuote, graduatedTokenPermit2Allowance, receipt.isSuccess, router, tokenAllowance, tokenBalance]);
 
   useEffect(() => {
     const interval = window.setInterval(() => router.refresh(), 20_000);
@@ -177,6 +223,59 @@ export function MarketClient({ id, launch, trades }: { id: string; launch?: Depl
       functionName: "buy",
       args: [BigInt(id), minOut, BigInt(Math.floor(Date.now() / 1000) + 900)],
       value: parsedAmount
+    });
+  }
+
+  function buyGraduated() {
+    if (!launch || parsedAmount === 0n || graduatedMinOut === 0n) return;
+    const swap = buildV4EthToTokenSwap({
+      amountIn: parsedAmount,
+      amountOutMinimum: graduatedMinOut,
+      token: launch.token
+    });
+
+    writeContract({
+      address: uniswapV4Addresses.universalRouter,
+      abi: universalRouterAbi,
+      functionName: "execute",
+      args: [swap.commands, swap.inputs, BigInt(Math.floor(Date.now() / 1000) + 900)],
+      value: parsedAmount
+    });
+  }
+
+  function approveGraduatedTokenPermit2() {
+    if (!launch || parsedAmount === 0n) return;
+    writeContract({
+      address: launch.token,
+      abi: b20TokenAbi,
+      functionName: "approve",
+      args: [uniswapV4Addresses.permit2, maxUint256]
+    });
+  }
+
+  function approveGraduatedPermit2Router() {
+    if (!launch || parsedAmount === 0n) return;
+    writeContract({
+      address: uniswapV4Addresses.permit2,
+      abi: permit2Abi,
+      functionName: "approve",
+      args: [launch.token, uniswapV4Addresses.universalRouter, MAX_UINT160, MAX_UINT48]
+    });
+  }
+
+  function sellGraduated() {
+    if (!launch || parsedAmount === 0n || graduatedMinOut === 0n) return;
+    const swap = buildV4TokenToEthSwap({
+      amountIn: parsedAmount,
+      amountOutMinimum: graduatedMinOut,
+      token: launch.token
+    });
+
+    writeContract({
+      address: uniswapV4Addresses.universalRouter,
+      abi: universalRouterAbi,
+      functionName: "execute",
+      args: [swap.commands, swap.inputs, BigInt(Math.floor(Date.now() / 1000) + 900)]
     });
   }
 
@@ -293,7 +392,38 @@ export function MarketClient({ id, launch, trades }: { id: string; launch?: Depl
 
       <aside className="trade-box">
         {launch.status === "Graduated" ? (
-          <GraduatedTradeCard launch={launch} />
+          <GraduatedTradeCard
+            amount={amount}
+            error={error?.message}
+            exceedsEthBalance={exceedsEthBalance}
+            exceedsSellBalance={exceedsSellBalance}
+            isConnected={isConnected}
+            isPending={isPending}
+            isWorking={isWorking}
+            launch={launch}
+            minOut={graduatedMinOut}
+            mode={mode}
+            needsPermit2Approval={needsGraduatedPermit2Approval}
+            needsTokenApproval={needsGraduatedTokenApproval}
+            onApprovePermit2={approveGraduatedPermit2Router}
+            onApproveToken={approveGraduatedTokenPermit2}
+            onBuy={buyGraduated}
+            onSell={sellGraduated}
+            quote={graduatedQuotedOut}
+            quoteError={graduatedQuote.error?.message}
+            quoteLoading={graduatedQuote.isLoading || graduatedQuote.isFetching}
+            receiptSuccess={Boolean(receipt.isSuccess)}
+            sellBalance={sellBalance}
+            setAmount={setAmount}
+            setMode={setMode}
+            setSellPercent={setSellPercent}
+            setSettingsOpen={setSettingsOpen}
+            settingsOpen={settingsOpen}
+            slippageBps={slippageBps}
+            tradeDisabled={mode === "buy" ? graduatedBuyDisabled : graduatedSellDisabled}
+            transactionSubmitted={Boolean(hash && !receipt.isSuccess && !isPending)}
+            updateSlippage={setSlippageBps}
+          />
         ) : (
           <section className="trade-card">
             <div className="trade-tabs">
@@ -566,7 +696,69 @@ function xShareUrl(launch: DeployedLaunch, id: string) {
   return `https://x.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`;
 }
 
-function GraduatedTradeCard({ launch }: { launch: DeployedLaunch }) {
+function GraduatedTradeCard({
+  amount,
+  error,
+  exceedsEthBalance,
+  exceedsSellBalance,
+  isConnected,
+  isPending,
+  isWorking,
+  launch,
+  minOut,
+  mode,
+  needsPermit2Approval,
+  needsTokenApproval,
+  onApprovePermit2,
+  onApproveToken,
+  onBuy,
+  onSell,
+  quote,
+  quoteError,
+  quoteLoading,
+  receiptSuccess,
+  sellBalance,
+  setAmount,
+  setMode,
+  setSellPercent,
+  setSettingsOpen,
+  settingsOpen,
+  slippageBps,
+  tradeDisabled,
+  transactionSubmitted,
+  updateSlippage
+}: {
+  amount: string;
+  error?: string;
+  exceedsEthBalance: boolean;
+  exceedsSellBalance: boolean;
+  isConnected: boolean;
+  isPending: boolean;
+  isWorking: boolean;
+  launch: DeployedLaunch;
+  minOut: bigint;
+  mode: "buy" | "sell";
+  needsPermit2Approval: boolean;
+  needsTokenApproval: boolean;
+  onApprovePermit2: () => void;
+  onApproveToken: () => void;
+  onBuy: () => void;
+  onSell: () => void;
+  quote?: bigint;
+  quoteError?: string;
+  quoteLoading: boolean;
+  receiptSuccess: boolean;
+  sellBalance: bigint;
+  setAmount: (amount: string) => void;
+  setMode: (mode: "buy" | "sell") => void;
+  setSellPercent: (percent: bigint) => void;
+  setSettingsOpen: (open: boolean | ((open: boolean) => boolean)) => void;
+  settingsOpen: boolean;
+  slippageBps: bigint;
+  tradeDisabled: boolean;
+  transactionSubmitted: boolean;
+  updateSlippage: (value: bigint) => void;
+}) {
   return (
     <section className="graduated-trade-card">
       <div className="graduated-badge">
@@ -574,10 +766,127 @@ function GraduatedTradeCard({ launch }: { launch: DeployedLaunch }) {
         Graduated
       </div>
       <div className="graduated-card-copy">
-        <h2>Liquidity locked</h2>
+        <h2>Trade locked liquidity</h2>
         <p>
-          Bonding curve trading is complete. This market now trades through the locked Uniswap liquidity pool.
+          Bonding curve trading is complete. Orders now route through the locked Uniswap v4 pool.
         </p>
+      </div>
+      <div className="trade-tabs">
+        <button className={mode === "buy" ? "active" : ""} onClick={() => setMode("buy")} type="button">Buy</button>
+        <button className={mode === "sell" ? "active" : ""} onClick={() => setMode("sell")} type="button">Sell</button>
+      </div>
+      <div className="form graduated-swap-form">
+        {!isConnected ? (
+          <div className="notice compact">
+            <strong>Connect wallet</strong>
+            <span>Wallet connection is required before trading.</span>
+          </div>
+        ) : null}
+        <div className="field">
+          <div className="field-head">
+            <label>{mode === "buy" ? "ETH in" : `${launch.symbol} amount`}</label>
+            {mode === "sell" ? (
+              <button className="balance-button" onClick={() => setSellPercent(100n)} type="button">
+                Balance {formatTokenBalance(sellBalance)} {launch.symbol}
+              </button>
+            ) : null}
+          </div>
+          <input className="amount-input" value={amount} onChange={(event) => setAmount(event.target.value)} />
+        </div>
+        <div className="quote-box">
+          <div className="quote-head">
+            <span>{quoteLoading ? "Quoting Uniswap v4..." : mode === "buy" ? "Estimated tokens" : "Estimated ETH"}</span>
+            <button
+              className={settingsOpen ? "settings-button active" : "settings-button"}
+              onClick={() => setSettingsOpen((open) => !open)}
+              type="button"
+              aria-label="Trade settings"
+            >
+              <Settings size={15} />
+            </button>
+          </div>
+          <strong>{quote ? formatQuote(quote, mode === "buy" ? launch.symbol : "ETH") : "-"}</strong>
+          <small>Minimum after {Number(slippageBps) / 100}% slippage: {minOut ? formatQuote(minOut, mode === "buy" ? launch.symbol : "ETH") : "-"}</small>
+          <small>Route: BlueFun locked Uniswap v4 pool</small>
+        </div>
+        {settingsOpen ? (
+          <div className="trade-settings-panel">
+            <div className="settings-panel-head">
+              <strong>Trade settings</strong>
+              <span>Slippage</span>
+            </div>
+            <div className="slippage-row">
+              {[50n, 100n, 200n, 300n].map((value) => (
+                <button
+                  className={slippageBps === value ? "selected" : ""}
+                  key={value.toString()}
+                  onClick={() => updateSlippage(value)}
+                  type="button"
+                >
+                  {Number(value) / 100}%
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
+        {mode === "buy" ? (
+          <>
+            <div className="quick-grid">
+              <button type="button" onClick={() => setAmount("0.01")}>0.01</button>
+              <button type="button" onClick={() => setAmount("0.05")}>0.05</button>
+              <button type="button" onClick={() => setAmount("0.1")}>0.1</button>
+            </div>
+            <button className="button primary wide" disabled={tradeDisabled} onClick={onBuy} type="button">
+              {isWorking ? <Loader2 className="spin" size={16} /> : <ArrowDownUp size={16} />}
+              {isPending ? "Confirm in wallet" : isWorking ? "Buying" : exceedsEthBalance ? "Insufficient ETH" : `Buy $${launch.symbol}`}
+            </button>
+          </>
+        ) : (
+          <>
+            <div className="quick-grid sell-grid">
+              <button type="button" onClick={() => setSellPercent(25n)}>25%</button>
+              <button type="button" onClick={() => setSellPercent(50n)}>50%</button>
+              <button type="button" onClick={() => setSellPercent(75n)}>75%</button>
+              <button type="button" onClick={() => setSellPercent(100n)}>Max</button>
+            </div>
+            <button
+              className="button primary wide"
+              disabled={tradeDisabled}
+              onClick={needsTokenApproval ? onApproveToken : needsPermit2Approval ? onApprovePermit2 : onSell}
+              type="button"
+            >
+              {isWorking ? <Loader2 className="spin" size={16} /> : <ArrowDownUp size={16} />}
+              {isPending
+                ? "Confirm in wallet"
+                : isWorking
+                  ? needsTokenApproval || needsPermit2Approval ? "Approving" : "Selling"
+                  : exceedsSellBalance
+                    ? "Insufficient balance"
+                    : needsTokenApproval
+                      ? "Approve Permit2"
+                      : needsPermit2Approval
+                        ? "Approve router"
+                        : `Sell $${launch.symbol}`}
+            </button>
+            <span className="trade-helper">
+              {needsTokenApproval
+                ? "One-time token approval lets Permit2 access this token."
+                : needsPermit2Approval
+                  ? "One-time Permit2 approval lets the router execute sells."
+                  : "Selling routes through the locked Uniswap v4 pool."}
+            </span>
+          </>
+        )}
+        <div className="trade-status-stack">
+          {quoteLoading ? <TradeStatus tone="info">Uniswap quote is updating.</TradeStatus> : null}
+          {isPending ? <TradeStatus tone="info">Confirm this Uniswap order in your wallet.</TradeStatus> : null}
+          {transactionSubmitted ? <TradeStatus tone="info">Order submitted. Waiting for confirmation.</TradeStatus> : null}
+          {receiptSuccess ? <TradeStatus tone="success">Order confirmed. Market data is refreshing.</TradeStatus> : null}
+          {exceedsEthBalance ? <TradeStatus tone="danger">Not enough ETH for this order.</TradeStatus> : null}
+          {exceedsSellBalance ? <TradeStatus tone="danger">Insufficient token balance.</TradeStatus> : null}
+          {quoteError ? <TradeStatus tone="danger">Uniswap pool quote is not available yet.</TradeStatus> : null}
+          {error ? <TradeStatus tone="danger">{friendlyTradeError(error)}</TradeStatus> : null}
+        </div>
       </div>
       <div className="graduated-checks">
         <span><ShieldCheck size={15} />Graduated</span>
@@ -625,8 +934,10 @@ function ProjectInfo({ launch }: { launch: DeployedLaunch }) {
   );
 }
 
-function uniswapSwapUrl(token: `0x${string}`) {
-  return `https://app.uniswap.org/swap?chain=${uniswapChainName}&inputCurrency=ETH&outputCurrency=${token}`;
+function uniswapSwapUrl(token: `0x${string}`, direction: "buy" | "sell" = "buy") {
+  const inputCurrency = direction === "buy" ? "ETH" : token;
+  const outputCurrency = direction === "buy" ? token : "ETH";
+  return `https://app.uniswap.org/swap?chain=${uniswapChainName}&inputCurrency=${inputCurrency}&outputCurrency=${outputCurrency}`;
 }
 
 function RecentTrades({ trades, symbol }: { trades: DeployedTrade[]; symbol: string }) {
@@ -751,12 +1062,12 @@ function HolderDistribution({ launch, trades }: { launch: DeployedLaunch; trades
 
   const holderAddresses = useMemo(() => {
     const values = [
-      addresses.bondingCurveMarket,
+      launch.status === "Graduated" ? uniswapV4Addresses.poolManager : addresses.bondingCurveMarket,
       launch.creator,
       ...candidateWallets
     ].filter(Boolean) as `0x${string}`[];
     return Array.from(new Map(values.map((value) => [value.toLowerCase(), value])).values());
-  }, [candidateWallets, launch.creator]);
+  }, [candidateWallets, launch.creator, launch.status]);
 
   const balances = useReadContracts({
     contracts: holderAddresses.map((holder) => ({
@@ -777,19 +1088,20 @@ function HolderDistribution({ launch, trades }: { launch: DeployedLaunch; trades
         const amount = Number(formatEther(balance));
         const percent = TOTAL_SUPPLY > 0 ? (amount / TOTAL_SUPPLY) * 100 : 0;
         const isCurve = addresses.bondingCurveMarket?.toLowerCase() === holder.toLowerCase();
+        const isUniswapPool = launch.status === "Graduated" && uniswapV4Addresses.poolManager.toLowerCase() === holder.toLowerCase();
         const isCreator = launch.creator.toLowerCase() === holder.toLowerCase();
         return {
           holder,
-          label: isCurve ? "Bonding curve" : isCreator ? "Creator" : shortAddress(holder),
+          label: isUniswapPool ? "Uniswap v4 pool" : isCurve ? "Bonding curve" : isCreator ? "Creator" : shortAddress(holder),
           balance,
           percent,
-          tone: isCurve ? "curve" : isCreator ? "creator" : "holder"
+          tone: isUniswapPool ? "pool" : isCurve ? "curve" : isCreator ? "creator" : "holder"
         };
       })
       .filter((row) => row.balance > 0n)
       .sort((a, b) => Number(b.balance - a.balance))
       .slice(0, 20);
-  }, [balances.data, holderAddresses, launch.creator]);
+  }, [balances.data, holderAddresses, launch.creator, launch.status]);
 
   if (!rows.length) return null;
 
@@ -798,7 +1110,7 @@ function HolderDistribution({ launch, trades }: { launch: DeployedLaunch; trades
       <div className="holder-distribution-head">
         <div>
           <h2>Top holders</h2>
-          <p>Largest tracked balances from launch activity.</p>
+          <p>On-chain balances read from the token contract.</p>
         </div>
         <span>Top {rows.length}</span>
       </div>

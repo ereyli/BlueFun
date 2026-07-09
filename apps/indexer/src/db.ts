@@ -241,6 +241,32 @@ export async function markGraduated(input: { launchId: bigint; token: string; po
   ]);
 }
 
+export async function getGraduatedLaunches(): Promise<Array<{ launchId: bigint; token: string; blockNumber?: bigint }>> {
+  if (hasSupabaseConfig()) {
+    const { data, error } = await getSupabase()
+      .from("graduations")
+      .select("launch_id, token, block_number")
+      .eq("scope", indexerScope());
+    if (error) throw error;
+    return (data ?? []).map((row) => ({
+      launchId: BigInt(String(row.launch_id)),
+      token: String(row.token),
+      blockNumber: row.block_number ? BigInt(String(row.block_number)) : undefined
+    }));
+  }
+
+  if (!pool) throw new Error("Database client is not configured");
+  const result = await pool.query(
+    "select launch_id, token, block_number from graduations where scope = $1",
+    [indexerScope()]
+  );
+  return result.rows.map((row) => ({
+    launchId: BigInt(String(row.launch_id)),
+    token: String(row.token),
+    blockNumber: row.block_number ? BigInt(String(row.block_number)) : undefined
+  }));
+}
+
 export async function getIndexerState(key: string): Promise<bigint | undefined> {
   if (hasSupabaseConfig()) {
     const { data, error } = await getSupabase().from("indexer_state").select("value").eq("key", key).maybeSingle();

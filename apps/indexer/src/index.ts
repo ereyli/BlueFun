@@ -1,10 +1,11 @@
 import "dotenv/config";
-import { createPublicClient, http } from "viem";
+import { createPublicClient, encodeAbiParameters, getAddress, http, keccak256, zeroAddress } from "viem";
 import { base } from "viem/chains";
-import { graduationAbi, launchFactoryAbi, marketAbi } from "./abi.js";
+import { graduationAbi, launchFactoryAbi, marketAbi, poolManagerAbi } from "./abi.js";
 import { chainId, defaultRpcUrl, deploymentScope, mainnetDeployment } from "./deployment.js";
 import {
   ensureSchema,
+  getGraduatedLaunches,
   getIndexerState,
   insertTrade,
   markGraduated,
@@ -18,6 +19,9 @@ const launchFactory = mainnetDeployment.launchFactory;
 const market = mainnetDeployment.bondingCurveMarket;
 const graduationManager = mainnetDeployment.graduationManager;
 const startBlock = mainnetDeployment.startBlock;
+const poolManager = "0x498581ff718922c3f8e6a244956af099b2652b2b" as const;
+const v4PoolFee = 3000;
+const v4TickSpacing = 60;
 const chunkSize = BigInt(process.env.LOG_CHUNK_SIZE || "1900");
 const pollMs = Number(process.env.POLL_MS || "30000");
 const confirmations = BigInt(process.env.CONFIRMATIONS || "3");
@@ -94,6 +98,7 @@ async function backfillLoop() {
   await backfillMarketBuys(latest);
   await backfillMarketSells(latest);
   await backfillGraduations(latest);
+  await backfillUniswapV4Swaps(latest);
 }
 
 async function backfillLaunchCreated(latest: bigint) {
@@ -188,6 +193,44 @@ async function backfillGraduations(latest: bigint) {
     }
 
     await setIndexerState(stateKey("graduations_last_block"), toBlock + 1n);
+    fromBlock = toBlock + 1n;
+  }
+}
+
+async function backfillUniswapV4Swaps(latest: bigint) {
+  const graduated = await getGraduatedLaunches();
+  if (graduated.length === 0) return;
+
+  const poolMap = new Map<string, { launchId: bigint; token: `0x${string}` }>();
+  let firstGraduationBlock = latest;
+  for (const launch of graduated) {
+    const token = getAddress(launch.token) as `0x${string}`;
+    poolMap.set(blueFunV4PoolId(token), { launchId: launch.launchId, token });
+    if (launch.blockNumber && launch.blockNumber < firstGraduationBlock) firstGraduationBlock = launch.blockNumber;
+  }
+
+  let fromBlock = (await getIndexerState(stateKey("uniswap_v4_swaps_last_block"))) ?? firstGraduationBlock;
+  if (fromBlock < firstGraduationBlock) fromBlock = firstGraduationBlock;
+  if (fromBlock > latest) return;
+
+  while (fromBlock <= latest) {
+    const toBlock = fromBlock + chunkSize > latest ? latest : fromBlock + chunkSize;
+    const logs = await client.getContractEvents({
+      address: poolManager,
+      abi: poolManagerAbi,
+      eventName: "Swap",
+      args: { id: Array.from(poolMap.keys()) as `0x${string}`[] },
+      fromBlock,
+      toBlock
+    });
+
+    for (const log of logs) {
+      const pool = poolMap.get(String(log.args.id).toLowerCase());
+      if (!pool) continue;
+      await handleUniswapV4Swap(log, pool.launchId);
+    }
+
+    await setIndexerState(stateKey("uniswap_v4_swaps_last_block"), toBlock + 1n);
     fromBlock = toBlock + 1n;
   }
 }
@@ -309,6 +352,67 @@ async function handleGraduated(log: Awaited<ReturnType<typeof client.getContract
     blockNumber: log.blockNumber
   });
   await refreshLaunchState(log.args.launchId!);
+}
+
+async function handleUniswapV4Swap(
+  log: Awaited<ReturnType<typeof client.getContractEvents<typeof poolManagerAbi, "Swap">>>[number],
+  launchId: bigint
+) {
+  const amount0 = log.args.amount0!;
+  const amount1 = log.args.amount1!;
+  if (amount0 === 0n || amount1 === 0n) return;
+
+  const side = amount0 > 0n ? "buy" : "sell";
+  const ethAmount = absBigInt(amount0);
+  const tokenAmount = absBigInt(amount1);
+  const trader = await readTransactionSender(log.transactionHash).catch(() => log.args.sender!);
+
+  await insertTrade({
+    launchId,
+    trader,
+    side,
+    ethAmount,
+    tokenAmount,
+    txHash: log.transactionHash,
+    blockNumber: log.blockNumber
+  });
+}
+
+function blueFunV4PoolId(token: `0x${string}`) {
+  const encoded = encodeAbiParameters(
+    [
+      {
+        name: "poolKey",
+        type: "tuple",
+        components: [
+          { name: "currency0", type: "address" },
+          { name: "currency1", type: "address" },
+          { name: "fee", type: "uint24" },
+          { name: "tickSpacing", type: "int24" },
+          { name: "hooks", type: "address" }
+        ]
+      }
+    ],
+    [
+      {
+        currency0: zeroAddress,
+        currency1: token,
+        fee: v4PoolFee,
+        tickSpacing: v4TickSpacing,
+        hooks: zeroAddress
+      }
+    ]
+  );
+  return keccak256(encoded).toLowerCase();
+}
+
+async function readTransactionSender(hash: `0x${string}`) {
+  const transaction = await client.getTransaction({ hash });
+  return transaction.from;
+}
+
+function absBigInt(value: bigint) {
+  return value < 0n ? -value : value;
 }
 
 async function refreshLaunchState(launchId: bigint) {

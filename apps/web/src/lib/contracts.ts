@@ -25,6 +25,18 @@ export function indexerScope() {
 export const FAIR_GRADUATION_TARGET_ETH = "5";
 export const FAIR_LAUNCH_FEE_ETH = "0.002";
 
+export const uniswapV4Addresses = {
+  poolManager: "0x498581ff718922c3f8e6a244956af099b2652b2b" as `0x${string}`,
+  positionManager: "0x7c5f5a4bbd8fd63184577525326123b519429bdc" as `0x${string}`,
+  quoter: "0x0d5e0f971ed27fbff6c2837bf31316121532048d" as `0x${string}`,
+  stateView: "0xa3c0c9b65bad0b08107aa264b0f3db444b867a71" as `0x${string}`,
+  universalRouter: "0x6ff5693b99212da76ad316178a184ab56d299b43" as `0x${string}`,
+  permit2: "0x000000000022d473030f116ddee9f6b43ac78ba3" as `0x${string}`
+};
+
+export const BLUEFUN_V4_POOL_FEE = 3000;
+export const BLUEFUN_V4_TICK_SPACING = 60;
+
 export const launchFactoryAbi = [
   {
     type: "event",
@@ -303,5 +315,83 @@ export const graduationManagerAbi = [
     stateMutability: "nonpayable",
     inputs: [{ name: "launchId", type: "uint256" }],
     outputs: [{ name: "positionId", type: "bytes32" }]
+  }
+] as const;
+
+export const universalRouterAbi = [
+  {
+    type: "function",
+    name: "execute",
+    stateMutability: "payable",
+    inputs: [
+      { name: "commands", type: "bytes" },
+      { name: "inputs", type: "bytes[]" },
+      { name: "deadline", type: "uint256" }
+    ],
+    outputs: []
+  }
+] as const;
+
+export const permit2Abi = [
+  {
+    type: "function",
+    name: "approve",
+    stateMutability: "nonpayable",
+    inputs: [
+      { name: "token", type: "address" },
+      { name: "spender", type: "address" },
+      { name: "amount", type: "uint160" },
+      { name: "expiration", type: "uint48" }
+    ],
+    outputs: []
+  },
+  {
+    type: "function",
+    name: "allowance",
+    stateMutability: "view",
+    inputs: [
+      { name: "owner", type: "address" },
+      { name: "token", type: "address" },
+      { name: "spender", type: "address" }
+    ],
+    outputs: [
+      { name: "amount", type: "uint160" },
+      { name: "expiration", type: "uint48" },
+      { name: "nonce", type: "uint48" }
+    ]
+  }
+] as const;
+
+export const uniswapV4QuoterAbi = [
+  {
+    type: "function",
+    name: "quoteExactInputSingle",
+    stateMutability: "nonpayable",
+    inputs: [
+      {
+        name: "params",
+        type: "tuple",
+        components: [
+          {
+            name: "poolKey",
+            type: "tuple",
+            components: [
+              { name: "currency0", type: "address" },
+              { name: "currency1", type: "address" },
+              { name: "fee", type: "uint24" },
+              { name: "tickSpacing", type: "int24" },
+              { name: "hooks", type: "address" }
+            ]
+          },
+          { name: "zeroForOne", type: "bool" },
+          { name: "exactAmount", type: "uint128" },
+          { name: "hookData", type: "bytes" }
+        ]
+      }
+    ],
+    outputs: [
+      { name: "amountOut", type: "uint256" },
+      { name: "gasEstimate", type: "uint256" }
+    ]
   }
 ] as const;
