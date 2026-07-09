@@ -112,14 +112,19 @@ function isMissingSocialColumnError(error: { message?: string; details?: string 
   return ["description", "website_url", "twitter_url", "telegram_url", "discord_url"].some((column) => text.includes(column));
 }
 
+function isMissingMarketCapColumnError(error: { message?: string; details?: string }) {
+  const text = `${error.message || ""} ${error.details || ""}`.toLowerCase();
+  return text.includes("market_cap_eth");
+}
+
 export async function getDbTrades(launchId: string): Promise<DeployedTrade[] | undefined> {
   if (process.env.POSTGRES_INDEXER_ENABLED !== "true") return undefined;
 
   try {
     if (hasSupabaseConfig()) {
-      const { data, error } = await getSupabase()
+      let response: { data: Array<Record<string, unknown>> | null; error: { message?: string; details?: string } | null } = await getSupabase()
         .from("trades")
-        .select("side, trader, eth_amount, token_amount, tx_hash, block_number, created_at")
+        .select("side, trader, eth_amount, token_amount, market_cap_eth, tx_hash, block_number, created_at")
         .eq("scope", indexerScope())
         .eq("launch_id", launchId)
         .gte("block_number", addresses.deploymentBlock.toString())
@@ -127,8 +132,20 @@ export async function getDbTrades(launchId: string): Promise<DeployedTrade[] | u
         .order("id", { ascending: false })
         .limit(250);
 
-      if (error) throw error;
-      return mapTrades(data ?? []);
+      if (response.error && isMissingMarketCapColumnError(response.error)) {
+        response = await getSupabase()
+          .from("trades")
+          .select("side, trader, eth_amount, token_amount, tx_hash, block_number, created_at")
+          .eq("scope", indexerScope())
+          .eq("launch_id", launchId)
+          .gte("block_number", addresses.deploymentBlock.toString())
+          .order("block_number", { ascending: false })
+          .order("id", { ascending: false })
+          .limit(250);
+      }
+
+      if (response.error) throw response.error;
+      return mapTrades(response.data ?? []);
     }
 
     if (!process.env.DATABASE_URL) return undefined;
@@ -139,7 +156,7 @@ export async function getDbTrades(launchId: string): Promise<DeployedTrade[] | u
       max: 2
     });
     const result = await withTimeout(pool.query(
-      `select side, trader, eth_amount, token_amount, tx_hash, block_number, created_at
+      `select side, trader, eth_amount, token_amount, market_cap_eth, tx_hash, block_number, created_at
        from trades
        where scope = $1
          and launch_id = $2
@@ -204,6 +221,7 @@ function mapTrades(rows: Array<Record<string, unknown>>): DeployedTrade[] {
     trader: row.trader ? getAddress(String(row.trader)) as `0x${string}` : undefined,
     ethAmount: `${trimEth(formatEther(parseDbBigInt(row.eth_amount)))} ETH`,
     tokenAmount: trimEth(formatEther(parseDbBigInt(row.token_amount))),
+    marketCapEth: row.market_cap_eth ? formatEther(parseDbBigInt(row.market_cap_eth)) : undefined,
     txHash: String(row.tx_hash || ""),
     blockNumber: String(row.block_number || ""),
     createdAt: String(row.created_at || "")

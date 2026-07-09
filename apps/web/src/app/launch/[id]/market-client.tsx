@@ -154,6 +154,16 @@ export function MarketClient({ id, launch, trades }: { id: string; launch?: Depl
   const needsGraduatedPermit2Approval = Boolean(isGraduated && mode === "sell" && parsedAmount > 0n && !needsGraduatedTokenApproval && (permit2Amount < parsedAmount || BigInt(permit2Expiration) <= BigInt(Math.floor(Date.now() / 1000) + 900)));
   const graduatedBuyDisabled = !launch || !isConnected || isWorking || mode !== "buy" || parsedAmount === 0n || exceedsEthBalance || graduatedMinOut === 0n;
   const graduatedSellDisabled = !launch || !isConnected || isWorking || mode !== "sell" || parsedAmount === 0n || exceedsSellBalance || (!needsGraduatedTokenApproval && !needsGraduatedPermit2Approval && graduatedMinOut === 0n);
+  const latestMarketCapEth = useMemo(() => {
+    return trades
+      .slice()
+      .reverse()
+      .find((trade) => trade.marketCapEth && parseDisplayAmount(trade.marketCapEth) > 0)
+      ?.marketCapEth;
+  }, [trades]);
+  const displayMarketCap = latestMarketCapEth ? `${latestMarketCapEth} ETH` : launch?.marketCap ?? "Live";
+  const latestPriceEth = latestMarketCapEth ? parseDisplayAmount(latestMarketCapEth) / TOTAL_SUPPLY : 0;
+  const displayPrice = latestPriceEth > 0 ? `${decimalStringFromNumber(latestPriceEth.toPrecision(18))} ETH` : launch?.price ?? "Live";
 
   useEffect(() => {
     if (!receipt.isSuccess) return;
@@ -375,8 +385,8 @@ export function MarketClient({ id, launch, trades }: { id: string; launch?: Depl
             </span>
           </div>
           <div className="market-header-stats">
-            <div><span>Market cap</span><strong>{formatUsdFromEthText(launch.marketCap, ethUsd)}</strong></div>
-            <div><span>Price</span><strong>{formatUsdFromEthText(launch.price, ethUsd, true)}</strong></div>
+            <div><span>Market cap</span><strong>{formatUsdFromEthText(displayMarketCap, ethUsd)}</strong></div>
+            <div><span>Price</span><strong>{formatUsdFromEthText(displayPrice, ethUsd, true)}</strong></div>
             <div><span>Raised</span><strong>{launch.raised}</strong></div>
             <div><span>Bonded</span><strong>{launch.progress}%</strong></div>
           </div>

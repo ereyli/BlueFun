@@ -29,6 +29,8 @@ const v4TickSpacing = 60;
 const chunkSize = BigInt(process.env.LOG_CHUNK_SIZE || "1900");
 const pollMs = Number(process.env.POLL_MS || "30000");
 const confirmations = BigInt(process.env.CONFIRMATIONS || "3");
+const totalSupplyRaw = 1_000_000_000n * 10n ** 18n;
+const q192 = 1n << 192n;
 let isPolling = false;
 let nextPollDelayMs = pollMs;
 
@@ -142,7 +144,7 @@ async function backfillLaunchCreated(latest: bigint) {
 }
 
 async function backfillMarketBuys(latest: bigint) {
-  let fromBlock = (await getIndexerState(stateKey("market_buys_last_block"))) ?? startBlock;
+  let fromBlock = (await getIndexerState(stateKey("market_buys_v2_last_block"))) ?? startBlock;
   if (fromBlock < startBlock) fromBlock = startBlock;
   if (fromBlock > latest) return;
 
@@ -160,13 +162,13 @@ async function backfillMarketBuys(latest: bigint) {
       await handleTokensBought(log);
     }
 
-    await setIndexerState(stateKey("market_buys_last_block"), toBlock + 1n);
+    await setIndexerState(stateKey("market_buys_v2_last_block"), toBlock + 1n);
     fromBlock = toBlock + 1n;
   }
 }
 
 async function backfillMarketSells(latest: bigint) {
-  let fromBlock = (await getIndexerState(stateKey("market_sells_last_block"))) ?? startBlock;
+  let fromBlock = (await getIndexerState(stateKey("market_sells_v2_last_block"))) ?? startBlock;
   if (fromBlock < startBlock) fromBlock = startBlock;
   if (fromBlock > latest) return;
 
@@ -184,7 +186,7 @@ async function backfillMarketSells(latest: bigint) {
       await handleTokensSold(log);
     }
 
-    await setIndexerState(stateKey("market_sells_last_block"), toBlock + 1n);
+    await setIndexerState(stateKey("market_sells_v2_last_block"), toBlock + 1n);
     fromBlock = toBlock + 1n;
   }
 }
@@ -225,7 +227,7 @@ async function backfillUniswapV4Swaps(latest: bigint) {
     if (launch.blockNumber && launch.blockNumber < firstGraduationBlock) firstGraduationBlock = launch.blockNumber;
   }
 
-  let fromBlock = (await getIndexerState(stateKey("uniswap_v4_swaps_v2_last_block"))) ?? firstGraduationBlock;
+  let fromBlock = (await getIndexerState(stateKey("uniswap_v4_swaps_v3_last_block"))) ?? firstGraduationBlock;
   if (fromBlock < firstGraduationBlock) fromBlock = firstGraduationBlock;
   if (fromBlock > latest) return;
 
@@ -246,7 +248,7 @@ async function backfillUniswapV4Swaps(latest: bigint) {
       await handleUniswapV4Swap(log, pool.launchId);
     }
 
-    await setIndexerState(stateKey("uniswap_v4_swaps_v2_last_block"), toBlock + 1n);
+    await setIndexerState(stateKey("uniswap_v4_swaps_v3_last_block"), toBlock + 1n);
     fromBlock = toBlock + 1n;
   }
 }
@@ -334,12 +336,14 @@ function cleanMetadataUrl(value: unknown) {
 }
 
 async function handleTokensBought(log: Awaited<ReturnType<typeof client.getContractEvents<typeof marketAbi, "TokensBought">>>[number]) {
+  const marketCapEth = await readCurveMarketCapAtBlock(log.args.launchId!, log.blockNumber).catch(() => undefined);
   await insertTrade({
     launchId: log.args.launchId!,
     trader: log.args.buyer!,
     side: "buy",
     ethAmount: log.args.ethIn!,
     tokenAmount: log.args.tokensOut!,
+    marketCapEth,
     txHash: log.transactionHash,
     blockNumber: log.blockNumber
   });
@@ -347,12 +351,14 @@ async function handleTokensBought(log: Awaited<ReturnType<typeof client.getContr
 }
 
 async function handleTokensSold(log: Awaited<ReturnType<typeof client.getContractEvents<typeof marketAbi, "TokensSold">>>[number]) {
+  const marketCapEth = await readCurveMarketCapAtBlock(log.args.launchId!, log.blockNumber).catch(() => undefined);
   await insertTrade({
     launchId: log.args.launchId!,
     trader: log.args.seller!,
     side: "sell",
     ethAmount: log.args.ethOut!,
     tokenAmount: log.args.tokensIn!,
+    marketCapEth,
     txHash: log.transactionHash,
     blockNumber: log.blockNumber
   });
@@ -382,6 +388,7 @@ async function handleUniswapV4Swap(
   const ethAmount = absBigInt(amount0);
   const tokenAmount = absBigInt(amount1);
   const trader = await readTransactionSender(log.transactionHash).catch(() => log.args.sender!);
+  const marketCapEth = marketCapWeiFromSqrtPrice(log.args.sqrtPriceX96!);
 
   await insertTrade({
     launchId,
@@ -389,6 +396,7 @@ async function handleUniswapV4Swap(
     side,
     ethAmount,
     tokenAmount,
+    marketCapEth,
     txHash: log.transactionHash,
     blockNumber: log.blockNumber
   });
@@ -429,6 +437,27 @@ async function readTransactionSender(hash: `0x${string}`) {
 
 function absBigInt(value: bigint) {
   return value < 0n ? -value : value;
+}
+
+async function readCurveMarketCapAtBlock(launchId: bigint, blockNumber: bigint) {
+  const state = await client.readContract({
+    address: marketAddress,
+    abi: marketAbi,
+    functionName: "launches",
+    args: [launchId],
+    blockNumber
+  });
+  return curveMarketCapWei(state[2], state[3], state[7]);
+}
+
+function curveMarketCapWei(virtualTokenReserve: bigint, virtualEthReserve: bigint, maxSupply: bigint) {
+  if (virtualTokenReserve <= 0n) return 0n;
+  return (virtualEthReserve * maxSupply) / virtualTokenReserve;
+}
+
+function marketCapWeiFromSqrtPrice(sqrtPriceX96: bigint) {
+  if (sqrtPriceX96 <= 0n) return 0n;
+  return (totalSupplyRaw * q192) / (sqrtPriceX96 * sqrtPriceX96);
 }
 
 async function refreshLaunchState(launchId: bigint) {

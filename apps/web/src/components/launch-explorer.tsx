@@ -15,7 +15,7 @@ type Filter = "Live" | "New" | "Ready" | "Graduated" | "Safe" | "Progress";
 export function LaunchExplorer({ launches, metrics }: { launches: DeployedLaunch[]; metrics?: DbLaunchMetrics }) {
   const router = useRouter();
   const [query, setQuery] = useState("");
-  const [filter, setFilter] = useState<Filter>("Live");
+  const [filter, setFilter] = useState<Filter>("New");
   const [ethUsd, setEthUsd] = useState<number | null>(null);
   const [isPending, startTransition] = useTransition();
 
