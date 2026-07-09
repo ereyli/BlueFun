@@ -9,6 +9,10 @@ import { readTokenMetadata } from "@/lib/token-metadata";
 let pool: pg.Pool | undefined;
 let supabase: SupabaseClient | undefined;
 
+export type DbLaunchMetrics = {
+  totalVolumeEth: number;
+};
+
 export async function getDbLaunches(): Promise<DeployedLaunch[] | undefined> {
   if (process.env.POSTGRES_INDEXER_ENABLED !== "true") return undefined;
 
@@ -57,6 +61,48 @@ export async function getDbLaunches(): Promise<DeployedLaunch[] | undefined> {
     return mapRows(result.rows);
   } catch (error) {
     console.error("Failed to read launches from database", error);
+    return undefined;
+  }
+}
+
+export async function getDbLaunchMetrics(): Promise<DbLaunchMetrics | undefined> {
+  if (process.env.POSTGRES_INDEXER_ENABLED !== "true") return undefined;
+
+  try {
+    if (hasSupabaseConfig()) {
+      const { data, error } = await getSupabase()
+        .from("trades")
+        .select("eth_amount")
+        .eq("scope", indexerScope())
+        .gte("block_number", addresses.deploymentBlock.toString())
+        .limit(5000);
+
+      if (error) throw error;
+      return {
+        totalVolumeEth: (data ?? []).reduce((sum, row) => sum + weiToEthNumber(parseDbBigInt(row.eth_amount)), 0)
+      };
+    }
+
+    if (!process.env.DATABASE_URL) return undefined;
+    pool ??= new pg.Pool({
+      connectionString: process.env.DATABASE_URL,
+      connectionTimeoutMillis: 500,
+      idleTimeoutMillis: 1_000,
+      max: 2
+    });
+    const result = await withTimeout(pool.query(
+      `select coalesce(sum(eth_amount), 0) as total_volume_eth
+       from trades
+       where scope = $1
+         and block_number >= $2`,
+      [indexerScope(), addresses.deploymentBlock.toString()]
+    ), 300);
+
+    return {
+      totalVolumeEth: weiToEthNumber(parseDbBigInt(result.rows[0]?.total_volume_eth))
+    };
+  } catch (error) {
+    console.error("Failed to read launch metrics from database", error);
     return undefined;
   }
 }
@@ -182,6 +228,10 @@ function parseDbBigInt(value: unknown): bigint {
     : digits.slice(0, Math.max(0, digits.length + decimalShift)) || "0";
 
   return BigInt(`${negative ? "-" : ""}${integerString}`);
+}
+
+function weiToEthNumber(value: bigint) {
+  return Number(formatEther(value));
 }
 
 async function withTimeout<T>(promise: Promise<T>, timeoutMs: number): Promise<T> {

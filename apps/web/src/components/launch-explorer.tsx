@@ -6,12 +6,13 @@ import { useRouter } from "next/navigation";
 import { Activity, Clock, Grid2X2, Rocket, Search, Settings, ShieldCheck, SlidersHorizontal, Sparkles, Trophy } from "lucide-react";
 import { isFeaturedLaunch, isTrustedLaunch } from "@/lib/featured-launches";
 import { compactUsd, parseDisplayAmount } from "@/lib/market-math";
+import type { DbLaunchMetrics } from "@/lib/db-launches";
 import type { DeployedLaunch } from "@/lib/onchain-launches";
 import { ipfsToGatewayUrl } from "@/lib/token-metadata";
 
 type Filter = "Live" | "New" | "Ready" | "Graduated" | "Safe" | "Progress";
 
-export function LaunchExplorer({ launches }: { launches: DeployedLaunch[] }) {
+export function LaunchExplorer({ launches, metrics }: { launches: DeployedLaunch[]; metrics?: DbLaunchMetrics }) {
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("Live");
@@ -69,7 +70,7 @@ export function LaunchExplorer({ launches }: { launches: DeployedLaunch[] }) {
   }, [filter, launches, query]);
 
   const stats = useMemo(() => {
-    const totalVolumeEth = launches.reduce((sum, launch) => sum + parseDisplayAmount(launch.volume), 0);
+    const totalVolumeEth = metrics?.totalVolumeEth ?? launches.reduce((sum, launch) => sum + parseDisplayAmount(launch.volume), 0);
     const highestMarketCapEth = launches.reduce((max, launch) => Math.max(max, parseDisplayAmount(launch.marketCap)), 0);
     const creatorCount = new Set(launches.map((launch) => launch.creator.toLowerCase())).size;
     return {
@@ -78,7 +79,7 @@ export function LaunchExplorer({ launches }: { launches: DeployedLaunch[] }) {
       highestMarketCap: formatUsdFromEthNumber(highestMarketCapEth, ethUsd),
       creators: creatorCount.toLocaleString("en-US")
     };
-  }, [ethUsd, launches]);
+  }, [ethUsd, launches, metrics?.totalVolumeEth]);
 
   const trendingLaunches = useMemo(() => {
     return [...launches]
@@ -94,7 +95,7 @@ export function LaunchExplorer({ launches }: { launches: DeployedLaunch[] }) {
     <section className="explorer-shell">
       <div className="explorer-stats-grid" aria-label="Launchpad metrics">
         <MetricCard label="Tokens" value={stats.tokens} detail="Total launched" />
-        <MetricCard label="Volume" value={stats.volume} detail="Indexed curve volume" />
+        <MetricCard label="Volume" value={stats.volume} detail="Total buy/sell volume" />
         <MetricCard label="Highest MC" value={stats.highestMarketCap} detail="Top live valuation" />
         <MetricCard label="Creators" value={stats.creators} detail="Unique launchers" />
       </div>
