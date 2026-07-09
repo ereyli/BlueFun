@@ -170,8 +170,12 @@ export function MarketClient({ id, launch, trades }: { id: string; launch?: Depl
   const displayMarketCap = latestMarketCapEth ? `${latestMarketCapEth} ETH` : launch?.marketCap ?? "Live";
   const latestPriceEth = latestMarketCapEth ? parseDisplayAmount(latestMarketCapEth) / TOTAL_SUPPLY : 0;
   const displayPrice = latestPriceEth > 0 ? `${decimalStringFromNumber(latestPriceEth.toPrecision(18))} ETH` : launch?.price ?? "Live";
-  const displayMarketCapText = isGraduated && dexPair?.marketCap ? compactUsd(dexPair.marketCap) : formatUsdFromEthText(displayMarketCap, ethUsd);
-  const displayPriceText = isGraduated && dexPair?.priceUsd ? formatUsdPrice(dexPair.priceUsd) : formatUsdFromEthText(displayPrice, ethUsd, true);
+  const displayMarketCapText = latestMarketCapEth
+    ? formatUsdFromEthText(displayMarketCap, ethUsd)
+    : isGraduated && dexPair?.marketCap ? compactUsd(dexPair.marketCap) : formatUsdFromEthText(displayMarketCap, ethUsd);
+  const displayPriceText = latestPriceEth > 0
+    ? formatUsdFromEthText(displayPrice, ethUsd, true)
+    : isGraduated && dexPair?.priceUsd ? formatUsdPrice(dexPair.priceUsd) : formatUsdFromEthText(displayPrice, ethUsd, true);
 
   useEffect(() => {
     if (!receipt.isSuccess) return;
@@ -430,7 +434,7 @@ export function MarketClient({ id, launch, trades }: { id: string; launch?: Depl
 
         <div className="chart-panel">
           <div className="curve-state compact">
-            <TradeChart trades={trades} status={launch.status} symbol={launch.symbol} ethUsd={ethUsd} dexPair={dexPair} />
+            <TradeChart trades={trades} status={launch.status} symbol={launch.symbol} ethUsd={ethUsd} />
             <MarketStats
               launch={launch}
               trades={trades}
@@ -1299,19 +1303,7 @@ function decimalStringFromNumber(value: string) {
   return `${digits.slice(0, point)}.${digits.slice(point)}`.replace(/0+$/, "").replace(/\.$/, "") || "0";
 }
 
-function TradeChart({
-  trades,
-  status,
-  symbol,
-  ethUsd,
-  dexPair
-}: {
-  trades: DeployedTrade[];
-  status: DeployedLaunch["status"];
-  symbol: string;
-  ethUsd: number | null;
-  dexPair: DexPairSnapshot | null;
-}) {
+function TradeChart({ trades, status, symbol, ethUsd }: { trades: DeployedTrade[]; status: DeployedLaunch["status"]; symbol: string; ethUsd: number | null }) {
   const chartRef = useRef<HTMLDivElement | null>(null);
   const chartApiRef = useRef<IChartApi | null>(null);
   const candleSeriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
@@ -1320,12 +1312,9 @@ function TradeChart({
   const userTouchedChartRef = useRef(false);
   const [chartMode, setChartMode] = useState<"marketCap" | "price">("marketCap");
   const [intervalMinutes, setIntervalMinutes] = useState(1);
-  const latestOverride = status === "Graduated" && dexPair
-    ? chartMode === "marketCap" ? dexPair.marketCap : dexPair.priceUsd
-    : undefined;
   const { candles, volume, latestValue } = useMemo(
-    () => buildChartData(trades, chartMode, ethUsd, intervalMinutes, status === "Graduated", latestOverride),
-    [trades, chartMode, ethUsd, intervalMinutes, status, latestOverride]
+    () => buildChartData(trades, chartMode, ethUsd, intervalMinutes, status === "Graduated"),
+    [trades, chartMode, ethUsd, intervalMinutes, status]
   );
   const chartTitle = chartMode === "marketCap" ? `${symbol} market cap` : `${symbol} price`;
   function resetChart() {
@@ -1493,8 +1482,7 @@ function buildChartData(
   chartMode: "marketCap" | "price",
   ethUsd: number | null,
   intervalMinutes: number,
-  graduated: boolean,
-  latestOverride?: number
+  graduated: boolean
 ) {
   let virtualEthReserve = 1.25;
   let virtualTokenReserve = TOTAL_SUPPLY;
@@ -1579,13 +1567,6 @@ function buildChartData(
     previousClose = close;
     return candle;
   });
-  const overrideClose = Number(latestOverride);
-  const lastCandle = candles.at(-1);
-  if (lastCandle && Number.isFinite(overrideClose) && overrideClose > 0) {
-    lastCandle.close = overrideClose;
-    lastCandle.high = Math.max(lastCandle.high, lastCandle.open, overrideClose);
-    lastCandle.low = Math.min(lastCandle.low, lastCandle.open, overrideClose);
-  }
   const volume = sorted.map(([time, bucket]) => ({
     time: time as UTCTimestamp,
     value: bucket.volume,
