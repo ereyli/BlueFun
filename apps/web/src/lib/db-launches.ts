@@ -183,6 +183,7 @@ async function mapRows(rows: Array<Record<string, unknown>>): Promise<DeployedLa
     const metadata = await readTokenMetadata(contractURI);
 
     return {
+      chainId: 8453,
       id: String(row.id),
       token: getAddress(String(row.token)) as `0x${string}`,
       creator: getAddress(String(row.creator)) as `0x${string}`,

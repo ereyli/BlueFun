@@ -69,3 +69,13 @@ For a quick frontend-only fallback without Postgres, keep `POSTGRES_INDEXER_ENAB
 - Deployment block: `43826794`
 - Indexer scope: `84532:0x6fe3582939f5a25ff5afabc59562ea560936ab35:0x63c1e321822529d86d10f02bc910636bb85f0831:43826794`
 - Graduation target: fixed `5 ETH` gross raised; curve fees are deducted before DEX liquidity is locked.
+
+## Robinhood Chain mainnet deployment
+
+- Network: Robinhood Chain (`4663`), standard fixed-supply ERC-20 launches.
+- `BondingCurveMarket`: `0xab7597fecaf3357101a3a4331f512031ef3238f0`
+- `UniswapV4LiquidityLocker`: `0x2d1e48fb40f00ed48f2e16df4a7a587fd063d177`
+- `Erc20GraduationManager`: `0xf6545a701a8cbe80d573043e8ffb8210de913d28`
+- `Erc20LaunchFactory`: `0x6a05304638bed7c96b78f420c612e84111fad4d1`
+- Deployment block: `5576234`
+- Graduation uses the official Robinhood Chain Uniswap v4 deployment and permanently custody-locks the LP position.

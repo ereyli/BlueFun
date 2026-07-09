@@ -1,8 +1,7 @@
 import "dotenv/config";
 import { createPublicClient, encodeAbiParameters, fallback, getAddress, http, keccak256, zeroAddress } from "viem";
-import { base } from "viem/chains";
 import { graduationAbi, launchFactoryAbi, marketAbi, poolManagerAbi } from "./abi.js";
-import { chainId, defaultRpcUrls, deploymentScope, mainnetDeployment } from "./deployment.js";
+import { chainDefinition, chainId, defaultRpcUrls, deploymentScope, mainnetDeployment, poolManager } from "./deployment.js";
 import {
   ensureSchema,
   getGraduatedLaunches,
@@ -15,15 +14,14 @@ import {
 } from "./db.js";
 
 const rpcUrls = uniqueUrls([
-  ...splitRpcUrls(process.env.BASE_RPC_URL),
-  ...splitRpcUrls(process.env.BASE_RPC_FALLBACK_URLS),
+  ...splitRpcUrls(process.env.RPC_URL || process.env.BASE_RPC_URL),
+  ...splitRpcUrls(process.env.RPC_FALLBACK_URLS || process.env.BASE_RPC_FALLBACK_URLS),
   ...defaultRpcUrls
 ]);
 const launchFactory = mainnetDeployment.launchFactory;
 const market = mainnetDeployment.bondingCurveMarket;
 const graduationManager = mainnetDeployment.graduationManager;
 const startBlock = mainnetDeployment.startBlock;
-const poolManager = "0x498581ff718922c3f8e6a244956af099b2652b2b" as const;
 const v4PoolFee = 3000;
 const v4TickSpacing = 60;
 const chunkSize = BigInt(process.env.LOG_CHUNK_SIZE || "1900");
@@ -53,7 +51,7 @@ type LaunchMetadata = {
 };
 
 const client = createPublicClient({
-  chain: base,
+  chain: chainDefinition,
   transport: fallback(rpcUrls.map((url) => http(url)), { rank: true, retryCount: 1 })
 });
 

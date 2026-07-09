@@ -12,7 +12,7 @@ import { ipfsToGatewayUrl } from "@/lib/token-metadata";
 
 type Filter = "Live" | "New" | "Ready" | "Graduated" | "Safe" | "Progress";
 
-export function LaunchExplorer({ launches, metrics }: { launches: DeployedLaunch[]; metrics?: DbLaunchMetrics }) {
+export function LaunchExplorer({ launches, metrics, chainId = 8453 }: { launches: DeployedLaunch[]; metrics?: DbLaunchMetrics; chainId?: number }) {
   const router = useRouter();
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("New");
@@ -63,7 +63,7 @@ export function LaunchExplorer({ launches, metrics }: { launches: DeployedLaunch
 
       if (!matchesQuery) return false;
       if (filter === "New") return true;
-      if (filter === "Safe") return launch.risk === "Adminless" || launch.risk === "B20 gated";
+      if (filter === "Safe") return launch.risk === "Adminless" || launch.risk === "B20 gated" || launch.risk === "Fixed-supply ERC-20";
       if (filter === "Progress") return true;
       return launch.status === filter;
     });
@@ -103,7 +103,7 @@ export function LaunchExplorer({ launches, metrics }: { launches: DeployedLaunch
       <div className="trending-section">
         <div className="section-row">
           <div className="section-title"><Activity size={18} />Trending</div>
-          <Link className="button primary compact" href="/launch"><Rocket size={15} />Launch</Link>
+          <Link className="button primary compact" href={`/launch?chain=${chainId}`}><Rocket size={15} />Launch</Link>
         </div>
         {trendingLaunches.length === 0 ? (
           <div className="empty compact-empty">No launches indexed yet.</div>
@@ -113,7 +113,7 @@ export function LaunchExplorer({ launches, metrics }: { launches: DeployedLaunch
               const featured = isFeaturedLaunch(launch);
               const trusted = isTrustedLaunch(launch);
               return (
-              <Link className={featured ? "trending-card featured" : "trending-card"} href={`/launch/${launch.id}`} key={`trend-${launch.id}-${launch.token}`}>
+              <Link className={featured ? "trending-card featured" : "trending-card"} href={`/launch/${launch.id}?chain=${launch.chainId}`} key={`trend-${launch.id}-${launch.token}`}>
                 <TokenAvatar launch={launch} />
                 <div className="trending-copy">
                   <strong>{launch.symbol}{trusted ? <span>Trusted</span> : null}</strong>
@@ -171,7 +171,7 @@ export function LaunchExplorer({ launches, metrics }: { launches: DeployedLaunch
             const featured = isFeaturedLaunch(launch);
             const trusted = isTrustedLaunch(launch);
             return (
-            <Link className={featured ? "token-card featured" : "token-card"} href={`/launch/${launch.id}`} key={`${launch.id}-${launch.token}`}>
+            <Link className={featured ? "token-card featured" : "token-card"} href={`/launch/${launch.id}?chain=${launch.chainId}`} key={`${launch.chainId}-${launch.id}-${launch.token}`}>
               <div className="token-card-main">
                 <TokenAvatar launch={launch} hot={index === 0} />
                 <div className="token-card-copy">
@@ -183,7 +183,7 @@ export function LaunchExplorer({ launches, metrics }: { launches: DeployedLaunch
                     <span className={launch.status === "Live" ? "token-status live" : "token-status"}>{launch.status}</span>
                   </div>
                   <p className="token-description">
-                    {launch.description || (launch.status === "Graduated" ? "DEX ready market" : "B20 curve launch")}
+                    {launch.description || (launch.status === "Graduated" ? "DEX ready market" : launch.chainId === 4663 ? "ERC-20 curve launch" : "B20 curve launch")}
                   </p>
                 </div>
               </div>

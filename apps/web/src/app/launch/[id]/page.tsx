@@ -3,14 +3,16 @@ import { MarketClient } from "./market-client";
 import { getDeployedLaunch, getLaunchTrades } from "@/lib/onchain-launches";
 import { siteUrl } from "@/lib/site-url";
 import { ipfsToGatewayUrl } from "@/lib/token-metadata";
+import { getRobinhoodLaunch } from "@/lib/robinhood-launches";
 
 export const dynamic = "force-dynamic";
 
-type LaunchParams = { params: Promise<{ id: string }> };
+type LaunchParams = { params: Promise<{ id: string }>; searchParams: Promise<{ chain?: string }> };
 
-export async function generateMetadata({ params }: LaunchParams): Promise<Metadata> {
+export async function generateMetadata({ params, searchParams }: LaunchParams): Promise<Metadata> {
   const { id } = await params;
-  const launch = await getDeployedLaunch(id).catch(() => undefined);
+  const isRobinhood = Number((await searchParams).chain) === 4663;
+  const launch = await (isRobinhood ? getRobinhoodLaunch(id) : getDeployedLaunch(id)).catch(() => undefined);
   if (!launch) {
     return {
       title: "BlueFun Market",
@@ -46,8 +48,12 @@ export async function generateMetadata({ params }: LaunchParams): Promise<Metada
   };
 }
 
-export default async function LaunchMarketPage({ params }: LaunchParams) {
+export default async function LaunchMarketPage({ params, searchParams }: LaunchParams) {
   const { id } = await params;
-  const [launch, trades] = await Promise.all([getDeployedLaunch(id), getLaunchTrades(id)]);
+  const isRobinhood = Number((await searchParams).chain) === 4663;
+  const [launch, trades] = await Promise.all([
+    isRobinhood ? getRobinhoodLaunch(id) : getDeployedLaunch(id),
+    isRobinhood ? Promise.resolve([]) : getLaunchTrades(id)
+  ]);
   return <MarketClient id={id} launch={launch} trades={trades} />;
 }

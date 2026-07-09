@@ -1,14 +1,19 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { decodeEventLog, formatEther, parseEther, keccak256, toBytes } from "viem";
 import { useAccount, useWaitForTransactionReceipt, useWriteContract } from "wagmi";
 import { BadgeCheck, CheckCircle2, ImagePlus, Info, Loader2, LockKeyhole, Rocket, ShieldCheck, UploadCloud } from "lucide-react";
-import { addresses, chain, FAIR_GRADUATION_TARGET_ETH, FAIR_LAUNCH_FEE_ETH, launchFactoryAbi } from "@/lib/contracts";
+import { contractsForChain, FAIR_GRADUATION_TARGET_ETH, FAIR_LAUNCH_FEE_ETH, launchFactoryAbi } from "@/lib/contracts";
 import { WalletButton } from "@/components/wallet-button";
+import { useSearchParams } from "next/navigation";
 
 export default function LaunchPage() {
+  return <Suspense fallback={<div className="empty">Loading launch form...</div>}><LaunchPageContent /></Suspense>;
+}
+
+function LaunchPageContent() {
   const [name, setName] = useState("");
   const [symbol, setSymbol] = useState("");
   const [imageFile, setImageFile] = useState<File | undefined>();
@@ -27,7 +32,11 @@ export default function LaunchPage() {
   const [initialBuy, setInitialBuy] = useState("0");
   const [confirmedLaunchId, setConfirmedLaunchId] = useState("");
   const [confirmedToken, setConfirmedToken] = useState("");
-  const { isConnected } = useAccount();
+  const { isConnected, chainId } = useAccount();
+  const requestedChainId = Number(useSearchParams().get("chain"));
+  const activeChainId = requestedChainId === 4663 ? 4663 : requestedChainId === 8453 ? 8453 : chainId === 4663 ? 4663 : 8453;
+  const { addresses, chain } = contractsForChain(activeChainId);
+  const isRobinhood = chain.id === 4663;
   const { data: hash, error, writeContract, isPending } = useWriteContract();
   const receipt = useWaitForTransactionReceipt({ hash });
 
@@ -102,6 +111,7 @@ export default function LaunchPage() {
     }
 
     writeContract({
+      chainId: activeChainId,
       address: addresses.launchFactory,
       abi: launchFactoryAbi,
       functionName: "createLaunch",
@@ -185,7 +195,7 @@ export default function LaunchPage() {
             </div>
             <div>
               <span className="muted">Preview</span>
-              <h2>{name.trim() || "Your B20 token"}</h2>
+              <h2>{name.trim() || (isRobinhood ? "Your ERC-20 token" : "Your B20 token")}</h2>
               <p className="muted">${symbol.trim() || "SYMBOL"} · first buy {initialBuy || "0"} ETH · fee {FAIR_LAUNCH_FEE_ETH} ETH</p>
             </div>
             <div className="launch-preview-stat">
@@ -209,7 +219,7 @@ export default function LaunchPage() {
           {!isConnected ? (
             <div className="notice">
               <strong>Connect wallet to launch</strong>
-              <span>Transactions are sent on Base and require a connected wallet.</span>
+              <span>Transactions are sent on {chain.name} and require a connected wallet.</span>
               <WalletButton />
             </div>
           ) : null}
@@ -290,7 +300,7 @@ export default function LaunchPage() {
           {initialBuyTooLarge ? <p className="danger-text">Creator initial buy is capped at the 5 ETH graduation target.</p> : null}
           <button className="button primary" disabled={disabled || isWorking || !isConnected} onClick={submit}>
             {isWorking ? <Loader2 className="spin" size={16} /> : metadataUri ? <Rocket size={16} /> : <UploadCloud size={16} />}
-            {isImageUploading || isMetadataUploading ? "Preparing launch" : isPending ? "Confirm in wallet" : receipt.isLoading ? "Launching" : "Launch B20"}
+            {isImageUploading || isMetadataUploading ? "Preparing launch" : isPending ? "Confirm in wallet" : receipt.isLoading ? "Launching" : isRobinhood ? "Launch ERC-20" : "Launch B20"}
           </button>
           <div className="launch-status-stack">
             {disabledReason ? <LaunchNotice tone="info">{disabledReason}</LaunchNotice> : null}
@@ -338,6 +348,8 @@ function LaunchChecklist({
   metadataReady: boolean;
   token: string;
 }) {
+  const { chainId } = useAccount();
+  const { chain } = contractsForChain(chainId);
   const marketHref = launchId ? `/launch/${launchId}` : "";
   const basescanHref = token ? `${chain.blockExplorers.default.url}/token/${token}` : "";
   const items = [
@@ -363,7 +375,7 @@ function LaunchChecklist({
       </div>
       {basescanHref ? (
         <a className="button wide" href={basescanHref} target="_blank" rel="noreferrer">
-          View on BaseScan
+          View on {chain.name === "Base" ? "BaseScan" : "Robinhood Explorer"}
         </a>
       ) : null}
     </section>

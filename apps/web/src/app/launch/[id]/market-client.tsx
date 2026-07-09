@@ -17,8 +17,7 @@ import {
   type ISeriesApi,
   type UTCTimestamp
 } from "lightweight-charts";
-import { uniswapChainName } from "@/lib/base-chain";
-import { addresses, b20TokenAbi, bondingCurveAbi, chain, graduationManagerAbi, indexerScope, permit2Abi, universalRouterAbi, uniswapV4Addresses, uniswapV4QuoterAbi } from "@/lib/contracts";
+import { b20TokenAbi, bondingCurveAbi, contractsForChain, graduationManagerAbi, indexerScopeForChain, permit2Abi, universalRouterAbi, uniswapV4QuoterAbi } from "@/lib/contracts";
 import {
   CURVE_FEE_RATE,
   TOTAL_SUPPLY,
@@ -53,7 +52,9 @@ export function MarketClient({ id, launch, trades }: { id: string; launch?: Depl
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [ethUsd, setEthUsd] = useState<number | null>(null);
   const [dexPair, setDexPair] = useState<DexPairSnapshot | null>(null);
-  const { address, isConnected } = useAccount();
+  const { address, isConnected, chainId } = useAccount();
+  const activeChainId = launch?.chainId === 4663 ? 4663 : 8453;
+  const { addresses, chain, uniswapV4Addresses, uniswapChainName } = contractsForChain(activeChainId);
   const { data: hash, error, writeContract, isPending } = useWriteContract();
   const receipt = useWaitForTransactionReceipt({ hash });
   const parsedAmount = parsePositiveEther(amount);
@@ -196,7 +197,7 @@ export function MarketClient({ id, launch, trades }: { id: string; launch?: Depl
   useEffect(() => {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-    const scope = indexerScope();
+    const scope = indexerScopeForChain(activeChainId);
     if (!supabaseUrl || !supabaseAnonKey || !scope) return;
 
     const supabase = createClient(supabaseUrl, supabaseAnonKey, {
@@ -274,6 +275,7 @@ export function MarketClient({ id, launch, trades }: { id: string; launch?: Depl
   function buy() {
     if (!addresses.bondingCurveMarket || parsedAmount === 0n || minOut === 0n) return;
     writeContract({
+      chainId: activeChainId,
       address: addresses.bondingCurveMarket,
       abi: bondingCurveAbi,
       functionName: "buy",
@@ -291,6 +293,7 @@ export function MarketClient({ id, launch, trades }: { id: string; launch?: Depl
     });
 
     writeContract({
+      chainId: activeChainId,
       address: uniswapV4Addresses.universalRouter,
       abi: universalRouterAbi,
       functionName: "execute",
@@ -302,6 +305,7 @@ export function MarketClient({ id, launch, trades }: { id: string; launch?: Depl
   function approveGraduatedTokenPermit2() {
     if (!launch || parsedAmount === 0n) return;
     writeContract({
+      chainId: activeChainId,
       address: launch.token,
       abi: b20TokenAbi,
       functionName: "approve",
@@ -312,6 +316,7 @@ export function MarketClient({ id, launch, trades }: { id: string; launch?: Depl
   function approveGraduatedPermit2Router() {
     if (!launch || parsedAmount === 0n) return;
     writeContract({
+      chainId: activeChainId,
       address: uniswapV4Addresses.permit2,
       abi: permit2Abi,
       functionName: "approve",
@@ -328,6 +333,7 @@ export function MarketClient({ id, launch, trades }: { id: string; launch?: Depl
     });
 
     writeContract({
+      chainId: activeChainId,
       address: uniswapV4Addresses.universalRouter,
       abi: universalRouterAbi,
       functionName: "execute",
@@ -338,6 +344,7 @@ export function MarketClient({ id, launch, trades }: { id: string; launch?: Depl
   function approveSell() {
     if (!addresses.bondingCurveMarket || !launch || parsedAmount === 0n) return;
     writeContract({
+      chainId: activeChainId,
       address: launch.token,
       abi: b20TokenAbi,
       functionName: "approve",
@@ -348,6 +355,7 @@ export function MarketClient({ id, launch, trades }: { id: string; launch?: Depl
   function sell() {
     if (!addresses.bondingCurveMarket || parsedAmount === 0n || minOut === 0n) return;
     writeContract({
+      chainId: activeChainId,
       address: addresses.bondingCurveMarket,
       abi: bondingCurveAbi,
       functionName: "sell",
@@ -358,6 +366,7 @@ export function MarketClient({ id, launch, trades }: { id: string; launch?: Depl
   function graduate() {
     if (!addresses.graduationManager || !launch || launch.status !== "Ready") return;
     writeContract({
+      chainId: activeChainId,
       address: addresses.graduationManager,
       abi: graduationManagerAbi,
       functionName: "graduate",
@@ -368,6 +377,7 @@ export function MarketClient({ id, launch, trades }: { id: string; launch?: Depl
   function claimFees() {
     if (!addresses.bondingCurveMarket) return;
     writeContract({
+      chainId: activeChainId,
       address: addresses.bondingCurveMarket,
       abi: bondingCurveAbi,
       functionName: "claimFees"
@@ -380,7 +390,7 @@ export function MarketClient({ id, launch, trades }: { id: string; launch?: Depl
   }
 
   if (!launch) {
-    return <div className="empty">Loading market from Base...</div>;
+    return <div className="empty">Loading market...</div>;
   }
 
   const trusted = isTrustedLaunch(launch);
@@ -408,7 +418,7 @@ export function MarketClient({ id, launch, trades }: { id: string; launch?: Depl
                 <span className="x-share-icon">X</span>Share
               </a>
               <a className="button primary" href={`${chain.blockExplorers.default.url}/token/${launch.token}`} target="_blank" rel="noreferrer">
-                <ExternalLink size={16} />BaseScan
+                <ExternalLink size={16} />{chain.name === "Base" ? "BaseScan" : "Explorer"}
               </a>
               <button className="button" onClick={() => navigator.clipboard.writeText(launch.token)}>
                 <Copy size={16} />{launch.token.slice(0, 6)}...{launch.token.slice(-4)}
@@ -441,7 +451,7 @@ export function MarketClient({ id, launch, trades }: { id: string; launch?: Depl
             />
             <HolderDistribution launch={launch} trades={trades} />
             <ProjectInfo launch={launch} />
-            <RecentTrades trades={trades} symbol={launch.symbol} />
+            <RecentTrades trades={trades} symbol={launch.symbol} chainId={launch.chainId} />
           </div>
         </div>
       </section>
@@ -818,6 +828,8 @@ function GraduatedTradeCard({
   transactionSubmitted: boolean;
   updateSlippage: (value: bigint) => void;
 }) {
+  const { chainId } = useAccount();
+  const { chain, uniswapChainName } = contractsForChain(chainId || launch.chainId);
   return (
     <section className="graduated-trade-card">
       <div className="graduated-badge">
@@ -961,7 +973,7 @@ function GraduatedTradeCard({
         <span><LockKeyhole size={15} />LP locked</span>
         <span><Sparkles size={15} />Adminless token</span>
       </div>
-      <a className="button primary wide" href={uniswapSwapUrl(launch.token)} target="_blank" rel="noreferrer">
+      <a className="button primary wide" href={uniswapSwapUrl(launch.token, uniswapChainName)} target="_blank" rel="noreferrer">
         <ExternalLink size={16} />
         Trade on Uniswap
       </a>
@@ -1002,13 +1014,15 @@ function ProjectInfo({ launch }: { launch: DeployedLaunch }) {
   );
 }
 
-function uniswapSwapUrl(token: `0x${string}`, direction: "buy" | "sell" = "buy") {
+function uniswapSwapUrl(token: `0x${string}`, chainName: string, direction: "buy" | "sell" = "buy") {
   const inputCurrency = direction === "buy" ? "ETH" : token;
   const outputCurrency = direction === "buy" ? token : "ETH";
-  return `https://app.uniswap.org/swap?chain=${uniswapChainName}&inputCurrency=${inputCurrency}&outputCurrency=${outputCurrency}`;
+  return `https://app.uniswap.org/swap?chain=${chainName}&inputCurrency=${inputCurrency}&outputCurrency=${outputCurrency}`;
 }
 
-function RecentTrades({ trades, symbol }: { trades: DeployedTrade[]; symbol: string }) {
+function RecentTrades({ trades, symbol, chainId: launchChainId }: { trades: DeployedTrade[]; symbol: string; chainId: number }) {
+  const { chainId } = useAccount();
+  const { chain } = contractsForChain(chainId || launchChainId);
   const recent = useMemo(() => trades
     .slice()
     .sort((a, b) => Number(BigInt(b.blockNumber || "0") - BigInt(a.blockNumber || "0")) || Date.parse(b.createdAt || "0") - Date.parse(a.createdAt || "0"))
@@ -1111,6 +1125,8 @@ function MarketStats({
 }
 
 function HolderDistribution({ launch, trades }: { launch: DeployedLaunch; trades: DeployedTrade[] }) {
+  const { chainId } = useAccount();
+  const { addresses, uniswapV4Addresses } = contractsForChain(chainId || launch.chainId);
   const candidateWallets = useMemo(() => {
     const netByWallet = new Map<`0x${string}`, number>();
 

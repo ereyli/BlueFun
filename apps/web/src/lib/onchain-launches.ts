@@ -6,6 +6,7 @@ import { baseRpcUrls } from "@/lib/rpc";
 import { readTokenMetadata, type TokenMetadata } from "@/lib/token-metadata";
 
 export type DeployedLaunch = {
+  chainId: number;
   id: string;
   token: `0x${string}`;
   creator: `0x${string}`;
@@ -174,6 +175,7 @@ async function getLaunchFromMarket(
   const metadata = await readTokenMetadata(contractURI).catch((): TokenMetadata => ({}));
 
   return {
+    chainId: baseChain.id,
     id: id.toString(),
     token,
     creator: getAddress(state[1]) as `0x${string}`,

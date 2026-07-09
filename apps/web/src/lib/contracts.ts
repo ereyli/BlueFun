@@ -1,4 +1,5 @@
 import { baseChain } from "@/lib/base-chain";
+import { robinhoodChain } from "@/lib/robinhood-chain";
 
 export const chain = baseChain;
 
@@ -17,9 +18,44 @@ export const addresses = {
   deploymentBlock: MAINNET_DEPLOYMENT.deploymentBlock
 };
 
+export const robinhoodAddresses = {
+  launchFactory: "0x6a05304638bed7c96b78f420c612e84111fad4d1" as `0x${string}`,
+  bondingCurveMarket: "0xab7597fecaf3357101a3a4331f512031ef3238f0" as `0x${string}`,
+  graduationManager: "0xf6545a701a8cbe80d573043e8ffb8210de913d28" as `0x${string}`,
+  deploymentBlock: 5576234n
+};
+
+export const robinhoodUniswapV4Addresses = {
+  poolManager: "0x8366a39cc670b4001a1121b8f6a443a643e40951" as `0x${string}`,
+  positionManager: "0x58daec3116aae6d93017baaea7749052e8a04fa7" as `0x${string}`,
+  quoter: "0x8dc178efb8111bb0973dd9d722ebeff267c98f94" as `0x${string}`,
+  stateView: "0xf3334192d15450cdd385c8b70e03f9a6bd9e673b" as `0x${string}`,
+  universalRouter: "0x8876789976decbfcbbbe364623c63652db8c0904" as `0x${string}`,
+  permit2: "0x000000000022d473030f116ddee9f6b43ac78ba3" as `0x${string}`
+};
+
+export function contractsForChain(chainId: number | undefined) {
+  if (chainId === robinhoodChain.id) {
+    return {
+      chain: robinhoodChain,
+      addresses: robinhoodAddresses,
+      uniswapV4Addresses: robinhoodUniswapV4Addresses,
+      uniswapChainName: "robinhood"
+    };
+  }
+  return { chain: baseChain, addresses, uniswapV4Addresses, uniswapChainName: "base" };
+}
+
 export function indexerScope() {
   if (!addresses.launchFactory || !addresses.bondingCurveMarket || addresses.deploymentBlock === 0n) return "";
   return `${chain.id}:${addresses.launchFactory.toLowerCase()}:${addresses.bondingCurveMarket.toLowerCase()}:${addresses.deploymentBlock.toString()}`;
+}
+
+export function indexerScopeForChain(chainId: number | undefined) {
+  const config = contractsForChain(chainId);
+  const deployment = config.addresses;
+  if (!deployment.launchFactory || !deployment.bondingCurveMarket || deployment.deploymentBlock === 0n) return "";
+  return `${config.chain.id}:${deployment.launchFactory.toLowerCase()}:${deployment.bondingCurveMarket.toLowerCase()}:${deployment.deploymentBlock.toString()}`;
 }
 
 export const FAIR_GRADUATION_TARGET_ETH = "5";

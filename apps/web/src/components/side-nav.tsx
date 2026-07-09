@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { Home, Rocket } from "lucide-react";
 
 const items = [
@@ -9,18 +9,19 @@ const items = [
   { href: "/launch", label: "Create", icon: Rocket }
 ];
 
-export function SideNav() {
+export function SideNav({ mobile = false }: { mobile?: boolean }) {
   const pathname = usePathname();
+  const chain = useSearchParams().get("chain");
 
   return (
-    <nav className="side-nav" aria-label="Main navigation">
+    <nav className={mobile ? "bottom-nav" : "side-nav"} aria-label={mobile ? "Mobile navigation" : "Main navigation"}>
       {items.map((item) => {
         const Icon = item.icon;
         const active = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
         return (
-          <Link aria-current={active ? "page" : undefined} href={item.href} key={item.label}>
-            <Icon size={20} />
-            {item.label}
+          <Link aria-current={active ? "page" : undefined} href={chain ? `${item.href}?chain=${chain}` : item.href} key={item.label}>
+            <Icon aria-hidden="true" size={mobile ? 22 : 20} />
+            <span>{item.label}</span>
           </Link>
         );
       })}
