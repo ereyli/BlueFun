@@ -1318,7 +1318,7 @@ function TradeChart({ trades, symbol, ethUsd }: { trades: DeployedTrade[]; symbo
         horzLine: { color: "rgba(0, 0, 255, 0.28)" }
       },
       localization: {
-        priceFormatter: (price: number) => chartMode === "marketCap" ? `${compactUsd(price)} MC` : formatUsdPrice(price)
+        priceFormatter: (price: number) => chartMode === "marketCap" ? compactUsd(price) : formatUsdPrice(price)
       }
     });
     chartApiRef.current = chart;
@@ -1332,7 +1332,7 @@ function TradeChart({ trades, symbol, ethUsd }: { trades: DeployedTrade[]; symbo
       wickDownColor: "#e5484d",
       priceFormat: {
         type: "custom",
-        formatter: (price: number) => chartMode === "marketCap" ? `${compactUsd(price)} MC` : formatUsdPrice(price),
+        formatter: (price: number) => chartMode === "marketCap" ? compactUsd(price) : formatUsdPrice(price),
         minMove: chartMode === "marketCap" ? 0.01 : 0.0000000001
       }
     });
@@ -1383,7 +1383,7 @@ function TradeChart({ trades, symbol, ethUsd }: { trades: DeployedTrade[]; symbo
       <div className="tv-chart-header">
         <div>
           <span className="muted">{chartTitle}</span>
-          <strong>{latestValue ? chartMode === "marketCap" ? `${compactUsd(latestValue)} MC` : formatUsdPrice(latestValue) : "-"}</strong>
+          <strong>{latestValue ? chartMode === "marketCap" ? compactUsd(latestValue) : formatUsdPrice(latestValue) : "-"}</strong>
         </div>
         <div className="chart-mode-tabs" role="tablist" aria-label="Chart view">
           <button className={chartMode === "marketCap" ? "active" : ""} onClick={() => setChartMode("marketCap")} type="button">
