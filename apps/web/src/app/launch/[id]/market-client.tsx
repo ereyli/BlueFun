@@ -1313,7 +1313,7 @@ function TradeChart({ trades, status, symbol, ethUsd }: { trades: DeployedTrade[
   function resetChart() {
     userTouchedChartRef.current = false;
     shouldFitChartRef.current = true;
-    chartApiRef.current?.timeScale().fitContent();
+    focusLatestCandles(chartApiRef.current, candles.length);
   }
 
   useEffect(() => {
@@ -1408,7 +1408,7 @@ function TradeChart({ trades, status, symbol, ethUsd }: { trades: DeployedTrade[
     candleSeriesRef.current.setData(candles as CandlestickData<UTCTimestamp>[]);
     volumeSeriesRef.current.setData(volume as HistogramData<UTCTimestamp>[]);
     if (shouldFitChartRef.current && !userTouchedChartRef.current && candles.length > 0) {
-      chartApiRef.current.timeScale().fitContent();
+      focusLatestCandles(chartApiRef.current, candles.length);
       shouldFitChartRef.current = false;
     }
   }, [candles, volume]);
@@ -1461,6 +1461,15 @@ function TradeChart({ trades, status, symbol, ethUsd }: { trades: DeployedTrade[
   );
 }
 
+function focusLatestCandles(chart: IChartApi | null, candleCount: number) {
+  if (!chart || candleCount === 0) return;
+  const visibleBars = Math.min(Math.max(candleCount, 12), 60);
+  chart.timeScale().setVisibleLogicalRange({
+    from: Math.max(0, candleCount - visibleBars - 2),
+    to: candleCount + 2
+  });
+}
+
 function buildChartData(trades: DeployedTrade[], chartMode: "marketCap" | "price", ethUsd: number | null, intervalMinutes: number, graduated: boolean) {
   let virtualEthReserve = 1.25;
   let virtualTokenReserve = TOTAL_SUPPLY;
@@ -1474,6 +1483,7 @@ function buildChartData(trades: DeployedTrade[], chartMode: "marketCap" | "price
     volume: number;
     side: DeployedTrade["side"];
   }>();
+  let lastAcceptedValue = 0;
 
   chartTrades
     .slice()
@@ -1483,7 +1493,11 @@ function buildChartData(trades: DeployedTrade[], chartMode: "marketCap" | "price
     const tokens = parseDisplayAmount(trade.tokenAmount);
     if (eth <= 0 || tokens <= 0) return;
 
-    let marketCapEth = trade.source === "uniswap_v4" ? (eth / tokens) * TOTAL_SUPPLY : trade.marketCapEth ? parseDisplayAmount(trade.marketCapEth) : 0;
+    const indexedMarketCapEth = trade.marketCapEth ? parseDisplayAmount(trade.marketCapEth) : 0;
+    let marketCapEth = indexedMarketCapEth;
+    if (marketCapEth <= 0 && trade.source === "uniswap_v4") {
+      marketCapEth = (eth / tokens) * TOTAL_SUPPLY;
+    }
     if (marketCapEth <= 0) {
       if (trade.side === "buy") {
         const netEth = eth * (1 - CURVE_FEE_RATE);
@@ -1499,6 +1513,8 @@ function buildChartData(trades: DeployedTrade[], chartMode: "marketCap" | "price
 
     const marketCapUsd = marketCapEth * (ethUsd ?? 0);
     const value = chartMode === "marketCap" ? marketCapUsd : marketCapUsd / TOTAL_SUPPLY;
+    if (lastAcceptedValue > 0 && (value > lastAcceptedValue * 8 || value < lastAcceptedValue / 8)) return;
+    lastAcceptedValue = value;
     const timestamp = parseTradeTimestamp(trade.createdAt, index);
     const intervalSeconds = intervalMinutes * 60;
     const bucketTime = Math.floor(timestamp / intervalSeconds) * intervalSeconds;
