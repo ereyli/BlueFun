@@ -430,7 +430,7 @@ export function MarketClient({ id, launch, trades }: { id: string; launch?: Depl
 
         <div className="chart-panel">
           <div className="curve-state compact">
-            <TradeChart trades={trades} status={launch.status} symbol={launch.symbol} ethUsd={ethUsd} />
+            <TradeChart trades={trades} status={launch.status} symbol={launch.symbol} ethUsd={ethUsd} dexPair={dexPair} />
             <MarketStats
               launch={launch}
               trades={trades}
@@ -1299,7 +1299,19 @@ function decimalStringFromNumber(value: string) {
   return `${digits.slice(0, point)}.${digits.slice(point)}`.replace(/0+$/, "").replace(/\.$/, "") || "0";
 }
 
-function TradeChart({ trades, status, symbol, ethUsd }: { trades: DeployedTrade[]; status: DeployedLaunch["status"]; symbol: string; ethUsd: number | null }) {
+function TradeChart({
+  trades,
+  status,
+  symbol,
+  ethUsd,
+  dexPair
+}: {
+  trades: DeployedTrade[];
+  status: DeployedLaunch["status"];
+  symbol: string;
+  ethUsd: number | null;
+  dexPair: DexPairSnapshot | null;
+}) {
   const chartRef = useRef<HTMLDivElement | null>(null);
   const chartApiRef = useRef<IChartApi | null>(null);
   const candleSeriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
@@ -1308,7 +1320,13 @@ function TradeChart({ trades, status, symbol, ethUsd }: { trades: DeployedTrade[
   const userTouchedChartRef = useRef(false);
   const [chartMode, setChartMode] = useState<"marketCap" | "price">("marketCap");
   const [intervalMinutes, setIntervalMinutes] = useState(1);
-  const { candles, volume, latestValue } = useMemo(() => buildChartData(trades, chartMode, ethUsd, intervalMinutes, status === "Graduated"), [trades, chartMode, ethUsd, intervalMinutes, status]);
+  const latestOverride = status === "Graduated" && dexPair
+    ? chartMode === "marketCap" ? dexPair.marketCap : dexPair.priceUsd
+    : undefined;
+  const { candles, volume, latestValue } = useMemo(
+    () => buildChartData(trades, chartMode, ethUsd, intervalMinutes, status === "Graduated", latestOverride),
+    [trades, chartMode, ethUsd, intervalMinutes, status, latestOverride]
+  );
   const chartTitle = chartMode === "marketCap" ? `${symbol} market cap` : `${symbol} price`;
   function resetChart() {
     userTouchedChartRef.current = false;
@@ -1470,7 +1488,14 @@ function focusLatestCandles(chart: IChartApi | null, candleCount: number) {
   });
 }
 
-function buildChartData(trades: DeployedTrade[], chartMode: "marketCap" | "price", ethUsd: number | null, intervalMinutes: number, graduated: boolean) {
+function buildChartData(
+  trades: DeployedTrade[],
+  chartMode: "marketCap" | "price",
+  ethUsd: number | null,
+  intervalMinutes: number,
+  graduated: boolean,
+  latestOverride?: number
+) {
   let virtualEthReserve = 1.25;
   let virtualTokenReserve = TOTAL_SUPPLY;
   const hasV4Trades = trades.some((trade) => trade.source === "uniswap_v4");
@@ -1554,6 +1579,13 @@ function buildChartData(trades: DeployedTrade[], chartMode: "marketCap" | "price
     previousClose = close;
     return candle;
   });
+  const overrideClose = Number(latestOverride);
+  const lastCandle = candles.at(-1);
+  if (lastCandle && Number.isFinite(overrideClose) && overrideClose > 0) {
+    lastCandle.close = overrideClose;
+    lastCandle.high = Math.max(lastCandle.high, lastCandle.open, overrideClose);
+    lastCandle.low = Math.min(lastCandle.low, lastCandle.open, overrideClose);
+  }
   const volume = sorted.map(([time, bucket]) => ({
     time: time as UTCTimestamp,
     value: bucket.volume,
