@@ -191,6 +191,7 @@ grant execute on function refresh_launch_volume(text, numeric) to service_role;
 
 do $$
 begin
+  perform pg_advisory_xact_lock(hashtext('bluefun_schema_volume_backfill_v1'));
   if not exists (select 1 from indexer_state where key = 'schema:volume_backfill_v1') then
     update launches l
     set volume_eth = coalesce((
