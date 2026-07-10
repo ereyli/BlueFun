@@ -25,7 +25,7 @@ export async function generateMetadata({ params, searchParams }: LaunchParams): 
   const title = `${launch.name} ($${launch.symbol}) on BlueFun`;
   const description = launch.description || `Trade $${launch.symbol} on the BlueFun bonding curve.`;
   const url = siteUrl(`/launch/${id}${isRobinhood ? "?chain=4663" : ""}`);
-  const image = ipfsToGatewayUrl(launch.imageURI) || siteUrl("/brand/funblue-icon.png");
+  const image = ipfsToGatewayUrl(launch.imageURI) || siteUrl("/brand/bluelogo.webp");
 
   return {
     title,

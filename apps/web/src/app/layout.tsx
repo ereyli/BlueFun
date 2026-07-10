@@ -17,8 +17,8 @@ export const metadata: Metadata = {
   title: "BlueFun",
   description: "Fair multichain token launches on Base and Robinhood Chain.",
   icons: {
-    icon: "/brand/favicon.png",
-    apple: "/brand/apple-touch-icon.png"
+    icon: [{ url: "/brand/bluelogo.webp", type: "image/webp" }],
+    apple: "/brand/bluelogo.webp"
   }
 };
 
@@ -39,7 +39,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <aside className="sidebar">
               <Suspense fallback={<Link className="brand" href="/">BlueFun</Link>}><ChainLink className="brand" href="/">
                 <span className="brand-mark">
-                  <Image src="/brand/funblue-icon.png" alt="" width={32} height={32} priority />
+                  <Image src="/brand/bluelogo.webp" alt="" width={32} height={32} priority />
                 </span>
                 <span>BlueFun</span>
               </ChainLink></Suspense>
@@ -57,7 +57,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <section className="content">
               <header className="topbar">
                 <Link className="mobile-brand" href="/" aria-label="BlueFun home">
-                  <Image src="/brand/funblue-icon.png" alt="" width={32} height={32} priority />
+                  <Image src="/brand/bluelogo.webp" alt="" width={32} height={32} priority />
                 </Link>
                 <div className="topbar-actions">
                   <Suspense fallback={<Link className="button primary" href="/launch">Create</Link>}><ChainLink className="button primary topbar-create" href="/launch">Create</ChainLink></Suspense>
