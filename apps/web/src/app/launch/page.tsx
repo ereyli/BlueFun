@@ -46,30 +46,20 @@ function LaunchPageContent() {
   const metadataKey = imageUri
     ? `${name.trim()}:${symbol.trim()}:${imageUri}:${description.trim()}:${website.trim()}:${twitter.trim()}:${telegram.trim()}:${discord.trim()}`
     : "";
-  const disabled = !addresses.launchFactory || !name.trim() || !symbol.trim() || !imageUri || !metadataUri || initialBuyTooLarge;
+  const disabled = !addresses.launchFactory || !name.trim() || !symbol.trim() || !imageUri || initialBuyTooLarge;
   const disabledReason = getDisabledReason({
     hasFactory: Boolean(addresses.launchFactory),
     hasName: Boolean(name.trim()),
     hasSymbol: Boolean(symbol.trim()),
     hasImage: Boolean(imagePreview),
     imageReady: Boolean(imageUri),
-    metadataReady: Boolean(metadataUri),
     imageUploading: isImageUploading,
-    metadataUploading: isMetadataUploading,
     initialBuyTooLarge,
     isConnected
   });
   const isWorking = isImageUploading || isMetadataUploading || isPending || receipt.isLoading;
   const launchFeeEth = parseEther(FAIR_LAUNCH_FEE_ETH);
   const totalLaunchValue = launchFeeEth + initialBuyEth;
-
-  useEffect(() => {
-    if (!name.trim() || !symbol.trim() || !imageUri || metadataUploadKey === metadataKey) return;
-    const timeout = window.setTimeout(() => {
-      prepareMetadata(name.trim(), symbol.trim(), imageUri, metadataKey);
-    }, 500);
-    return () => window.clearTimeout(timeout);
-  }, [name, symbol, imageUri, metadataKey, metadataUploadKey]);
 
   useEffect(() => {
     if (!receipt.isSuccess || !receipt.data?.logs.length || confirmedLaunchId) return;
@@ -101,12 +91,15 @@ function LaunchPageContent() {
     if (!launchMetadataUri || metadataUploadKey !== metadataKey) {
       if (!imageUri) return;
       try {
-        launchMetadataUri = await uploadMetadata(name.trim(), symbol.trim(), imageUri, getProjectDetails());
+        setIsMetadataUploading(true);
+        launchMetadataUri = await uploadMetadata(name.trim(), symbol.trim(), imageUri, activeChainId, getProjectDetails());
         setMetadataUri(launchMetadataUri);
         setMetadataUploadKey(metadataKey);
       } catch (metadataError) {
         setUploadError(metadataError instanceof Error ? metadataError.message : "Launch media could not be prepared.");
         return;
+      } finally {
+        setIsMetadataUploading(false);
       }
     }
 
@@ -153,20 +146,6 @@ function LaunchPageContent() {
       setUploadError(imageError instanceof Error ? imageError.message : "Image could not be uploaded. Please try again.");
     } finally {
       setIsImageUploading(false);
-    }
-  }
-
-  async function prepareMetadata(tokenName: string, tokenSymbol: string, uploadedImageUri: string, nextMetadataKey: string) {
-    try {
-      setIsMetadataUploading(true);
-      setUploadError("");
-      const preparedMetadataUri = await uploadMetadata(tokenName, tokenSymbol, uploadedImageUri, getProjectDetails());
-      setMetadataUri(preparedMetadataUri);
-      setMetadataUploadKey(nextMetadataKey);
-    } catch (metadataError) {
-      setUploadError(metadataError instanceof Error ? metadataError.message : "Launch media could not be prepared.");
-    } finally {
-      setIsMetadataUploading(false);
     }
   }
 
@@ -226,12 +205,12 @@ function LaunchPageContent() {
           <div className="launch-form-section-head"><span>01</span><div><strong>Token identity</strong><small>The essentials traders see first</small></div></div>
           <div className="launch-field-grid">
             <div className="field">
-              <label>Name <small>{name.length}/40</small></label>
-              <input maxLength={40} autoComplete="off" placeholder="Token name" value={name} onChange={(event) => setName(event.target.value)} />
+              <label htmlFor="token-name">Name <small>{name.length}/40</small></label>
+              <input id="token-name" required maxLength={40} autoComplete="off" placeholder="Token name" value={name} onChange={(event) => setName(event.target.value)} />
             </div>
             <div className="field">
-              <label>Symbol <small>{symbol.length}/10</small></label>
-              <input maxLength={10} autoComplete="off" placeholder="Ticker" value={symbol} onChange={(event) => setSymbol(event.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""))} />
+              <label htmlFor="token-symbol">Symbol <small>{symbol.length}/10</small></label>
+              <input id="token-symbol" required maxLength={10} autoComplete="off" placeholder="Ticker" value={symbol} onChange={(event) => setSymbol(event.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""))} />
             </div>
           </div>
           <div className="launch-form-section-head"><span>02</span><div><strong>Story & community</strong><small>Optional, but strongly recommended</small></div></div>
@@ -241,8 +220,9 @@ function LaunchPageContent() {
               <span>Shown on the market page</span>
             </div>
             <div className="field">
-              <label>Description</label>
+              <label htmlFor="token-description">Description</label>
               <textarea
+                id="token-description"
                 maxLength={500}
                 placeholder="What is this token about?"
                 value={description}
@@ -251,27 +231,27 @@ function LaunchPageContent() {
             </div>
             <div className="social-input-grid">
               <div className="field">
-                <label>Website</label>
-                <input placeholder="funblue.xyz" value={website} onChange={(event) => setWebsite(event.target.value)} />
+                <label htmlFor="token-website">Website</label>
+                <input id="token-website" inputMode="url" placeholder="funblue.xyz" value={website} onChange={(event) => setWebsite(event.target.value)} />
               </div>
               <div className="field">
-                <label>X</label>
-                <input placeholder="x.com/project" value={twitter} onChange={(event) => setTwitter(event.target.value)} />
+                <label htmlFor="token-x">X</label>
+                <input id="token-x" inputMode="url" placeholder="x.com/project" value={twitter} onChange={(event) => setTwitter(event.target.value)} />
               </div>
               <div className="field">
-                <label>Telegram</label>
-                <input placeholder="t.me/project" value={telegram} onChange={(event) => setTelegram(event.target.value)} />
+                <label htmlFor="token-telegram">Telegram</label>
+                <input id="token-telegram" inputMode="url" placeholder="t.me/project" value={telegram} onChange={(event) => setTelegram(event.target.value)} />
               </div>
               <div className="field">
-                <label>Discord</label>
-                <input placeholder="discord.gg/project" value={discord} onChange={(event) => setDiscord(event.target.value)} />
+                <label htmlFor="token-discord">Discord</label>
+                <input id="token-discord" inputMode="url" placeholder="discord.gg/project" value={discord} onChange={(event) => setDiscord(event.target.value)} />
               </div>
             </div>
           </div>
           <div className="launch-form-section-head"><span>03</span><div><strong>Visual identity</strong><small>Square artwork works best</small></div></div>
           <div className="field">
-            <label>Token image</label>
-            <label className={imagePreview ? "upload-box has-preview" : "upload-box"}>
+            <label htmlFor="token-image">Token image</label>
+            <label className={imagePreview ? "upload-box has-preview" : "upload-box"} htmlFor="token-image">
               {imagePreview ? (
                 <img src={imagePreview} alt="Token preview" />
               ) : (
@@ -282,6 +262,8 @@ function LaunchPageContent() {
               )}
               <input
                 accept="image/*"
+                id="token-image"
+                required
                 onChange={(event) => selectImage(event.target.files?.[0])}
                 type="file"
               />
@@ -292,9 +274,9 @@ function LaunchPageContent() {
           </div>
           <div className="launch-form-section-head"><span>04</span><div><strong>First position</strong><small>Optional creator buy in the same transaction</small></div></div>
           <div className="field">
-            <label>Creator initial buy ETH</label>
-            <input inputMode="decimal" placeholder="0" value={initialBuy} onChange={(event) => setInitialBuy(sanitizeDecimal(event.target.value))} />
-            <span className="field-help">Optional · maximum {FAIR_GRADUATION_TARGET_ETH} ETH</span>
+            <label htmlFor="initial-buy">Creator initial buy ETH</label>
+            <input aria-describedby="initial-buy-help" id="initial-buy" inputMode="decimal" placeholder="0" value={initialBuy} onChange={(event) => setInitialBuy(sanitizeDecimal(event.target.value))} />
+            <span className="field-help" id="initial-buy-help">Optional · maximum {FAIR_GRADUATION_TARGET_ETH} ETH</span>
           </div>
           <div className="launch-review-card">
             <div className="launch-review-head"><strong>Launch summary</strong><span><NetworkIcon chainId={activeChainId} size={16} />{chain.name}</span></div>
@@ -322,11 +304,11 @@ function LaunchPageContent() {
               <LaunchNotice tone="success">
                 {confirmedLaunchId ? (
                   <>
-                    Launch is live. Opening market page.{" "}
+                    Launch is live.{" "}
                     <Link href={`/launch/${confirmedLaunchId}?chain=${activeChainId}`}>View now</Link>
                   </>
                 ) : (
-                  "Launch is live. Opening market page."
+                  "Launch is live."
                 )}
               </LaunchNotice>
             ) : null}
@@ -369,7 +351,7 @@ function LaunchChecklist({
     { label: "Token deployed", done: Boolean(token) },
     { label: "Initial buy processed", done: hasInitialBuy || Boolean(launchId) },
     { label: "Metadata pinned", done: metadataReady },
-    { label: "Market indexed", done: Boolean(launchId) },
+    { label: "Launch event confirmed", done: Boolean(launchId) },
     { label: "Trade page ready", done: Boolean(marketHref) }
   ];
 
@@ -410,9 +392,7 @@ function getDisabledReason(input: {
   hasSymbol: boolean;
   hasImage: boolean;
   imageReady: boolean;
-  metadataReady: boolean;
   imageUploading: boolean;
-  metadataUploading: boolean;
   initialBuyTooLarge: boolean;
   isConnected: boolean;
 }) {
@@ -423,8 +403,6 @@ function getDisabledReason(input: {
   if (!input.hasImage) return "Select a token image.";
   if (input.imageUploading) return "Preparing your image.";
   if (!input.imageReady) return "Image is being prepared.";
-  if (input.metadataUploading) return "Preparing launch media.";
-  if (!input.metadataReady) return "Launch media is being prepared.";
   if (input.initialBuyTooLarge) return "Creator initial buy must be 5 ETH or less.";
   return "";
 }
@@ -469,12 +447,14 @@ async function uploadMetadata(
   name: string,
   symbol: string,
   imageUri: string,
+  chainId: number,
   details?: { description: string; website: string; twitter: string; telegram: string; discord: string }
 ) {
   const form = new FormData();
   form.append("imageUri", imageUri);
   form.append("name", name);
   form.append("symbol", symbol);
+  form.append("chainId", String(chainId));
   form.append("description", details?.description || "");
   form.append("website", details?.website || "");
   form.append("twitter", details?.twitter || "");

@@ -89,6 +89,10 @@ export function ipfsToGatewayUrl(uri?: string) {
   return ipfsToGatewayUrls(uri)[0] || "";
 }
 
+export function optimizedTokenImageUrl(uri?: string) {
+  return uri ? `/api/token-image?uri=${encodeURIComponent(uri)}` : "";
+}
+
 function ipfsToGatewayUrls(uri?: string) {
   if (!uri) return [];
   if (uri.startsWith("https://") || uri.startsWith("http://")) return [uri];

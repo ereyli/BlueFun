@@ -1,0 +1,3 @@
+export default function PrivacyPage() {
+  return <article className="legal-page"><span>Privacy</span><h1>Minimal data by design.</h1><p>BlueFun reads public blockchain data and the wallet address you choose to connect. Wallet addresses and onchain transactions are public by nature.</p><h2>Operational data</h2><p>Infrastructure providers may process IP addresses, request logs and device information for security, reliability and rate limiting. Community messages are stored with the signing wallet address.</p><h2>Third parties</h2><p>WalletConnect, RPC providers, Supabase, Pinata, price providers and block explorers may process requests under their own privacy policies.</p></article>;
+}

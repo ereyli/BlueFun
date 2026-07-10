@@ -19,7 +19,13 @@ export function NetworkSelector() {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const requestedChainId = Number(searchParams.get("chain"));
-  const selectedChainId = requestedChainId === robinhoodChain.id ? robinhoodChain.id : chainId === robinhoodChain.id ? robinhoodChain.id : baseChain.id;
+  const selectedChainId = requestedChainId === robinhoodChain.id
+    ? robinhoodChain.id
+    : requestedChainId === baseChain.id
+      ? baseChain.id
+      : chainId === robinhoodChain.id
+        ? robinhoodChain.id
+        : baseChain.id;
   const selectedNetwork = networkMeta(selectedChainId);
 
   useEffect(() => {
@@ -40,7 +46,8 @@ export function NetworkSelector() {
   function selectNetwork(nextChainId: number) {
     const params = new URLSearchParams(searchParams.toString());
     params.set("chain", String(nextChainId));
-    router.push(`${pathname}?${params.toString()}`);
+    const destination = /^\/launch\/[^/]+$/.test(pathname) ? "/" : pathname;
+    router.push(`${destination}?${params.toString()}`);
     if (chainId && chainId !== nextChainId) switchChain({ chainId: nextChainId });
     setOpen(false);
   }

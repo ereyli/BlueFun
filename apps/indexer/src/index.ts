@@ -1,9 +1,11 @@
 import "dotenv/config";
+import { createServer } from "node:http";
 import { createPublicClient, encodeAbiParameters, fallback, getAddress, http, keccak256, zeroAddress } from "viem";
 import { graduationAbi, launchFactoryAbi, marketAbi, poolManagerAbi } from "./abi.js";
 import { chainDefinition, chainId, defaultRpcUrls, deploymentScope, mainnetDeployment, poolManager } from "./deployment.js";
 import {
   ensureSchema,
+  closeDatabase,
   getGraduatedLaunches,
   getIndexerState,
   insertTrade,
@@ -31,6 +33,13 @@ const totalSupplyRaw = 1_000_000_000n * 10n ** 18n;
 const q192 = 1n << 192n;
 let isPolling = false;
 let nextPollDelayMs = pollMs;
+let lastSuccessfulPollAt = 0;
+let lastIndexedBlock = 0n;
+let lastPollError = "";
+let stopped = false;
+let pollTimer: ReturnType<typeof setTimeout> | undefined;
+const startedAt = Date.now();
+const healthPort = Number(process.env.HEALTH_PORT || "3000");
 
 if (!launchFactory || !market || !graduationManager) {
   throw new Error("Set LAUNCH_FACTORY, BONDING_CURVE_MARKET and GRADUATION_MANAGER");
@@ -43,6 +52,7 @@ const stateScope = `${launchFactoryAddress.toLowerCase()}:${marketAddress.toLowe
 process.env.INDEXER_SCOPE ||= deploymentScope() || `${chainId}:${stateScope}`;
 
 type LaunchMetadata = {
+  image?: string;
   description?: string;
   website?: string;
   twitter?: string;
@@ -56,6 +66,27 @@ const client = createPublicClient({
 });
 
 await ensureSchema();
+const healthServer = createServer((request, response) => {
+  const ageMs = lastSuccessfulPollAt ? Date.now() - lastSuccessfulPollAt : Date.now() - startedAt;
+  const healthy = lastSuccessfulPollAt > 0
+    ? ageMs <= Math.max(pollMs * 5, 180_000)
+    : ageMs <= 600_000;
+  const payload = JSON.stringify({
+    status: healthy ? lastSuccessfulPollAt ? "ok" : "starting" : "stale",
+    chainId,
+    scope: process.env.INDEXER_SCOPE,
+    isPolling,
+    lastIndexedBlock: lastIndexedBlock.toString(),
+    lastSuccessfulPollAt: lastSuccessfulPollAt ? new Date(lastSuccessfulPollAt).toISOString() : null,
+    lastError: lastPollError || null
+  });
+  response.writeHead(request.url === "/health" && healthy ? 200 : request.url === "/health" ? 503 : 200, {
+    "content-type": "application/json",
+    "cache-control": "no-store"
+  });
+  response.end(payload);
+});
+healthServer.listen(healthPort, "0.0.0.0", () => console.log("Indexer health server listening", { healthPort }));
 console.log("BlueFun indexer starting", {
   launchFactory: launchFactoryAddress,
   market: marketAddress,
@@ -71,7 +102,8 @@ await runIndexerPoll();
 scheduleNextPoll();
 
 function scheduleNextPoll() {
-  setTimeout(async () => {
+  if (stopped) return;
+  pollTimer = setTimeout(async () => {
     await runIndexerPoll();
     scheduleNextPoll();
   }, nextPollDelayMs);
@@ -93,8 +125,11 @@ async function runIndexerPoll() {
   isPolling = true;
   try {
     await backfillLoop();
+    lastSuccessfulPollAt = Date.now();
+    lastPollError = "";
     nextPollDelayMs = pollMs;
   } catch (error) {
+    lastPollError = error instanceof Error ? error.message.slice(0, 500) : String(error).slice(0, 500);
     const rateLimited = isRateLimitError(error);
     nextPollDelayMs = rateLimited
       ? Math.min(Math.max(nextPollDelayMs * 2, 60_000), 300_000)
@@ -109,6 +144,7 @@ async function backfillLoop() {
   const head = await client.getBlockNumber();
   if (head <= confirmations) return;
   const latest = head - confirmations;
+  lastIndexedBlock = latest;
   if (latest < startBlock) return;
   await backfillLaunchCreated(latest);
   await backfillMarketBuys(latest);
@@ -116,6 +152,19 @@ async function backfillLoop() {
   await backfillGraduations(latest);
   await backfillUniswapV4Swaps(latest);
 }
+
+async function shutdown(signal: string) {
+  if (stopped) return;
+  stopped = true;
+  if (pollTimer) clearTimeout(pollTimer);
+  console.log("Indexer shutting down", { signal });
+  await new Promise<void>((resolve) => healthServer.close(() => resolve()));
+  await closeDatabase();
+  process.exit(0);
+}
+
+process.once("SIGTERM", () => void shutdown("SIGTERM"));
+process.once("SIGINT", () => void shutdown("SIGINT"));
 
 async function backfillLaunchCreated(latest: bigint) {
   let fromBlock = (await getIndexerState(stateKey("launch_factory_last_block"))) ?? startBlock;
@@ -264,6 +313,7 @@ async function handleLaunchCreated(log: Awaited<ReturnType<typeof client.getCont
     name: log.args.name!,
     symbol: log.args.symbol!,
     contractURI: log.args.contractURI!,
+    imageUri: metadata.image,
     description: metadata.description,
     website: metadata.website,
     twitter: metadata.twitter,
@@ -286,9 +336,11 @@ async function readLaunchMetadata(contractURI: string): Promise<LaunchMetadata> 
       const metadata = await response.json() as {
         description?: unknown;
         external_url?: unknown;
+        image?: unknown;
         socials?: Record<string, unknown>;
       };
       return {
+        image: typeof metadata.image === "string" ? metadata.image.slice(0, 240) : undefined,
         description: cleanMetadataText(metadata.description, 500),
         website: cleanMetadataUrl(metadata.socials?.website) || cleanMetadataUrl(metadata.external_url),
         twitter: cleanMetadataUrl(metadata.socials?.twitter),
@@ -480,7 +532,6 @@ async function refreshLaunchState(launchId: bigint) {
     raisedEth: grossEthRaised,
     graduationTargetEth: graduationEthTarget,
     progress: Math.min(progress, 100),
-    volumeEth: grossEthRaised,
     creatorAllocation: state[9],
     tokenCreatedAt: state[12]
   });

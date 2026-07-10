@@ -4,7 +4,7 @@ export const chainId = Number(process.env.CHAIN_ID || "8453");
 const robinhood = chainId === 4663;
 export const defaultRpcUrl = robinhood ? "https://rpc.mainnet.chain.robinhood.com" : "https://mainnet.base.org";
 export const defaultRpcUrls = robinhood
-  ? [defaultRpcUrl]
+  ? [defaultRpcUrl, ...splitRpcUrls(process.env.ROBINHOOD_RPC_FALLBACK_URLS)]
   : [defaultRpcUrl, "https://base-rpc.publicnode.com", "https://1rpc.io/base", "https://base.meowrpc.com"];
 
 export const mainnetDeployment = robinhood ? {
@@ -34,4 +34,8 @@ export const poolManager = robinhood
 export function deploymentScope() {
   if (!mainnetDeployment.launchFactory || !mainnetDeployment.bondingCurveMarket || mainnetDeployment.startBlock === 0n) return "";
   return `${chainId}:${mainnetDeployment.launchFactory.toLowerCase()}:${mainnetDeployment.bondingCurveMarket.toLowerCase()}:${mainnetDeployment.startBlock.toString()}`;
+}
+
+function splitRpcUrls(value?: string) {
+  return (value || "").split(",").map((url) => url.trim()).filter(Boolean);
 }

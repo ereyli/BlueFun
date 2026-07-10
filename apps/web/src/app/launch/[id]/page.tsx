@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { notFound } from "next/navigation";
 import { MarketClient } from "./market-client";
 import { getDeployedLaunch, getLaunchTrades } from "@/lib/onchain-launches";
 import { siteUrl } from "@/lib/site-url";
@@ -56,5 +57,6 @@ export default async function LaunchMarketPage({ params, searchParams }: LaunchP
     isRobinhood ? getRobinhoodLaunch(id) : getDeployedLaunch(id),
     isRobinhood ? getDbTrades(id, 4663).then((value) => value ?? []) : getLaunchTrades(id)
   ]);
+  if (!launch) notFound();
   return <MarketClient id={id} launch={launch} trades={trades} />;
 }

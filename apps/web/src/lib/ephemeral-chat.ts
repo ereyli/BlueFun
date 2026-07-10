@@ -1,101 +1,98 @@
-export type ChatMessage = {
-  id: string;
-  launchId: string;
-  token: string;
-  wallet: string;
-  text: string;
-  createdAt: number;
-};
+import { createHash } from "node:crypto";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import pg from "pg";
+import { normalizeChatText } from "@/lib/chat-auth";
+
+export type ChatMessage = { id: string; wallet: string; text: string; createdAt: number };
 
 const MAX_MESSAGES_PER_TOKEN = 20;
 const MESSAGE_TTL_MS = 4 * 60 * 60 * 1000;
-const RATE_LIMIT_MS = 5_000;
-const MAX_MESSAGE_LENGTH = 240;
+const memory = new Map<string, ChatMessage[]>();
+let pool: pg.Pool | undefined;
+let supabase: SupabaseClient | undefined;
 
-type ChatStore = {
-  messagesByToken: Map<string, ChatMessage[]>;
-  lastPostByWalletToken: Map<string, number>;
-};
-
-const globalChat = globalThis as typeof globalThis & {
-  __bluefunChatStore?: ChatStore;
-};
-
-const store = globalChat.__bluefunChatStore ??= {
-  messagesByToken: new Map<string, ChatMessage[]>(),
-  lastPostByWalletToken: new Map<string, number>()
-};
-
-export function listChatMessages(token: string) {
-  const key = normalizeToken(token);
-  pruneToken(key);
-  return store.messagesByToken.get(key) ?? [];
+export async function listChatMessages(chainId: number, token: string): Promise<ChatMessage[]> {
+  const scope = chatScope(chainId, token);
+  const cutoff = new Date(Date.now() - MESSAGE_TTL_MS).toISOString();
+  if (hasSupabaseConfig()) {
+    const { data, error } = await getSupabase().from("chat_messages")
+      .select("id, wallet, text, created_at")
+      .eq("scope", scope)
+      .gte("created_at", cutoff)
+      .order("created_at", { ascending: false })
+      .limit(MAX_MESSAGES_PER_TOKEN);
+    if (error) throw error;
+    return (data ?? []).slice().reverse().map((row) => ({
+      id: String(row.id), wallet: String(row.wallet), text: String(row.text), createdAt: Date.parse(String(row.created_at))
+    }));
+  }
+  if (process.env.DATABASE_URL) {
+    pool ??= new pg.Pool({ connectionString: process.env.DATABASE_URL, max: 3 });
+    const result = await pool.query(
+      `select id, wallet, text, created_at from chat_messages
+       where scope = $1 and created_at >= $2 order by created_at desc limit $3`,
+      [scope, cutoff, MAX_MESSAGES_PER_TOKEN]
+    );
+    return result.rows.slice().reverse().map((row) => ({
+      id: String(row.id), wallet: String(row.wallet), text: String(row.text), createdAt: new Date(row.created_at).getTime()
+    }));
+  }
+  return pruneMemory(scope);
 }
 
-export function addChatMessage(input: { launchId: string; token: string; wallet: string; text: string }) {
-  const token = normalizeToken(input.token);
-  const wallet = normalizeWallet(input.wallet);
-  const text = normalizeMessage(input.text);
-  const launchId = input.launchId.trim();
-
-  if (!/^0x[a-fA-F0-9]{40}$/.test(token)) {
-    return { ok: false as const, status: 400, error: "Invalid token." };
+export async function addChatMessage(input: { chainId: number; launchId: string; token: string; wallet: string; text: string; signature: string }) {
+  const text = normalizeChatText(input.text);
+  if (!text) throw new Error("Message is empty.");
+  const scope = chatScope(input.chainId, input.token);
+  const message: ChatMessage = { id: createHash("sha256").update(input.signature).digest("hex"), wallet: input.wallet.toLowerCase(), text, createdAt: Date.now() };
+  if (hasSupabaseConfig()) {
+    await getSupabase().from("chat_messages").delete().lt("created_at", new Date(Date.now() - MESSAGE_TTL_MS).toISOString());
+    const { error } = await getSupabase().from("chat_messages").insert({
+      id: message.id,
+      scope,
+      chain_id: input.chainId,
+      launch_id: input.launchId,
+      token: input.token.toLowerCase(),
+      wallet: message.wallet,
+      text: message.text,
+      created_at: new Date(message.createdAt).toISOString()
+    });
+    if (error) throw error;
+    return message;
   }
-  if (!/^0x[a-fA-F0-9]{40}$/.test(wallet)) {
-    return { ok: false as const, status: 400, error: "Connect wallet to chat." };
+  if (process.env.DATABASE_URL) {
+    pool ??= new pg.Pool({ connectionString: process.env.DATABASE_URL, max: 3 });
+    await pool.query("delete from chat_messages where created_at < now() - interval '4 hours'");
+    await pool.query(
+      `insert into chat_messages (id, scope, chain_id, launch_id, token, wallet, text, created_at)
+       values ($1, $2, $3, $4, $5, $6, $7, to_timestamp($8 / 1000.0))`,
+      [message.id, scope, input.chainId, input.launchId, input.token.toLowerCase(), message.wallet, message.text, message.createdAt]
+    );
+    return message;
   }
-  if (!launchId || launchId.length > 32) {
-    return { ok: false as const, status: 400, error: "Invalid market." };
-  }
-  if (!text) {
-    return { ok: false as const, status: 400, error: "Message is empty." };
-  }
-
-  const now = Date.now();
-  const rateKey = `${token}:${wallet}`;
-  const lastPost = store.lastPostByWalletToken.get(rateKey) ?? 0;
-  if (now - lastPost < RATE_LIMIT_MS) {
-    return { ok: false as const, status: 429, error: "Please wait a few seconds before sending again." };
-  }
-
-  pruneToken(token);
-  const message: ChatMessage = {
-    id: `${now}-${wallet.slice(2, 10)}-${Math.random().toString(36).slice(2, 8)}`,
-    launchId,
-    token,
-    wallet,
-    text,
-    createdAt: now
-  };
-  const next = [...(store.messagesByToken.get(token) ?? []), message].slice(-MAX_MESSAGES_PER_TOKEN);
-  store.messagesByToken.set(token, next);
-  store.lastPostByWalletToken.set(rateKey, now);
-  return { ok: true as const, message };
+  const current = pruneMemory(scope);
+  if (current.some((item) => item.id === message.id)) throw new Error("Message was already submitted.");
+  const next = [...current, message].slice(-MAX_MESSAGES_PER_TOKEN);
+  memory.set(scope, next);
+  return message;
 }
 
-function pruneToken(token: string) {
-  const now = Date.now();
-  const current = store.messagesByToken.get(token) ?? [];
-  const fresh = current.filter((message) => now - message.createdAt <= MESSAGE_TTL_MS).slice(-MAX_MESSAGES_PER_TOKEN);
-  if (fresh.length) {
-    store.messagesByToken.set(token, fresh);
-  } else {
-    store.messagesByToken.delete(token);
-  }
+function pruneMemory(scope: string) {
+  const cutoff = Date.now() - MESSAGE_TTL_MS;
+  const fresh = (memory.get(scope) ?? []).filter((message) => message.createdAt >= cutoff).slice(-MAX_MESSAGES_PER_TOKEN);
+  if (fresh.length) memory.set(scope, fresh); else memory.delete(scope);
+  return fresh;
 }
 
-function normalizeToken(value: string) {
-  return value.trim().toLowerCase();
+function chatScope(chainId: number, token: string) {
+  return `${chainId}:${token.toLowerCase()}`;
 }
 
-function normalizeWallet(value: string) {
-  return value.trim().toLowerCase();
+function hasSupabaseConfig() {
+  return Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY);
 }
 
-function normalizeMessage(value: string) {
-  return value
-    .replace(/\s+/g, " ")
-    .replace(/[\u0000-\u001f\u007f]/g, "")
-    .trim()
-    .slice(0, MAX_MESSAGE_LENGTH);
+function getSupabase() {
+  supabase ??= createClient(process.env.SUPABASE_URL!, process.env.SUPABASE_SERVICE_ROLE_KEY!, { auth: { persistSession: false } });
+  return supabase;
 }

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { assertRateLimit, assertSameOrigin } from "@/lib/server/request-guard";
+import { assertRateLimit, assertSameOrigin, RequestGuardError } from "@/lib/server/request-guard";
+import { hasSupportedImageSignature, isSafeIpfsUri, optimizeTokenImage } from "@/lib/server/image-validation";
 
 export const runtime = "nodejs";
 
@@ -10,11 +11,11 @@ const PINATA_JSON_ENDPOINT = "https://api.pinata.cloud/pinning/pinJSONToIPFS";
 export async function POST(request: Request) {
   try {
     assertSameOrigin(request);
-    assertRateLimit(request);
+    await assertRateLimit(request, "pinata-metadata");
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Upload is temporarily unavailable." },
-      { status: 429 }
+      { status: error instanceof RequestGuardError ? error.status : 503 }
     );
   }
 
@@ -28,6 +29,9 @@ export async function POST(request: Request) {
   const existingImageUri = cleanText(form.get("imageUri"), 120);
   const name = cleanText(form.get("name"), 80);
   const symbol = cleanText(form.get("symbol"), 20).toUpperCase();
+  const chainId = Number(cleanText(form.get("chainId"), 8));
+  const network = chainId === 4663 ? "Robinhood Chain" : chainId === 8453 ? "Base" : "";
+  const standard = chainId === 4663 ? "ERC-20" : chainId === 8453 ? "B20" : "";
   const description = cleanText(form.get("description"), 500);
   const website = cleanUrl(form.get("website"));
   const twitter = cleanUrl(form.get("twitter"));
@@ -37,13 +41,22 @@ export async function POST(request: Request) {
   if (!name || !symbol) {
     return NextResponse.json({ error: "Token name and symbol are required before uploading metadata." }, { status: 400 });
   }
+  if (!network) {
+    return NextResponse.json({ error: "Unsupported launch network." }, { status: 400 });
+  }
 
   if (!existingImageUri && !(file instanceof File)) {
     return NextResponse.json({ error: "Token image file is required." }, { status: 400 });
   }
+  if (existingImageUri && !isSafeIpfsUri(existingImageUri)) {
+    return NextResponse.json({ error: "Invalid IPFS image URI." }, { status: 400 });
+  }
 
   if (file instanceof File && !file.type.startsWith("image/")) {
     return NextResponse.json({ error: "Only image files can be uploaded." }, { status: 400 });
+  }
+  if (file instanceof File && !(await hasSupportedImageSignature(file))) {
+    return NextResponse.json({ error: "Image contents do not match a supported image format." }, { status: 400 });
   }
 
   if (file instanceof File && file.size > MAX_IMAGE_BYTES) {
@@ -53,8 +66,9 @@ export async function POST(request: Request) {
   try {
     let imageUri = existingImageUri;
     if (!imageUri && file instanceof File) {
+      const optimizedFile = await optimizeTokenImage(file);
       const imageForm = new FormData();
-      imageForm.append("file", file, safeFileName(file.name || `${symbol}.png`));
+      imageForm.append("file", optimizedFile, optimizedFile.name);
       imageForm.append("pinataMetadata", JSON.stringify({ name: `${symbol}-image` }));
 
       const imageResult = await pinataFetch<{ IpfsHash: string }>(PINATA_FILE_ENDPOINT, {
@@ -78,7 +92,8 @@ export async function POST(request: Request) {
         discord: discord || undefined
       },
       attributes: [
-        { trait_type: "Network", value: "Base" },
+        { trait_type: "Network", value: network },
+        { trait_type: "Token Standard", value: standard },
         { trait_type: "Launchpad", value: "BlueFun" },
         { trait_type: "Graduation Target", value: "5 ETH" }
       ]
@@ -104,13 +119,13 @@ export async function POST(request: Request) {
       metadataUri,
       metadataGatewayUrl: ipfsToGatewayUrl(metadataUri)
     });
-  } catch (error) {
+  } catch {
     return NextResponse.json({ error: "Launch media could not be prepared. Please try again." }, { status: 502 });
   }
 }
 
 async function pinataFetch<T>(url: string, init: RequestInit): Promise<T> {
-  const response = await fetch(url, init);
+  const response = await fetch(url, { ...init, signal: AbortSignal.timeout(20_000) });
   const text = await response.text();
 
   if (!response.ok) {
@@ -144,11 +159,6 @@ function cleanUrl(value: FormDataEntryValue | null) {
   } catch {
     return "";
   }
-}
-
-function safeFileName(name: string) {
-  const clean = name.replace(/[^a-zA-Z0-9._-]/g, "-").replace(/-+/g, "-");
-  return clean || "token-image.png";
 }
 
 function ipfsToGatewayUrl(uri: string) {

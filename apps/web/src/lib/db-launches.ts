@@ -13,28 +13,36 @@ export type DbLaunchMetrics = {
   totalVolumeEth: number;
 };
 
-export async function getDbLaunches(chainId = 8453): Promise<DeployedLaunch[] | undefined> {
+const launchColumns = "id, token, creator, name, symbol, contract_uri, image_url, description, website_url, twitter_url, telegram_url, discord_url, status, raised_eth, graduation_target_eth, progress, volume_eth, token_created_at, created_block";
+const legacyLaunchColumns = "id, token, creator, name, symbol, contract_uri, status, raised_eth, graduation_target_eth, progress, volume_eth, token_created_at, created_block";
+
+export async function getDbLaunches(chainId = 8453, options: { cursor?: string; limit?: number } = {}): Promise<DeployedLaunch[] | undefined> {
   if (process.env.POSTGRES_INDEXER_ENABLED !== "true") return undefined;
   const context = dbContext(chainId);
+  const limit = Math.min(Math.max(options.limit || 80, 1), 80);
 
   try {
     if (hasSupabaseConfig()) {
-      let response: { data: Array<Record<string, unknown>> | null; error: { message?: string; details?: string } | null } = await getSupabase()
+      let query = getSupabase()
         .from("launches")
-        .select("id, token, creator, name, symbol, contract_uri, description, website_url, twitter_url, telegram_url, discord_url, status, raised_eth, graduation_target_eth, progress, volume_eth, token_created_at, created_block")
+        .select(launchColumns)
         .eq("scope", context.scope)
         .gte("created_block", context.deploymentBlock)
         .order("id", { ascending: false })
-        .limit(80);
+        .limit(limit);
+      if (options.cursor) query = query.lt("id", options.cursor);
+      let response: { data: Array<Record<string, unknown>> | null; error: { message?: string; details?: string } | null } = await query;
 
       if (response.error && isMissingSocialColumnError(response.error)) {
-        response = await getSupabase()
+        let legacyQuery = getSupabase()
           .from("launches")
-          .select("id, token, creator, name, symbol, contract_uri, status, raised_eth, graduation_target_eth, progress, volume_eth, token_created_at, created_block")
+          .select(legacyLaunchColumns)
           .eq("scope", context.scope)
           .gte("created_block", context.deploymentBlock)
           .order("id", { ascending: false })
-          .limit(80);
+          .limit(limit);
+        if (options.cursor) legacyQuery = legacyQuery.lt("id", options.cursor);
+        response = await legacyQuery;
       }
 
       if (response.error) throw response.error;
@@ -49,19 +57,63 @@ export async function getDbLaunches(chainId = 8453): Promise<DeployedLaunch[] | 
       max: 2
     });
     const result = await withTimeout(pool.query(
-      `select id, token, creator, name, symbol, contract_uri, description,
+      `select id, token, creator, name, symbol, contract_uri, image_url, description,
               website_url, twitter_url, telegram_url, discord_url, status, raised_eth,
               graduation_target_eth, progress, volume_eth, token_created_at
        from launches
        where scope = $1
          and created_block >= $2
+         and ($3::numeric is null or id < $3::numeric)
        order by id desc
-       limit 80`
-    , [context.scope, context.deploymentBlock]), 300);
+       limit $4`
+    , [context.scope, context.deploymentBlock, options.cursor || null, limit]), 1_500);
 
     return mapRows(result.rows, context.chainId);
   } catch (error) {
     console.error("Failed to read launches from database", error);
+    return undefined;
+  }
+}
+
+export async function getDbLaunch(launchId: string, chainId = 8453): Promise<DeployedLaunch | undefined> {
+  if (process.env.POSTGRES_INDEXER_ENABLED !== "true") return undefined;
+  const context = dbContext(chainId);
+  try {
+    if (hasSupabaseConfig()) {
+      let response = await getSupabase()
+        .from("launches")
+        .select(launchColumns)
+        .eq("scope", context.scope)
+        .eq("id", launchId)
+        .gte("created_block", context.deploymentBlock)
+        .maybeSingle();
+      if (response.error && isMissingSocialColumnError(response.error)) {
+        response = await getSupabase()
+          .from("launches")
+          .select(legacyLaunchColumns)
+          .eq("scope", context.scope)
+          .eq("id", launchId)
+          .gte("created_block", context.deploymentBlock)
+          .maybeSingle();
+      }
+      if (response.error) throw response.error;
+      return response.data ? (await mapRows([response.data as Record<string, unknown>], context.chainId))[0] : undefined;
+    }
+
+    if (!process.env.DATABASE_URL) return undefined;
+    pool ??= new pg.Pool({ connectionString: process.env.DATABASE_URL, connectionTimeoutMillis: 750, idleTimeoutMillis: 5_000, max: 5 });
+    const result = await withTimeout(pool.query(
+      `select id, token, creator, name, symbol, contract_uri, image_url, description,
+              website_url, twitter_url, telegram_url, discord_url, status, raised_eth,
+              graduation_target_eth, progress, volume_eth, token_created_at, created_block
+       from launches
+       where scope = $1 and id = $2 and created_block >= $3
+       limit 1`,
+      [context.scope, launchId, context.deploymentBlock]
+    ), 1_500);
+    return result.rows[0] ? (await mapRows([result.rows[0]], context.chainId))[0] : undefined;
+  } catch (error) {
+    console.error("Failed to read launch from database", error);
     return undefined;
   }
 }
@@ -72,16 +124,28 @@ export async function getDbLaunchMetrics(chainId = 8453): Promise<DbLaunchMetric
 
   try {
     if (hasSupabaseConfig()) {
-      const { data, error } = await getSupabase()
-        .from("trades")
-        .select("eth_amount")
-        .eq("scope", context.scope)
-        .gte("block_number", context.deploymentBlock)
-        .limit(5000);
+      const { data, error } = await getSupabase().rpc("get_scope_trade_metrics", {
+        p_scope: context.scope,
+        p_start_block: context.deploymentBlock
+      });
 
+      if (error && isMissingMetricsRpcError(error)) {
+        const fallback = await getSupabase().from("launches")
+          .select("volume_eth")
+          .eq("scope", context.scope)
+          .gte("created_block", context.deploymentBlock)
+          .limit(1_000);
+        if (fallback.error) throw fallback.error;
+        const totalWei = (fallback.data ?? []).reduce(
+          (sum, item) => sum + parseDbBigInt((item as { volume_eth?: unknown }).volume_eth),
+          0n
+        );
+        return { totalVolumeEth: weiToEthNumber(totalWei) };
+      }
       if (error) throw error;
+      const row = Array.isArray(data) ? data[0] : data;
       return {
-        totalVolumeEth: (data ?? []).reduce((sum, row) => sum + weiToEthNumber(parseDbBigInt(row.eth_amount)), 0)
+        totalVolumeEth: weiToEthNumber(parseDbBigInt((row as { total_volume_eth?: unknown } | null)?.total_volume_eth))
       };
     }
 
@@ -109,9 +173,13 @@ export async function getDbLaunchMetrics(chainId = 8453): Promise<DbLaunchMetric
   }
 }
 
+function isMissingMetricsRpcError(error: { code?: string; message?: string }) {
+  return error.code === "PGRST202" || error.message?.includes("get_scope_trade_metrics");
+}
+
 function isMissingSocialColumnError(error: { message?: string; details?: string }) {
   const text = `${error.message || ""} ${error.details || ""}`.toLowerCase();
-  return ["description", "website_url", "twitter_url", "telegram_url", "discord_url"].some((column) => text.includes(column));
+  return ["image_url", "description", "website_url", "twitter_url", "telegram_url", "discord_url"].some((column) => text.includes(column));
 }
 
 function isMissingTradeColumnError(error: { message?: string; details?: string }) {
@@ -183,7 +251,8 @@ async function mapRows(rows: Array<Record<string, unknown>>, chainId: number): P
     const target = parseDbBigInt(row.graduation_target_eth);
     const volume = parseDbBigInt(row.volume_eth);
     const contractURI = String(row.contract_uri || "");
-    const metadata = await readTokenMetadata(contractURI);
+    const storedImage = cleanDbText(row.image_url);
+    const metadata = storedImage ? {} : await readTokenMetadata(contractURI);
 
     return {
       chainId,
@@ -194,7 +263,7 @@ async function mapRows(rows: Array<Record<string, unknown>>, chainId: number): P
       symbol: String(row.symbol),
       contractURI,
       description: cleanDbText(row.description) || metadata.description,
-      imageURI: metadata.imageURI,
+      imageURI: storedImage || metadata.imageURI,
       website: cleanDbText(row.website_url) || metadata.website,
       twitter: cleanDbText(row.twitter_url) || metadata.twitter,
       telegram: cleanDbText(row.telegram_url) || metadata.telegram,
@@ -206,7 +275,7 @@ async function mapRows(rows: Array<Record<string, unknown>>, chainId: number): P
       holders: "indexed",
       volume: `${trimEth(formatEther(volume))} ETH`,
       age: formatAge(Number(row.token_created_at || 0)),
-      risk: status === "Graduated" ? "Adminless" : "B20 gated",
+      risk: status === "Graduated" ? "Adminless" : chainId === 4663 ? "Fixed-supply ERC-20" : "B20 gated",
       price: "Live",
       marketCap: "Live"
     };

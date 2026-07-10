@@ -66,6 +66,10 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 </div>
               </header>
               <main className="main">{children}</main>
+              <footer className="site-footer">
+                <span>© {new Date().getFullYear()} BlueFun</span>
+                <nav aria-label="Legal"><Link href="/risk">Risk</Link><Link href="/terms">Terms</Link><Link href="/privacy">Privacy</Link></nav>
+              </footer>
             </section>
             <Suspense fallback={null}><SideNav mobile /></Suspense>
           </div>

@@ -15,11 +15,18 @@ type DexPair = {
   baseToken?: { address?: string };
 };
 
-export async function GET(_request: Request, context: { params: Promise<{ token: string }> }) {
+export async function GET(request: Request, context: { params: Promise<{ token: string }> }) {
   const { token } = await context.params;
+  const chainId = Number(new URL(request.url).searchParams.get("chain"));
   if (!/^0x[a-fA-F0-9]{40}$/.test(token)) {
     return NextResponse.json({ pair: null }, { status: 400 });
   }
+  if (chainId === 4663) {
+    // DexScreener does not expose Robinhood Chain pairs through the Base endpoint.
+    // Robinhood graduated pricing is sourced from indexed Uniswap v4 swaps instead.
+    return NextResponse.json({ pair: null });
+  }
+  if (chainId !== 8453) return NextResponse.json({ pair: null }, { status: 400 });
 
   try {
     const response = await fetch(`https://api.dexscreener.com/tokens/v1/base/${token}`, {

@@ -5,7 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import WebSocket from "ws";
 
-const pool = process.env.DATABASE_URL ? new pg.Pool({ connectionString: process.env.DATABASE_URL }) : undefined;
+let pool = process.env.DATABASE_URL ? new pg.Pool({ connectionString: process.env.DATABASE_URL }) : undefined;
 let supabase: SupabaseClient | undefined;
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -25,6 +25,7 @@ export async function upsertLaunch(input: {
   name: string;
   symbol: string;
   contractURI: string;
+  imageUri?: string;
   description?: string;
   website?: string;
   twitter?: string;
@@ -46,6 +47,7 @@ export async function upsertLaunch(input: {
             name: input.name,
             symbol: input.symbol,
             contract_uri: input.contractURI,
+            image_url: input.imageUri || null,
             description: input.description || null,
             website_url: input.website || null,
             twitter_url: input.twitter || null,
@@ -63,16 +65,17 @@ export async function upsertLaunch(input: {
   if (!pool) throw new Error("Database client is not configured");
   await pool.query(
     `insert into launches (
-       scope, id, token, creator, name, symbol, contract_uri, description,
+       scope, id, token, creator, name, symbol, contract_uri, image_url, description,
        website_url, twitter_url, telegram_url, discord_url, created_tx, created_block
      )
-     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
      on conflict (scope, id) do update set
        token = excluded.token,
        creator = excluded.creator,
        name = excluded.name,
        symbol = excluded.symbol,
        contract_uri = excluded.contract_uri,
+       image_url = excluded.image_url,
        description = excluded.description,
        website_url = excluded.website_url,
        twitter_url = excluded.twitter_url,
@@ -88,6 +91,7 @@ export async function upsertLaunch(input: {
       input.name,
       input.symbol,
       input.contractURI,
+      input.imageUri || null,
       input.description || null,
       input.website || null,
       input.twitter || null,
@@ -105,7 +109,6 @@ export async function updateLaunchState(input: {
   raisedEth: bigint;
   graduationTargetEth: bigint;
   progress: number;
-  volumeEth: bigint;
   creatorAllocation: bigint;
   tokenCreatedAt: bigint;
 }) {
@@ -118,7 +121,6 @@ export async function updateLaunchState(input: {
           raised_eth: input.raisedEth.toString(),
           graduation_target_eth: input.graduationTargetEth.toString(),
           progress: input.progress,
-          volume_eth: input.volumeEth.toString(),
           creator_allocation: input.creatorAllocation.toString(),
           token_created_at: input.tokenCreatedAt.toString()
         })
@@ -135,9 +137,8 @@ export async function updateLaunchState(input: {
          raised_eth = $4,
          graduation_target_eth = $5,
          progress = $6,
-         volume_eth = $7,
-         creator_allocation = $8,
-         token_created_at = $9
+         creator_allocation = $7,
+         token_created_at = $8
      where scope = $1 and id = $2`,
     [
       indexerScope(),
@@ -146,7 +147,6 @@ export async function updateLaunchState(input: {
       input.raisedEth.toString(),
       input.graduationTargetEth.toString(),
       input.progress,
-      input.volumeEth.toString(),
       input.creatorAllocation.toString(),
       input.tokenCreatedAt.toString()
     ]
@@ -182,7 +182,10 @@ export async function insertTrade(input: {
       .eq("side", input.side)
       .select("id");
     if (existing.error) throw existing.error;
-    if ((existing.data ?? []).length > 0) return;
+    if ((existing.data ?? []).length > 0) {
+      await refreshLaunchVolume(input.launchId);
+      return;
+    }
 
     await runSupabase(
       getSupabase()
@@ -203,6 +206,7 @@ export async function insertTrade(input: {
           { onConflict: "scope,tx_hash,side,launch_id", ignoreDuplicates: true }
         )
     );
+    await refreshLaunchVolume(input.launchId);
     return;
   }
 
@@ -230,7 +234,10 @@ export async function insertTrade(input: {
       input.marketCapEth?.toString() ?? null
     ]
   );
-  if ((existing.rowCount ?? 0) > 0) return;
+  if ((existing.rowCount ?? 0) > 0) {
+    await refreshLaunchVolume(input.launchId);
+    return;
+  }
 
   await pool.query(
     `insert into trades (scope, launch_id, trader, side, source, eth_amount, token_amount, market_cap_eth, tx_hash, block_number)
@@ -249,6 +256,19 @@ export async function insertTrade(input: {
       input.blockNumber?.toString()
     ]
   );
+  await refreshLaunchVolume(input.launchId);
+}
+
+async function refreshLaunchVolume(launchId: bigint) {
+  if (hasSupabaseConfig()) {
+    await runSupabase(getSupabase().rpc("refresh_launch_volume", {
+      p_scope: indexerScope(),
+      p_launch_id: launchId.toString()
+    }));
+    return;
+  }
+  if (!pool) return;
+  await pool.query("select refresh_launch_volume($1, $2)", [indexerScope(), launchId.toString()]);
 }
 
 export async function markGraduated(input: { launchId: bigint; token: string; positionId: string; txHash: string; blockNumber?: bigint }) {
@@ -368,4 +388,10 @@ function getSupabase() {
 async function runSupabase<T>(query: PromiseLike<{ data: T | null; error: unknown }>) {
   const { error } = await query;
   if (error) throw error;
+}
+
+export async function closeDatabase() {
+  if (pool) await pool.end();
+  pool = undefined;
+  supabase = undefined;
 }

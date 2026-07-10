@@ -4,18 +4,14 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 import { formatEther, maxUint256, parseEther, zeroAddress } from "viem";
-import { useAccount, useBalance, useReadContract, useReadContracts, useWaitForTransactionReceipt, useWriteContract } from "wagmi";
+import { useAccount, useBalance, useReadContract, useReadContracts, useSignMessage, useWaitForTransactionReceipt, useWriteContract } from "wagmi";
 import { ArrowDownUp, Copy, ExternalLink, Loader2, LockKeyhole, RotateCcw, Settings, ShieldCheck, Sparkles } from "lucide-react";
-import {
-  CandlestickSeries,
-  ColorType,
-  createChart,
-  HistogramSeries,
-  type CandlestickData,
-  type HistogramData,
-  type IChartApi,
-  type ISeriesApi,
-  type UTCTimestamp
+import type {
+  CandlestickData,
+  HistogramData,
+  IChartApi,
+  ISeriesApi,
+  UTCTimestamp
 } from "lightweight-charts";
 import { b20TokenAbi, bondingCurveAbi, contractsForChain, graduationManagerAbi, indexerScopeForChain, permit2Abi, universalRouterAbi, uniswapV4QuoterAbi } from "@/lib/contracts";
 import {
@@ -33,9 +29,10 @@ import {
 import { isTrustedLaunch } from "@/lib/featured-launches";
 import type { DeployedLaunch, DeployedTrade } from "@/lib/onchain-launches";
 import { siteUrl } from "@/lib/site-url";
-import { ipfsToGatewayUrl } from "@/lib/token-metadata";
+import { optimizedTokenImageUrl } from "@/lib/token-metadata";
 import { blueFunV4PoolKey, buildV4EthToTokenSwap, buildV4TokenToEthSwap } from "@/lib/uniswap-v4-swap";
 import { NetworkIcon } from "@/components/network-icon";
+import { chatMessageToSign } from "@/lib/chat-auth";
 
 const MAX_UINT160 = (1n << 160n) - 1n;
 const MAX_UINT48 = 281_474_976_710_655;
@@ -53,9 +50,10 @@ export function MarketClient({ id, launch, trades }: { id: string; launch?: Depl
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [ethUsd, setEthUsd] = useState<number | null>(null);
   const [dexPair, setDexPair] = useState<DexPairSnapshot | null>(null);
+  const [realtimeHealthy, setRealtimeHealthy] = useState(false);
   const { address, isConnected, chainId } = useAccount();
   const activeChainId = launch?.chainId === 4663 ? 4663 : 8453;
-  const { addresses, chain, uniswapV4Addresses, uniswapChainName } = contractsForChain(activeChainId);
+  const { addresses, chain, uniswapV4Addresses } = contractsForChain(activeChainId);
   const wrongNetwork = Boolean(isConnected && chainId && chainId !== activeChainId);
   const { data: hash, error, writeContract, isPending } = useWriteContract();
   const receipt = useWaitForTransactionReceipt({ hash });
@@ -193,8 +191,7 @@ export function MarketClient({ id, launch, trades }: { id: string; launch?: Depl
   }, [graduatedPermit2RouterAllowance, graduatedQuote, graduatedTokenPermit2Allowance, receipt.isSuccess, router, tokenAllowance, tokenBalance]);
 
   useEffect(() => {
-    const hasRealtime = Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
-    if (hasRealtime) return;
+    if (realtimeHealthy) return;
     const refreshWhenVisible = () => {
       if (document.visibilityState === "visible") router.refresh();
     };
@@ -204,7 +201,7 @@ export function MarketClient({ id, launch, trades }: { id: string; launch?: Depl
       window.clearInterval(interval);
       document.removeEventListener("visibilitychange", refreshWhenVisible);
     };
-  }, [router]);
+  }, [realtimeHealthy, router]);
 
   useEffect(() => {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -231,11 +228,11 @@ export function MarketClient({ id, launch, trades }: { id: string; launch?: Depl
             window.clearTimeout(refreshTimer);
             refreshTimer = window.setTimeout(() => {
               if (document.visibilityState === "visible") router.refresh();
-            }, 500);
+            }, 1_500);
           }
         }
       )
-      .subscribe();
+      .subscribe((status) => setRealtimeHealthy(status === "SUBSCRIBED"));
 
     return () => {
       window.clearTimeout(refreshTimer);
@@ -271,7 +268,7 @@ export function MarketClient({ id, launch, trades }: { id: string; launch?: Depl
     let active = true;
     async function loadDexPair() {
       try {
-        const response = await fetch(`/api/dexscreener/token/${launch?.token}`, { cache: "no-store" });
+        const response = await fetch(`/api/dexscreener/token/${launch?.token}?chain=${activeChainId}`, { cache: "no-store" });
         const payload = await response.json() as { pair?: Partial<DexPairSnapshot> | null };
         const priceUsd = Number(payload.pair?.priceUsd);
         const marketCap = Number(payload.pair?.marketCap);
@@ -289,7 +286,7 @@ export function MarketClient({ id, launch, trades }: { id: string; launch?: Depl
       active = false;
       window.clearInterval(interval);
     };
-  }, [isGraduated, launch?.token]);
+  }, [activeChainId, isGraduated, launch?.token]);
 
   function buy() {
     if (!addresses.bondingCurveMarket || parsedAmount === 0n || minOut === 0n) return;
@@ -510,9 +507,9 @@ export function MarketClient({ id, launch, trades }: { id: string; launch?: Depl
           />
         ) : (
           <section className="trade-card">
-            <div className="trade-tabs">
-              <button className={mode === "buy" ? "active" : ""} onClick={() => setMode("buy")} type="button">Buy</button>
-              <button className={mode === "sell" ? "active" : ""} onClick={() => setMode("sell")} type="button">Sell</button>
+            <div className="trade-tabs" role="tablist" aria-label="Trade direction">
+              <button aria-selected={mode === "buy"} className={mode === "buy" ? "active" : ""} onClick={() => setMode("buy")} role="tab" type="button">Buy</button>
+              <button aria-selected={mode === "sell"} className={mode === "sell" ? "active" : ""} onClick={() => setMode("sell")} role="tab" type="button">Sell</button>
             </div>
             <div className="form">
               {!isConnected ? (
@@ -675,12 +672,15 @@ function TokenChat({
   const [draft, setDraft] = useState("");
   const [status, setStatus] = useState("");
   const [sending, setSending] = useState(false);
+  const [open, setOpen] = useState(false);
+  const { signMessageAsync } = useSignMessage();
 
   useEffect(() => {
+    if (!open) return;
     let active = true;
     async function loadMessages() {
       try {
-        const response = await fetch(`/api/chat/messages?token=${launch.token}`, { cache: "no-store" });
+        const response = await fetch(`/api/chat/messages?token=${launch.token}&chain=${launch.chainId}`, { cache: "no-store" });
         const payload = await response.json() as { messages?: ChatMessage[] };
         if (active) setMessages(payload.messages ?? []);
       } catch {
@@ -695,7 +695,7 @@ function TokenChat({
       active = false;
       window.clearInterval(interval);
     };
-  }, [launch.token]);
+  }, [launch.chainId, launch.token, open]);
 
   async function sendMessage() {
     if (!wallet || !isConnected || sending) return;
@@ -704,10 +704,12 @@ function TokenChat({
     setSending(true);
     setStatus("");
     try {
+      const timestamp = Date.now();
+      const signature = await signMessageAsync({ message: chatMessageToSign({ chainId: launch.chainId, launchId, token: launch.token, text, timestamp }) });
       const response = await fetch("/api/chat/send", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ launchId, token: launch.token, wallet, text })
+        body: JSON.stringify({ chainId: launch.chainId, launchId, token: launch.token, wallet, text, timestamp, signature })
       });
       const payload = await response.json() as { message?: ChatMessage; error?: string };
       if (!response.ok || !payload.message) {
@@ -716,15 +718,16 @@ function TokenChat({
       }
       setDraft("");
       setMessages((current) => [...current, payload.message!].slice(-20));
-    } catch {
-      setStatus("Message could not be sent.");
+    } catch (sendError) {
+      const message = sendError instanceof Error ? sendError.message.toLowerCase() : "";
+      setStatus(message.includes("rejected") || message.includes("denied") ? "Signature cancelled." : "Message could not be sent.");
     } finally {
       setSending(false);
     }
   }
 
   return (
-    <details className="token-chat-card">
+    <details className="token-chat-card" open={open} onToggle={(event) => setOpen(event.currentTarget.open)}>
       <summary className="token-chat-summary">
         <span>Community</span><strong>{messages.length}</strong>
       </summary>
@@ -853,9 +856,9 @@ function GraduatedTradeCard({
           Bonding curve trading is complete. Orders now route through the locked Uniswap v4 pool.
         </p>
       </div>
-      <div className="trade-tabs">
-        <button className={mode === "buy" ? "active" : ""} onClick={() => setMode("buy")} type="button">Buy</button>
-        <button className={mode === "sell" ? "active" : ""} onClick={() => setMode("sell")} type="button">Sell</button>
+      <div className="trade-tabs" role="tablist" aria-label="Trade direction">
+        <button aria-selected={mode === "buy"} className={mode === "buy" ? "active" : ""} onClick={() => setMode("buy")} role="tab" type="button">Buy</button>
+        <button aria-selected={mode === "sell"} className={mode === "sell" ? "active" : ""} onClick={() => setMode("sell")} role="tab" type="button">Sell</button>
       </div>
       <div className="form graduated-swap-form">
         {!isConnected ? (
@@ -1027,6 +1030,7 @@ function ProjectInfo({ launch }: { launch: DeployedLaunch }) {
           ))}
         </div>
       ) : null}
+      <p className="market-risk-note">Community tokens are volatile. Verify the contract and trade responsibly. <a href="/risk">Read risk disclosure</a></p>
     </section>
   );
 }
@@ -1120,7 +1124,7 @@ function MarketStats({
   return (
     <section className="market-stats-panel">
       <div className="market-stats-head">
-        <h2>Activity</h2>
+        <h2>Recent activity</h2>
         <span>{launch.progress}% bonded</span>
       </div>
       <div className="market-stats-grid">
@@ -1141,7 +1145,21 @@ function MarketStats({
 }
 
 function HolderDistribution({ launch, trades }: { launch: DeployedLaunch; trades: DeployedTrade[] }) {
+  const panelRef = useRef<HTMLElement | null>(null);
+  const [shouldLoad, setShouldLoad] = useState(false);
   const { addresses, uniswapV4Addresses } = contractsForChain(launch.chainId);
+  useEffect(() => {
+    const element = panelRef.current;
+    if (!element || shouldLoad) return;
+    const observer = new IntersectionObserver((entries) => {
+      if (entries.some((entry) => entry.isIntersecting)) {
+        setShouldLoad(true);
+        observer.disconnect();
+      }
+    }, { rootMargin: "400px" });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [shouldLoad]);
   const candidateWallets = useMemo(() => {
     const netByWallet = new Map<`0x${string}`, number>();
 
@@ -1166,7 +1184,7 @@ function HolderDistribution({ launch, trades }: { launch: DeployedLaunch; trades
       ...candidateWallets
     ].filter(Boolean) as `0x${string}`[];
     return Array.from(new Map(values.map((value) => [value.toLowerCase(), value])).values());
-  }, [candidateWallets, launch.creator, launch.status]);
+  }, [addresses.bondingCurveMarket, candidateWallets, launch.creator, launch.status, uniswapV4Addresses.poolManager]);
 
   const balances = useReadContracts({
     contracts: holderAddresses.map((holder) => ({
@@ -1175,7 +1193,7 @@ function HolderDistribution({ launch, trades }: { launch: DeployedLaunch; trades
       functionName: "balanceOf",
       args: [holder]
     })),
-    query: { enabled: Boolean(launch.token && holderAddresses.length) }
+    query: { enabled: Boolean(shouldLoad && launch.token && holderAddresses.length), staleTime: 30_000 }
   });
 
   const rows = useMemo(() => {
@@ -1200,16 +1218,19 @@ function HolderDistribution({ launch, trades }: { launch: DeployedLaunch; trades
       .filter((row) => row.balance > 0n)
       .sort((a, b) => Number(b.balance - a.balance))
       .slice(0, 20);
-  }, [balances.data, holderAddresses, launch.creator, launch.status]);
+  }, [addresses.bondingCurveMarket, balances.data, holderAddresses, launch.creator, launch.status, uniswapV4Addresses.poolManager]);
 
+  if (!shouldLoad) {
+    return <section className="holder-distribution-panel deferred-panel" ref={panelRef}><div className="holder-distribution-head"><h2>Observed holders</h2><span>Loads on view</span></div></section>;
+  }
   if (!rows.length) return null;
 
   return (
-    <section className="holder-distribution-panel">
+    <section className="holder-distribution-panel" ref={panelRef}>
       <div className="holder-distribution-head">
         <div>
-          <h2>Top holders</h2>
-          <p>On-chain balances read from the token contract.</p>
+          <h2>Observed holders</h2>
+          <p>Curve, creator and recent participant balances read onchain.</p>
         </div>
         <span>Top {rows.length}</span>
       </div>
@@ -1252,7 +1273,7 @@ function formatChatAge(createdAt: number) {
 
 function TokenAvatar({ launch, className }: { launch: DeployedLaunch; className: string }) {
   if (launch.imageURI) {
-    return <img className={`${className} token-avatar-image`} src={ipfsToGatewayUrl(launch.imageURI)} alt={launch.name} loading="lazy" decoding="async" />;
+    return <img className={`${className} token-avatar-image`} src={optimizedTokenImageUrl(launch.imageURI)} alt={launch.name} loading="lazy" decoding="async" />;
   }
   return <span className={className}>{launch.symbol.slice(0, 4)}</span>;
 }
@@ -1347,6 +1368,8 @@ function TradeChart({ trades, status, symbol, ethUsd }: { trades: DeployedTrade[
     () => buildChartData(trades, chartMode, ethUsd, intervalMinutes, status === "Graduated"),
     [trades, chartMode, ethUsd, intervalMinutes, status]
   );
+  const chartDataRef = useRef({ candles, volume });
+  chartDataRef.current = { candles, volume };
   const chartTitle = chartMode === "marketCap" ? `${symbol} market cap` : `${symbol} price`;
   function resetChart() {
     userTouchedChartRef.current = false;
@@ -1357,6 +1380,9 @@ function TradeChart({ trades, status, symbol, ethUsd }: { trades: DeployedTrade[
   useEffect(() => {
     const container = chartRef.current;
     if (!container) return;
+    const chartContainer = container;
+    let chart: IChartApi | undefined;
+    let disposed = false;
 
     shouldFitChartRef.current = true;
     userTouchedChartRef.current = false;
@@ -1365,7 +1391,10 @@ function TradeChart({ trades, status, symbol, ethUsd }: { trades: DeployedTrade[
       shouldFitChartRef.current = false;
     };
 
-    const chart = createChart(container, {
+    async function setupChart() {
+      const { CandlestickSeries, ColorType, createChart, HistogramSeries } = await import("lightweight-charts");
+      if (disposed) return;
+      const createdChart = createChart(chartContainer, {
       autoSize: true,
       height: 340,
       layout: {
@@ -1394,9 +1423,10 @@ function TradeChart({ trades, status, symbol, ethUsd }: { trades: DeployedTrade[
         priceFormatter: (price: number) => chartMode === "marketCap" ? compactUsd(price) : formatUsdPrice(price)
       }
     });
-    chartApiRef.current = chart;
+      chart = createdChart;
+      chartApiRef.current = createdChart;
 
-    const candleSeries = chart.addSeries(CandlestickSeries, {
+      const candleSeries = createdChart.addSeries(CandlestickSeries, {
       upColor: "#17b26a",
       downColor: "#e5484d",
       borderUpColor: "#17b26a",
@@ -1411,7 +1441,7 @@ function TradeChart({ trades, status, symbol, ethUsd }: { trades: DeployedTrade[
     });
     candleSeriesRef.current = candleSeries;
 
-    const volumeSeries = chart.addSeries(HistogramSeries, {
+      const volumeSeries = createdChart.addSeries(HistogramSeries, {
       priceFormat: { type: "volume" },
       priceScaleId: "volume",
       color: "rgba(0, 0, 255, 0.18)",
@@ -1420,21 +1450,33 @@ function TradeChart({ trades, status, symbol, ethUsd }: { trades: DeployedTrade[
     });
     volumeSeriesRef.current = volumeSeries;
 
-    chart.priceScale("volume").applyOptions({
+      createdChart.priceScale("volume").applyOptions({
       scaleMargins: { top: 0.78, bottom: 0 },
       visible: false,
       borderVisible: false
     });
 
-    container.addEventListener("wheel", markTouched, { passive: true });
-    container.addEventListener("pointerdown", markTouched);
-    container.addEventListener("touchstart", markTouched, { passive: true });
+      const initialData = chartDataRef.current;
+      candleSeries.setData(initialData.candles as CandlestickData<UTCTimestamp>[]);
+      volumeSeries.setData(initialData.volume as HistogramData<UTCTimestamp>[]);
+      if (initialData.candles.length > 0) {
+        focusLatestCandles(createdChart, initialData.candles.length);
+        shouldFitChartRef.current = false;
+      }
+
+      chartContainer.addEventListener("wheel", markTouched, { passive: true });
+      chartContainer.addEventListener("pointerdown", markTouched);
+      chartContainer.addEventListener("touchstart", markTouched, { passive: true });
+    }
+
+    void setupChart();
 
     return () => {
-      container.removeEventListener("wheel", markTouched);
-      container.removeEventListener("pointerdown", markTouched);
-      container.removeEventListener("touchstart", markTouched);
-      chart.remove();
+      disposed = true;
+      chartContainer.removeEventListener("wheel", markTouched);
+      chartContainer.removeEventListener("pointerdown", markTouched);
+      chartContainer.removeEventListener("touchstart", markTouched);
+      chart?.remove();
       chartApiRef.current = null;
       candleSeriesRef.current = null;
       volumeSeriesRef.current = null;
@@ -1459,16 +1501,17 @@ function TradeChart({ trades, status, symbol, ethUsd }: { trades: DeployedTrade[
           <strong>{latestValue ? chartMode === "marketCap" ? compactUsd(latestValue) : formatUsdPrice(latestValue) : "-"}</strong>
         </div>
         <div className="chart-mode-tabs" role="tablist" aria-label="Chart view">
-          <button className={chartMode === "marketCap" ? "active" : ""} onClick={() => setChartMode("marketCap")} type="button">
+          <button aria-selected={chartMode === "marketCap"} className={chartMode === "marketCap" ? "active" : ""} onClick={() => setChartMode("marketCap")} role="tab" type="button">
             Market Cap
           </button>
-          <button className={chartMode === "price" ? "active" : ""} onClick={() => setChartMode("price")} type="button">
+          <button aria-selected={chartMode === "price"} className={chartMode === "price" ? "active" : ""} onClick={() => setChartMode("price")} role="tab" type="button">
             Price
           </button>
         </div>
         <div className="chart-interval-tabs" role="tablist" aria-label="Candle interval">
           {[1, 5, 15].map((minutes) => (
             <button
+              aria-selected={intervalMinutes === minutes}
               className={intervalMinutes === minutes ? "active" : ""}
               key={minutes}
               onClick={() => {
@@ -1476,6 +1519,7 @@ function TradeChart({ trades, status, symbol, ethUsd }: { trades: DeployedTrade[
                 userTouchedChartRef.current = false;
                 setIntervalMinutes(minutes);
               }}
+              role="tab"
               type="button"
             >
               {minutes}m

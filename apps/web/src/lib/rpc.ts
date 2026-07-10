@@ -5,11 +5,21 @@ export const DEFAULT_BASE_RPC_URLS = [
   "https://base.meowrpc.com"
 ];
 
+export const DEFAULT_ROBINHOOD_RPC_URLS = ["https://rpc.mainnet.chain.robinhood.com"];
+
 export function baseRpcUrls() {
   return uniqueUrls([
     ...splitRpcUrls(process.env.NEXT_PUBLIC_BASE_RPC_URL),
     ...splitRpcUrls(process.env.NEXT_PUBLIC_BASE_RPC_FALLBACK_URLS),
     ...DEFAULT_BASE_RPC_URLS
+  ]);
+}
+
+export function robinhoodRpcUrls() {
+  return uniqueUrls([
+    ...splitRpcUrls(process.env.NEXT_PUBLIC_ROBINHOOD_RPC_URL),
+    ...splitRpcUrls(process.env.NEXT_PUBLIC_ROBINHOOD_RPC_FALLBACK_URLS),
+    ...DEFAULT_ROBINHOOD_RPC_URLS
   ]);
 }
 

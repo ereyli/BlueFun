@@ -8,10 +8,10 @@ import { WagmiProvider, fallback, http } from "wagmi";
 import { useState } from "react";
 import { baseChain } from "@/lib/base-chain";
 import { robinhoodChain } from "@/lib/robinhood-chain";
-import { baseRpcUrls } from "@/lib/rpc";
+import { baseRpcUrls, robinhoodRpcUrls } from "@/lib/rpc";
 
 const baseTransports = baseRpcUrls().map((url) => http(url));
-const robinhoodTransport = http(process.env.NEXT_PUBLIC_ROBINHOOD_RPC_URL || "https://rpc.mainnet.chain.robinhood.com");
+const robinhoodTransport = fallback(robinhoodRpcUrls().map((url) => http(url)), { rank: true, retryCount: 1 });
 
 const config = getDefaultConfig({
   appName: "BlueFun",

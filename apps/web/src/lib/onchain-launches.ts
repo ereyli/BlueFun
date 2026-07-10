@@ -1,7 +1,7 @@
 import { createPublicClient, fallback, formatEther, getAddress, http, zeroAddress } from "viem";
 import { baseChain } from "@/lib/base-chain";
 import { addresses, b20TokenAbi, bondingCurveAbi, launchFactoryAbi } from "@/lib/contracts";
-import { getDbLaunches } from "@/lib/db-launches";
+import { getDbLaunch, getDbLaunches } from "@/lib/db-launches";
 import { baseRpcUrls } from "@/lib/rpc";
 import { readTokenMetadata, type TokenMetadata } from "@/lib/token-metadata";
 
@@ -74,9 +74,8 @@ export async function getDeployedLaunch(id: string): Promise<DeployedLaunch | un
   if (!addresses.bondingCurveMarket) return undefined;
 
   if (process.env.POSTGRES_INDEXER_ENABLED === "true") {
-    const dbLaunches = await getDbLaunches().catch(() => undefined);
-    const dbLaunch = dbLaunches?.find((launch) => launch.id === id);
-    if (dbLaunch || !onchainFallbackEnabled()) return dbLaunch;
+    const dbLaunch = await getDbLaunch(id).catch(() => undefined);
+    if (dbLaunch) return dbLaunch;
   }
 
   try {
@@ -289,119 +288,6 @@ async function getLaunchCreatedEventMap(expectedCount: bigint) {
   return map;
 }
 
-async function getOnchainTrades(id: string): Promise<DeployedTrade[]> {
-  if (!addresses.bondingCurveMarket) return [];
-  const launchId = BigInt(id);
-  const latest = await publicClient.getBlockNumber();
-  const chunkSize = 1900n;
-  let toBlock = latest;
-  const trades: Array<DeployedTrade & {
-    block: bigint;
-    logIndex: number;
-    grossEth: bigint;
-    netEth: bigint;
-    tokenDelta: bigint;
-  }> = [];
-  const blockTimestamps = new Map<bigint, string>();
-
-  while (toBlock >= addresses.deploymentBlock) {
-    const fromBlock = toBlock > chunkSize && toBlock - chunkSize > addresses.deploymentBlock
-      ? toBlock - chunkSize
-      : addresses.deploymentBlock;
-
-    const [buys, sells] = await Promise.all([
-      publicClient.getContractEvents({
-        address: addresses.bondingCurveMarket,
-        abi: bondingCurveAbi,
-        eventName: "TokensBought",
-        args: { launchId },
-        fromBlock,
-        toBlock
-      }),
-      publicClient.getContractEvents({
-        address: addresses.bondingCurveMarket,
-        abi: bondingCurveAbi,
-        eventName: "TokensSold",
-        args: { launchId },
-        fromBlock,
-        toBlock
-      })
-    ]);
-
-    for (const log of buys) {
-      const grossEth = log.args.ethIn || 0n;
-      const netEth = grossEth - (log.args.platformFee || 0n) - (log.args.creatorFee || 0n);
-      trades.push({
-        side: "buy",
-        trader: log.args.buyer ? getAddress(log.args.buyer) as `0x${string}` : undefined,
-        ethAmount: `${trimEth(formatEther(grossEth))} ETH`,
-        tokenAmount: trimEth(formatEther(log.args.tokensOut || 0n)),
-        txHash: log.transactionHash,
-        blockNumber: log.blockNumber.toString(),
-        createdAt: "",
-        block: log.blockNumber,
-        logIndex: log.logIndex,
-        grossEth,
-        netEth,
-        tokenDelta: log.args.tokensOut || 0n
-      });
-    }
-
-    for (const log of sells) {
-      const netEth = log.args.ethOut || 0n;
-      const grossEth = netEth + (log.args.platformFee || 0n) + (log.args.creatorFee || 0n);
-      trades.push({
-        side: "sell",
-        trader: log.args.seller ? getAddress(log.args.seller) as `0x${string}` : undefined,
-        ethAmount: `${trimEth(formatEther(log.args.ethOut || 0n))} ETH`,
-        tokenAmount: trimEth(formatEther(log.args.tokensIn || 0n)),
-        txHash: log.transactionHash,
-        blockNumber: log.blockNumber.toString(),
-        createdAt: "",
-        block: log.blockNumber,
-        logIndex: log.logIndex,
-        grossEth,
-        netEth,
-        tokenDelta: log.args.tokensIn || 0n
-      });
-    }
-
-    if (fromBlock === addresses.deploymentBlock) break;
-    toBlock = fromBlock - 1n;
-  }
-
-  for (const blockNumber of new Set(trades.map((trade) => trade.block))) {
-    try {
-      const block = await publicClient.getBlock({ blockNumber });
-      blockTimestamps.set(blockNumber, new Date(Number(block.timestamp) * 1000).toISOString());
-    } catch {
-      blockTimestamps.set(blockNumber, "");
-    }
-  }
-
-  let virtualTokenReserve = 1_000_000_000n * 1_000_000_000_000_000_000n;
-  let virtualEthReserve = 1_250_000_000_000_000_000n;
-  const maxSupply = 1_000_000_000n * 1_000_000_000_000_000_000n;
-
-  return trades
-    .sort((a, b) => Number(a.block - b.block) || a.logIndex - b.logIndex)
-    .map(({ block, logIndex, grossEth, netEth, tokenDelta, ...trade }) => {
-      if (trade.side === "buy") {
-        virtualEthReserve += netEth;
-        virtualTokenReserve = virtualTokenReserve > tokenDelta ? virtualTokenReserve - tokenDelta : 1n;
-      } else {
-        virtualEthReserve = virtualEthReserve > grossEth ? virtualEthReserve - grossEth : 1n;
-        virtualTokenReserve += tokenDelta;
-      }
-      const marketCapWei = virtualTokenReserve === 0n ? 0n : (virtualEthReserve * maxSupply) / virtualTokenReserve;
-      return {
-      ...trade,
-      marketCapEth: formatEther(marketCapWei),
-      createdAt: blockTimestamps.get(block) || trade.createdAt
-      };
-    });
-}
-
 async function getRecentOnchainTrades(id: string): Promise<DeployedTrade[]> {
   if (!addresses.bondingCurveMarket) return [];
   const latest = await publicClient.getBlockNumber();
@@ -468,50 +354,15 @@ async function getOnchainTradesInRange(id: string, fromBlock: bigint, toBlock: b
     }
   }
 
-  return trades.map(({ block, logIndex, ...trade }) => ({
-    ...trade,
-    createdAt: blockTimestamps.get(block) || trade.createdAt
+  return trades.map((trade) => ({
+    side: trade.side,
+    trader: trade.trader,
+    ethAmount: trade.ethAmount,
+    tokenAmount: trade.tokenAmount,
+    txHash: trade.txHash,
+    blockNumber: trade.blockNumber,
+    createdAt: blockTimestamps.get(trade.block) || trade.createdAt
   }));
-}
-
-function mergeTrades(dbTrades: DeployedTrade[], onchainTrades: DeployedTrade[]) {
-  const merged = new Map<string, DeployedTrade>();
-  for (const trade of dbTrades) {
-    merged.set(`${trade.txHash}:${trade.side}:${trade.tokenAmount}`, trade);
-  }
-  for (const trade of onchainTrades) {
-    merged.set(`${trade.txHash}:${trade.side}:${trade.tokenAmount}`, trade);
-  }
-  return Array.from(merged.values()).sort((a, b) => {
-    const blockDiff = Number(BigInt(a.blockNumber || "0") - BigInt(b.blockNumber || "0"));
-    if (blockDiff !== 0) return blockDiff;
-    return Date.parse(a.createdAt || "0") - Date.parse(b.createdAt || "0");
-  });
-}
-
-function mergeLaunches(dbLaunches: DeployedLaunch[], onchainLaunches: DeployedLaunch[]) {
-  const merged = new Map<string, DeployedLaunch>();
-
-  for (const launch of dbLaunches) {
-    merged.set(launch.id, launch);
-  }
-
-  for (const launch of onchainLaunches) {
-    const indexed = merged.get(launch.id);
-    merged.set(launch.id, {
-      ...indexed,
-      ...launch,
-      contractURI: launch.contractURI || indexed?.contractURI || "",
-      description: launch.description || indexed?.description,
-      imageURI: launch.imageURI || indexed?.imageURI,
-      website: launch.website || indexed?.website,
-      twitter: launch.twitter || indexed?.twitter,
-      telegram: launch.telegram || indexed?.telegram,
-      discord: launch.discord || indexed?.discord
-    });
-  }
-
-  return Array.from(merged.values()).sort((a, b) => Number(b.id) - Number(a.id));
 }
 
 async function readTokenString(token: `0x${string}`, functionName: "name" | "symbol", fallback: string) {

@@ -5,6 +5,8 @@ contracts/out/
 cache/
 broadcast/
 coverage/
+apps/indexer/dist/
+*.tsbuildinfo
 .env
 .env*
 .env.local

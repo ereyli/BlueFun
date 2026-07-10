@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
-import { assertRateLimit, assertSameOrigin } from "@/lib/server/request-guard";
+import { assertRateLimit, assertSameOrigin, RequestGuardError } from "@/lib/server/request-guard";
+import { hasSupportedImageSignature, optimizeTokenImage } from "@/lib/server/image-validation";
 
 export const runtime = "nodejs";
 
@@ -9,11 +10,11 @@ const PINATA_FILE_ENDPOINT = "https://api.pinata.cloud/pinning/pinFileToIPFS";
 export async function POST(request: Request) {
   try {
     assertSameOrigin(request);
-    assertRateLimit(request);
+    await assertRateLimit(request, "pinata-image");
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Upload is temporarily unavailable." },
-      { status: 429 }
+      { status: error instanceof RequestGuardError ? error.status : 503 }
     );
   }
 
@@ -32,14 +33,18 @@ export async function POST(request: Request) {
   if (!file.type.startsWith("image/")) {
     return NextResponse.json({ error: "Please select a valid image file." }, { status: 400 });
   }
+  if (!(await hasSupportedImageSignature(file))) {
+    return NextResponse.json({ error: "Image contents do not match a supported image format." }, { status: 400 });
+  }
 
   if (file.size > MAX_IMAGE_BYTES) {
     return NextResponse.json({ error: "Image must be 5 MB or smaller." }, { status: 400 });
   }
 
   try {
+    const optimizedFile = await optimizeTokenImage(file);
     const imageForm = new FormData();
-    imageForm.append("file", file, safeFileName(file.name || "token-image.png"));
+    imageForm.append("file", optimizedFile, optimizedFile.name);
     imageForm.append("pinataMetadata", JSON.stringify({ name: safeFileName(file.name || "token-image") }));
 
     const result = await pinataFetch<{ IpfsHash: string }>(PINATA_FILE_ENDPOINT, {
@@ -62,7 +67,7 @@ export async function POST(request: Request) {
 }
 
 async function pinataFetch<T>(url: string, init: RequestInit): Promise<T> {
-  const response = await fetch(url, init);
+  const response = await fetch(url, { ...init, signal: AbortSignal.timeout(20_000) });
   if (!response.ok) throw new Error("Pinata upload failed");
   return (await response.json()) as T;
 }

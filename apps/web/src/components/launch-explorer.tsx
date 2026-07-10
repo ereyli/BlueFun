@@ -8,18 +8,47 @@ import { isFeaturedLaunch, isTrustedLaunch } from "@/lib/featured-launches";
 import { compactUsd, parseDisplayAmount } from "@/lib/market-math";
 import type { DbLaunchMetrics } from "@/lib/db-launches";
 import type { DeployedLaunch } from "@/lib/onchain-launches";
-import { ipfsToGatewayUrl } from "@/lib/token-metadata";
+import { optimizedTokenImageUrl } from "@/lib/token-metadata";
 import { NetworkIcon, networkMeta } from "@/components/network-icon";
 
 type Filter = "Live" | "New" | "Ready" | "Graduated" | "Safe" | "Progress";
 
-export function LaunchExplorer({ launches, metrics, chainId = 8453 }: { launches: DeployedLaunch[]; metrics?: DbLaunchMetrics; chainId?: number }) {
+export function LaunchExplorer({ launches: initialLaunches, metrics, chainId = 8453 }: { launches: DeployedLaunch[]; metrics?: DbLaunchMetrics; chainId?: number }) {
   const router = useRouter();
+  const [launches, setLaunches] = useState(initialLaunches);
+  const [hasMore, setHasMore] = useState(initialLaunches.length === 80);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("New");
   const [ethUsd, setEthUsd] = useState<number | null>(null);
   const [isPending, startTransition] = useTransition();
   const activeNetwork = networkMeta(chainId);
+
+  useEffect(() => {
+    setLaunches(initialLaunches);
+    setHasMore(initialLaunches.length === 80);
+  }, [chainId, initialLaunches]);
+
+  async function loadMore() {
+    const cursor = launches.at(-1)?.id;
+    if (!cursor || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      const response = await fetch(`/api/launches?chain=${chainId}&cursor=${cursor}`, { cache: "no-store" });
+      const payload = await response.json() as { launches?: DeployedLaunch[]; hasMore?: boolean };
+      if (!response.ok) throw new Error("Launch page unavailable");
+      setLaunches((current) => {
+        const merged = new Map(current.map((launch) => [`${launch.chainId}:${launch.id}`, launch]));
+        for (const launch of payload.launches ?? []) merged.set(`${launch.chainId}:${launch.id}`, launch);
+        return Array.from(merged.values());
+      });
+      setHasMore(Boolean(payload.hasMore));
+    } catch {
+      setHasMore(false);
+    } finally {
+      setLoadingMore(false);
+    }
+  }
 
   useEffect(() => {
     const refreshWhenVisible = () => {
@@ -233,6 +262,7 @@ export function LaunchExplorer({ launches, metrics, chainId = 8453 }: { launches
           })}
         </div>
       )}
+      {hasMore && filteredLaunches.length > 0 ? <button className="button load-more-launches" disabled={loadingMore} onClick={loadMore} type="button">{loadingMore ? "Loading launches…" : "Load more"}</button> : null}
     </section>
   );
 }
@@ -269,7 +299,7 @@ function TokenAvatar({ hot, launch }: { hot?: boolean; launch: DeployedLaunch })
   return (
     <div className={hot ? "token-art hot" : "token-art"}>
       {launch.imageURI ? (
-        <img className="token-image" src={ipfsToGatewayUrl(launch.imageURI)} alt={launch.name} loading="lazy" decoding="async" />
+        <img className="token-image" src={optimizedTokenImageUrl(launch.imageURI)} alt={launch.name} loading="lazy" decoding="async" />
       ) : (
         <>
           <div className="token-symbol-art">{launch.symbol.slice(0, 4)}</div>

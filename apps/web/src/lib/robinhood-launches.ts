@@ -1,13 +1,14 @@
-import { createPublicClient, formatEther, getAddress, http, zeroAddress } from "viem";
+import { createPublicClient, fallback, formatEther, getAddress, http, zeroAddress } from "viem";
 import { robinhoodChain } from "@/lib/robinhood-chain";
 import { b20TokenAbi, bondingCurveAbi, launchFactoryAbi, robinhoodAddresses } from "@/lib/contracts";
 import { readTokenMetadata } from "@/lib/token-metadata";
 import type { DeployedLaunch } from "@/lib/onchain-launches";
-import { getDbLaunches } from "@/lib/db-launches";
+import { getDbLaunch, getDbLaunches } from "@/lib/db-launches";
+import { robinhoodRpcUrls } from "@/lib/rpc";
 
 const client = createPublicClient({
   chain: robinhoodChain,
-  transport: http(process.env.NEXT_PUBLIC_ROBINHOOD_RPC_URL || "https://rpc.mainnet.chain.robinhood.com")
+  transport: fallback(robinhoodRpcUrls().map((url) => http(url)), { rank: true, retryCount: 1 })
 });
 
 export async function getRobinhoodLaunches(): Promise<DeployedLaunch[]> {
@@ -20,8 +21,7 @@ export async function getRobinhoodLaunches(): Promise<DeployedLaunch[]> {
 }
 
 export async function getRobinhoodLaunch(id: string): Promise<DeployedLaunch | undefined> {
-  const indexed = await getDbLaunches(robinhoodChain.id);
-  const indexedLaunch = indexed?.find((launch) => launch.id === id);
+  const indexedLaunch = await getDbLaunch(id, robinhoodChain.id);
   if (indexedLaunch) return indexedLaunch;
   const market = robinhoodAddresses.bondingCurveMarket;
   const factory = robinhoodAddresses.launchFactory;

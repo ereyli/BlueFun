@@ -9,4 +9,11 @@ RUN npm ci --workspace apps/indexer --include-workspace-root=false --include=dev
 
 COPY apps/indexer apps/indexer
 
-CMD ["npm", "run", "dev", "-w", "apps/indexer"]
+RUN npm run build -w apps/indexer
+RUN npm prune --omit=dev --workspace apps/indexer --include-workspace-root=false
+
+ENV NODE_ENV=production
+EXPOSE 3000
+HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=4 CMD node -e "fetch('http://127.0.0.1:3000/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"
+
+CMD ["npm", "run", "start", "-w", "apps/indexer"]
