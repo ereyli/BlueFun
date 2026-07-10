@@ -4,6 +4,7 @@ import { getDeployedLaunch, getLaunchTrades } from "@/lib/onchain-launches";
 import { siteUrl } from "@/lib/site-url";
 import { ipfsToGatewayUrl } from "@/lib/token-metadata";
 import { getRobinhoodLaunch } from "@/lib/robinhood-launches";
+import { getDbTrades } from "@/lib/db-launches";
 
 export const dynamic = "force-dynamic";
 
@@ -22,7 +23,7 @@ export async function generateMetadata({ params, searchParams }: LaunchParams): 
 
   const title = `${launch.name} ($${launch.symbol}) on BlueFun`;
   const description = launch.description || `Trade $${launch.symbol} on the BlueFun bonding curve.`;
-  const url = siteUrl(`/launch/${id}`);
+  const url = siteUrl(`/launch/${id}${isRobinhood ? "?chain=4663" : ""}`);
   const image = ipfsToGatewayUrl(launch.imageURI) || siteUrl("/brand/funblue-icon.png");
 
   return {
@@ -53,7 +54,7 @@ export default async function LaunchMarketPage({ params, searchParams }: LaunchP
   const isRobinhood = Number((await searchParams).chain) === 4663;
   const [launch, trades] = await Promise.all([
     isRobinhood ? getRobinhoodLaunch(id) : getDeployedLaunch(id),
-    isRobinhood ? Promise.resolve([]) : getLaunchTrades(id)
+    isRobinhood ? getDbTrades(id, 4663).then((value) => value ?? []) : getLaunchTrades(id)
   ]);
   return <MarketClient id={id} launch={launch} trades={trades} />;
 }

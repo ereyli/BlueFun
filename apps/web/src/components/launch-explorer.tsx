@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState, useTransition, type ReactNode } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Activity, BarChart3, Clock, Coins, Crown, Grid2X2, Rocket, Search, Settings, ShieldCheck, SlidersHorizontal, Sparkles, Trophy, Users } from "lucide-react";
+import { Activity, BarChart3, Clock, Coins, Crown, Rocket, Search, ShieldCheck, Sparkles, Trophy, Users } from "lucide-react";
 import { isFeaturedLaunch, isTrustedLaunch } from "@/lib/featured-launches";
 import { compactUsd, parseDisplayAmount } from "@/lib/market-math";
 import type { DbLaunchMetrics } from "@/lib/db-launches";
@@ -22,10 +22,17 @@ export function LaunchExplorer({ launches, metrics, chainId = 8453 }: { launches
   const activeNetwork = networkMeta(chainId);
 
   useEffect(() => {
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible") startTransition(() => router.refresh());
+    };
     const interval = window.setInterval(() => {
-      startTransition(() => router.refresh());
-    }, 30_000);
-    return () => window.clearInterval(interval);
+      refreshWhenVisible();
+    }, 60_000);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+    };
   }, [router]);
 
   useEffect(() => {
@@ -40,7 +47,7 @@ export function LaunchExplorer({ launches, metrics, chainId = 8453 }: { launches
       }
     }
     loadEthPrice();
-    const interval = window.setInterval(loadEthPrice, 30_000);
+    const interval = window.setInterval(loadEthPrice, 300_000);
     return () => {
       active = false;
       window.clearInterval(interval);
@@ -175,11 +182,7 @@ export function LaunchExplorer({ launches, metrics, chainId = 8453 }: { launches
           <FilterButton active={filter === "Safe"} onClick={() => setFilter("Safe")}><ShieldCheck size={14} />Safe</FilterButton>
           <FilterButton active={filter === "Progress"} onClick={() => setFilter("Progress")}><Trophy size={14} />Progress</FilterButton>
         </div>
-        <div className="view-controls">
-          <button className="icon-control" type="button" aria-label="Open filters"><SlidersHorizontal size={17} /></button>
-          <button className="feed-tab active" type="button"><Grid2X2 size={15} />Grid</button>
-          <button className="icon-control" type="button" aria-label="Open display settings"><Settings size={17} /></button>
-        </div>
+        <span className="explore-result-count">{filteredLaunches.length} {filteredLaunches.length === 1 ? "launch" : "launches"}</span>
       </div>
 
       {filteredLaunches.length === 0 ? (
@@ -217,9 +220,9 @@ export function LaunchExplorer({ launches, metrics, chainId = 8453 }: { launches
               </div>
               <div className="progress"><span style={{ width: `${launch.progress}%` }} /></div>
               <div className="token-stat-row">
-                <div><span>Volume</span><strong>{launch.volume}</strong></div>
                 <div><span>Raised</span><strong>{launch.raised}</strong></div>
-                <div><span>Progress</span><strong>{launch.progress}%</strong></div>
+                <div><span>Market cap</span><strong>{formatUsdFromEthText(launch.marketCap, ethUsd)}</strong></div>
+                <div><span>Age</span><strong>{launch.age}</strong></div>
               </div>
               <div className="token-foot">
                 <span>By {launch.creator.slice(0, 6)}...{launch.creator.slice(-4)}</span>
@@ -266,7 +269,7 @@ function TokenAvatar({ hot, launch }: { hot?: boolean; launch: DeployedLaunch })
   return (
     <div className={hot ? "token-art hot" : "token-art"}>
       {launch.imageURI ? (
-        <img className="token-image" src={ipfsToGatewayUrl(launch.imageURI)} alt={launch.name} />
+        <img className="token-image" src={ipfsToGatewayUrl(launch.imageURI)} alt={launch.name} loading="lazy" decoding="async" />
       ) : (
         <>
           <div className="token-symbol-art">{launch.symbol.slice(0, 4)}</div>

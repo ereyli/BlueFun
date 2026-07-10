@@ -2,7 +2,7 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import pg from "pg";
 import { formatEther, getAddress } from "viem";
 import WebSocket from "ws";
-import { addresses, chain, indexerScope as configuredIndexerScope } from "@/lib/contracts";
+import { contractsForChain, indexerScopeForChain } from "@/lib/contracts";
 import type { DeployedLaunch, DeployedTrade } from "@/lib/onchain-launches";
 import { readTokenMetadata } from "@/lib/token-metadata";
 
@@ -13,16 +13,17 @@ export type DbLaunchMetrics = {
   totalVolumeEth: number;
 };
 
-export async function getDbLaunches(): Promise<DeployedLaunch[] | undefined> {
+export async function getDbLaunches(chainId = 8453): Promise<DeployedLaunch[] | undefined> {
   if (process.env.POSTGRES_INDEXER_ENABLED !== "true") return undefined;
+  const context = dbContext(chainId);
 
   try {
     if (hasSupabaseConfig()) {
       let response: { data: Array<Record<string, unknown>> | null; error: { message?: string; details?: string } | null } = await getSupabase()
         .from("launches")
         .select("id, token, creator, name, symbol, contract_uri, description, website_url, twitter_url, telegram_url, discord_url, status, raised_eth, graduation_target_eth, progress, volume_eth, token_created_at, created_block")
-        .eq("scope", indexerScope())
-        .gte("created_block", addresses.deploymentBlock.toString())
+        .eq("scope", context.scope)
+        .gte("created_block", context.deploymentBlock)
         .order("id", { ascending: false })
         .limit(80);
 
@@ -30,14 +31,14 @@ export async function getDbLaunches(): Promise<DeployedLaunch[] | undefined> {
         response = await getSupabase()
           .from("launches")
           .select("id, token, creator, name, symbol, contract_uri, status, raised_eth, graduation_target_eth, progress, volume_eth, token_created_at, created_block")
-          .eq("scope", indexerScope())
-          .gte("created_block", addresses.deploymentBlock.toString())
+          .eq("scope", context.scope)
+          .gte("created_block", context.deploymentBlock)
           .order("id", { ascending: false })
           .limit(80);
       }
 
       if (response.error) throw response.error;
-      return mapRows(response.data ?? []);
+      return mapRows(response.data ?? [], context.chainId);
     }
 
     if (!process.env.DATABASE_URL) return undefined;
@@ -56,25 +57,26 @@ export async function getDbLaunches(): Promise<DeployedLaunch[] | undefined> {
          and created_block >= $2
        order by id desc
        limit 80`
-    , [indexerScope(), addresses.deploymentBlock.toString()]), 300);
+    , [context.scope, context.deploymentBlock]), 300);
 
-    return mapRows(result.rows);
+    return mapRows(result.rows, context.chainId);
   } catch (error) {
     console.error("Failed to read launches from database", error);
     return undefined;
   }
 }
 
-export async function getDbLaunchMetrics(): Promise<DbLaunchMetrics | undefined> {
+export async function getDbLaunchMetrics(chainId = 8453): Promise<DbLaunchMetrics | undefined> {
   if (process.env.POSTGRES_INDEXER_ENABLED !== "true") return undefined;
+  const context = dbContext(chainId);
 
   try {
     if (hasSupabaseConfig()) {
       const { data, error } = await getSupabase()
         .from("trades")
         .select("eth_amount")
-        .eq("scope", indexerScope())
-        .gte("block_number", addresses.deploymentBlock.toString())
+        .eq("scope", context.scope)
+        .gte("block_number", context.deploymentBlock)
         .limit(5000);
 
       if (error) throw error;
@@ -95,7 +97,7 @@ export async function getDbLaunchMetrics(): Promise<DbLaunchMetrics | undefined>
        from trades
        where scope = $1
          and block_number >= $2`,
-      [indexerScope(), addresses.deploymentBlock.toString()]
+      [context.scope, context.deploymentBlock]
     ), 300);
 
     return {
@@ -117,17 +119,18 @@ function isMissingTradeColumnError(error: { message?: string; details?: string }
   return text.includes("market_cap_eth") || text.includes("source");
 }
 
-export async function getDbTrades(launchId: string): Promise<DeployedTrade[] | undefined> {
+export async function getDbTrades(launchId: string, chainId = 8453): Promise<DeployedTrade[] | undefined> {
   if (process.env.POSTGRES_INDEXER_ENABLED !== "true") return undefined;
+  const context = dbContext(chainId);
 
   try {
     if (hasSupabaseConfig()) {
       let response: { data: Array<Record<string, unknown>> | null; error: { message?: string; details?: string } | null } = await getSupabase()
         .from("trades")
         .select("side, source, trader, eth_amount, token_amount, market_cap_eth, tx_hash, block_number, created_at")
-        .eq("scope", indexerScope())
+        .eq("scope", context.scope)
         .eq("launch_id", launchId)
-        .gte("block_number", addresses.deploymentBlock.toString())
+        .gte("block_number", context.deploymentBlock)
         .order("block_number", { ascending: false })
         .order("id", { ascending: false })
         .limit(250);
@@ -136,9 +139,9 @@ export async function getDbTrades(launchId: string): Promise<DeployedTrade[] | u
         response = await getSupabase()
           .from("trades")
           .select("side, trader, eth_amount, token_amount, tx_hash, block_number, created_at")
-          .eq("scope", indexerScope())
+          .eq("scope", context.scope)
           .eq("launch_id", launchId)
-          .gte("block_number", addresses.deploymentBlock.toString())
+          .gte("block_number", context.deploymentBlock)
           .order("block_number", { ascending: false })
           .order("id", { ascending: false })
           .limit(250);
@@ -163,7 +166,7 @@ export async function getDbTrades(launchId: string): Promise<DeployedTrade[] | u
          and block_number >= $3
        order by block_number desc, id desc
        limit 250`,
-      [indexerScope(), launchId, addresses.deploymentBlock.toString()]
+      [context.scope, launchId, context.deploymentBlock]
     ), 300);
 
     return mapTrades(result.rows);
@@ -173,7 +176,7 @@ export async function getDbTrades(launchId: string): Promise<DeployedTrade[] | u
   }
 }
 
-async function mapRows(rows: Array<Record<string, unknown>>): Promise<DeployedLaunch[]> {
+async function mapRows(rows: Array<Record<string, unknown>>, chainId: number): Promise<DeployedLaunch[]> {
   return Promise.all(rows.map(async (row) => {
     const status = toStatus(String(row.status));
     const raised = parseDbBigInt(row.raised_eth);
@@ -183,7 +186,7 @@ async function mapRows(rows: Array<Record<string, unknown>>): Promise<DeployedLa
     const metadata = await readTokenMetadata(contractURI);
 
     return {
-      chainId: 8453,
+      chainId,
       id: String(row.id),
       token: getAddress(String(row.token)) as `0x${string}`,
       creator: getAddress(String(row.creator)) as `0x${string}`,
@@ -297,8 +300,11 @@ function getSupabase() {
   return supabase;
 }
 
-function indexerScope() {
-  const configured = configuredIndexerScope();
-  if (configured) return configured;
-  return `${chain.id}:${addresses.launchFactory?.toLowerCase()}:${addresses.bondingCurveMarket?.toLowerCase()}:${addresses.deploymentBlock.toString()}`;
+function dbContext(chainId: number) {
+  const config = contractsForChain(chainId);
+  return {
+    chainId: config.chain.id,
+    scope: indexerScopeForChain(config.chain.id),
+    deploymentBlock: config.addresses.deploymentBlock.toString()
+  };
 }

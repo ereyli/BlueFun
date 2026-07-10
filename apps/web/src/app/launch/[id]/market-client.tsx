@@ -35,6 +35,7 @@ import type { DeployedLaunch, DeployedTrade } from "@/lib/onchain-launches";
 import { siteUrl } from "@/lib/site-url";
 import { ipfsToGatewayUrl } from "@/lib/token-metadata";
 import { blueFunV4PoolKey, buildV4EthToTokenSwap, buildV4TokenToEthSwap } from "@/lib/uniswap-v4-swap";
+import { NetworkIcon } from "@/components/network-icon";
 
 const MAX_UINT160 = (1n << 160n) - 1n;
 const MAX_UINT48 = 281_474_976_710_655;
@@ -55,6 +56,7 @@ export function MarketClient({ id, launch, trades }: { id: string; launch?: Depl
   const { address, isConnected, chainId } = useAccount();
   const activeChainId = launch?.chainId === 4663 ? 4663 : 8453;
   const { addresses, chain, uniswapV4Addresses, uniswapChainName } = contractsForChain(activeChainId);
+  const wrongNetwork = Boolean(isConnected && chainId && chainId !== activeChainId);
   const { data: hash, error, writeContract, isPending } = useWriteContract();
   const receipt = useWaitForTransactionReceipt({ hash });
   const parsedAmount = parsePositiveEther(amount);
@@ -154,13 +156,13 @@ export function MarketClient({ id, launch, trades }: { id: string; launch?: Depl
   const needsSellApproval = mode === "sell" && parsedAmount > 0n && !hasSellAllowance;
   const exceedsSellBalance = mode === "sell" && parsedAmount > sellBalance;
   const exceedsEthBalance = mode === "buy" && Boolean(ethBalance.data) && parsedAmount > (ethBalance.data?.value ?? 0n);
-  const tradeDisabled = !addresses.bondingCurveMarket || !isConnected || isWorking || parsedAmount === 0n || exceedsEthBalance || exceedsSellBalance || (!needsSellApproval && minOut === 0n);
+  const tradeDisabled = !addresses.bondingCurveMarket || !isConnected || wrongNetwork || isWorking || parsedAmount === 0n || exceedsEthBalance || exceedsSellBalance || (!needsSellApproval && minOut === 0n);
   const permit2Amount = graduatedPermit2RouterAllowance.data?.[0] ?? 0n;
   const permit2Expiration = graduatedPermit2RouterAllowance.data?.[1] ?? 0;
   const needsGraduatedTokenApproval = Boolean(isGraduated && mode === "sell" && parsedAmount > 0n && (graduatedTokenPermit2Allowance.data ?? 0n) < parsedAmount);
   const needsGraduatedPermit2Approval = Boolean(isGraduated && mode === "sell" && parsedAmount > 0n && !needsGraduatedTokenApproval && (permit2Amount < parsedAmount || BigInt(permit2Expiration) <= BigInt(Math.floor(Date.now() / 1000) + 900)));
-  const graduatedBuyDisabled = !launch || !isConnected || isWorking || mode !== "buy" || parsedAmount === 0n || exceedsEthBalance || graduatedMinOut === 0n;
-  const graduatedSellDisabled = !launch || !isConnected || isWorking || mode !== "sell" || parsedAmount === 0n || exceedsSellBalance || (!needsGraduatedTokenApproval && !needsGraduatedPermit2Approval && graduatedMinOut === 0n);
+  const graduatedBuyDisabled = !launch || !isConnected || wrongNetwork || isWorking || mode !== "buy" || parsedAmount === 0n || exceedsEthBalance || graduatedMinOut === 0n;
+  const graduatedSellDisabled = !launch || !isConnected || wrongNetwork || isWorking || mode !== "sell" || parsedAmount === 0n || exceedsSellBalance || (!needsGraduatedTokenApproval && !needsGraduatedPermit2Approval && graduatedMinOut === 0n);
   const latestMarketCapEth = useMemo(() => {
     return trades
       .slice()
@@ -177,6 +179,7 @@ export function MarketClient({ id, launch, trades }: { id: string; launch?: Depl
   const displayPriceText = latestPriceEth > 0
     ? formatUsdFromEthText(displayPrice, ethUsd, true)
     : isGraduated && dexPair?.priceUsd ? formatUsdPrice(dexPair.priceUsd) : formatUsdFromEthText(displayPrice, ethUsd, true);
+  const showCreatorEarnings = Boolean(address && (address.toLowerCase() === launch?.creator.toLowerCase() || (accountFeeBalance.data ?? 0n) > 0n));
 
   useEffect(() => {
     if (!receipt.isSuccess) return;
@@ -190,8 +193,17 @@ export function MarketClient({ id, launch, trades }: { id: string; launch?: Depl
   }, [graduatedPermit2RouterAllowance, graduatedQuote, graduatedTokenPermit2Allowance, receipt.isSuccess, router, tokenAllowance, tokenBalance]);
 
   useEffect(() => {
-    const interval = window.setInterval(() => router.refresh(), 20_000);
-    return () => window.clearInterval(interval);
+    const hasRealtime = Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY);
+    if (hasRealtime) return;
+    const refreshWhenVisible = () => {
+      if (document.visibilityState === "visible") router.refresh();
+    };
+    const interval = window.setInterval(refreshWhenVisible, 60_000);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+    };
   }, [router]);
 
   useEffect(() => {
@@ -203,6 +215,7 @@ export function MarketClient({ id, launch, trades }: { id: string; launch?: Depl
     const supabase = createClient(supabaseUrl, supabaseAnonKey, {
       auth: { persistSession: false }
     });
+    let refreshTimer: number | undefined;
     const channel = supabase
       .channel(`launch-${id}-trades`)
       .on(
@@ -215,16 +228,20 @@ export function MarketClient({ id, launch, trades }: { id: string; launch?: Depl
         },
         (payload) => {
           if ((payload.new as { scope?: string } | null)?.scope === scope || (payload.old as { scope?: string } | null)?.scope === scope) {
-            router.refresh();
+            window.clearTimeout(refreshTimer);
+            refreshTimer = window.setTimeout(() => {
+              if (document.visibilityState === "visible") router.refresh();
+            }, 500);
           }
         }
       )
       .subscribe();
 
     return () => {
+      window.clearTimeout(refreshTimer);
       supabase.removeChannel(channel);
     };
-  }, [id, router]);
+  }, [activeChainId, id, router]);
 
   useEffect(() => {
     let active = true;
@@ -238,7 +255,7 @@ export function MarketClient({ id, launch, trades }: { id: string; launch?: Depl
       }
     }
     loadEthPrice();
-    const interval = window.setInterval(loadEthPrice, 30_000);
+    const interval = window.setInterval(loadEthPrice, 300_000);
     return () => {
       active = false;
       window.clearInterval(interval);
@@ -265,7 +282,9 @@ export function MarketClient({ id, launch, trades }: { id: string; launch?: Depl
     }
 
     loadDexPair();
-    const interval = window.setInterval(loadDexPair, 30_000);
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === "visible") loadDexPair();
+    }, 60_000);
     return () => {
       active = false;
       window.clearInterval(interval);
@@ -397,7 +416,7 @@ export function MarketClient({ id, launch, trades }: { id: string; launch?: Depl
 
   return (
     <div className="trade-layout">
-      <section>
+      <section className="market-summary-column">
         <div className="market-header-card">
           <div className="market-header-main">
             <TokenAvatar launch={launch} className="profile-art" />
@@ -442,6 +461,9 @@ export function MarketClient({ id, launch, trades }: { id: string; launch?: Depl
           <div className="progress"><span style={{ width: `${launch.progress}%` }} /></div>
         </div>
 
+      </section>
+
+      <section className="market-content-column">
         <div className="chart-panel">
           <div className="curve-state compact">
             <TradeChart trades={trades} status={launch.status} symbol={launch.symbol} ethUsd={ethUsd} />
@@ -504,6 +526,7 @@ export function MarketClient({ id, launch, trades }: { id: string; launch?: Depl
                   <span>Wallet connection is required before trading.</span>
                 </div>
               ) : null}
+              {wrongNetwork ? <TradeStatus tone="danger">Switch your wallet to {chain.name} before trading.</TradeStatus> : null}
               <div className="field">
                 <div className="field-head">
                   <label>{mode === "buy" ? "ETH in" : `${launch.symbol} amount`}</label>
@@ -539,6 +562,12 @@ export function MarketClient({ id, launch, trades }: { id: string; launch?: Depl
                   </span>
                 </div>
               </div>
+              <div className="trade-route-summary">
+                <span><small>Route</small><strong>BlueFun curve</strong></span>
+                <span><small>Fee</small><strong>1%</strong></span>
+                <span><small>Network</small><strong><NetworkIcon chainId={activeChainId} size={14} />{chain.name}</strong></span>
+              </div>
+              {priceImpact > 5 ? <TradeStatus tone="danger">High price impact: reduce the order size or increase slippage carefully.</TradeStatus> : null}
               {settingsOpen ? (
                 <div className="trade-settings-panel">
                   <div className="settings-panel-head">
@@ -620,7 +649,7 @@ export function MarketClient({ id, launch, trades }: { id: string; launch?: Depl
           </section>
         ) : null}
 
-        <section className="side-compact-card">
+        {showCreatorEarnings ? <section className="side-compact-card">
           <div className="side-card-head">
             <span>Creator earnings</span>
             <strong>{accountFeeBalance.data ? formatQuote(accountFeeBalance.data, "ETH") : "0 ETH"}</strong>
@@ -634,7 +663,7 @@ export function MarketClient({ id, launch, trades }: { id: string; launch?: Depl
             {isWorking ? <Loader2 className="spin" size={16} /> : null}
             {isPending ? "Confirm in wallet" : receipt.isLoading ? "Claiming" : "Claim fees"}
           </button>
-        </section>
+        </section> : null}
       </aside>
     </div>
   );
@@ -675,7 +704,9 @@ function TokenChat({
       }
     }
     loadMessages();
-    const interval = window.setInterval(loadMessages, 8_000);
+    const interval = window.setInterval(() => {
+      if (document.visibilityState === "visible") loadMessages();
+    }, 30_000);
     return () => {
       active = false;
       window.clearInterval(interval);
@@ -759,7 +790,7 @@ function TradeStatus({ children, tone }: { children: React.ReactNode; tone: "inf
 
 function xShareUrl(launch: DeployedLaunch, id: string) {
   const text = `Trade ${launch.name} ($${launch.symbol}) on BlueFun`;
-  const url = siteUrl(`/launch/${id}`);
+  const url = siteUrl(`/launch/${id}?chain=${launch.chainId}`);
   return `https://x.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`;
 }
 
@@ -828,8 +859,7 @@ function GraduatedTradeCard({
   transactionSubmitted: boolean;
   updateSlippage: (value: bigint) => void;
 }) {
-  const { chainId } = useAccount();
-  const { chain, uniswapChainName } = contractsForChain(chainId || launch.chainId);
+  const { chain, uniswapChainName } = contractsForChain(launch.chainId);
   return (
     <section className="graduated-trade-card">
       <div className="graduated-badge">
@@ -992,15 +1022,21 @@ function ProjectInfo({ launch }: { launch: DeployedLaunch }) {
     { label: "Discord", href: launch.discord }
   ].filter((link): link is { label: string; href: string } => Boolean(link.href));
 
-  if (!launch.description && links.length === 0) return null;
-
   return (
     <section className="project-info-panel">
       <div className="project-info-head">
-        <h2>Project</h2>
-        <span>{links.length ? `${links.length} links` : "Description"}</span>
+        <h2>Market facts</h2>
+        <span><NetworkIcon chainId={launch.chainId} size={15} />{launch.chainId === 4663 ? "Robinhood" : "Base"}</span>
       </div>
       {launch.description ? <p>{launch.description}</p> : null}
+      <dl className="market-facts-grid">
+        <div><dt>Token</dt><dd>{shortAddress(launch.token)}</dd></div>
+        <div><dt>Creator</dt><dd>{shortAddress(launch.creator)}</dd></div>
+        <div><dt>Standard</dt><dd>{launch.chainId === 4663 ? "ERC-20" : "B20"}</dd></div>
+        <div><dt>Supply</dt><dd>1,000,000,000</dd></div>
+        <div><dt>Trading fee</dt><dd>1% total</dd></div>
+        <div><dt>Liquidity</dt><dd>{launch.status === "Graduated" ? "Uniswap v4 · locked" : "Bonding curve"}</dd></div>
+      </dl>
       {links.length ? (
         <div className="project-link-row">
           {links.map((link) => (
@@ -1021,8 +1057,7 @@ function uniswapSwapUrl(token: `0x${string}`, chainName: string, direction: "buy
 }
 
 function RecentTrades({ trades, symbol, chainId: launchChainId }: { trades: DeployedTrade[]; symbol: string; chainId: number }) {
-  const { chainId } = useAccount();
-  const { chain } = contractsForChain(chainId || launchChainId);
+  const { chain } = contractsForChain(launchChainId);
   const recent = useMemo(() => trades
     .slice()
     .sort((a, b) => Number(BigInt(b.blockNumber || "0") - BigInt(a.blockNumber || "0")) || Date.parse(b.createdAt || "0") - Date.parse(a.createdAt || "0"))
@@ -1125,8 +1160,7 @@ function MarketStats({
 }
 
 function HolderDistribution({ launch, trades }: { launch: DeployedLaunch; trades: DeployedTrade[] }) {
-  const { chainId } = useAccount();
-  const { addresses, uniswapV4Addresses } = contractsForChain(chainId || launch.chainId);
+  const { addresses, uniswapV4Addresses } = contractsForChain(launch.chainId);
   const candidateWallets = useMemo(() => {
     const netByWallet = new Map<`0x${string}`, number>();
 
@@ -1140,7 +1174,7 @@ function HolderDistribution({ launch, trades }: { launch: DeployedLaunch; trades
     return Array.from(netByWallet.entries())
       .filter(([wallet, amount]) => amount > 0 && wallet.toLowerCase() !== launch.creator.toLowerCase())
       .sort(([, a], [, b]) => b - a)
-      .slice(0, 18)
+      .slice(0, 12)
       .map(([wallet]) => wallet);
   }, [launch.creator, trades]);
 
@@ -1237,7 +1271,7 @@ function formatChatAge(createdAt: number) {
 
 function TokenAvatar({ launch, className }: { launch: DeployedLaunch; className: string }) {
   if (launch.imageURI) {
-    return <img className={`${className} token-avatar-image`} src={ipfsToGatewayUrl(launch.imageURI)} alt={launch.name} />;
+    return <img className={`${className} token-avatar-image`} src={ipfsToGatewayUrl(launch.imageURI)} alt={launch.name} loading="lazy" decoding="async" />;
   }
   return <span className={className}>{launch.symbol.slice(0, 4)}</span>;
 }

@@ -10,7 +10,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
   const chainId = requested === 4663 ? 4663 : 8453;
   const [launches, metrics] = await Promise.all([
     chainId === 4663 ? getRobinhoodLaunches() : getDeployedLaunches(),
-    chainId === 4663 ? undefined : getDbLaunchMetrics()
+    getDbLaunchMetrics(chainId)
   ]);
   return <LaunchExplorer launches={launches} metrics={metrics} chainId={chainId} />;
 }

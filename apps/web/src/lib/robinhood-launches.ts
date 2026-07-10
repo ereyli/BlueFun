@@ -3,6 +3,7 @@ import { robinhoodChain } from "@/lib/robinhood-chain";
 import { b20TokenAbi, bondingCurveAbi, launchFactoryAbi, robinhoodAddresses } from "@/lib/contracts";
 import { readTokenMetadata } from "@/lib/token-metadata";
 import type { DeployedLaunch } from "@/lib/onchain-launches";
+import { getDbLaunches } from "@/lib/db-launches";
 
 const client = createPublicClient({
   chain: robinhoodChain,
@@ -10,6 +11,8 @@ const client = createPublicClient({
 });
 
 export async function getRobinhoodLaunches(): Promise<DeployedLaunch[]> {
+  const indexed = await getDbLaunches(robinhoodChain.id);
+  if (indexed) return indexed;
   if (!robinhoodAddresses.bondingCurveMarket || !robinhoodAddresses.launchFactory) return [];
   const count = await client.readContract({ address: robinhoodAddresses.bondingCurveMarket, abi: bondingCurveAbi, functionName: "launchCount" });
   const results = await Promise.allSettled(Array.from({ length: Number(count) }, (_, i) => getRobinhoodLaunch(String(i + 1))));
@@ -17,6 +20,9 @@ export async function getRobinhoodLaunches(): Promise<DeployedLaunch[]> {
 }
 
 export async function getRobinhoodLaunch(id: string): Promise<DeployedLaunch | undefined> {
+  const indexed = await getDbLaunches(robinhoodChain.id);
+  const indexedLaunch = indexed?.find((launch) => launch.id === id);
+  if (indexedLaunch) return indexedLaunch;
   const market = robinhoodAddresses.bondingCurveMarket;
   const factory = robinhoodAddresses.launchFactory;
   if (!market || !factory) return undefined;

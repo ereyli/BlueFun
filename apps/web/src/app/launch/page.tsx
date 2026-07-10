@@ -4,7 +4,7 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { decodeEventLog, formatEther, parseEther, keccak256, toBytes } from "viem";
 import { useAccount, useWaitForTransactionReceipt, useWriteContract } from "wagmi";
-import { BadgeCheck, CheckCircle2, ImagePlus, Info, Loader2, LockKeyhole, Rocket, ShieldCheck, UploadCloud } from "lucide-react";
+import { CheckCircle2, Coins, ImagePlus, Info, Loader2, LockKeyhole, Rocket, TimerReset, UploadCloud } from "lucide-react";
 import { contractsForChain, FAIR_GRADUATION_TARGET_ETH, FAIR_LAUNCH_FEE_ETH, launchFactoryAbi } from "@/lib/contracts";
 import { WalletButton } from "@/components/wallet-button";
 import { useSearchParams } from "next/navigation";
@@ -17,7 +17,6 @@ export default function LaunchPage() {
 function LaunchPageContent() {
   const [name, setName] = useState("");
   const [symbol, setSymbol] = useState("");
-  const [imageFile, setImageFile] = useState<File | undefined>();
   const [imagePreview, setImagePreview] = useState("");
   const [imageUri, setImageUri] = useState("");
   const [metadataUri, setMetadataUri] = useState("");
@@ -43,7 +42,7 @@ function LaunchPageContent() {
 
   const salt = useMemo(() => keccak256(toBytes(`${name}:${symbol}:${Date.now()}`)), [name, symbol]);
   const initialBuyEth = parsePositiveEther(initialBuy);
-  const initialBuyTooLarge = initialBuyEth > parseEther("1");
+  const initialBuyTooLarge = initialBuyEth > parseEther(FAIR_GRADUATION_TARGET_ETH);
   const metadataKey = imageUri
     ? `${name.trim()}:${symbol.trim()}:${imageUri}:${description.trim()}:${website.trim()}:${twitter.trim()}:${telegram.trim()}:${discord.trim()}`
     : "";
@@ -142,7 +141,6 @@ function LaunchPageContent() {
     setImageUri("");
     setMetadataUri("");
     setMetadataUploadKey("");
-    setImageFile(file);
     if (imagePreview) URL.revokeObjectURL(imagePreview);
     setImagePreview(file ? URL.createObjectURL(file) : "");
     if (!file) return;
@@ -207,9 +205,9 @@ function LaunchPageContent() {
           </div>
         </div>
         <section className="launch-feature-grid">
-          <div><ShieldCheck /><strong>Safe defaults</strong></div>
-          <div><LockKeyhole /><strong>LP lock flow</strong></div>
-          <div><BadgeCheck /><strong>Role transparency</strong></div>
+          <div><Coins /><span><strong>1B fixed supply</strong><small>0% creator allocation</small></span></div>
+          <div><TimerReset /><span><strong>60s launch guard</strong><small>Fair early access</small></span></div>
+          <div><LockKeyhole /><span><strong>Liquidity locked</strong><small>After graduation</small></span></div>
         </section>
       </section>
       <section className="launch-form-card">
@@ -225,14 +223,18 @@ function LaunchPageContent() {
               <WalletButton />
             </div>
           ) : null}
-          <div className="field">
-            <label>Name</label>
-            <input placeholder="Token name" value={name} onChange={(event) => setName(event.target.value)} />
+          <div className="launch-form-section-head"><span>01</span><div><strong>Token identity</strong><small>The essentials traders see first</small></div></div>
+          <div className="launch-field-grid">
+            <div className="field">
+              <label>Name <small>{name.length}/40</small></label>
+              <input maxLength={40} autoComplete="off" placeholder="Token name" value={name} onChange={(event) => setName(event.target.value)} />
+            </div>
+            <div className="field">
+              <label>Symbol <small>{symbol.length}/10</small></label>
+              <input maxLength={10} autoComplete="off" placeholder="Ticker" value={symbol} onChange={(event) => setSymbol(event.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""))} />
+            </div>
           </div>
-          <div className="field">
-            <label>Symbol</label>
-            <input placeholder="Ticker" value={symbol} onChange={(event) => setSymbol(event.target.value.toUpperCase())} />
-          </div>
+          <div className="launch-form-section-head"><span>02</span><div><strong>Story & community</strong><small>Optional, but strongly recommended</small></div></div>
           <div className="project-details-card">
             <div className="project-details-head">
               <strong>Project details</strong>
@@ -266,6 +268,7 @@ function LaunchPageContent() {
               </div>
             </div>
           </div>
+          <div className="launch-form-section-head"><span>03</span><div><strong>Visual identity</strong><small>Square artwork works best</small></div></div>
           <div className="field">
             <label>Token image</label>
             <label className={imagePreview ? "upload-box has-preview" : "upload-box"}>
@@ -287,17 +290,23 @@ function LaunchPageContent() {
               {isImageUploading ? "Uploading image..." : imageUri ? "Image ready." : "Uploaded to Pinata automatically. Max 5 MB."}
             </span>
           </div>
+          <div className="launch-form-section-head"><span>04</span><div><strong>First position</strong><small>Optional creator buy in the same transaction</small></div></div>
           <div className="field">
             <label>Creator initial buy ETH</label>
-            <input placeholder="0" value={initialBuy} onChange={(event) => setInitialBuy(event.target.value)} />
+            <input inputMode="decimal" placeholder="0" value={initialBuy} onChange={(event) => setInitialBuy(sanitizeDecimal(event.target.value))} />
+            <span className="field-help">Optional · maximum {FAIR_GRADUATION_TARGET_ETH} ETH</span>
           </div>
-          <div className="fixed-rule">
-            <strong>Bonding target is fixed</strong>
-            <span>{FAIR_GRADUATION_TARGET_ETH} ETH graduation, then DEX LP lock.</span>
-          </div>
-          <div className="fixed-rule subtle-rule">
-            <strong>Launch fee</strong>
-            <span>{FAIR_LAUNCH_FEE_ETH} ETH platform fee. This keeps spam launches expensive.</span>
+          <div className="launch-review-card">
+            <div className="launch-review-head"><strong>Launch summary</strong><span><NetworkIcon chainId={activeChainId} size={16} />{chain.name}</span></div>
+            <dl>
+              <div><dt>Token standard</dt><dd>{isRobinhood ? "ERC-20" : "B20"}</dd></div>
+              <div><dt>Supply / creator allocation</dt><dd>1B / 0%</dd></div>
+              <div><dt>Trading fee</dt><dd>1% total</dd></div>
+              <div><dt>Graduation</dt><dd>{FAIR_GRADUATION_TARGET_ETH} ETH → Uniswap v4</dd></div>
+              <div><dt>Launch fee</dt><dd>{FAIR_LAUNCH_FEE_ETH} ETH</dd></div>
+              <div><dt>Initial buy</dt><dd>{formatEth(initialBuyEth)} ETH</dd></div>
+            </dl>
+            <div className="launch-review-total"><span>Wallet confirmation</span><strong>{formatEth(totalLaunchValue)} ETH</strong></div>
           </div>
           {initialBuyTooLarge ? <p className="danger-text">Creator initial buy is capped at the 5 ETH graduation target.</p> : null}
           <button className="button primary" disabled={disabled || isWorking || !isConnected} onClick={submit}>
@@ -314,7 +323,7 @@ function LaunchPageContent() {
                 {confirmedLaunchId ? (
                   <>
                     Launch is live. Opening market page.{" "}
-                    <Link href={`/launch/${confirmedLaunchId}`}>View now</Link>
+                    <Link href={`/launch/${confirmedLaunchId}?chain=${activeChainId}`}>View now</Link>
                   </>
                 ) : (
                   "Launch is live. Opening market page."
@@ -327,6 +336,7 @@ function LaunchPageContent() {
           </div>
           {receipt.isSuccess ? (
             <LaunchChecklist
+              activeChainId={activeChainId}
               hasInitialBuy={initialBuyEth > 0n}
               launchId={confirmedLaunchId}
               metadataReady={Boolean(metadataUri)}
@@ -340,19 +350,20 @@ function LaunchPageContent() {
 }
 
 function LaunchChecklist({
+  activeChainId,
   hasInitialBuy,
   launchId,
   metadataReady,
   token
 }: {
+  activeChainId: number;
   hasInitialBuy: boolean;
   launchId: string;
   metadataReady: boolean;
   token: string;
 }) {
-  const { chainId } = useAccount();
-  const { chain } = contractsForChain(chainId);
-  const marketHref = launchId ? `/launch/${launchId}` : "";
+  const { chain } = contractsForChain(activeChainId);
+  const marketHref = launchId ? `/launch/${launchId}?chain=${activeChainId}` : "";
   const basescanHref = token ? `${chain.blockExplorers.default.url}/token/${token}` : "";
   const items = [
     { label: "Token deployed", done: Boolean(token) },
@@ -425,6 +436,12 @@ function parsePositiveEther(value: string) {
   } catch {
     return 0n;
   }
+}
+
+function sanitizeDecimal(value: string) {
+  const clean = value.replace(",", ".").replace(/[^0-9.]/g, "");
+  const [whole, ...fraction] = clean.split(".");
+  return fraction.length ? `${whole}.${fraction.join("").slice(0, 18)}` : whole;
 }
 
 function formatEth(value: bigint) {
