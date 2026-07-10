@@ -153,6 +153,25 @@ $$;
 revoke all on function get_scope_trade_metrics(text, numeric) from public;
 grant execute on function get_scope_trade_metrics(text, numeric) to anon, authenticated, service_role;
 
+create or replace function get_scope_launchpad_metrics(p_scope text, p_start_block numeric)
+returns table(total_volume_eth numeric, total_tokens bigint, total_creators bigint, total_graduated bigint)
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select
+    coalesce((select sum(eth_amount) from trades where scope = p_scope and block_number >= p_start_block), 0)::numeric,
+    count(*)::bigint,
+    count(distinct creator)::bigint,
+    count(*) filter (where status = 'graduated')::bigint
+  from launches
+  where scope = p_scope and created_block >= p_start_block;
+$$;
+
+revoke all on function get_scope_launchpad_metrics(text, numeric) from public;
+grant execute on function get_scope_launchpad_metrics(text, numeric) to anon, authenticated, service_role;
+
 create or replace function refresh_launch_volume(p_scope text, p_launch_id numeric)
 returns void
 language sql
@@ -169,6 +188,18 @@ $$;
 
 revoke all on function refresh_launch_volume(text, numeric) from public;
 grant execute on function refresh_launch_volume(text, numeric) to service_role;
+
+do $$
+begin
+  if not exists (select 1 from indexer_state where key = 'schema:volume_backfill_v1') then
+    update launches l
+    set volume_eth = coalesce((
+      select sum(t.eth_amount) from trades t
+      where t.scope = l.scope and t.launch_id = l.id
+    ), 0);
+    insert into indexer_state (key, value) values ('schema:volume_backfill_v1', 'complete');
+  end if;
+end $$;
 
 do $$
 begin

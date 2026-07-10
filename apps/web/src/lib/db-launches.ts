@@ -11,10 +11,88 @@ let supabase: SupabaseClient | undefined;
 
 export type DbLaunchMetrics = {
   totalVolumeEth: number;
+  totalTokens: number;
+  totalCreators: number;
+  totalGraduated: number;
 };
+
+export type LaunchPageFilter = "Live" | "New" | "Ready" | "Graduated" | "Safe" | "Progress";
+export type DbLaunchPage = { launches: DeployedLaunch[]; total: number };
 
 const launchColumns = "id, token, creator, name, symbol, contract_uri, image_url, description, website_url, twitter_url, telegram_url, discord_url, status, raised_eth, graduation_target_eth, progress, volume_eth, token_created_at, created_block";
 const legacyLaunchColumns = "id, token, creator, name, symbol, contract_uri, status, raised_eth, graduation_target_eth, progress, volume_eth, token_created_at, created_block";
+
+export async function getDbLaunchPage(
+  chainId = 8453,
+  options: { page?: number; pageSize?: number; query?: string; filter?: LaunchPageFilter } = {}
+): Promise<DbLaunchPage | undefined> {
+  if (process.env.POSTGRES_INDEXER_ENABLED !== "true") return undefined;
+  const context = dbContext(chainId);
+  const page = Math.max(1, Math.floor(options.page || 1));
+  const pageSize = Math.min(Math.max(Math.floor(options.pageSize || 21), 1), 21);
+  const offset = (page - 1) * pageSize;
+  const search = normalizeSearchTerm(options.query);
+  const filter = options.filter || "New";
+  const statusFilter = filter === "Live" || filter === "Ready" || filter === "Graduated" ? filter.toLowerCase() : "";
+
+  try {
+    if (hasSupabaseConfig()) {
+      let query = getSupabase().from("launches")
+        .select(launchColumns, { count: "exact" })
+        .eq("scope", context.scope)
+        .gte("created_block", context.deploymentBlock);
+      if (statusFilter) query = query.eq("status", statusFilter);
+      if (search) query = query.or(`name.ilike.%${search}%,symbol.ilike.%${search}%,token.ilike.%${search}%,creator.ilike.%${search}%`);
+      query = filter === "Progress"
+        ? query.order("progress", { ascending: false }).order("id", { ascending: false })
+        : query.order("id", { ascending: false });
+      let response: {
+        data: Array<Record<string, unknown>> | null;
+        error: { message?: string; details?: string } | null;
+        count: number | null;
+      } = await query.range(offset, offset + pageSize - 1);
+
+      if (response.error && isMissingSocialColumnError(response.error)) {
+        let legacyQuery = getSupabase().from("launches")
+          .select(legacyLaunchColumns, { count: "exact" })
+          .eq("scope", context.scope)
+          .gte("created_block", context.deploymentBlock);
+        if (statusFilter) legacyQuery = legacyQuery.eq("status", statusFilter);
+        if (search) legacyQuery = legacyQuery.or(`name.ilike.%${search}%,symbol.ilike.%${search}%,token.ilike.%${search}%,creator.ilike.%${search}%`);
+        legacyQuery = filter === "Progress"
+          ? legacyQuery.order("progress", { ascending: false }).order("id", { ascending: false })
+          : legacyQuery.order("id", { ascending: false });
+        response = await legacyQuery.range(offset, offset + pageSize - 1);
+      }
+      if (response.error) throw response.error;
+      return { launches: await mapRows((response.data ?? []) as Array<Record<string, unknown>>, context.chainId), total: response.count ?? 0 };
+    }
+
+    if (!process.env.DATABASE_URL) return undefined;
+    pool ??= new pg.Pool({ connectionString: process.env.DATABASE_URL, connectionTimeoutMillis: 750, idleTimeoutMillis: 5_000, max: 5 });
+    const result = await withTimeout(pool.query(
+      `select id, token, creator, name, symbol, contract_uri, image_url, description,
+              website_url, twitter_url, telegram_url, discord_url, status, raised_eth,
+              graduation_target_eth, progress, volume_eth, token_created_at, created_block,
+              count(*) over() as total_count
+       from launches
+       where scope = $1 and created_block >= $2
+         and ($3 = '' or status = $3)
+         and ($4 = '' or name ilike '%' || $4 || '%' or symbol ilike '%' || $4 || '%'
+           or token ilike '%' || $4 || '%' or creator ilike '%' || $4 || '%')
+       order by case when $5 = 'Progress' then progress end desc, id desc
+       limit $6 offset $7`,
+      [context.scope, context.deploymentBlock, statusFilter, search, filter, pageSize, offset]
+    ), 1_500);
+    return {
+      launches: await mapRows(result.rows, context.chainId),
+      total: Number(result.rows[0]?.total_count || 0)
+    };
+  } catch (error) {
+    console.error("Failed to read paginated launches from database", error);
+    return undefined;
+  }
+}
 
 export async function getDbLaunches(chainId = 8453, options: { cursor?: string; limit?: number } = {}): Promise<DeployedLaunch[] | undefined> {
   if (process.env.POSTGRES_INDEXER_ENABLED !== "true") return undefined;
@@ -124,28 +202,36 @@ export async function getDbLaunchMetrics(chainId = 8453): Promise<DbLaunchMetric
 
   try {
     if (hasSupabaseConfig()) {
-      const { data, error } = await getSupabase().rpc("get_scope_trade_metrics", {
+      const { data, error } = await getSupabase().rpc("get_scope_launchpad_metrics", {
         p_scope: context.scope,
         p_start_block: context.deploymentBlock
       });
 
       if (error && isMissingMetricsRpcError(error)) {
-        const fallback = await getSupabase().from("launches")
-          .select("volume_eth")
+        const [volume, launchRows] = await Promise.all([
+          getLegacyTradeVolume(context.scope, context.deploymentBlock),
+          getSupabase().from("launches")
+          .select("creator, status", { count: "exact" })
           .eq("scope", context.scope)
           .gte("created_block", context.deploymentBlock)
-          .limit(1_000);
-        if (fallback.error) throw fallback.error;
-        const totalWei = (fallback.data ?? []).reduce(
-          (sum, item) => sum + parseDbBigInt((item as { volume_eth?: unknown }).volume_eth),
-          0n
-        );
-        return { totalVolumeEth: weiToEthNumber(totalWei) };
+          .limit(1_000)
+        ]);
+        if (launchRows.error) throw launchRows.error;
+        const rows = launchRows.data ?? [];
+        return {
+          totalVolumeEth: volume,
+          totalTokens: launchRows.count ?? rows.length,
+          totalCreators: new Set(rows.map((item) => String(item.creator).toLowerCase())).size,
+          totalGraduated: rows.filter((item) => item.status === "graduated").length
+        };
       }
       if (error) throw error;
       const row = Array.isArray(data) ? data[0] : data;
       return {
-        totalVolumeEth: weiToEthNumber(parseDbBigInt((row as { total_volume_eth?: unknown } | null)?.total_volume_eth))
+        totalVolumeEth: weiToEthNumber(parseDbBigInt((row as { total_volume_eth?: unknown } | null)?.total_volume_eth)),
+        totalTokens: Number((row as { total_tokens?: unknown } | null)?.total_tokens || 0),
+        totalCreators: Number((row as { total_creators?: unknown } | null)?.total_creators || 0),
+        totalGraduated: Number((row as { total_graduated?: unknown } | null)?.total_graduated || 0)
       };
     }
 
@@ -157,15 +243,21 @@ export async function getDbLaunchMetrics(chainId = 8453): Promise<DbLaunchMetric
       max: 2
     });
     const result = await withTimeout(pool.query(
-      `select coalesce(sum(eth_amount), 0) as total_volume_eth
-       from trades
-       where scope = $1
-         and block_number >= $2`,
+      `select
+         coalesce((select sum(eth_amount) from trades where scope = $1 and block_number >= $2), 0) as total_volume_eth,
+         count(*) as total_tokens,
+         count(distinct creator) as total_creators,
+         count(*) filter (where status = 'graduated') as total_graduated
+       from launches
+       where scope = $1 and created_block >= $2`,
       [context.scope, context.deploymentBlock]
     ), 300);
 
     return {
-      totalVolumeEth: weiToEthNumber(parseDbBigInt(result.rows[0]?.total_volume_eth))
+      totalVolumeEth: weiToEthNumber(parseDbBigInt(result.rows[0]?.total_volume_eth)),
+      totalTokens: Number(result.rows[0]?.total_tokens || 0),
+      totalCreators: Number(result.rows[0]?.total_creators || 0),
+      totalGraduated: Number(result.rows[0]?.total_graduated || 0)
     };
   } catch (error) {
     console.error("Failed to read launch metrics from database", error);
@@ -174,7 +266,22 @@ export async function getDbLaunchMetrics(chainId = 8453): Promise<DbLaunchMetric
 }
 
 function isMissingMetricsRpcError(error: { code?: string; message?: string }) {
-  return error.code === "PGRST202" || error.message?.includes("get_scope_trade_metrics");
+  return error.code === "PGRST202" || error.message?.includes("get_scope_launchpad_metrics");
+}
+
+async function getLegacyTradeVolume(scope: string, startBlock: string) {
+  let total = 0n;
+  for (let offset = 0; offset < 20_000; offset += 1_000) {
+    const response = await getSupabase().from("trades")
+      .select("eth_amount")
+      .eq("scope", scope)
+      .gte("block_number", startBlock)
+      .range(offset, offset + 999);
+    if (response.error) throw response.error;
+    for (const row of response.data ?? []) total += parseDbBigInt(row.eth_amount);
+    if ((response.data ?? []).length < 1_000) return weiToEthNumber(total);
+  }
+  throw new Error("Metrics RPC migration is required for more than 20,000 trades");
 }
 
 function isMissingSocialColumnError(error: { message?: string; details?: string }) {
@@ -286,6 +393,14 @@ function cleanDbText(value: unknown) {
   if (typeof value !== "string") return undefined;
   const clean = value.trim();
   return clean || undefined;
+}
+
+function normalizeSearchTerm(value?: string) {
+  return (value || "")
+    .trim()
+    .slice(0, 80)
+    .replace(/[^\p{L}\p{N}\s._-]/gu, "")
+    .trim();
 }
 
 function mapTrades(rows: Array<Record<string, unknown>>): DeployedTrade[] {
