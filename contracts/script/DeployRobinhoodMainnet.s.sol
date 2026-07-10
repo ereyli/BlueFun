@@ -24,11 +24,13 @@ contract DeployRobinhoodMainnet {
 
     function run() external {
         uint256 privateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
+        uint256 initialLaunchCount = vm.envUint("INITIAL_LAUNCH_COUNT");
         address deployer = vm.addr(privateKey);
         address feeRecipient = vm.envAddress("FEE_RECIPIENT");
         vm.startBroadcast(privateKey);
         BondingCurveMarket market = new BondingCurveMarket(deployer, feeRecipient);
-        UniswapV4LiquidityLocker locker = new UniswapV4LiquidityLocker(deployer, IUniswapV4PositionManager(UNISWAP_V4_POSITION_MANAGER), IUniswapV4StateView(UNISWAP_V4_STATE_VIEW), IPermit2AllowanceTransfer(PERMIT2), 3_000, 60, address(0));
+        if (initialLaunchCount > 0) market.seedLaunchCount(initialLaunchCount);
+        UniswapV4LiquidityLocker locker = new UniswapV4LiquidityLocker(deployer, feeRecipient, IUniswapV4PositionManager(UNISWAP_V4_POSITION_MANAGER), IUniswapV4StateView(UNISWAP_V4_STATE_VIEW), IPermit2AllowanceTransfer(PERMIT2), 3_000, 60, address(0));
         Erc20GraduationManager graduation = new Erc20GraduationManager(market, locker);
         locker.setGraduationManager(address(graduation));
         Erc20LaunchFactory factory = new Erc20LaunchFactory(deployer, market, address(graduation), payable(feeRecipient));

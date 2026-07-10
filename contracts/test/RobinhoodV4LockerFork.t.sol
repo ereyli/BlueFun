@@ -9,18 +9,17 @@ import {
     UniswapV4LiquidityLocker
 } from "../src/UniswapV4LiquidityLocker.sol";
 
-contract BaseV4LockerForkTest is Test {
-    address internal constant POSITION_MANAGER = 0x7C5f5A4bBd8fD63184577525326123B519429bDc;
-    address internal constant STATE_VIEW = 0xA3c0c9b65baD0b08107Aa264b0f3dB444b867A71;
+contract RobinhoodV4LockerForkTest is Test {
+    address internal constant POSITION_MANAGER = 0x58daec3116aae6D93017bAAea7749052E8a04fA7;
+    address internal constant STATE_VIEW = 0xF3334192D15450CdD385c8B70e03f9A6bD9E673b;
     address internal constant PERMIT2 = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
-    address internal constant UNIVERSAL_ROUTER = 0x6fF5693b99212Da76ad316178A184AB56D299b43;
+    address internal constant UNIVERSAL_ROUTER = 0x8876789976dEcBfCbBbe364623C63652db8C0904;
+    address internal constant GRADUATION_MANAGER = address(0xDAD);
 
-    address graduationManager = address(0xDAD);
+    function testRobinhoodForkCollectsFeesWithoutUnlockingPrincipal() public {
+        if (block.chainid != 4663) return;
 
-    function testForkLocksLiquidityThroughRealBaseV4PositionManager() public {
-        if (block.chainid != 8453) return;
-
-        ForkToken token = new ForkToken("Fork B20", "FB20");
+        RobinhoodForkToken token = new RobinhoodForkToken();
         UniswapV4LiquidityLocker locker = new UniswapV4LiquidityLocker(
             address(this),
             address(this),
@@ -31,44 +30,16 @@ contract BaseV4LockerForkTest is Test {
             60,
             address(0)
         );
-        locker.setGraduationManager(graduationManager);
+        locker.setGraduationManager(GRADUATION_MANAGER);
         token.mint(address(locker), 1_000_000_000 ether);
-        vm.deal(graduationManager, 10 ether);
-
-        vm.prank(graduationManager);
-        bytes32 positionId = locker.lockLiquidity{value: 5 ether}(1, address(token), 1_000_000_000 ether, address(this));
-
-        (,,,,, uint256 tokenId, uint128 liquidity,, uint24 usedFee,) = locker.lockedPositions(positionId);
-        assertGt(uint256(positionId), 0);
-        assertGt(tokenId, 0);
-        assertGt(liquidity, 0);
-        assertEq(usedFee, 3_000);
-    }
-
-    function testForkCollectsRealSwapFeesWithoutUnlockingPrincipal() public {
-        if (block.chainid != 8453) return;
-
-        ForkToken token = new ForkToken("Fee B20", "FB20F");
-        UniswapV4LiquidityLocker locker = new UniswapV4LiquidityLocker(
-            address(this),
-            address(this),
-            IUniswapV4PositionManager(POSITION_MANAGER),
-            IUniswapV4StateView(STATE_VIEW),
-            IPermit2AllowanceTransfer(PERMIT2),
-            3_000,
-            60,
-            address(0)
-        );
-        locker.setGraduationManager(graduationManager);
-        token.mint(address(locker), 1_000_000_000 ether);
-        vm.deal(graduationManager, 10 ether);
+        vm.deal(GRADUATION_MANAGER, 10 ether);
         vm.deal(address(this), 1 ether);
 
-        vm.prank(graduationManager);
+        vm.prank(GRADUATION_MANAGER);
         bytes32 positionId = locker.lockLiquidity{value: 5 ether}(1, address(token), 1_000_000_000 ether, address(this));
         (,,,,, uint256 tokenId, uint128 liquidityBefore,,,) = locker.lockedPositions(positionId);
 
-        V4SwapRouter.ExactInputSingleParams memory swap = V4SwapRouter.ExactInputSingleParams({
+        RobinhoodSwapRouter.ExactInputSingleParams memory swap = RobinhoodSwapRouter.ExactInputSingleParams({
             poolKey: IUniswapV4PositionManager.PoolKey({
                 currency0: address(0), currency1: address(token), fee: 3_000, tickSpacing: 60, hooks: address(0)
             }),
@@ -83,7 +54,7 @@ contract BaseV4LockerForkTest is Test {
         params[2] = abi.encode(address(token), 0);
         bytes[] memory inputs = new bytes[](1);
         inputs[0] = abi.encode(bytes(hex"060c0f"), params);
-        V4SwapRouter(UNIVERSAL_ROUTER).execute{value: 0.1 ether}(hex"10", inputs, block.timestamp + 1 hours);
+        RobinhoodSwapRouter(UNIVERSAL_ROUTER).execute{value: 0.1 ether}(hex"10", inputs, block.timestamp + 1 hours);
 
         locker.collectFees(positionId);
         (uint256 nativeCollected,,,,,) = locker.feeRevenue(positionId);
@@ -93,7 +64,7 @@ contract BaseV4LockerForkTest is Test {
     }
 }
 
-interface V4SwapRouter {
+interface RobinhoodSwapRouter {
     struct ExactInputSingleParams {
         IUniswapV4PositionManager.PoolKey poolKey;
         bool zeroForOne;
@@ -105,31 +76,16 @@ interface V4SwapRouter {
     function execute(bytes calldata commands, bytes[] calldata inputs, uint256 deadline) external payable;
 }
 
-contract ForkToken {
-    string public name;
-    string public symbol;
-    uint8 public constant decimals = 18;
-    uint256 public totalSupply;
+contract RobinhoodForkToken {
     mapping(address account => uint256 amount) public balanceOf;
     mapping(address owner => mapping(address spender => uint256 amount)) public allowance;
 
-    event Transfer(address indexed from, address indexed to, uint256 amount);
-    event Approval(address indexed owner, address indexed spender, uint256 amount);
-
-    constructor(string memory name_, string memory symbol_) {
-        name = name_;
-        symbol = symbol_;
-    }
-
     function mint(address to, uint256 amount) external {
-        totalSupply += amount;
         balanceOf[to] += amount;
-        emit Transfer(address(0), to, amount);
     }
 
     function approve(address spender, uint256 amount) external returns (bool) {
         allowance[msg.sender][spender] = amount;
-        emit Approval(msg.sender, spender, amount);
         return true;
     }
 
@@ -150,6 +106,5 @@ contract ForkToken {
         require(balanceOf[from] >= amount, "BALANCE");
         balanceOf[from] -= amount;
         balanceOf[to] += amount;
-        emit Transfer(from, to, amount);
     }
 }

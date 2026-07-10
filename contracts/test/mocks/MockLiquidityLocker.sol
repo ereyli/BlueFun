@@ -25,7 +25,7 @@ contract MockLiquidityLocker is ILiquidityLocker {
         return true;
     }
 
-    function lockLiquidity(uint256 launchId, address token, uint256 tokenAmount)
+    function lockLiquidity(uint256 launchId, address token, uint256 tokenAmount, address)
         external
         payable
         returns (bytes32 positionId)

@@ -1,6 +1,14 @@
 import { createPublicClient, fallback, formatEther, getAddress, http, zeroAddress } from "viem";
 import { baseChain } from "@/lib/base-chain";
-import { addresses, b20TokenAbi, bondingCurveAbi, launchFactoryAbi } from "@/lib/contracts";
+import {
+  b20TokenAbi,
+  bondingCurveAbi,
+  deploymentForLaunch,
+  deploymentsForChain,
+  graduationManagerAbi,
+  launchFactoryAbi,
+  type ContractDeployment
+} from "@/lib/contracts";
 import { getDbLaunch, getDbLaunches } from "@/lib/db-launches";
 import { baseRpcUrls } from "@/lib/rpc";
 import { readTokenMetadata, type TokenMetadata } from "@/lib/token-metadata";
@@ -19,6 +27,7 @@ export type DeployedLaunch = {
   twitter?: string;
   telegram?: string;
   discord?: string;
+  positionId?: `0x${string}`;
   status: "Live" | "Ready" | "Graduated";
   raised: string;
   target: string;
@@ -49,8 +58,6 @@ const publicClient = createPublicClient({
 });
 
 export async function getDeployedLaunches(): Promise<DeployedLaunch[]> {
-  if (!addresses.launchFactory || !addresses.bondingCurveMarket) return [];
-
   if (process.env.POSTGRES_INDEXER_ENABLED === "true") {
     const dbLaunches = await getDbLaunches().catch(() => undefined);
     if (dbLaunches) return dbLaunches;
@@ -71,15 +78,14 @@ export async function getDeployedLaunches(): Promise<DeployedLaunch[]> {
 }
 
 export async function getDeployedLaunch(id: string): Promise<DeployedLaunch | undefined> {
-  if (!addresses.bondingCurveMarket) return undefined;
-
   if (process.env.POSTGRES_INDEXER_ENABLED === "true") {
     const dbLaunch = await getDbLaunch(id).catch(() => undefined);
     if (dbLaunch) return dbLaunch;
   }
 
   try {
-    return await getLaunchFromMarket(BigInt(id));
+    const deployment = deploymentForLaunch(baseChain.id, id);
+    return await getLaunchFromMarket(deployment, BigInt(id));
   } catch (error) {
     console.error("Failed to load direct launch state", error);
   }
@@ -123,32 +129,39 @@ function trimPriceEth(value: string) {
 }
 
 async function getLaunchesFromMarket() {
-  const count = await publicClient.readContract({
-    address: addresses.bondingCurveMarket!,
-    abi: bondingCurveAbi,
-    functionName: "launchCount"
-  });
+  const perDeployment = await Promise.all(deploymentsForChain(baseChain.id).map(async (deployment) => {
+    const count = await publicClient.readContract({
+      address: deployment.bondingCurveMarket,
+      abi: bondingCurveAbi,
+      functionName: "launchCount"
+    });
+    if (count < deployment.firstLaunchId) return [];
 
-  const eventMap = await getLaunchCreatedEventMap(count);
-  const ids = Array.from({ length: Number(count) }, (_, index) => BigInt(index + 1));
-  const launchResults = await Promise.allSettled(
-    ids.map((id) => getLaunchFromMarket(id, eventMap.get(id.toString())))
-  );
-  const launches = launchResults.flatMap((result, index) => {
-    if (result.status === "fulfilled") return [result.value];
-    console.error(`Failed to load launch ${ids[index]?.toString()}`, result.reason);
-    return [];
-  });
+    const eventMap = await getLaunchCreatedEventMap(deployment, count - deployment.firstLaunchId + 1n);
+    const ids = Array.from(
+      { length: Number(count - deployment.firstLaunchId + 1n) },
+      (_, index) => deployment.firstLaunchId + BigInt(index)
+    );
+    const results = await Promise.allSettled(
+      ids.map((id) => getLaunchFromMarket(deployment, id, eventMap.get(id.toString())))
+    );
+    return results.flatMap((result, index) => {
+      if (result.status === "fulfilled") return [result.value];
+      console.error(`Failed to load launch ${ids[index]?.toString()}`, result.reason);
+      return [];
+    });
+  }));
 
-  return launches.sort((a, b) => Number(b.id) - Number(a.id));
+  return perDeployment.flat().sort((a, b) => Number(b.id) - Number(a.id));
 }
 
 async function getLaunchFromMarket(
+  deployment: ContractDeployment,
   id: bigint,
   event?: { name: string; symbol: string; contractURI: string }
 ): Promise<DeployedLaunch> {
-  const state = await readLaunchState(id);
-  const launchEvent = event ?? await getLaunchCreatedEvent(id).catch((error) => {
+  const state = await readLaunchState(deployment, id);
+  const launchEvent = event ?? await getLaunchCreatedEvent(deployment, id).catch((error) => {
     console.error(`Failed to load launch metadata event ${id.toString()}`, error);
     return undefined;
   });
@@ -171,7 +184,10 @@ async function getLaunchFromMarket(
   const progress = graduationEthTarget === 0n ? 0 : Number((grossEthRaised * 100n) / graduationEthTarget);
   const status: DeployedLaunch["status"] = state[16] ? "Graduated" : state[15] ? "Ready" : "Live";
   const contractURI = launchEvent?.contractURI || "";
-  const metadata = await readTokenMetadata(contractURI).catch((): TokenMetadata => ({}));
+  const [metadata, positionId] = await Promise.all([
+    readTokenMetadata(contractURI).catch((): TokenMetadata => ({})),
+    status === "Graduated" ? getGraduationPosition(deployment, id).catch(() => undefined) : undefined
+  ]);
 
   return {
     chainId: baseChain.id,
@@ -187,6 +203,7 @@ async function getLaunchFromMarket(
     twitter: metadata.twitter,
     telegram: metadata.telegram,
     discord: metadata.discord,
+    positionId,
     status,
     raised: `${trimEth(formatEther(grossEthRaised))} ETH`,
     target: `${trimEth(formatEther(graduationEthTarget))} ETH`,
@@ -200,12 +217,36 @@ async function getLaunchFromMarket(
   };
 }
 
-async function readLaunchState(id: bigint) {
+async function getGraduationPosition(deployment: ContractDeployment, id: bigint) {
+  const latest = await publicClient.getBlockNumber();
+  const chunkSize = 1900n;
+  let toBlock = latest;
+  while (toBlock >= deployment.deploymentBlock) {
+    const fromBlock = toBlock > chunkSize && toBlock - chunkSize > deployment.deploymentBlock
+      ? toBlock - chunkSize
+      : deployment.deploymentBlock;
+    const logs = await publicClient.getContractEvents({
+      address: deployment.graduationManager,
+      abi: graduationManagerAbi,
+      eventName: "Graduated",
+      args: { launchId: id },
+      fromBlock,
+      toBlock
+    });
+    const match = logs.at(-1);
+    if (match?.args.positionId) return match.args.positionId;
+    if (fromBlock === deployment.deploymentBlock) break;
+    toBlock = fromBlock - 1n;
+  }
+  return undefined;
+}
+
+async function readLaunchState(deployment: ContractDeployment, id: bigint) {
   let lastError: unknown;
   for (let attempt = 0; attempt < 3; attempt += 1) {
     try {
       return await publicClient.readContract({
-      address: addresses.bondingCurveMarket!,
+      address: deployment.bondingCurveMarket,
       abi: bondingCurveAbi,
       functionName: "launches",
       args: [id]
@@ -218,19 +259,17 @@ async function readLaunchState(id: bigint) {
   throw lastError;
 }
 
-async function getLaunchCreatedEvent(id: bigint) {
-  if (!addresses.launchFactory) return undefined;
-
+async function getLaunchCreatedEvent(deployment: ContractDeployment, id: bigint) {
   const latest = await publicClient.getBlockNumber();
   const chunkSize = 1900n;
   let toBlock = latest;
 
-  while (toBlock >= addresses.deploymentBlock) {
-    const fromBlock = toBlock > chunkSize && toBlock - chunkSize > addresses.deploymentBlock
+  while (toBlock >= deployment.deploymentBlock) {
+    const fromBlock = toBlock > chunkSize && toBlock - chunkSize > deployment.deploymentBlock
       ? toBlock - chunkSize
-      : addresses.deploymentBlock;
+      : deployment.deploymentBlock;
     const logs = await publicClient.getContractEvents({
-      address: addresses.launchFactory,
+      address: deployment.launchFactory,
       abi: launchFactoryAbi,
       eventName: "LaunchCreated",
       args: { launchId: id },
@@ -245,27 +284,25 @@ async function getLaunchCreatedEvent(id: bigint) {
         contractURI: match.args.contractURI || ""
       };
     }
-    if (fromBlock === addresses.deploymentBlock) break;
+    if (fromBlock === deployment.deploymentBlock) break;
     toBlock = fromBlock - 1n;
   }
 
   return undefined;
 }
 
-async function getLaunchCreatedEventMap(expectedCount: bigint) {
+async function getLaunchCreatedEventMap(deployment: ContractDeployment, expectedCount: bigint) {
   const map = new Map<string, { name: string; symbol: string; contractURI: string }>();
-  if (!addresses.launchFactory) return map;
-
   const latest = await publicClient.getBlockNumber();
   const chunkSize = 1900n;
   let toBlock = latest;
 
-  while (toBlock >= addresses.deploymentBlock && BigInt(map.size) < expectedCount) {
-    const fromBlock = toBlock > chunkSize && toBlock - chunkSize > addresses.deploymentBlock
+  while (toBlock >= deployment.deploymentBlock && BigInt(map.size) < expectedCount) {
+    const fromBlock = toBlock > chunkSize && toBlock - chunkSize > deployment.deploymentBlock
       ? toBlock - chunkSize
-      : addresses.deploymentBlock;
+      : deployment.deploymentBlock;
     const logs = await publicClient.getContractEvents({
-      address: addresses.launchFactory,
+      address: deployment.launchFactory,
       abi: launchFactoryAbi,
       eventName: "LaunchCreated",
       fromBlock,
@@ -281,7 +318,7 @@ async function getLaunchCreatedEventMap(expectedCount: bigint) {
       });
     }
 
-    if (fromBlock === addresses.deploymentBlock) break;
+    if (fromBlock === deployment.deploymentBlock) break;
     toBlock = fromBlock - 1n;
   }
 
@@ -289,20 +326,25 @@ async function getLaunchCreatedEventMap(expectedCount: bigint) {
 }
 
 async function getRecentOnchainTrades(id: string): Promise<DeployedTrade[]> {
-  if (!addresses.bondingCurveMarket) return [];
+  const deployment = deploymentForLaunch(baseChain.id, id);
   const latest = await publicClient.getBlockNumber();
   const lookbackBlocks = BigInt(process.env.ONCHAIN_TRADE_FALLBACK_BLOCKS || "1800");
-  const fromBlock = latest > lookbackBlocks && latest - lookbackBlocks > addresses.deploymentBlock
+  const fromBlock = latest > lookbackBlocks && latest - lookbackBlocks > deployment.deploymentBlock
     ? latest - lookbackBlocks
-    : addresses.deploymentBlock;
-  return getOnchainTradesInRange(id, fromBlock, latest);
+    : deployment.deploymentBlock;
+  return getOnchainTradesInRange(deployment, id, fromBlock, latest);
 }
 
-async function getOnchainTradesInRange(id: string, fromBlock: bigint, toBlock: bigint): Promise<DeployedTrade[]> {
+async function getOnchainTradesInRange(
+  deployment: ContractDeployment,
+  id: string,
+  fromBlock: bigint,
+  toBlock: bigint
+): Promise<DeployedTrade[]> {
   const launchId = BigInt(id);
   const [buys, sells] = await Promise.all([
     publicClient.getContractEvents({
-      address: addresses.bondingCurveMarket!,
+      address: deployment.bondingCurveMarket,
       abi: bondingCurveAbi,
       eventName: "TokensBought",
       args: { launchId },
@@ -310,7 +352,7 @@ async function getOnchainTradesInRange(id: string, fromBlock: bigint, toBlock: b
       toBlock
     }),
     publicClient.getContractEvents({
-      address: addresses.bondingCurveMarket!,
+      address: deployment.bondingCurveMarket,
       abi: bondingCurveAbi,
       eventName: "TokensSold",
       args: { launchId },

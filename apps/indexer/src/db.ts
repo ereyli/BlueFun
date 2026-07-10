@@ -18,7 +18,7 @@ export async function ensureSchema() {
   await pool.query(await fs.readFile(schemaPath, "utf8"));
 }
 
-export async function upsertLaunch(input: {
+export async function upsertLaunch(scope: string, input: {
   id: bigint;
   token: string;
   creator: string;
@@ -40,7 +40,7 @@ export async function upsertLaunch(input: {
         .from("launches")
         .upsert(
           {
-            scope: indexerScope(),
+            scope,
             id: input.id.toString(),
             token: input.token,
             creator: input.creator,
@@ -84,7 +84,7 @@ export async function upsertLaunch(input: {
        created_tx = excluded.created_tx,
        created_block = coalesce(excluded.created_block, launches.created_block)`,
     [
-      indexerScope(),
+      scope,
       input.id.toString(),
       input.token,
       input.creator,
@@ -103,7 +103,7 @@ export async function upsertLaunch(input: {
   );
 }
 
-export async function updateLaunchState(input: {
+export async function updateLaunchState(scope: string, input: {
   id: bigint;
   status: "live" | "ready" | "graduated";
   raisedEth: bigint;
@@ -125,7 +125,7 @@ export async function updateLaunchState(input: {
           token_created_at: input.tokenCreatedAt.toString()
         })
         .eq("id", input.id.toString())
-        .eq("scope", indexerScope())
+        .eq("scope", scope)
     );
     return;
   }
@@ -141,7 +141,7 @@ export async function updateLaunchState(input: {
          token_created_at = $8
      where scope = $1 and id = $2`,
     [
-      indexerScope(),
+      scope,
       input.id.toString(),
       input.status,
       input.raisedEth.toString(),
@@ -153,7 +153,7 @@ export async function updateLaunchState(input: {
   );
 }
 
-export async function insertTrade(input: {
+export async function insertTrade(scope: string, input: {
   launchId: bigint;
   trader: string;
   side: "buy" | "sell";
@@ -176,14 +176,14 @@ export async function insertTrade(input: {
         market_cap_eth: input.marketCapEth?.toString() ?? null,
         block_number: input.blockNumber?.toString()
       })
-      .eq("scope", indexerScope())
+      .eq("scope", scope)
       .eq("launch_id", input.launchId.toString())
       .eq("tx_hash", input.txHash)
       .eq("side", input.side)
       .select("id");
     if (existing.error) throw existing.error;
     if ((existing.data ?? []).length > 0) {
-      await refreshLaunchVolume(input.launchId);
+      await refreshLaunchVolume(scope, input.launchId);
       return;
     }
 
@@ -192,7 +192,7 @@ export async function insertTrade(input: {
         .from("trades")
         .upsert(
           {
-            scope: indexerScope(),
+            scope,
             launch_id: input.launchId.toString(),
             trader: input.trader,
             side: input.side,
@@ -206,7 +206,7 @@ export async function insertTrade(input: {
           { onConflict: "scope,tx_hash,side,launch_id", ignoreDuplicates: true }
         )
     );
-    await refreshLaunchVolume(input.launchId);
+    await refreshLaunchVolume(scope, input.launchId);
     return;
   }
 
@@ -222,7 +222,7 @@ export async function insertTrade(input: {
          market_cap_eth = $10
      where scope = $1 and launch_id = $2 and tx_hash = $3 and side = $5`,
     [
-      indexerScope(),
+      scope,
       input.launchId.toString(),
       input.txHash,
       input.trader,
@@ -235,7 +235,7 @@ export async function insertTrade(input: {
     ]
   );
   if ((existing.rowCount ?? 0) > 0) {
-    await refreshLaunchVolume(input.launchId);
+    await refreshLaunchVolume(scope, input.launchId);
     return;
   }
 
@@ -244,7 +244,7 @@ export async function insertTrade(input: {
      values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
      on conflict (scope, tx_hash, side, launch_id) do nothing`,
     [
-      indexerScope(),
+      scope,
       input.launchId.toString(),
       input.trader,
       input.side,
@@ -256,29 +256,29 @@ export async function insertTrade(input: {
       input.blockNumber?.toString()
     ]
   );
-  await refreshLaunchVolume(input.launchId);
+  await refreshLaunchVolume(scope, input.launchId);
 }
 
-async function refreshLaunchVolume(launchId: bigint) {
+async function refreshLaunchVolume(scope: string, launchId: bigint) {
   if (hasSupabaseConfig()) {
     await runSupabase(getSupabase().rpc("refresh_launch_volume", {
-      p_scope: indexerScope(),
+      p_scope: scope,
       p_launch_id: launchId.toString()
     }));
     return;
   }
   if (!pool) return;
-  await pool.query("select refresh_launch_volume($1, $2)", [indexerScope(), launchId.toString()]);
+  await pool.query("select refresh_launch_volume($1, $2)", [scope, launchId.toString()]);
 }
 
-export async function markGraduated(input: { launchId: bigint; token: string; positionId: string; txHash: string; blockNumber?: bigint }) {
+export async function markGraduated(scope: string, input: { launchId: bigint; token: string; positionId: string; txHash: string; blockNumber?: bigint }) {
   if (hasSupabaseConfig()) {
     await runSupabase(
       getSupabase()
         .from("graduations")
         .upsert(
           {
-            scope: indexerScope(),
+            scope,
             launch_id: input.launchId.toString(),
             token: input.token,
             position_id: input.positionId,
@@ -288,13 +288,20 @@ export async function markGraduated(input: { launchId: bigint; token: string; po
           { onConflict: "scope,launch_id", ignoreDuplicates: true }
         )
     );
-    await runSupabase(
-      getSupabase()
-        .from("launches")
-        .update({ status: "graduated" })
-        .eq("id", input.launchId.toString())
-        .eq("scope", indexerScope())
-    );
+    const launchUpdate = await getSupabase()
+      .from("launches")
+      .update({ status: "graduated", position_id: input.positionId })
+      .eq("id", input.launchId.toString())
+      .eq("scope", scope);
+    if (launchUpdate.error) {
+      await runSupabase(
+        getSupabase()
+          .from("launches")
+          .update({ status: "graduated" })
+          .eq("id", input.launchId.toString())
+          .eq("scope", scope)
+      );
+    }
     return;
   }
 
@@ -303,20 +310,21 @@ export async function markGraduated(input: { launchId: bigint; token: string; po
     `insert into graduations (scope, launch_id, token, position_id, tx_hash, block_number)
      values ($1, $2, $3, $4, $5, $6)
      on conflict (scope, launch_id) do nothing`,
-    [indexerScope(), input.launchId.toString(), input.token, input.positionId, input.txHash, input.blockNumber?.toString()]
+    [scope, input.launchId.toString(), input.token, input.positionId, input.txHash, input.blockNumber?.toString()]
   );
-  await pool.query("update launches set status = 'graduated' where scope = $1 and id = $2", [
-    indexerScope(),
-    input.launchId.toString()
+  await pool.query("update launches set status = 'graduated', position_id = $3 where scope = $1 and id = $2", [
+    scope,
+    input.launchId.toString(),
+    input.positionId
   ]);
 }
 
-export async function getGraduatedLaunches(): Promise<Array<{ launchId: bigint; token: string; blockNumber?: bigint }>> {
+export async function getGraduatedLaunches(scope: string): Promise<Array<{ launchId: bigint; token: string; blockNumber?: bigint }>> {
   if (hasSupabaseConfig()) {
     const { data, error } = await getSupabase()
       .from("graduations")
       .select("launch_id, token, block_number")
-      .eq("scope", indexerScope());
+      .eq("scope", scope);
     if (error) throw error;
     return (data ?? []).map((row) => ({
       launchId: BigInt(String(row.launch_id)),
@@ -328,7 +336,7 @@ export async function getGraduatedLaunches(): Promise<Array<{ launchId: bigint; 
   if (!pool) throw new Error("Database client is not configured");
   const result = await pool.query(
     "select launch_id, token, block_number from graduations where scope = $1",
-    [indexerScope()]
+    [scope]
   );
   return result.rows.map((row) => ({
     launchId: BigInt(String(row.launch_id)),
@@ -371,10 +379,6 @@ export async function setIndexerState(key: string, value: bigint) {
 
 function hasSupabaseConfig() {
   return Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY);
-}
-
-function indexerScope() {
-  return process.env.INDEXER_SCOPE || "legacy";
 }
 
 function getSupabase() {

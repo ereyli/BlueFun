@@ -13,6 +13,8 @@ import {FullMath} from "../src/libraries/FullMath.sol";
 contract UniswapV4LiquidityLockerTest is Test {
     address owner = address(this);
     address graduationManager = address(0xDAD);
+    address platform = address(0xFEE);
+    address creator = address(0xC0FFEE);
     MockV4PositionManagerAndStateView v4;
     MockPermit2 permit2;
     MockERC20 token;
@@ -24,6 +26,7 @@ contract UniswapV4LiquidityLockerTest is Test {
         token = new MockERC20();
         locker = new UniswapV4LiquidityLocker(
             owner,
+            platform,
             IUniswapV4PositionManager(address(v4)),
             IUniswapV4StateView(address(v4)),
             IPermit2AllowanceTransfer(address(permit2)),
@@ -42,9 +45,9 @@ contract UniswapV4LiquidityLockerTest is Test {
         v4.setInitialized(address(token), 3_000, badPrice);
 
         vm.prank(graduationManager);
-        bytes32 positionId = locker.lockLiquidity{value: 5 ether}(1, address(token), 1_000_000_000 ether);
+        bytes32 positionId = locker.lockLiquidity{value: 5 ether}(1, address(token), 1_000_000_000 ether, creator);
 
-        (,,,,,,, uint24 usedFee,) = locker.lockedPositions(positionId);
+        (,,,,,,,, uint24 usedFee,) = locker.lockedPositions(positionId);
         assertEq(usedFee, 10_000);
     }
 
@@ -58,7 +61,33 @@ contract UniswapV4LiquidityLockerTest is Test {
 
         vm.prank(graduationManager);
         vm.expectRevert(UniswapV4LiquidityLocker.NoUsablePool.selector);
-        locker.lockLiquidity{value: 5 ether}(1, address(token), 1_000_000_000 ether);
+        locker.lockLiquidity{value: 5 ether}(1, address(token), 1_000_000_000 ether, creator);
+    }
+
+    function testCollectsAndSplitsFeesWithoutChangingLiquidity() public {
+        vm.prank(graduationManager);
+        bytes32 positionId = locker.lockLiquidity{value: 5 ether}(1, address(token), 1_000_000_000 ether, creator);
+        (,,,,, uint256 tokenId, uint128 liquidityBefore,,,) = locker.lockedPositions(positionId);
+
+        vm.deal(address(v4), 1 ether);
+        token.mint(address(v4), 100 ether);
+        v4.queueFees(address(token), 1 ether, 100 ether);
+
+        locker.collectFees(positionId);
+
+        assertEq(v4.getPositionLiquidity(tokenId), liquidityBefore);
+        assertEq(locker.pendingFees(platform, address(0)), 0.7 ether);
+        assertEq(locker.pendingFees(creator, address(0)), 0.3 ether);
+        assertEq(locker.pendingFees(platform, address(token)), 70 ether);
+        assertEq(locker.pendingFees(creator, address(token)), 30 ether);
+
+        vm.prank(creator);
+        locker.claimFees(address(0));
+        assertEq(creator.balance, 0.3 ether);
+
+        vm.prank(creator);
+        locker.claimFees(address(token));
+        assertEq(token.balanceOf(creator), 30 ether);
     }
 
     function lockerPreviewSqrtPrice(uint256 tokenAmount, uint256 ethAmount) internal pure returns (uint160) {
@@ -81,6 +110,17 @@ contract MockV4PositionManagerAndStateView is IUniswapV4PositionManager, IUniswa
     mapping(bytes32 poolId => uint160 sqrtPriceX96) public sqrtPrices;
     mapping(uint256 tokenId => uint128 liquidity) public positionLiquidity;
     uint256 public next = 1;
+    address public feeToken;
+    uint256 public nativeFees;
+    uint256 public tokenFees;
+
+    receive() external payable {}
+
+    function queueFees(address token, uint256 nativeAmount, uint256 tokenAmount) external {
+        feeToken = token;
+        nativeFees = nativeAmount;
+        tokenFees = tokenAmount;
+    }
 
     function setInitialized(address token, uint24 fee, uint160 sqrtPriceX96) external {
         PoolKey memory pool =
@@ -107,7 +147,20 @@ contract MockV4PositionManagerAndStateView is IUniswapV4PositionManager, IUniswa
         return 0;
     }
 
-    function modifyLiquidities(bytes calldata, uint256) external payable {
+    function modifyLiquidities(bytes calldata unlockData, uint256) external payable {
+        (bytes memory actions, bytes[] memory params) = abi.decode(unlockData, (bytes, bytes[]));
+        if (uint8(actions[0]) == 0x01) {
+            (address currency0, address currency1, address recipient) =
+                abi.decode(params[1], (address, address, address));
+            require(currency0 == address(0) && currency1 == feeToken, "currencies");
+            uint256 nativeAmount = nativeFees;
+            uint256 tokenAmount = tokenFees;
+            nativeFees = 0;
+            tokenFees = 0;
+            if (nativeAmount > 0) payable(recipient).transfer(nativeAmount);
+            if (tokenAmount > 0) MockERC20(feeToken).transfer(recipient, tokenAmount);
+            return;
+        }
         positionLiquidity[next] = 1;
         next++;
     }
@@ -142,6 +195,13 @@ contract MockERC20 {
 
     function approve(address spender, uint256 amount) external returns (bool) {
         allowance[msg.sender][spender] = amount;
+        return true;
+    }
+
+    function transfer(address to, uint256 amount) external returns (bool) {
+        require(balanceOf[msg.sender] >= amount, "balance");
+        balanceOf[msg.sender] -= amount;
+        balanceOf[to] += amount;
         return true;
     }
 }

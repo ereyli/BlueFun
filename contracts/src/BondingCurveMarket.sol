@@ -106,6 +106,7 @@ contract BondingCurveMarket is Ownable, ReentrancyGuard {
     event EmergencyCloseScheduled(uint256 indexed launchId, uint256 unlockTime);
     event EmergencyCloseCancelled(uint256 indexed launchId);
     event EmergencyClosed(uint256 indexed launchId, address indexed recipient, uint256 ethAmount);
+    event LaunchCountSeeded(uint256 initialLaunchCount);
 
     modifier onlyFactory() {
         if (msg.sender != launchFactory) revert NotLaunchFactory();
@@ -123,6 +124,14 @@ contract BondingCurveMarket is Ownable, ReentrancyGuard {
     }
 
     receive() external payable {}
+
+    /// @notice Reserves launch ids used by a previous deployment during a version migration.
+    /// @dev Can only run once, before the market is configured or any launch is registered.
+    function seedLaunchCount(uint256 initialLaunchCount) external onlyOwner {
+        if (configured || launchCount != 0 || initialLaunchCount == 0) revert AlreadyConfigured();
+        launchCount = initialLaunchCount;
+        emit LaunchCountSeeded(initialLaunchCount);
+    }
 
     function configure(address launchFactory_, address graduationManager_, address feeRecipient_) external onlyOwner {
         if (configured) revert AlreadyConfigured();

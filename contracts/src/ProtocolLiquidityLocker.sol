@@ -14,6 +14,7 @@ contract ProtocolLiquidityLocker is ILiquidityLocker {
         address token;
         uint256 tokenAmount;
         uint256 ethAmount;
+        address creator;
         uint64 lockedAt;
     }
 
@@ -45,7 +46,7 @@ contract ProtocolLiquidityLocker is ILiquidityLocker {
         return false;
     }
 
-    function lockLiquidity(uint256 launchId, address token, uint256 tokenAmount)
+    function lockLiquidity(uint256 launchId, address token, uint256 tokenAmount, address creator)
         external
         payable
         returns (bytes32 positionId)
@@ -59,6 +60,7 @@ contract ProtocolLiquidityLocker is ILiquidityLocker {
             token: token,
             tokenAmount: tokenAmount,
             ethAmount: msg.value,
+            creator: creator,
             lockedAt: uint64(block.timestamp)
         });
 

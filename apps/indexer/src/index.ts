@@ -2,7 +2,15 @@ import "dotenv/config";
 import { createServer } from "node:http";
 import { createPublicClient, encodeAbiParameters, fallback, getAddress, http, keccak256, zeroAddress } from "viem";
 import { graduationAbi, launchFactoryAbi, marketAbi, poolManagerAbi } from "./abi.js";
-import { chainDefinition, chainId, defaultRpcUrls, deploymentScope, mainnetDeployment, poolManager } from "./deployment.js";
+import {
+  chainDefinition,
+  chainId,
+  defaultRpcUrls,
+  deployments,
+  poolManager,
+  scopeForDeployment,
+  type IndexerDeployment
+} from "./deployment.js";
 import {
   ensureSchema,
   closeDatabase,
@@ -20,10 +28,11 @@ const rpcUrls = uniqueUrls([
   ...splitRpcUrls(process.env.RPC_FALLBACK_URLS || process.env.BASE_RPC_FALLBACK_URLS),
   ...defaultRpcUrls
 ]);
-const launchFactory = mainnetDeployment.launchFactory;
-const market = mainnetDeployment.bondingCurveMarket;
-const graduationManager = mainnetDeployment.graduationManager;
-const startBlock = mainnetDeployment.startBlock;
+type DeploymentContext = IndexerDeployment & { scope: string };
+const deploymentContexts: DeploymentContext[] = deployments.map((deployment) => ({
+  ...deployment,
+  scope: scopeForDeployment(deployment)
+}));
 const v4PoolFee = 3000;
 const v4TickSpacing = 60;
 const chunkSize = BigInt(process.env.LOG_CHUNK_SIZE || "1900");
@@ -41,15 +50,7 @@ let pollTimer: ReturnType<typeof setTimeout> | undefined;
 const startedAt = Date.now();
 const healthPort = Number(process.env.HEALTH_PORT || "3000");
 
-if (!launchFactory || !market || !graduationManager) {
-  throw new Error("Set LAUNCH_FACTORY, BONDING_CURVE_MARKET and GRADUATION_MANAGER");
-}
-
-const launchFactoryAddress = launchFactory;
-const marketAddress = market;
-const graduationManagerAddress = graduationManager;
-const stateScope = `${launchFactoryAddress.toLowerCase()}:${marketAddress.toLowerCase()}:${startBlock.toString()}`;
-process.env.INDEXER_SCOPE ||= deploymentScope() || `${chainId}:${stateScope}`;
+if (deploymentContexts.length === 0) throw new Error("At least one deployment must be configured");
 
 type LaunchMetadata = {
   image?: string;
@@ -74,7 +75,7 @@ const healthServer = createServer((request, response) => {
   const payload = JSON.stringify({
     status: healthy ? lastSuccessfulPollAt ? "ok" : "starting" : "stale",
     chainId,
-    scope: process.env.INDEXER_SCOPE,
+    scopes: deploymentContexts.map((deployment) => deployment.scope),
     isPolling,
     lastIndexedBlock: lastIndexedBlock.toString(),
     lastSuccessfulPollAt: lastSuccessfulPollAt ? new Date(lastSuccessfulPollAt).toISOString() : null,
@@ -88,14 +89,18 @@ const healthServer = createServer((request, response) => {
 });
 healthServer.listen(healthPort, "0.0.0.0", () => console.log("Indexer health server listening", { healthPort }));
 console.log("BlueFun indexer starting", {
-  launchFactory: launchFactoryAddress,
-  market: marketAddress,
-  graduationManager: graduationManagerAddress,
-  startBlock: startBlock.toString(),
+  deployments: deploymentContexts.map((deployment) => ({
+    version: deployment.version,
+    launchFactory: deployment.launchFactory,
+    market: deployment.bondingCurveMarket,
+    graduationManager: deployment.graduationManager,
+    startBlock: deployment.startBlock.toString(),
+    scope: deployment.scope
+  })),
   chunkSize: chunkSize.toString(),
   confirmations: confirmations.toString(),
   rpcEndpoints: rpcUrls.length.toString(),
-  scope: process.env.INDEXER_SCOPE
+  scopes: deploymentContexts.length
 });
 
 await runIndexerPoll();
@@ -145,12 +150,14 @@ async function backfillLoop() {
   if (head <= confirmations) return;
   const latest = head - confirmations;
   lastIndexedBlock = latest;
-  if (latest < startBlock) return;
-  await backfillLaunchCreated(latest);
-  await backfillMarketBuys(latest);
-  await backfillMarketSells(latest);
-  await backfillGraduations(latest);
-  await backfillUniswapV4Swaps(latest);
+  for (const deployment of deploymentContexts) {
+    if (latest < deployment.startBlock) continue;
+    await backfillLaunchCreated(deployment, latest);
+    await backfillMarketBuys(deployment, latest);
+    await backfillMarketSells(deployment, latest);
+    await backfillGraduations(deployment, latest);
+    await backfillUniswapV4Swaps(deployment, latest);
+  }
 }
 
 async function shutdown(signal: string) {
@@ -166,15 +173,15 @@ async function shutdown(signal: string) {
 process.once("SIGTERM", () => void shutdown("SIGTERM"));
 process.once("SIGINT", () => void shutdown("SIGINT"));
 
-async function backfillLaunchCreated(latest: bigint) {
-  let fromBlock = (await getIndexerState(stateKey("launch_factory_last_block"))) ?? startBlock;
-  if (fromBlock < startBlock) fromBlock = startBlock;
+async function backfillLaunchCreated(deployment: DeploymentContext, latest: bigint) {
+  let fromBlock = (await getIndexerState(stateKey(deployment, "launch_factory_last_block"))) ?? deployment.startBlock;
+  if (fromBlock < deployment.startBlock) fromBlock = deployment.startBlock;
   if (fromBlock > latest) return;
 
   while (fromBlock <= latest) {
     const toBlock = fromBlock + chunkSize > latest ? latest : fromBlock + chunkSize;
     const logs = await client.getContractEvents({
-      address: launchFactoryAddress,
+      address: deployment.launchFactory,
       abi: launchFactoryAbi,
       eventName: "LaunchCreated",
       fromBlock,
@@ -182,23 +189,23 @@ async function backfillLaunchCreated(latest: bigint) {
     });
 
     for (const log of logs) {
-      await handleLaunchCreated(log);
+      await handleLaunchCreated(deployment, log);
     }
 
-    await setIndexerState(stateKey("launch_factory_last_block"), toBlock + 1n);
+    await setIndexerState(stateKey(deployment, "launch_factory_last_block"), toBlock + 1n);
     fromBlock = toBlock + 1n;
   }
 }
 
-async function backfillMarketBuys(latest: bigint) {
-  let fromBlock = (await getIndexerState(stateKey("market_buys_v2_last_block"))) ?? startBlock;
-  if (fromBlock < startBlock) fromBlock = startBlock;
+async function backfillMarketBuys(deployment: DeploymentContext, latest: bigint) {
+  let fromBlock = (await getIndexerState(stateKey(deployment, "market_buys_v2_last_block"))) ?? deployment.startBlock;
+  if (fromBlock < deployment.startBlock) fromBlock = deployment.startBlock;
   if (fromBlock > latest) return;
 
   while (fromBlock <= latest) {
     const toBlock = fromBlock + chunkSize > latest ? latest : fromBlock + chunkSize;
     const logs = await client.getContractEvents({
-      address: marketAddress,
+      address: deployment.bondingCurveMarket,
       abi: marketAbi,
       eventName: "TokensBought",
       fromBlock,
@@ -206,23 +213,23 @@ async function backfillMarketBuys(latest: bigint) {
     });
 
     for (const log of logs) {
-      await handleTokensBought(log);
+      await handleTokensBought(deployment, log);
     }
 
-    await setIndexerState(stateKey("market_buys_v2_last_block"), toBlock + 1n);
+    await setIndexerState(stateKey(deployment, "market_buys_v2_last_block"), toBlock + 1n);
     fromBlock = toBlock + 1n;
   }
 }
 
-async function backfillMarketSells(latest: bigint) {
-  let fromBlock = (await getIndexerState(stateKey("market_sells_v2_last_block"))) ?? startBlock;
-  if (fromBlock < startBlock) fromBlock = startBlock;
+async function backfillMarketSells(deployment: DeploymentContext, latest: bigint) {
+  let fromBlock = (await getIndexerState(stateKey(deployment, "market_sells_v2_last_block"))) ?? deployment.startBlock;
+  if (fromBlock < deployment.startBlock) fromBlock = deployment.startBlock;
   if (fromBlock > latest) return;
 
   while (fromBlock <= latest) {
     const toBlock = fromBlock + chunkSize > latest ? latest : fromBlock + chunkSize;
     const logs = await client.getContractEvents({
-      address: marketAddress,
+      address: deployment.bondingCurveMarket,
       abi: marketAbi,
       eventName: "TokensSold",
       fromBlock,
@@ -230,23 +237,23 @@ async function backfillMarketSells(latest: bigint) {
     });
 
     for (const log of logs) {
-      await handleTokensSold(log);
+      await handleTokensSold(deployment, log);
     }
 
-    await setIndexerState(stateKey("market_sells_v2_last_block"), toBlock + 1n);
+    await setIndexerState(stateKey(deployment, "market_sells_v2_last_block"), toBlock + 1n);
     fromBlock = toBlock + 1n;
   }
 }
 
-async function backfillGraduations(latest: bigint) {
-  let fromBlock = (await getIndexerState(stateKey("graduations_last_block"))) ?? startBlock;
-  if (fromBlock < startBlock) fromBlock = startBlock;
+async function backfillGraduations(deployment: DeploymentContext, latest: bigint) {
+  let fromBlock = (await getIndexerState(stateKey(deployment, "graduations_last_block"))) ?? deployment.startBlock;
+  if (fromBlock < deployment.startBlock) fromBlock = deployment.startBlock;
   if (fromBlock > latest) return;
 
   while (fromBlock <= latest) {
     const toBlock = fromBlock + chunkSize > latest ? latest : fromBlock + chunkSize;
     const logs = await client.getContractEvents({
-      address: graduationManagerAddress,
+      address: deployment.graduationManager,
       abi: graduationAbi,
       eventName: "Graduated",
       fromBlock,
@@ -254,16 +261,16 @@ async function backfillGraduations(latest: bigint) {
     });
 
     for (const log of logs) {
-      await handleGraduated(log);
+      await handleGraduated(deployment, log);
     }
 
-    await setIndexerState(stateKey("graduations_last_block"), toBlock + 1n);
+    await setIndexerState(stateKey(deployment, "graduations_last_block"), toBlock + 1n);
     fromBlock = toBlock + 1n;
   }
 }
 
-async function backfillUniswapV4Swaps(latest: bigint) {
-  const graduated = await getGraduatedLaunches();
+async function backfillUniswapV4Swaps(deployment: DeploymentContext, latest: bigint) {
+  const graduated = await getGraduatedLaunches(deployment.scope);
   if (graduated.length === 0) return;
 
   const poolMap = new Map<string, { launchId: bigint; token: `0x${string}` }>();
@@ -274,7 +281,8 @@ async function backfillUniswapV4Swaps(latest: bigint) {
     if (launch.blockNumber && launch.blockNumber < firstGraduationBlock) firstGraduationBlock = launch.blockNumber;
   }
 
-  let fromBlock = (await getIndexerState(stateKey("uniswap_v4_swaps_v3_last_block"))) ?? firstGraduationBlock;
+  let fromBlock =
+    (await getIndexerState(stateKey(deployment, "uniswap_v4_swaps_v3_last_block"))) ?? firstGraduationBlock;
   if (fromBlock < firstGraduationBlock) fromBlock = firstGraduationBlock;
   if (fromBlock > latest) return;
 
@@ -292,21 +300,24 @@ async function backfillUniswapV4Swaps(latest: bigint) {
     for (const log of logs) {
       const pool = poolMap.get(String(log.args.id).toLowerCase());
       if (!pool) continue;
-      await handleUniswapV4Swap(log, pool.launchId);
+      await handleUniswapV4Swap(deployment, log, pool.launchId);
     }
 
-    await setIndexerState(stateKey("uniswap_v4_swaps_v3_last_block"), toBlock + 1n);
+    await setIndexerState(stateKey(deployment, "uniswap_v4_swaps_v3_last_block"), toBlock + 1n);
     fromBlock = toBlock + 1n;
   }
 }
 
-function stateKey(key: string) {
-  return `${process.env.INDEXER_SCOPE || stateScope}:${key}`;
+function stateKey(deployment: DeploymentContext, key: string) {
+  return `${deployment.scope}:${key}`;
 }
 
-async function handleLaunchCreated(log: Awaited<ReturnType<typeof client.getContractEvents<typeof launchFactoryAbi, "LaunchCreated">>>[number]) {
+async function handleLaunchCreated(
+  deployment: DeploymentContext,
+  log: Awaited<ReturnType<typeof client.getContractEvents<typeof launchFactoryAbi, "LaunchCreated">>>[number]
+) {
   const metadata: LaunchMetadata = await readLaunchMetadata(log.args.contractURI || "").catch(() => ({}));
-  await upsertLaunch({
+  await upsertLaunch(deployment.scope, {
     id: log.args.launchId!,
     token: log.args.token!,
     creator: log.args.creator!,
@@ -322,7 +333,7 @@ async function handleLaunchCreated(log: Awaited<ReturnType<typeof client.getCont
     txHash: log.transactionHash,
     blockNumber: log.blockNumber
   });
-  await refreshLaunchState(log.args.launchId!);
+  await refreshLaunchState(deployment, log.args.launchId!);
 }
 
 async function readLaunchMetadata(contractURI: string): Promise<LaunchMetadata> {
@@ -385,9 +396,13 @@ function cleanMetadataUrl(value: unknown) {
   }
 }
 
-async function handleTokensBought(log: Awaited<ReturnType<typeof client.getContractEvents<typeof marketAbi, "TokensBought">>>[number]) {
-  const marketCapEth = await readCurveMarketCapAtBlock(log.args.launchId!, log.blockNumber).catch(() => undefined);
-  await insertTrade({
+async function handleTokensBought(
+  deployment: DeploymentContext,
+  log: Awaited<ReturnType<typeof client.getContractEvents<typeof marketAbi, "TokensBought">>>[number]
+) {
+  const marketCapEth =
+    await readCurveMarketCapAtBlock(deployment, log.args.launchId!, log.blockNumber).catch(() => undefined);
+  await insertTrade(deployment.scope, {
     launchId: log.args.launchId!,
     trader: log.args.buyer!,
     side: "buy",
@@ -398,12 +413,16 @@ async function handleTokensBought(log: Awaited<ReturnType<typeof client.getContr
     txHash: log.transactionHash,
     blockNumber: log.blockNumber
   });
-  await refreshLaunchState(log.args.launchId!);
+  await refreshLaunchState(deployment, log.args.launchId!);
 }
 
-async function handleTokensSold(log: Awaited<ReturnType<typeof client.getContractEvents<typeof marketAbi, "TokensSold">>>[number]) {
-  const marketCapEth = await readCurveMarketCapAtBlock(log.args.launchId!, log.blockNumber).catch(() => undefined);
-  await insertTrade({
+async function handleTokensSold(
+  deployment: DeploymentContext,
+  log: Awaited<ReturnType<typeof client.getContractEvents<typeof marketAbi, "TokensSold">>>[number]
+) {
+  const marketCapEth =
+    await readCurveMarketCapAtBlock(deployment, log.args.launchId!, log.blockNumber).catch(() => undefined);
+  await insertTrade(deployment.scope, {
     launchId: log.args.launchId!,
     trader: log.args.seller!,
     side: "sell",
@@ -414,21 +433,25 @@ async function handleTokensSold(log: Awaited<ReturnType<typeof client.getContrac
     txHash: log.transactionHash,
     blockNumber: log.blockNumber
   });
-  await refreshLaunchState(log.args.launchId!);
+  await refreshLaunchState(deployment, log.args.launchId!);
 }
 
-async function handleGraduated(log: Awaited<ReturnType<typeof client.getContractEvents<typeof graduationAbi, "Graduated">>>[number]) {
-  await markGraduated({
+async function handleGraduated(
+  deployment: DeploymentContext,
+  log: Awaited<ReturnType<typeof client.getContractEvents<typeof graduationAbi, "Graduated">>>[number]
+) {
+  await markGraduated(deployment.scope, {
     launchId: log.args.launchId!,
     token: log.args.token!,
     positionId: log.args.positionId!,
     txHash: log.transactionHash,
     blockNumber: log.blockNumber
   });
-  await refreshLaunchState(log.args.launchId!);
+  await refreshLaunchState(deployment, log.args.launchId!);
 }
 
 async function handleUniswapV4Swap(
+  deployment: DeploymentContext,
   log: Awaited<ReturnType<typeof client.getContractEvents<typeof poolManagerAbi, "Swap">>>[number],
   launchId: bigint
 ) {
@@ -442,7 +465,7 @@ async function handleUniswapV4Swap(
   const trader = await readTransactionSender(log.transactionHash).catch(() => log.args.sender!);
   const marketCapEth = marketCapWeiFromSqrtPrice(log.args.sqrtPriceX96!);
 
-  await insertTrade({
+  await insertTrade(deployment.scope, {
     launchId,
     trader,
     side,
@@ -492,9 +515,13 @@ function absBigInt(value: bigint) {
   return value < 0n ? -value : value;
 }
 
-async function readCurveMarketCapAtBlock(launchId: bigint, blockNumber: bigint) {
+async function readCurveMarketCapAtBlock(
+  deployment: DeploymentContext,
+  launchId: bigint,
+  blockNumber: bigint
+) {
   const state = await client.readContract({
-    address: marketAddress,
+    address: deployment.bondingCurveMarket,
     abi: marketAbi,
     functionName: "launches",
     args: [launchId],
@@ -513,9 +540,9 @@ function marketCapWeiFromSqrtPrice(sqrtPriceX96: bigint) {
   return (totalSupplyRaw * q192) / (sqrtPriceX96 * sqrtPriceX96);
 }
 
-async function refreshLaunchState(launchId: bigint) {
+async function refreshLaunchState(deployment: DeploymentContext, launchId: bigint) {
   const state = await client.readContract({
-    address: marketAddress,
+    address: deployment.bondingCurveMarket,
     abi: marketAbi,
     functionName: "launches",
     args: [launchId]
@@ -526,7 +553,7 @@ async function refreshLaunchState(launchId: bigint) {
   const progress = graduationEthTarget === 0n ? 0 : Number((grossEthRaised * 100n) / graduationEthTarget);
   const status = state[16] ? "graduated" : state[15] ? "ready" : "live";
 
-  await updateLaunchState({
+  await updateLaunchState(deployment.scope, {
     id: launchId,
     status,
     raisedEth: grossEthRaised,

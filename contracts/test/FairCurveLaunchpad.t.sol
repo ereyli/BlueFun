@@ -238,6 +238,16 @@ contract FairCurveLaunchpadTest is Test {
         market.configure(address(factory), address(graduation), feeRecipient);
     }
 
+    function testLaunchCountCanBeSeededOnlyBeforeConfiguration() public {
+        BondingCurveMarket migratedMarket = new BondingCurveMarket(address(this), feeRecipient);
+        migratedMarket.seedLaunchCount(21);
+        assertEq(migratedMarket.launchCount(), 21);
+
+        migratedMarket.configure(address(factory), address(graduation), feeRecipient);
+        vm.expectRevert(BondingCurveMarket.AlreadyConfigured.selector);
+        migratedMarket.seedLaunchCount(22);
+    }
+
     function testGraduationWithdrawalsRequireReadyLaunch() public {
         (uint256 launchId,) = _createLaunch("GuardedReserve", "GRSV", 10 ether);
 

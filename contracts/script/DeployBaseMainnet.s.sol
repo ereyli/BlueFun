@@ -39,14 +39,17 @@ contract DeployBaseMainnet {
 
     function run() external {
         uint256 deployerPrivateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
+        uint256 initialLaunchCount = vm.envUint("INITIAL_LAUNCH_COUNT");
         address deployer = vm.addr(deployerPrivateKey);
         address feeRecipient = vm.envAddress("FEE_RECIPIENT");
 
         vm.startBroadcast(deployerPrivateKey);
 
         BondingCurveMarket market = new BondingCurveMarket(deployer, feeRecipient);
+        if (initialLaunchCount > 0) market.seedLaunchCount(initialLaunchCount);
         UniswapV4LiquidityLocker locker = new UniswapV4LiquidityLocker(
             deployer,
+            feeRecipient,
             IUniswapV4PositionManager(UNISWAP_V4_POSITION_MANAGER),
             IUniswapV4StateView(UNISWAP_V4_STATE_VIEW),
             IPermit2AllowanceTransfer(PERMIT2),

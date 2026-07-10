@@ -13,7 +13,18 @@ import type {
   ISeriesApi,
   UTCTimestamp
 } from "lightweight-charts";
-import { b20TokenAbi, bondingCurveAbi, contractsForChain, graduationManagerAbi, indexerScopeForChain, permit2Abi, universalRouterAbi, uniswapV4QuoterAbi } from "@/lib/contracts";
+import {
+  b20TokenAbi,
+  bondingCurveAbi,
+  contractsForChain,
+  contractsForLaunch,
+  feeSharingLockerAbi,
+  graduationManagerAbi,
+  indexerScopeForLaunch,
+  permit2Abi,
+  universalRouterAbi,
+  uniswapV4QuoterAbi
+} from "@/lib/contracts";
 import {
   CURVE_FEE_RATE,
   TOTAL_SUPPLY,
@@ -53,7 +64,7 @@ export function MarketClient({ id, launch, trades }: { id: string; launch?: Depl
   const [realtimeHealthy, setRealtimeHealthy] = useState(false);
   const { address, isConnected, chainId } = useAccount();
   const activeChainId = launch?.chainId === 4663 ? 4663 : 8453;
-  const { addresses, chain, uniswapV4Addresses } = contractsForChain(activeChainId);
+  const { addresses, chain, uniswapV4Addresses } = contractsForLaunch(activeChainId, id);
   const wrongNetwork = Boolean(isConnected && chainId && chainId !== activeChainId);
   const { data: hash, error, writeContract, isPending } = useWriteContract();
   const receipt = useWaitForTransactionReceipt({ hash });
@@ -84,6 +95,28 @@ export function MarketClient({ id, launch, trades }: { id: string; launch?: Depl
     functionName: "pendingFees",
     args: [address!],
     query: { enabled: Boolean(addresses.bondingCurveMarket && address) }
+  });
+  const feeSharingEnabled = addresses.version === "current" && Boolean(launch?.positionId);
+  const lpFeeRevenue = useReadContract({
+    address: addresses.liquidityLocker,
+    abi: feeSharingLockerAbi,
+    functionName: "feeRevenue",
+    args: [launch?.positionId ?? `0x${"0".repeat(64)}`],
+    query: { enabled: feeSharingEnabled }
+  });
+  const lpNativePending = useReadContract({
+    address: addresses.liquidityLocker,
+    abi: feeSharingLockerAbi,
+    functionName: "pendingFees",
+    args: [address ?? zeroAddress, zeroAddress],
+    query: { enabled: Boolean(feeSharingEnabled && address) }
+  });
+  const lpTokenPending = useReadContract({
+    address: addresses.liquidityLocker,
+    abi: feeSharingLockerAbi,
+    functionName: "pendingFees",
+    args: [address ?? zeroAddress, launch?.token ?? zeroAddress],
+    query: { enabled: Boolean(feeSharingEnabled && address && launch?.token) }
   });
   const tokenAllowance = useReadContract({
     address: launch?.token,
@@ -177,7 +210,12 @@ export function MarketClient({ id, launch, trades }: { id: string; launch?: Depl
   const displayPriceText = latestPriceEth > 0
     ? formatUsdFromEthText(displayPrice, ethUsd, true)
     : isGraduated && dexPair?.priceUsd ? formatUsdPrice(dexPair.priceUsd) : formatUsdFromEthText(displayPrice, ethUsd, true);
-  const showCreatorEarnings = Boolean(address && (address.toLowerCase() === launch?.creator.toLowerCase() || (accountFeeBalance.data ?? 0n) > 0n));
+  const showCreatorEarnings = Boolean(address && (
+    address.toLowerCase() === launch?.creator.toLowerCase()
+    || (accountFeeBalance.data ?? 0n) > 0n
+    || (lpNativePending.data ?? 0n) > 0n
+    || (lpTokenPending.data ?? 0n) > 0n
+  ));
 
   useEffect(() => {
     if (!receipt.isSuccess) return;
@@ -187,8 +225,11 @@ export function MarketClient({ id, launch, trades }: { id: string; launch?: Depl
     graduatedTokenPermit2Allowance.refetch();
     graduatedPermit2RouterAllowance.refetch();
     graduatedQuote.refetch();
+    lpFeeRevenue.refetch();
+    lpNativePending.refetch();
+    lpTokenPending.refetch();
     return () => window.clearTimeout(timeout);
-  }, [graduatedPermit2RouterAllowance, graduatedQuote, graduatedTokenPermit2Allowance, receipt.isSuccess, router, tokenAllowance, tokenBalance]);
+  }, [graduatedPermit2RouterAllowance, graduatedQuote, graduatedTokenPermit2Allowance, lpFeeRevenue, lpNativePending, lpTokenPending, receipt.isSuccess, router, tokenAllowance, tokenBalance]);
 
   useEffect(() => {
     if (realtimeHealthy) return;
@@ -206,7 +247,7 @@ export function MarketClient({ id, launch, trades }: { id: string; launch?: Depl
   useEffect(() => {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-    const scope = indexerScopeForChain(activeChainId);
+    const scope = indexerScopeForLaunch(activeChainId, id);
     if (!supabaseUrl || !supabaseAnonKey || !scope) return;
 
     const supabase = createClient(supabaseUrl, supabaseAnonKey, {
@@ -397,6 +438,28 @@ export function MarketClient({ id, launch, trades }: { id: string; launch?: Depl
       address: addresses.bondingCurveMarket,
       abi: bondingCurveAbi,
       functionName: "claimFees"
+    });
+  }
+
+  function collectLpFees() {
+    if (!launch?.positionId || addresses.version !== "current") return;
+    writeContract({
+      chainId: activeChainId,
+      address: addresses.liquidityLocker,
+      abi: feeSharingLockerAbi,
+      functionName: "collectFees",
+      args: [launch.positionId]
+    });
+  }
+
+  function claimLpFees(currency: `0x${string}`) {
+    if (addresses.version !== "current") return;
+    writeContract({
+      chainId: activeChainId,
+      address: addresses.liquidityLocker,
+      abi: feeSharingLockerAbi,
+      functionName: "claimFees",
+      args: [currency]
     });
   }
 
@@ -630,9 +693,31 @@ export function MarketClient({ id, launch, trades }: { id: string; launch?: Depl
           </section>
         ) : null}
 
+        {feeSharingEnabled ? <section className="side-compact-card lp-revenue-card">
+          <div className="side-card-head">
+            <span>Locked LP revenue</span>
+            <strong>70% / 30%</strong>
+          </div>
+          <div className="lp-revenue-grid">
+            <div>
+              <span>Total ETH fees</span>
+              <strong>{formatQuote(lpFeeRevenue.data?.[0] ?? 0n, "ETH")}</strong>
+            </div>
+            <div>
+              <span>Total token fees</span>
+              <strong>{formatQuote(lpFeeRevenue.data?.[1] ?? 0n, launch.symbol)}</strong>
+            </div>
+          </div>
+          <p className="trade-helper">LP principal stays permanently locked. Collected fees split 70% to BlueFun and 30% to the creator.</p>
+          <button className="button secondary wide" disabled={!isConnected || isWorking} onClick={collectLpFees} type="button">
+            {isWorking ? <Loader2 className="spin" size={16} /> : <RotateCcw size={16} />}
+            Sync LP fees
+          </button>
+        </section> : null}
+
         {showCreatorEarnings ? <section className="side-compact-card">
           <div className="side-card-head">
-            <span>Creator earnings</span>
+            <span>Your earnings</span>
             <strong>{accountFeeBalance.data ? formatQuote(accountFeeBalance.data, "ETH") : "0 ETH"}</strong>
           </div>
           <button
@@ -642,8 +727,26 @@ export function MarketClient({ id, launch, trades }: { id: string; launch?: Depl
             type="button"
           >
             {isWorking ? <Loader2 className="spin" size={16} /> : null}
-            {isPending ? "Confirm in wallet" : receipt.isLoading ? "Claiming" : "Claim fees"}
+            {isPending ? "Confirm in wallet" : receipt.isLoading ? "Claiming" : "Claim curve fees"}
           </button>
+          {feeSharingEnabled ? <div className="lp-claim-actions">
+            <button
+              className="button secondary wide"
+              disabled={!isConnected || isWorking || !lpNativePending.data}
+              onClick={() => claimLpFees(zeroAddress)}
+              type="button"
+            >
+              Claim {formatQuote(lpNativePending.data ?? 0n, "ETH")}
+            </button>
+            <button
+              className="button secondary wide"
+              disabled={!isConnected || isWorking || !lpTokenPending.data}
+              onClick={() => claimLpFees(launch.token)}
+              type="button"
+            >
+              Claim {formatQuote(lpTokenPending.data ?? 0n, launch.symbol)}
+            </button>
+          </div> : null}
         </section> : null}
       </aside>
     </div>

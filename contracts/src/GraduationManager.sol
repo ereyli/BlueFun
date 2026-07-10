@@ -50,7 +50,7 @@ contract GraduationManager is PolicyGuard, ReentrancyGuard {
         market.withdrawGraduationTokens(launchId, address(liquidityLocker), liquidityTokenAmount);
 
         uint256 withdrawn = market.withdrawGraduationEth(launchId, payable(address(this)));
-        positionId = liquidityLocker.lockLiquidity{value: withdrawn}(launchId, token, liquidityTokenAmount);
+        positionId = liquidityLocker.lockLiquidity{value: withdrawn}(launchId, token, liquidityTokenAmount, creator);
 
         IB20 b20 = IB20(token);
         b20.revokeRole(b20.MINT_ROLE(), address(market));

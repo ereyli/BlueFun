@@ -3,27 +3,84 @@ import { robinhoodChain } from "@/lib/robinhood-chain";
 
 export const chain = baseChain;
 
-const MAINNET_DEPLOYMENT = {
+export type ContractDeployment = {
+  version: "legacy" | "current";
+  launchFactory: `0x${string}`;
+  bondingCurveMarket: `0x${string}`;
+  graduationManager: `0x${string}`;
+  liquidityLocker: `0x${string}`;
+  deploymentBlock: bigint;
+  firstLaunchId: bigint;
+};
+
+const LEGACY_BASE_DEPLOYMENT: ContractDeployment = {
+  version: "legacy",
   launchFactory: "0xf65ebfdacb1a8e0a8217185aae44f489e53b88f9" as `0x${string}`,
   bondingCurveMarket: "0x4ce2154146eacf745133d7755875767d6a00ee5f" as `0x${string}`,
   graduationManager: "0x0a5769b0c8bff62e2c50014cb76f5cb4fde849c2" as `0x${string}`,
-  deploymentBlock: 48379352n
+  liquidityLocker: "0x63e79af2821238a5a20716f710c4a9401e64141d" as `0x${string}`,
+  deploymentBlock: 48379352n,
+  firstLaunchId: 1n
+};
+
+const MAINNET_DEPLOYMENT: ContractDeployment = {
+  version: "current",
+  launchFactory: "0x29ce28c9cb3f584eb2548883824acd49881e780a",
+  bondingCurveMarket: "0x94d056be6573bcaa4958cceeb242c3c08eff2b95",
+  graduationManager: "0xa2b7626f6a92b366e6e787ac4db4840f57f253af",
+  liquidityLocker: "0xe309983df86803f62e10d07d9522af005ec08ee4",
+  deploymentBlock: 48451170n,
+  firstLaunchId: 22n
 };
 
 export const addresses = {
   launchFactory: MAINNET_DEPLOYMENT.launchFactory,
   bondingCurveMarket: MAINNET_DEPLOYMENT.bondingCurveMarket,
   graduationManager: MAINNET_DEPLOYMENT.graduationManager,
+  liquidityLocker: MAINNET_DEPLOYMENT.liquidityLocker,
   activationRegistry: "0x8453000000000000000000000000000000000001" as `0x${string}`,
   deploymentBlock: MAINNET_DEPLOYMENT.deploymentBlock
 };
 
-export const robinhoodAddresses = {
+const LEGACY_ROBINHOOD_DEPLOYMENT: ContractDeployment = {
+  version: "legacy",
   launchFactory: "0x6a05304638bed7c96b78f420c612e84111fad4d1" as `0x${string}`,
   bondingCurveMarket: "0xab7597fecaf3357101a3a4331f512031ef3238f0" as `0x${string}`,
   graduationManager: "0xf6545a701a8cbe80d573043e8ffb8210de913d28" as `0x${string}`,
-  deploymentBlock: 5576234n
+  liquidityLocker: "0x2d1e48fb40f00ed48f2e16df4a7a587fd063d177" as `0x${string}`,
+  deploymentBlock: 5576234n,
+  firstLaunchId: 1n
 };
+
+export const robinhoodAddresses: ContractDeployment = {
+  version: "current",
+  launchFactory: "0x128a32ed2af1787a3fab261bc6158400e2f649c9",
+  bondingCurveMarket: "0x795fe5649a78496f51c1594a7b435941fb20adb8",
+  graduationManager: "0x55d343fc936463c97b7e89dc0ac08c20a08bfb2a",
+  liquidityLocker: "0x2176cbc6cb7e650289fe2ec4417b7a27fd0354d5",
+  deploymentBlock: 6131828n,
+  firstLaunchId: 1n
+};
+
+export const legacyBaseAddresses = LEGACY_BASE_DEPLOYMENT;
+export const legacyRobinhoodAddresses = LEGACY_ROBINHOOD_DEPLOYMENT;
+
+export function deploymentsForChain(chainId: number | undefined): ContractDeployment[] {
+  const catalog = chainId === robinhoodChain.id
+    ? [LEGACY_ROBINHOOD_DEPLOYMENT, robinhoodAddresses]
+    : [LEGACY_BASE_DEPLOYMENT, MAINNET_DEPLOYMENT];
+  return Array.from(new Map(catalog.map((deployment) => [deployment.bondingCurveMarket, deployment])).values());
+}
+
+export function deploymentForLaunch(chainId: number | undefined, launchId: string | bigint) {
+  const id = typeof launchId === "bigint" ? launchId : BigInt(launchId);
+  return deploymentsForChain(chainId)
+    .filter((deployment) => deployment.firstLaunchId <= id)
+    .sort((a, b) => {
+      if (a.firstLaunchId !== b.firstLaunchId) return a.firstLaunchId > b.firstLaunchId ? -1 : 1;
+      return a.version === "current" ? -1 : 1;
+    })[0];
+}
 
 export const robinhoodUniswapV4Addresses = {
   poolManager: "0x8366a39cc670b4001a1121b8f6a443a643e40951" as `0x${string}`,
@@ -46,6 +103,12 @@ export function contractsForChain(chainId: number | undefined) {
   return { chain: baseChain, addresses, uniswapV4Addresses, uniswapChainName: "base" };
 }
 
+export function contractsForLaunch(chainId: number | undefined, launchId: string | bigint) {
+  const config = contractsForChain(chainId);
+  const deployment = deploymentForLaunch(chainId, launchId);
+  return { ...config, addresses: deployment };
+}
+
 export function indexerScope() {
   if (!addresses.launchFactory || !addresses.bondingCurveMarket || addresses.deploymentBlock === 0n) return "";
   return `${chain.id}:${addresses.launchFactory.toLowerCase()}:${addresses.bondingCurveMarket.toLowerCase()}:${addresses.deploymentBlock.toString()}`;
@@ -56,6 +119,23 @@ export function indexerScopeForChain(chainId: number | undefined) {
   const deployment = config.addresses;
   if (!deployment.launchFactory || !deployment.bondingCurveMarket || deployment.deploymentBlock === 0n) return "";
   return `${config.chain.id}:${deployment.launchFactory.toLowerCase()}:${deployment.bondingCurveMarket.toLowerCase()}:${deployment.deploymentBlock.toString()}`;
+}
+
+export function indexerScopeForDeployment(chainId: number, deployment: ContractDeployment) {
+  return `${chainId}:${deployment.launchFactory.toLowerCase()}:${deployment.bondingCurveMarket.toLowerCase()}:${deployment.deploymentBlock.toString()}`;
+}
+
+export function indexerScopesForChain(chainId: number | undefined) {
+  const resolvedChainId = chainId === robinhoodChain.id ? robinhoodChain.id : baseChain.id;
+  return deploymentsForChain(resolvedChainId).map((deployment) => ({
+    scope: indexerScopeForDeployment(resolvedChainId, deployment),
+    deployment
+  }));
+}
+
+export function indexerScopeForLaunch(chainId: number | undefined, launchId: string | bigint) {
+  const resolvedChainId = chainId === robinhoodChain.id ? robinhoodChain.id : baseChain.id;
+  return indexerScopeForDeployment(resolvedChainId, deploymentForLaunch(resolvedChainId, launchId));
 }
 
 export const FAIR_GRADUATION_TARGET_ETH = "5";
@@ -346,11 +426,64 @@ export const activationRegistryAbi = [
 
 export const graduationManagerAbi = [
   {
+    type: "event",
+    name: "Graduated",
+    inputs: [
+      { indexed: true, name: "launchId", type: "uint256" },
+      { indexed: true, name: "token", type: "address" },
+      { indexed: false, name: "positionId", type: "bytes32" }
+    ]
+  },
+  {
     type: "function",
     name: "graduate",
     stateMutability: "nonpayable",
     inputs: [{ name: "launchId", type: "uint256" }],
     outputs: [{ name: "positionId", type: "bytes32" }]
+  }
+] as const;
+
+export const feeSharingLockerAbi = [
+  {
+    type: "function",
+    name: "feeRevenue",
+    stateMutability: "view",
+    inputs: [{ name: "positionId", type: "bytes32" }],
+    outputs: [
+      { name: "nativeCollected", type: "uint256" },
+      { name: "tokenCollected", type: "uint256" },
+      { name: "platformNative", type: "uint256" },
+      { name: "platformToken", type: "uint256" },
+      { name: "creatorNative", type: "uint256" },
+      { name: "creatorToken", type: "uint256" }
+    ]
+  },
+  {
+    type: "function",
+    name: "pendingFees",
+    stateMutability: "view",
+    inputs: [
+      { name: "account", type: "address" },
+      { name: "currency", type: "address" }
+    ],
+    outputs: [{ name: "amount", type: "uint256" }]
+  },
+  {
+    type: "function",
+    name: "collectFees",
+    stateMutability: "nonpayable",
+    inputs: [{ name: "positionId", type: "bytes32" }],
+    outputs: [
+      { name: "nativeAmount", type: "uint256" },
+      { name: "tokenAmount", type: "uint256" }
+    ]
+  },
+  {
+    type: "function",
+    name: "claimFees",
+    stateMutability: "nonpayable",
+    inputs: [{ name: "currency", type: "address" }],
+    outputs: [{ name: "amount", type: "uint256" }]
   }
 ] as const;
 

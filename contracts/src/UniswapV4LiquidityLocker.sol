@@ -3,10 +3,12 @@ pragma solidity ^0.8.25;
 
 import {ILiquidityLocker} from "./interfaces/ILiquidityLocker.sol";
 import {FullMath} from "./libraries/FullMath.sol";
+import {ReentrancyGuard} from "./security/ReentrancyGuard.sol";
 
 interface IERC20Minimal {
     function approve(address spender, uint256 value) external returns (bool);
     function balanceOf(address account) external view returns (uint256);
+    function transfer(address to, uint256 value) external returns (bool);
 }
 
 interface IPermit2AllowanceTransfer {
@@ -36,7 +38,7 @@ interface IUniswapV4StateView {
         returns (uint160 sqrtPriceX96, int24 tick, uint24 protocolFee, uint24 lpFee);
 }
 
-contract UniswapV4LiquidityLocker is ILiquidityLocker {
+contract UniswapV4LiquidityLocker is ILiquidityLocker, ReentrancyGuard {
     using FullMath for uint256;
 
     error NotGraduationManager();
@@ -48,7 +50,12 @@ contract UniswapV4LiquidityLocker is ILiquidityLocker {
     error NotOwner();
     error AlreadyConfigured();
     error TokenApprovalFailed();
+    error TokenTransferFailed();
     error NoUsablePool();
+    error PositionNotFound();
+    error NoFeesCollected();
+    error LiquidityChanged();
+    error FeeClaimFailed();
 
     uint256 private constant Q96 = 0x1000000000000000000000000;
     uint256 private constant Q192 = 0x1000000000000000000000000000000000000000000000000;
@@ -58,11 +65,17 @@ contract UniswapV4LiquidityLocker is ILiquidityLocker {
     int24 private constant MAX_TICK_60 = 887220;
 
     uint8 private constant ACTION_MINT_POSITION = 0x02;
+    uint8 private constant ACTION_DECREASE_LIQUIDITY = 0x01;
     uint8 private constant ACTION_SETTLE_PAIR = 0x0d;
+    uint8 private constant ACTION_TAKE_PAIR = 0x11;
     uint8 private constant ACTION_SWEEP = 0x14;
     uint256 private constant POOL_PRICE_TOLERANCE_BPS = 100;
+    uint256 public constant FEE_SPLIT_BPS = 10_000;
+    uint256 public constant PLATFORM_SHARE_BPS = 7_000;
+    uint256 public constant CREATOR_SHARE_BPS = 3_000;
 
     address public immutable owner;
+    address public immutable platformFeeRecipient;
     address public graduationManager;
     IUniswapV4PositionManager public immutable positionManager;
     IUniswapV4StateView public immutable stateView;
@@ -76,6 +89,7 @@ contract UniswapV4LiquidityLocker is ILiquidityLocker {
         address token;
         uint256 tokenAmountMax;
         uint256 ethAmountMax;
+        address creator;
         uint256 tokenId;
         uint128 liquidity;
         uint160 sqrtPriceX96;
@@ -84,6 +98,18 @@ contract UniswapV4LiquidityLocker is ILiquidityLocker {
     }
 
     mapping(bytes32 positionId => LockedPosition position) public lockedPositions;
+    mapping(address account => mapping(address currency => uint256 amount)) public pendingFees;
+
+    struct FeeRevenue {
+        uint256 nativeCollected;
+        uint256 tokenCollected;
+        uint256 platformNative;
+        uint256 platformToken;
+        uint256 creatorNative;
+        uint256 creatorToken;
+    }
+
+    mapping(bytes32 positionId => FeeRevenue revenue) public feeRevenue;
 
     event LiquidityPositionLocked(
         bytes32 indexed positionId,
@@ -92,9 +118,22 @@ contract UniswapV4LiquidityLocker is ILiquidityLocker {
         uint256 tokenAmount,
         uint256 ethAmount
     );
+    event PositionFeesCollected(
+        bytes32 indexed positionId,
+        address indexed token,
+        address indexed creator,
+        uint256 nativeAmount,
+        uint256 tokenAmount,
+        uint256 platformNative,
+        uint256 platformToken,
+        uint256 creatorNative,
+        uint256 creatorToken
+    );
+    event FeesClaimed(address indexed account, address indexed currency, uint256 amount);
 
     constructor(
         address owner_,
+        address platformFeeRecipient_,
         IUniswapV4PositionManager positionManager_,
         IUniswapV4StateView stateView_,
         IPermit2AllowanceTransfer permit2_,
@@ -103,11 +142,12 @@ contract UniswapV4LiquidityLocker is ILiquidityLocker {
         address hooks_
     ) {
         if (
-            owner_ == address(0) || address(positionManager_) == address(0) || address(stateView_) == address(0)
-                || address(permit2_) == address(0)
+            owner_ == address(0) || platformFeeRecipient_ == address(0) || address(positionManager_) == address(0)
+                || address(stateView_) == address(0) || address(permit2_) == address(0)
         ) revert InvalidAddress();
         if (poolFee_ == 0 || tickSpacing_ != 60 || hooks_ != address(0)) revert InvalidPoolConfig();
         owner = owner_;
+        platformFeeRecipient = platformFeeRecipient_;
         positionManager = positionManager_;
         stateView = stateView_;
         permit2 = permit2_;
@@ -129,13 +169,13 @@ contract UniswapV4LiquidityLocker is ILiquidityLocker {
         return true;
     }
 
-    function lockLiquidity(uint256 launchId, address token, uint256 tokenAmount)
+    function lockLiquidity(uint256 launchId, address token, uint256 tokenAmount, address creator)
         external
         payable
         returns (bytes32 positionId)
     {
         if (msg.sender != graduationManager) revert NotGraduationManager();
-        if (token == address(0) || tokenAmount == 0 || msg.value == 0) revert ZeroAmount();
+        if (token == address(0) || creator == address(0) || tokenAmount == 0 || msg.value == 0) revert ZeroAmount();
 
         uint160 sqrtPriceX96 = _sqrtPriceX96(tokenAmount, msg.value);
         uint128 liquidity = _liquidityForAmounts(sqrtPriceX96, msg.value, tokenAmount);
@@ -165,6 +205,7 @@ contract UniswapV4LiquidityLocker is ILiquidityLocker {
             token: token,
             tokenAmountMax: tokenAmount,
             ethAmountMax: msg.value,
+            creator: creator,
             tokenId: tokenId,
             liquidity: mintedLiquidity,
             sqrtPriceX96: sqrtPriceX96,
@@ -173,6 +214,75 @@ contract UniswapV4LiquidityLocker is ILiquidityLocker {
         });
 
         emit LiquidityPositionLocked(positionId, launchId, token, tokenAmount, msg.value);
+    }
+
+    /// @notice Realizes Uniswap v4 fees without decreasing the locked position's liquidity.
+    /// @dev Permissionless so a keeper or either beneficiary can trigger accounting.
+    function collectFees(bytes32 positionId) external nonReentrant returns (uint256 nativeAmount, uint256 tokenAmount) {
+        LockedPosition storage position = lockedPositions[positionId];
+        if (position.token == address(0)) revert PositionNotFound();
+
+        uint256 nativeBefore = address(this).balance;
+        uint256 tokenBefore = IERC20Minimal(position.token).balanceOf(address(this));
+        uint128 liquidityBefore = positionManager.getPositionLiquidity(position.tokenId);
+
+        bytes memory actions = abi.encodePacked(ACTION_DECREASE_LIQUIDITY, ACTION_TAKE_PAIR);
+        bytes[] memory params = new bytes[](2);
+        params[0] = abi.encode(position.tokenId, 0, 0, 0, bytes(""));
+        params[1] = abi.encode(address(0), position.token, address(this));
+        positionManager.modifyLiquidities(abi.encode(actions, params), block.timestamp + 30 minutes);
+
+        uint128 liquidityAfter = positionManager.getPositionLiquidity(position.tokenId);
+        if (liquidityAfter != liquidityBefore || liquidityAfter != position.liquidity) revert LiquidityChanged();
+
+        nativeAmount = address(this).balance - nativeBefore;
+        tokenAmount = IERC20Minimal(position.token).balanceOf(address(this)) - tokenBefore;
+        if (nativeAmount == 0 && tokenAmount == 0) revert NoFeesCollected();
+
+        uint256 platformNative = (nativeAmount * PLATFORM_SHARE_BPS) / FEE_SPLIT_BPS;
+        uint256 platformToken = (tokenAmount * PLATFORM_SHARE_BPS) / FEE_SPLIT_BPS;
+        uint256 creatorNative = nativeAmount - platformNative;
+        uint256 creatorToken = tokenAmount - platformToken;
+
+        pendingFees[platformFeeRecipient][address(0)] += platformNative;
+        pendingFees[platformFeeRecipient][position.token] += platformToken;
+        pendingFees[position.creator][address(0)] += creatorNative;
+        pendingFees[position.creator][position.token] += creatorToken;
+
+        FeeRevenue storage revenue = feeRevenue[positionId];
+        revenue.nativeCollected += nativeAmount;
+        revenue.tokenCollected += tokenAmount;
+        revenue.platformNative += platformNative;
+        revenue.platformToken += platformToken;
+        revenue.creatorNative += creatorNative;
+        revenue.creatorToken += creatorToken;
+
+        emit PositionFeesCollected(
+            positionId,
+            position.token,
+            position.creator,
+            nativeAmount,
+            tokenAmount,
+            platformNative,
+            platformToken,
+            creatorNative,
+            creatorToken
+        );
+    }
+
+    function claimFees(address currency) external nonReentrant returns (uint256 amount) {
+        amount = pendingFees[msg.sender][currency];
+        if (amount == 0) revert NoFeesCollected();
+        pendingFees[msg.sender][currency] = 0;
+
+        if (currency == address(0)) {
+            (bool ok,) = payable(msg.sender).call{value: amount}("");
+            if (!ok) revert FeeClaimFailed();
+        } else if (!IERC20Minimal(currency).transfer(msg.sender, amount)) {
+            revert TokenTransferFailed();
+        }
+
+        emit FeesClaimed(msg.sender, currency, amount);
     }
 
     function _selectPool(address token, uint160 expectedSqrtPriceX96)

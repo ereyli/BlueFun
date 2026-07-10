@@ -85,12 +85,24 @@ Do not assign public domains to the indexers. Configure Coolify's container heal
 - Indexer scope: `84532:0x6fe3582939f5a25ff5afabc59562ea560936ab35:0x63c1e321822529d86d10f02bc910636bb85f0831:43826794`
 - Graduation target: fixed `5 ETH` gross raised; curve fees are deducted before DEX liquidity is locked.
 
+## Base mainnet fee-sharing deployment
+
+- `BondingCurveMarket`: `0x94d056be6573bcaa4958cceeb242c3c08eff2b95`
+- `UniswapV4LiquidityLocker`: `0xe309983df86803f62e10d07d9522af005ec08ee4`
+- `GraduationManager`: `0xa2b7626f6a92b366e6e787ac4db4840f57f253af`
+- `LaunchFactory`: `0x29ce28c9cb3f584eb2548883824acd49881e780a`
+- Deployment block: `48451170`
+- First new launch id: `22`
+- Legacy launch ids `1-21` remain on market `0x4ce2154146eacf745133d7755875767d6a00ee5f` and factory `0xf65ebfdacb1a8e0a8217185aae44f489e53b88f9`.
+- Locked LP principal cannot be withdrawn. Realized Uniswap v4 LP fees are credited `70%` to BlueFun and `30%` to the launch creator.
+
 ## Robinhood Chain mainnet deployment
 
 - Network: Robinhood Chain (`4663`), standard fixed-supply ERC-20 launches.
-- `BondingCurveMarket`: `0xab7597fecaf3357101a3a4331f512031ef3238f0`
-- `UniswapV4LiquidityLocker`: `0x2d1e48fb40f00ed48f2e16df4a7a587fd063d177`
-- `Erc20GraduationManager`: `0xf6545a701a8cbe80d573043e8ffb8210de913d28`
-- `Erc20LaunchFactory`: `0x6a05304638bed7c96b78f420c612e84111fad4d1`
-- Deployment block: `5576234`
-- Graduation uses the official Robinhood Chain Uniswap v4 deployment and permanently custody-locks the LP position.
+- `BondingCurveMarket`: `0x795fe5649a78496f51c1594a7b435941fb20adb8`
+- `UniswapV4LiquidityLocker`: `0x2176cbc6cb7e650289fe2ec4417b7a27fd0354d5`
+- `Erc20GraduationManager`: `0x55d343fc936463c97b7e89dc0ac08c20a08bfb2a`
+- `Erc20LaunchFactory`: `0x128a32ed2af1787a3fab261bc6158400e2f649c9`
+- Deployment block: `6131828`
+- The legacy deployment remains indexed for historical continuity; it had no launches at migration time.
+- Graduation uses the official Robinhood Chain Uniswap v4 deployment, permanently custody-locks principal, and splits realized LP fees `70%/30%` between BlueFun and the creator.

@@ -27,7 +27,8 @@ contract Erc20GraduationManager is ReentrancyGuard {
     receive() external payable {}
 
     function graduate(uint256 launchId) external nonReentrant returns (bytes32 positionId) {
-        (address token,, uint256 ethAmount, uint256 liquidityTokenAmount,) = market.graduationLiquidity(launchId);
+        (address token, address creator, uint256 ethAmount, uint256 liquidityTokenAmount,) =
+            market.graduationLiquidity(launchId);
         (,,,,,,,,,,,,,,, bool graduationReady, bool graduated) = market.launches(launchId);
         if (!graduationReady) revert NotReady();
         if (graduated) revert AlreadyGraduated();
@@ -35,7 +36,7 @@ contract Erc20GraduationManager is ReentrancyGuard {
         if (!liquidityLocker.isDexBacked()) revert LiquidityLockerNotDexBacked();
         market.withdrawGraduationTokens(launchId, address(liquidityLocker), liquidityTokenAmount);
         uint256 withdrawn = market.withdrawGraduationEth(launchId, payable(address(this)));
-        positionId = liquidityLocker.lockLiquidity{value: withdrawn}(launchId, token, liquidityTokenAmount);
+        positionId = liquidityLocker.lockLiquidity{value: withdrawn}(launchId, token, liquidityTokenAmount, creator);
         market.markGraduated(launchId);
         emit LiquidityLocked(launchId, token, withdrawn, liquidityTokenAmount, positionId);
         emit Graduated(launchId, token, positionId);

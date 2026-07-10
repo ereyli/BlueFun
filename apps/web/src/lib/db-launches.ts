@@ -2,7 +2,7 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
 import pg from "pg";
 import { formatEther, getAddress } from "viem";
 import WebSocket from "ws";
-import { contractsForChain, indexerScopeForChain } from "@/lib/contracts";
+import { contractsForChain, indexerScopeForLaunch, indexerScopesForChain } from "@/lib/contracts";
 import type { DeployedLaunch, DeployedTrade } from "@/lib/onchain-launches";
 import { readTokenMetadata } from "@/lib/token-metadata";
 
@@ -19,8 +19,8 @@ export type DbLaunchMetrics = {
 export type LaunchPageFilter = "Live" | "New" | "Ready" | "Graduated" | "Safe" | "Progress";
 export type DbLaunchPage = { launches: DeployedLaunch[]; total: number };
 
-const launchColumns = "id, token, creator, name, symbol, contract_uri, image_url, description, website_url, twitter_url, telegram_url, discord_url, status, raised_eth, graduation_target_eth, progress, volume_eth, token_created_at, created_block";
-const legacyLaunchColumns = "id, token, creator, name, symbol, contract_uri, status, raised_eth, graduation_target_eth, progress, volume_eth, token_created_at, created_block";
+const launchColumns = "scope, id, token, creator, name, symbol, contract_uri, image_url, description, website_url, twitter_url, telegram_url, discord_url, status, raised_eth, graduation_target_eth, progress, volume_eth, token_created_at, created_block, position_id";
+const legacyLaunchColumns = "scope, id, token, creator, name, symbol, contract_uri, status, raised_eth, graduation_target_eth, progress, volume_eth, token_created_at, created_block";
 
 export async function getDbLaunchPage(
   chainId = 8453,
@@ -39,7 +39,7 @@ export async function getDbLaunchPage(
     if (hasSupabaseConfig()) {
       let query = getSupabase().from("launches")
         .select(launchColumns, { count: "exact" })
-        .eq("scope", context.scope)
+        .in("scope", context.scopes)
         .gte("created_block", context.deploymentBlock);
       if (statusFilter) query = query.eq("status", statusFilter);
       if (search) query = query.or(`name.ilike.%${search}%,symbol.ilike.%${search}%,token.ilike.%${search}%,creator.ilike.%${search}%`);
@@ -55,7 +55,7 @@ export async function getDbLaunchPage(
       if (response.error && isMissingSocialColumnError(response.error)) {
         let legacyQuery = getSupabase().from("launches")
           .select(legacyLaunchColumns, { count: "exact" })
-          .eq("scope", context.scope)
+          .in("scope", context.scopes)
           .gte("created_block", context.deploymentBlock);
         if (statusFilter) legacyQuery = legacyQuery.eq("status", statusFilter);
         if (search) legacyQuery = legacyQuery.or(`name.ilike.%${search}%,symbol.ilike.%${search}%,token.ilike.%${search}%,creator.ilike.%${search}%`);
@@ -71,18 +71,18 @@ export async function getDbLaunchPage(
     if (!process.env.DATABASE_URL) return undefined;
     pool ??= new pg.Pool({ connectionString: process.env.DATABASE_URL, connectionTimeoutMillis: 750, idleTimeoutMillis: 5_000, max: 5 });
     const result = await withTimeout(pool.query(
-      `select id, token, creator, name, symbol, contract_uri, image_url, description,
+      `select scope, id, token, creator, name, symbol, contract_uri, image_url, description,
               website_url, twitter_url, telegram_url, discord_url, status, raised_eth,
-              graduation_target_eth, progress, volume_eth, token_created_at, created_block,
+              graduation_target_eth, progress, volume_eth, token_created_at, created_block, position_id,
               count(*) over() as total_count
        from launches
-       where scope = $1 and created_block >= $2
+       where scope = any($1::text[]) and created_block >= $2
          and ($3 = '' or status = $3)
          and ($4 = '' or name ilike '%' || $4 || '%' or symbol ilike '%' || $4 || '%'
            or token ilike '%' || $4 || '%' or creator ilike '%' || $4 || '%')
        order by case when $5 = 'Progress' then progress end desc, id desc
        limit $6 offset $7`,
-      [context.scope, context.deploymentBlock, statusFilter, search, filter, pageSize, offset]
+      [context.scopes, context.deploymentBlock, statusFilter, search, filter, pageSize, offset]
     ), 1_500);
     return {
       launches: await mapRows(result.rows, context.chainId),
@@ -104,7 +104,7 @@ export async function getDbLaunches(chainId = 8453, options: { cursor?: string; 
       let query = getSupabase()
         .from("launches")
         .select(launchColumns)
-        .eq("scope", context.scope)
+        .in("scope", context.scopes)
         .gte("created_block", context.deploymentBlock)
         .order("id", { ascending: false })
         .limit(limit);
@@ -115,7 +115,7 @@ export async function getDbLaunches(chainId = 8453, options: { cursor?: string; 
         let legacyQuery = getSupabase()
           .from("launches")
           .select(legacyLaunchColumns)
-          .eq("scope", context.scope)
+          .in("scope", context.scopes)
           .gte("created_block", context.deploymentBlock)
           .order("id", { ascending: false })
           .limit(limit);
@@ -135,16 +135,16 @@ export async function getDbLaunches(chainId = 8453, options: { cursor?: string; 
       max: 2
     });
     const result = await withTimeout(pool.query(
-      `select id, token, creator, name, symbol, contract_uri, image_url, description,
+      `select scope, id, token, creator, name, symbol, contract_uri, image_url, description,
               website_url, twitter_url, telegram_url, discord_url, status, raised_eth,
-              graduation_target_eth, progress, volume_eth, token_created_at
+              graduation_target_eth, progress, volume_eth, token_created_at, position_id
        from launches
-       where scope = $1
+       where scope = any($1::text[])
          and created_block >= $2
          and ($3::numeric is null or id < $3::numeric)
        order by id desc
        limit $4`
-    , [context.scope, context.deploymentBlock, options.cursor || null, limit]), 1_500);
+    , [context.scopes, context.deploymentBlock, options.cursor || null, limit]), 1_500);
 
     return mapRows(result.rows, context.chainId);
   } catch (error) {
@@ -161,7 +161,7 @@ export async function getDbLaunch(launchId: string, chainId = 8453): Promise<Dep
       let response = await getSupabase()
         .from("launches")
         .select(launchColumns)
-        .eq("scope", context.scope)
+        .in("scope", context.scopes)
         .eq("id", launchId)
         .gte("created_block", context.deploymentBlock)
         .maybeSingle();
@@ -169,27 +169,31 @@ export async function getDbLaunch(launchId: string, chainId = 8453): Promise<Dep
         response = await getSupabase()
           .from("launches")
           .select(legacyLaunchColumns)
-          .eq("scope", context.scope)
+          .in("scope", context.scopes)
           .eq("id", launchId)
           .gte("created_block", context.deploymentBlock)
           .maybeSingle();
       }
       if (response.error) throw response.error;
-      return response.data ? (await mapRows([response.data as Record<string, unknown>], context.chainId))[0] : undefined;
+      if (!response.data) return undefined;
+      const launch = (await mapRows([response.data as Record<string, unknown>], context.chainId))[0];
+      return launch ? await attachGraduationPosition(launch, context.scopes) : undefined;
     }
 
     if (!process.env.DATABASE_URL) return undefined;
     pool ??= new pg.Pool({ connectionString: process.env.DATABASE_URL, connectionTimeoutMillis: 750, idleTimeoutMillis: 5_000, max: 5 });
     const result = await withTimeout(pool.query(
-      `select id, token, creator, name, symbol, contract_uri, image_url, description,
+      `select scope, id, token, creator, name, symbol, contract_uri, image_url, description,
               website_url, twitter_url, telegram_url, discord_url, status, raised_eth,
-              graduation_target_eth, progress, volume_eth, token_created_at, created_block
+              graduation_target_eth, progress, volume_eth, token_created_at, created_block, position_id
        from launches
-       where scope = $1 and id = $2 and created_block >= $3
+       where scope = any($1::text[]) and id = $2 and created_block >= $3
        limit 1`,
-      [context.scope, launchId, context.deploymentBlock]
+      [context.scopes, launchId, context.deploymentBlock]
     ), 1_500);
-    return result.rows[0] ? (await mapRows([result.rows[0]], context.chainId))[0] : undefined;
+    if (!result.rows[0]) return undefined;
+    const launch = (await mapRows([result.rows[0]], context.chainId))[0];
+    return launch ? await attachGraduationPosition(launch, context.scopes) : undefined;
   } catch (error) {
     console.error("Failed to read launch from database", error);
     return undefined;
@@ -202,36 +206,21 @@ export async function getDbLaunchMetrics(chainId = 8453): Promise<DbLaunchMetric
 
   try {
     if (hasSupabaseConfig()) {
-      const { data, error } = await getSupabase().rpc("get_scope_launchpad_metrics", {
-        p_scope: context.scope,
-        p_start_block: context.deploymentBlock
-      });
-
-      if (error && isMissingMetricsRpcError(error)) {
-        const [volume, launchRows] = await Promise.all([
-          getLegacyTradeVolume(context.scope, context.deploymentBlock),
-          getSupabase().from("launches")
+      const [volume, launchRows] = await Promise.all([
+        getTradeVolume(context.scopes, context.deploymentBlock),
+        getSupabase().from("launches")
           .select("creator, status", { count: "exact" })
-          .eq("scope", context.scope)
+          .in("scope", context.scopes)
           .gte("created_block", context.deploymentBlock)
           .limit(1_000)
-        ]);
-        if (launchRows.error) throw launchRows.error;
-        const rows = launchRows.data ?? [];
-        return {
-          totalVolumeEth: volume,
-          totalTokens: launchRows.count ?? rows.length,
-          totalCreators: new Set(rows.map((item) => String(item.creator).toLowerCase())).size,
-          totalGraduated: rows.filter((item) => item.status === "graduated").length
-        };
-      }
-      if (error) throw error;
-      const row = Array.isArray(data) ? data[0] : data;
+      ]);
+      if (launchRows.error) throw launchRows.error;
+      const rows = launchRows.data ?? [];
       return {
-        totalVolumeEth: weiToEthNumber(parseDbBigInt((row as { total_volume_eth?: unknown } | null)?.total_volume_eth)),
-        totalTokens: Number((row as { total_tokens?: unknown } | null)?.total_tokens || 0),
-        totalCreators: Number((row as { total_creators?: unknown } | null)?.total_creators || 0),
-        totalGraduated: Number((row as { total_graduated?: unknown } | null)?.total_graduated || 0)
+        totalVolumeEth: volume,
+        totalTokens: launchRows.count ?? rows.length,
+        totalCreators: new Set(rows.map((item) => String(item.creator).toLowerCase())).size,
+        totalGraduated: rows.filter((item) => item.status === "graduated").length
       };
     }
 
@@ -244,13 +233,13 @@ export async function getDbLaunchMetrics(chainId = 8453): Promise<DbLaunchMetric
     });
     const result = await withTimeout(pool.query(
       `select
-         coalesce((select sum(eth_amount) from trades where scope = $1 and block_number >= $2), 0) as total_volume_eth,
+         coalesce((select sum(eth_amount) from trades where scope = any($1::text[]) and block_number >= $2), 0) as total_volume_eth,
          count(*) as total_tokens,
          count(distinct creator) as total_creators,
          count(*) filter (where status = 'graduated') as total_graduated
        from launches
-       where scope = $1 and created_block >= $2`,
-      [context.scope, context.deploymentBlock]
+       where scope = any($1::text[]) and created_block >= $2`,
+      [context.scopes, context.deploymentBlock]
     ), 300);
 
     return {
@@ -265,16 +254,12 @@ export async function getDbLaunchMetrics(chainId = 8453): Promise<DbLaunchMetric
   }
 }
 
-function isMissingMetricsRpcError(error: { code?: string; message?: string }) {
-  return error.code === "PGRST202" || error.message?.includes("get_scope_launchpad_metrics");
-}
-
-async function getLegacyTradeVolume(scope: string, startBlock: string) {
+async function getTradeVolume(scopes: string[], startBlock: string) {
   let total = 0n;
   for (let offset = 0; offset < 20_000; offset += 1_000) {
     const response = await getSupabase().from("trades")
       .select("eth_amount")
-      .eq("scope", scope)
+      .in("scope", scopes)
       .gte("block_number", startBlock)
       .range(offset, offset + 999);
     if (response.error) throw response.error;
@@ -286,7 +271,7 @@ async function getLegacyTradeVolume(scope: string, startBlock: string) {
 
 function isMissingSocialColumnError(error: { message?: string; details?: string }) {
   const text = `${error.message || ""} ${error.details || ""}`.toLowerCase();
-  return ["image_url", "description", "website_url", "twitter_url", "telegram_url", "discord_url"].some((column) => text.includes(column));
+  return ["image_url", "description", "website_url", "twitter_url", "telegram_url", "discord_url", "position_id"].some((column) => text.includes(column));
 }
 
 function isMissingTradeColumnError(error: { message?: string; details?: string }) {
@@ -296,7 +281,7 @@ function isMissingTradeColumnError(error: { message?: string; details?: string }
 
 export async function getDbTrades(launchId: string, chainId = 8453): Promise<DeployedTrade[] | undefined> {
   if (process.env.POSTGRES_INDEXER_ENABLED !== "true") return undefined;
-  const context = dbContext(chainId);
+  const context = dbContextForLaunch(chainId, launchId);
 
   try {
     if (hasSupabaseConfig()) {
@@ -375,6 +360,7 @@ async function mapRows(rows: Array<Record<string, unknown>>, chainId: number): P
       twitter: cleanDbText(row.twitter_url) || metadata.twitter,
       telegram: cleanDbText(row.telegram_url) || metadata.telegram,
       discord: cleanDbText(row.discord_url) || metadata.discord,
+      positionId: cleanDbText(row.position_id) as `0x${string}` | undefined,
       status,
       raised: `${trimEth(formatEther(raised))} ETH`,
       target: `${trimEth(formatEther(target))} ETH`,
@@ -387,6 +373,26 @@ async function mapRows(rows: Array<Record<string, unknown>>, chainId: number): P
       marketCap: "Live"
     };
   }));
+}
+
+async function attachGraduationPosition(launch: DeployedLaunch, scopes: string[]) {
+  if (launch.status !== "Graduated" || launch.positionId) return launch;
+  if (hasSupabaseConfig()) {
+    const { data, error } = await getSupabase().from("graduations")
+      .select("position_id")
+      .in("scope", scopes)
+      .eq("launch_id", launch.id)
+      .maybeSingle();
+    if (!error && data?.position_id) launch.positionId = String(data.position_id) as `0x${string}`;
+    return launch;
+  }
+  if (!pool) return launch;
+  const result = await pool.query(
+    "select position_id from graduations where scope = any($1::text[]) and launch_id = $2 limit 1",
+    [scopes, launch.id]
+  );
+  if (result.rows[0]?.position_id) launch.positionId = String(result.rows[0].position_id) as `0x${string}`;
+  return launch;
 }
 
 function cleanDbText(value: unknown) {
@@ -486,9 +492,26 @@ function getSupabase() {
 
 function dbContext(chainId: number) {
   const config = contractsForChain(chainId);
+  const deploymentContexts = indexerScopesForChain(config.chain.id);
   return {
     chainId: config.chain.id,
-    scope: indexerScopeForChain(config.chain.id),
-    deploymentBlock: config.addresses.deploymentBlock.toString()
+    scopes: deploymentContexts.map((context) => context.scope),
+    deploymentBlock: deploymentContexts.reduce(
+      (minimum, context) => context.deployment.deploymentBlock < minimum
+        ? context.deployment.deploymentBlock
+        : minimum,
+      deploymentContexts[0]!.deployment.deploymentBlock
+    ).toString()
+  };
+}
+
+function dbContextForLaunch(chainId: number, launchId: string) {
+  const config = contractsForChain(chainId);
+  const scope = indexerScopeForLaunch(config.chain.id, launchId);
+  const deployment = indexerScopesForChain(config.chain.id).find((context) => context.scope === scope)?.deployment;
+  return {
+    chainId: config.chain.id,
+    scope,
+    deploymentBlock: (deployment?.deploymentBlock ?? config.addresses.deploymentBlock).toString()
   };
 }
