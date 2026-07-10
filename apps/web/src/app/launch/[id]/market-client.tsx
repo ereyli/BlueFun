@@ -431,26 +431,21 @@ export function MarketClient({ id, launch, trades }: { id: string; launch?: Depl
                 <span>{launch.age} ago</span>
                 <span>{launch.creator.slice(0, 6)}...{launch.creator.slice(-4)}</span>
               </div>
+              <div className={trusted ? "market-route-pill trusted" : "market-route-pill"}>
+                <ShieldCheck size={12} />{trusted ? "Verified market" : "Official curve"}
+              </div>
             </div>
             <div className="market-actions">
-              <a className="button x-share-button" href={xShareUrl(launch, id)} target="_blank" rel="noreferrer">
-                <span className="x-share-icon">X</span>Share
+              <a className="market-icon-action x-share-button" aria-label="Share on X" title="Share on X" href={xShareUrl(launch, id)} target="_blank" rel="noreferrer">
+                <span className="x-share-icon">X</span>
               </a>
-              <a className="button primary" href={`${chain.blockExplorers.default.url}/token/${launch.token}`} target="_blank" rel="noreferrer">
-                <ExternalLink size={16} />{chain.name === "Base" ? "BaseScan" : "Explorer"}
+              <a className="market-icon-action" aria-label="Open token explorer" title={chain.name === "Base" ? "BaseScan" : "Explorer"} href={`${chain.blockExplorers.default.url}/token/${launch.token}`} target="_blank" rel="noreferrer">
+                <ExternalLink size={16} />
               </a>
-              <button className="button" onClick={() => navigator.clipboard.writeText(launch.token)}>
-                <Copy size={16} />{launch.token.slice(0, 6)}...{launch.token.slice(-4)}
+              <button className="market-icon-action" aria-label="Copy token address" title="Copy token address" onClick={() => navigator.clipboard.writeText(launch.token)}>
+                <Copy size={16} />
               </button>
             </div>
-          </div>
-          <div className={trusted ? "official-market-note trusted" : "official-market-note"}>
-            <ShieldCheck size={15} />
-            <span>
-              {trusted
-                ? "Trusted BlueFun market. Official trading stays on the curve until graduation."
-                : "Official BlueFun trading is on this curve until graduation. External pools may be unofficial."}
-            </span>
           </div>
           <div className="market-header-stats">
             <div><span>Market cap</span><strong>{displayMarketCapText}</strong></div>
@@ -521,26 +516,33 @@ export function MarketClient({ id, launch, trades }: { id: string; launch?: Depl
             </div>
             <div className="form">
               {!isConnected ? (
-                <div className="notice compact">
-                  <strong>Connect wallet</strong>
-                  <span>Wallet connection is required before trading.</span>
-                </div>
+                <div className="wallet-trade-gate"><span className="wallet-status-dot" />Connect wallet to trade</div>
               ) : null}
               {wrongNetwork ? <TradeStatus tone="danger">Switch your wallet to {chain.name} before trading.</TradeStatus> : null}
-              <div className="field">
-                <div className="field-head">
-                  <label>{mode === "buy" ? "ETH in" : `${launch.symbol} amount`}</label>
+              <div className="trade-amount-block">
+                <div className="trade-amount-head">
+                  <span>You pay</span>
                   {mode === "sell" ? (
                     <button className="balance-button" onClick={() => setSellPercent(100n)} type="button">
-                      Balance {formatTokenBalance(sellBalance)} {launch.symbol}
+                      {formatTokenBalance(sellBalance)} {launch.symbol}
                     </button>
                   ) : null}
                 </div>
-                <input className="amount-input" value={amount} onChange={(event) => setAmount(event.target.value)} />
+                <div className="trade-input-shell">
+                  <input aria-label={mode === "buy" ? "ETH amount" : `${launch.symbol} amount`} className="amount-input" inputMode="decimal" value={amount} onChange={(event) => setAmount(event.target.value)} />
+                  <strong>{mode === "buy" ? "ETH" : launch.symbol}</strong>
+                </div>
+              </div>
+              <div className={mode === "buy" ? "quick-grid" : "quick-grid sell-grid"}>
+                {mode === "buy" ? (
+                  <><button type="button" onClick={() => setAmount("0.01")}>0.01</button><button type="button" onClick={() => setAmount("0.05")}>0.05</button><button type="button" onClick={() => setAmount("0.1")}>0.1</button></>
+                ) : (
+                  <><button type="button" onClick={() => setSellPercent(25n)}>25%</button><button type="button" onClick={() => setSellPercent(50n)}>50%</button><button type="button" onClick={() => setSellPercent(75n)}>75%</button><button type="button" onClick={() => setSellPercent(100n)}>Max</button></>
+                )}
               </div>
               <div className="quote-box">
                 <div className="quote-head">
-                  <span>{quoteLoading ? "Quoting..." : mode === "buy" ? "Estimated tokens" : "Estimated ETH"}</span>
+                  <span>{quoteLoading ? "Updating quote" : "You receive"}</span>
                   <button
                     className={settingsOpen ? "settings-button active" : "settings-button"}
                     onClick={() => setSettingsOpen((open) => !open)}
@@ -553,7 +555,7 @@ export function MarketClient({ id, launch, trades }: { id: string; launch?: Depl
                 <strong>{quotedOut ? formatQuote(quotedOut, mode === "buy" ? launch.symbol : "ETH") : "-"}</strong>
                 <div className="quote-breakdown">
                   <span>
-                    <small>Min received</small>
+                    <small>Minimum</small>
                     <b>{minOut ? formatQuote(minOut, mode === "buy" ? launch.symbol : "ETH") : "-"}</b>
                   </span>
                   <span>
@@ -562,11 +564,7 @@ export function MarketClient({ id, launch, trades }: { id: string; launch?: Depl
                   </span>
                 </div>
               </div>
-              <div className="trade-route-summary">
-                <span><small>Route</small><strong>BlueFun curve</strong></span>
-                <span><small>Fee</small><strong>1%</strong></span>
-                <span><small>Network</small><strong><NetworkIcon chainId={activeChainId} size={14} />{chain.name}</strong></span>
-              </div>
+              <div className="trade-meta-line"><span><NetworkIcon chainId={activeChainId} size={14} />{chain.name}</span><i />BlueFun curve<i />1% fee</div>
               {priceImpact > 5 ? <TradeStatus tone="danger">High price impact: reduce the order size or increase slippage carefully.</TradeStatus> : null}
               {settingsOpen ? (
                 <div className="trade-settings-panel">
@@ -590,25 +588,14 @@ export function MarketClient({ id, launch, trades }: { id: string; launch?: Depl
               ) : null}
               {mode === "buy" ? (
                 <>
-                  <div className="quick-grid">
-                    <button type="button" onClick={() => setAmount("0.01")}>0.01</button>
-                    <button type="button" onClick={() => setAmount("0.05")}>0.05</button>
-                    <button type="button" onClick={() => setAmount("0.1")}>0.1</button>
-                  </div>
-                  <button className="button primary" disabled={tradeDisabled} onClick={buy}>
+                  <button className="button primary trade-submit buy" disabled={tradeDisabled} onClick={buy}>
                     {isWorking ? <Loader2 className="spin" size={16} /> : <ArrowDownUp size={16} />}
                     {isPending ? "Confirm in wallet" : receipt.isLoading ? "Buying" : exceedsEthBalance ? "Insufficient ETH" : `Buy $${launch.symbol}`}
                   </button>
                 </>
               ) : (
                 <>
-                  <div className="quick-grid sell-grid">
-                    <button type="button" onClick={() => setSellPercent(25n)}>25%</button>
-                    <button type="button" onClick={() => setSellPercent(50n)}>50%</button>
-                    <button type="button" onClick={() => setSellPercent(75n)}>75%</button>
-                    <button type="button" onClick={() => setSellPercent(100n)}>Max</button>
-                  </div>
-                  <button className="button primary" disabled={tradeDisabled} onClick={needsSellApproval ? approveSell : sell}>
+                  <button className="button primary trade-submit sell" disabled={tradeDisabled} onClick={needsSellApproval ? approveSell : sell}>
                     {isWorking ? <Loader2 className="spin" size={16} /> : <ArrowDownUp size={16} />}
                     {isPending
                       ? "Confirm in wallet"
@@ -616,13 +603,10 @@ export function MarketClient({ id, launch, trades }: { id: string; launch?: Depl
                         ? needsSellApproval ? "Approving" : "Selling"
                         : exceedsSellBalance ? "Insufficient balance" : needsSellApproval ? `Approve $${launch.symbol}` : `Sell $${launch.symbol}`}
                   </button>
-                  <span className="trade-helper">
-                    {needsSellApproval ? "One-time unlimited approval for smoother sells." : "Approval ready."}
-                  </span>
+                  {needsSellApproval ? <span className="trade-helper">One-time token approval required.</span> : null}
                 </>
               )}
               <div className="trade-status-stack">
-                {quoteLoading ? <TradeStatus tone="info">Quote is updating.</TradeStatus> : null}
                 {isPending ? <TradeStatus tone="info">Confirm this order in your wallet.</TradeStatus> : null}
                 {hash && !receipt.isSuccess && !isPending ? <TradeStatus tone="info">Order submitted. Waiting for confirmation.</TradeStatus> : null}
                 {receipt.isSuccess ? <TradeStatus tone="success">Order confirmed. Market data is refreshing.</TradeStatus> : null}
@@ -740,47 +724,44 @@ function TokenChat({
   }
 
   return (
-    <section className="token-chat-card">
-      <div className="token-chat-head">
-        <div>
-          <h2>Community chat</h2>
-          <span>Last 20 messages fade over time</span>
-        </div>
-        <strong>{messages.length}</strong>
-      </div>
-      <div className="token-chat-feed">
-        {messages.length === 0 ? (
-          <div className="token-chat-empty">Start the conversation.</div>
-        ) : (
-          messages.map((message) => (
-            <div className="token-chat-message" key={message.id}>
-              <div>
-                <strong>{shortAddress(message.wallet)}</strong>
-                <span>{formatChatAge(message.createdAt)}</span>
+    <details className="token-chat-card">
+      <summary className="token-chat-summary">
+        <span>Community</span><strong>{messages.length}</strong>
+      </summary>
+      <div className="token-chat-body">
+        <div className="token-chat-feed">
+          {messages.length === 0 ? (
+            <div className="token-chat-empty">No messages yet.</div>
+          ) : (
+            messages.map((message) => (
+              <div className="token-chat-message" key={message.id}>
+                <div>
+                  <strong>{shortAddress(message.wallet)}</strong>
+                  <span>{formatChatAge(message.createdAt)}</span>
+                </div>
+                <p>{message.text}</p>
               </div>
-              <p>{message.text}</p>
-            </div>
-          ))
-        )}
+            ))
+          )}
+        </div>
+        <div className="token-chat-compose">
+          <input
+            disabled={!isConnected}
+            maxLength={240}
+            onChange={(event) => setDraft(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") sendMessage();
+            }}
+            placeholder={isConnected ? `Message $${launch.symbol}` : "Connect to chat"}
+            value={draft}
+          />
+          <button className="button primary" disabled={!isConnected || sending || !draft.trim()} onClick={sendMessage} type="button">
+            {sending ? <Loader2 className="spin" size={14} /> : null}Send
+          </button>
+        </div>
+        {status ? <p className="token-chat-status">{status}</p> : null}
       </div>
-      <div className="token-chat-compose">
-        <input
-          disabled={!isConnected}
-          maxLength={240}
-          onChange={(event) => setDraft(event.target.value)}
-          onKeyDown={(event) => {
-            if (event.key === "Enter") sendMessage();
-          }}
-          placeholder={isConnected ? `Message $${launch.symbol}` : "Connect wallet to chat"}
-          value={draft}
-        />
-        <button className="button primary" disabled={!isConnected || sending || !draft.trim()} onClick={sendMessage} type="button">
-          {sending ? <Loader2 className="spin" size={14} /> : null}
-          Send
-        </button>
-      </div>
-      {status ? <p className="token-chat-status">{status}</p> : null}
-    </section>
+    </details>
   );
 }
 
