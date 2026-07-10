@@ -17,6 +17,7 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metri
   const [total, setTotal] = useState(totalLaunches);
   const [page, setPage] = useState(1);
   const [isPageLoading, setIsPageLoading] = useState(false);
+  const [loadError, setLoadError] = useState(false);
   const [refreshNonce, setRefreshNonce] = useState(0);
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("New");
@@ -37,17 +38,18 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metri
     const controller = new AbortController();
     const timeout = window.setTimeout(async () => {
       setIsPageLoading(true);
+      setLoadError(false);
       try {
         const params = new URLSearchParams({ chain: String(chainId), page: String(page), filter });
         if (query.trim()) params.set("q", query.trim());
-        const response = await fetch(`/api/launches?${params.toString()}`, { cache: "no-store", signal: controller.signal });
+        const response = await fetch(`/api/launches?${params.toString()}`, { signal: controller.signal });
         const payload = await response.json() as { launches?: DeployedLaunch[]; total?: number; totalPages?: number };
         if (!response.ok) throw new Error("Launch page unavailable");
         setLaunches(payload.launches ?? []);
         setTotal(Number(payload.total || 0));
         if (payload.totalPages && page > payload.totalPages) setPage(payload.totalPages);
       } catch (error) {
-        if (!(error instanceof DOMException && error.name === "AbortError")) setLaunches([]);
+        if (!(error instanceof DOMException && error.name === "AbortError")) setLoadError(true);
       } finally {
         if (!controller.signal.aborted) setIsPageLoading(false);
       }
@@ -190,6 +192,13 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metri
         </div>
         <span className="explore-result-count">{total} {total === 1 ? "launch" : "launches"}</span>
       </div>
+
+      {loadError ? (
+        <div className="explore-data-warning" role="status">
+          Live data could not be refreshed. Showing the last successful results.
+          <button type="button" onClick={() => setRefreshNonce((value) => value + 1)}>Try again</button>
+        </div>
+      ) : null}
 
       {launches.length === 0 && !isPageLoading ? (
         <div className="empty premium-empty">

@@ -53,15 +53,15 @@ type DexPairSnapshot = {
   marketCap: number;
 };
 
-export function MarketClient({ id, launch, trades }: { id: string; launch?: DeployedLaunch; trades: DeployedTrade[] }) {
+export function MarketClient({ id, launch, trades: initialTrades }: { id: string; launch?: DeployedLaunch; trades: DeployedTrade[] }) {
   const router = useRouter();
+  const [trades, setTrades] = useState(initialTrades);
   const [mode, setMode] = useState<"buy" | "sell">("buy");
   const [amount, setAmount] = useState("0.1");
   const [slippageBps, setSlippageBps] = useState(200n);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [ethUsd, setEthUsd] = useState<number | null>(null);
   const [dexPair, setDexPair] = useState<DexPairSnapshot | null>(null);
-  const [realtimeHealthy, setRealtimeHealthy] = useState(false);
   const { address, isConnected, chainId } = useAccount();
   const activeChainId = launch?.chainId === 4663 ? 4663 : 8453;
   const { addresses, chain, uniswapV4Addresses } = contractsForLaunch(activeChainId, id);
@@ -232,7 +232,6 @@ export function MarketClient({ id, launch, trades }: { id: string; launch?: Depl
   }, [graduatedPermit2RouterAllowance, graduatedQuote, graduatedTokenPermit2Allowance, lpFeeRevenue, lpNativePending, lpTokenPending, receipt.isSuccess, router, tokenAllowance, tokenBalance]);
 
   useEffect(() => {
-    if (realtimeHealthy) return;
     const refreshWhenVisible = () => {
       if (document.visibilityState === "visible") router.refresh();
     };
@@ -242,7 +241,11 @@ export function MarketClient({ id, launch, trades }: { id: string; launch?: Depl
       window.clearInterval(interval);
       document.removeEventListener("visibilitychange", refreshWhenVisible);
     };
-  }, [realtimeHealthy, router]);
+  }, [router]);
+
+  useEffect(() => {
+    setTrades((current) => mergeTrades(initialTrades, current));
+  }, [initialTrades]);
 
   useEffect(() => {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -253,7 +256,6 @@ export function MarketClient({ id, launch, trades }: { id: string; launch?: Depl
     const supabase = createClient(supabaseUrl, supabaseAnonKey, {
       auth: { persistSession: false }
     });
-    let refreshTimer: number | undefined;
     const channel = supabase
       .channel(`launch-${id}-trades`)
       .on(
@@ -265,21 +267,23 @@ export function MarketClient({ id, launch, trades }: { id: string; launch?: Depl
           filter: `launch_id=eq.${id}`
         },
         (payload) => {
-          if ((payload.new as { scope?: string } | null)?.scope === scope || (payload.old as { scope?: string } | null)?.scope === scope) {
-            window.clearTimeout(refreshTimer);
-            refreshTimer = window.setTimeout(() => {
-              if (document.visibilityState === "visible") router.refresh();
-            }, 1_500);
-          }
+          const row = payload.new as Record<string, unknown> | null;
+          const oldRow = payload.old as Record<string, unknown> | null;
+          if (row?.scope !== scope && oldRow?.scope !== scope) return;
+          const nextTrade = realtimeTrade(row);
+          if (!nextTrade) return;
+          setTrades((current) => {
+            const withoutPrevious = current.filter((trade) => !sameTrade(trade, nextTrade));
+            return [...withoutPrevious, nextTrade].slice(-250);
+          });
         }
       )
-      .subscribe((status) => setRealtimeHealthy(status === "SUBSCRIBED"));
+      .subscribe();
 
     return () => {
-      window.clearTimeout(refreshTimer);
       supabase.removeChannel(channel);
     };
-  }, [activeChainId, id, router]);
+  }, [activeChainId, id]);
 
   useEffect(() => {
     let active = true;
@@ -751,6 +755,47 @@ export function MarketClient({ id, launch, trades }: { id: string; launch?: Depl
       </aside>
     </div>
   );
+}
+
+function realtimeTrade(row: Record<string, unknown> | null): DeployedTrade | undefined {
+  if (!row?.tx_hash || !row.eth_amount || !row.token_amount) return undefined;
+  try {
+    return {
+      side: row.side === "sell" ? "sell" : "buy",
+      source: row.source === "uniswap_v4" ? "uniswap_v4" : "curve",
+      trader: typeof row.trader === "string" && /^0x[a-fA-F0-9]{40}$/.test(row.trader)
+        ? row.trader as `0x${string}`
+        : undefined,
+      ethAmount: `${formatRealtimeEth(row.eth_amount)} ETH`,
+      tokenAmount: formatRealtimeEth(row.token_amount),
+      marketCapEth: row.market_cap_eth ? formatEther(BigInt(String(row.market_cap_eth))) : undefined,
+      txHash: String(row.tx_hash),
+      blockNumber: String(row.block_number || ""),
+      createdAt: String(row.created_at || new Date().toISOString())
+    };
+  } catch {
+    return undefined;
+  }
+}
+
+function formatRealtimeEth(value: unknown) {
+  const [whole, fraction = ""] = formatEther(BigInt(String(value))).split(".");
+  const trimmed = fraction.slice(0, 4).replace(/0+$/, "");
+  return trimmed ? `${whole}.${trimmed}` : whole;
+}
+
+function sameTrade(left: DeployedTrade, right: DeployedTrade) {
+  return left.txHash === right.txHash && left.side === right.side;
+}
+
+function mergeTrades(serverTrades: DeployedTrade[], localTrades: DeployedTrade[]) {
+  const merged = new Map<string, DeployedTrade>();
+  for (const trade of [...serverTrades, ...localTrades]) {
+    merged.set(`${trade.txHash}:${trade.side}`, trade);
+  }
+  return Array.from(merged.values())
+    .sort((left, right) => Number(BigInt(left.blockNumber || "0") - BigInt(right.blockNumber || "0")))
+    .slice(-250);
 }
 
 type ChatMessage = {

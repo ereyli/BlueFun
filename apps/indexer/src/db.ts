@@ -187,8 +187,7 @@ export async function insertTrade(scope: string, input: {
       return;
     }
 
-    await runSupabase(
-      getSupabase()
+    const inserted = await getSupabase()
         .from("trades")
         .upsert(
           {
@@ -205,8 +204,9 @@ export async function insertTrade(scope: string, input: {
           },
           { onConflict: "scope,tx_hash,side,launch_id", ignoreDuplicates: true }
         )
-    );
-    await refreshLaunchVolume(scope, input.launchId);
+        .select("id");
+    if (inserted.error) throw inserted.error;
+    if ((inserted.data ?? []).length > 0) await incrementLaunchVolume(scope, input.launchId, input.ethAmount);
     return;
   }
 
@@ -239,10 +239,11 @@ export async function insertTrade(scope: string, input: {
     return;
   }
 
-  await pool.query(
+  const inserted = await pool.query(
     `insert into trades (scope, launch_id, trader, side, source, eth_amount, token_amount, market_cap_eth, tx_hash, block_number)
      values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
-     on conflict (scope, tx_hash, side, launch_id) do nothing`,
+     on conflict (scope, tx_hash, side, launch_id) do nothing
+     returning id`,
     [
       scope,
       input.launchId.toString(),
@@ -256,7 +257,23 @@ export async function insertTrade(scope: string, input: {
       input.blockNumber?.toString()
     ]
   );
-  await refreshLaunchVolume(scope, input.launchId);
+  if ((inserted.rowCount ?? 0) > 0) await incrementLaunchVolume(scope, input.launchId, input.ethAmount);
+}
+
+async function incrementLaunchVolume(scope: string, launchId: bigint, amount: bigint) {
+  if (hasSupabaseConfig()) {
+    await runSupabase(getSupabase().rpc("increment_launch_volume", {
+      p_scope: scope,
+      p_launch_id: launchId.toString(),
+      p_delta: amount.toString()
+    }));
+    return;
+  }
+  if (!pool) return;
+  await pool.query(
+    "update launches set volume_eth = volume_eth + $3 where scope = $1 and id = $2",
+    [scope, launchId.toString(), amount.toString()]
+  );
 }
 
 async function refreshLaunchVolume(scope: string, launchId: bigint) {

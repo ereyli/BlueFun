@@ -111,8 +111,7 @@ export async function getLaunchTrades(id: string): Promise<DeployedTrade[]> {
 }
 
 function onchainFallbackEnabled() {
-  return process.env.NEXT_PUBLIC_ONCHAIN_FALLBACK_ENABLED === "true"
-    || process.env.ONCHAIN_FALLBACK_ENABLED === "true";
+  return process.env.ONCHAIN_FALLBACK_ENABLED === "true";
 }
 
 function trimEth(value: string) {
@@ -137,7 +136,13 @@ async function getLaunchesFromMarket() {
     });
     if (count < deployment.firstLaunchId) return [];
 
-    const eventMap = await getLaunchCreatedEventMap(deployment, count - deployment.firstLaunchId + 1n);
+    const launchTotal = count - deployment.firstLaunchId + 1n;
+    const maxFallbackLaunches = BigInt(process.env.MAX_ONCHAIN_FALLBACK_LAUNCHES || "100");
+    if (launchTotal > maxFallbackLaunches) {
+      throw new Error(`Onchain list fallback refused ${launchTotal.toString()} launches; indexed data is required`);
+    }
+
+    const eventMap = await getLaunchCreatedEventMap(deployment, launchTotal);
     const ids = Array.from(
       { length: Number(count - deployment.firstLaunchId + 1n) },
       (_, index) => deployment.firstLaunchId + BigInt(index)

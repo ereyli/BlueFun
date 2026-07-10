@@ -206,21 +206,17 @@ export async function getDbLaunchMetrics(chainId = 8453): Promise<DbLaunchMetric
 
   try {
     if (hasSupabaseConfig()) {
-      const [volume, launchRows] = await Promise.all([
-        getTradeVolume(context.scopes, context.deploymentBlock),
-        getSupabase().from("launches")
-          .select("creator, status", { count: "exact" })
-          .in("scope", context.scopes)
-          .gte("created_block", context.deploymentBlock)
-          .limit(1_000)
-      ]);
-      if (launchRows.error) throw launchRows.error;
-      const rows = launchRows.data ?? [];
+      const response = await getSupabase().rpc("get_launchpad_metrics", {
+        p_scopes: context.scopes,
+        p_start_block: context.deploymentBlock
+      });
+      if (response.error) throw response.error;
+      const row = Array.isArray(response.data) ? response.data[0] : response.data;
       return {
-        totalVolumeEth: volume,
-        totalTokens: launchRows.count ?? rows.length,
-        totalCreators: new Set(rows.map((item) => String(item.creator).toLowerCase())).size,
-        totalGraduated: rows.filter((item) => item.status === "graduated").length
+        totalVolumeEth: weiToEthNumber(parseDbBigInt(row?.total_volume_eth)),
+        totalTokens: Number(row?.total_tokens || 0),
+        totalCreators: Number(row?.total_creators || 0),
+        totalGraduated: Number(row?.total_graduated || 0)
       };
     }
 
@@ -252,21 +248,6 @@ export async function getDbLaunchMetrics(chainId = 8453): Promise<DbLaunchMetric
     console.error("Failed to read launch metrics from database", error);
     return undefined;
   }
-}
-
-async function getTradeVolume(scopes: string[], startBlock: string) {
-  let total = 0n;
-  for (let offset = 0; offset < 20_000; offset += 1_000) {
-    const response = await getSupabase().from("trades")
-      .select("eth_amount")
-      .in("scope", scopes)
-      .gte("block_number", startBlock)
-      .range(offset, offset + 999);
-    if (response.error) throw response.error;
-    for (const row of response.data ?? []) total += parseDbBigInt(row.eth_amount);
-    if ((response.data ?? []).length < 1_000) return weiToEthNumber(total);
-  }
-  throw new Error("Metrics RPC migration is required for more than 20,000 trades");
 }
 
 function isMissingSocialColumnError(error: { message?: string; details?: string }) {

@@ -4887,6 +4887,29 @@ body {
   }
 }
 
+.explore-data-warning {
+  align-items: center;
+  background: #fff7e6;
+  border: 1px solid #f1cc76;
+  border-radius: 12px;
+  color: #7a4b00;
+  display: flex;
+  font-size: 13px;
+  font-weight: 750;
+  gap: 12px;
+  justify-content: space-between;
+  padding: 10px 12px;
+}
+
+.explore-data-warning button {
+  background: transparent;
+  border: 0;
+  color: inherit;
+  font-weight: 900;
+  padding: 5px;
+  white-space: nowrap;
+}
+
 /* Premium multichain polish */
 :root {
   --bg: #f4f7fc;

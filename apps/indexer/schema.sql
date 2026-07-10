@@ -65,6 +65,7 @@ drop index if exists trades_tx_side_launch_idx;
 create unique index if not exists trades_scope_tx_side_launch_idx on trades (scope, tx_hash, side, launch_id);
 create index if not exists trades_scope_launch_id_idx on trades (scope, launch_id);
 create index if not exists trades_scope_launch_block_idx on trades (scope, launch_id, block_number desc);
+create index if not exists trades_scope_block_idx on trades (scope, block_number);
 
 create table if not exists graduations (
   scope text not null default 'legacy',
@@ -101,6 +102,11 @@ create table if not exists api_rate_limits (
   reset_at timestamptz not null
 );
 create index if not exists api_rate_limits_reset_idx on api_rate_limits (reset_at);
+
+create index if not exists launches_scope_created_id_idx on launches (scope, created_block, id desc);
+create index if not exists launches_scope_status_id_idx on launches (scope, status, id desc);
+create index if not exists launches_scope_progress_id_idx on launches (scope, progress desc, id desc);
+create index if not exists launches_scope_creator_idx on launches (scope, creator);
 
 create table if not exists chat_messages (
   id text primary key,
@@ -190,6 +196,39 @@ $$;
 
 revoke all on function refresh_launch_volume(text, numeric) from public;
 grant execute on function refresh_launch_volume(text, numeric) to service_role;
+
+create or replace function increment_launch_volume(p_scope text, p_launch_id numeric, p_delta numeric)
+returns void
+language sql
+security definer
+set search_path = public
+as $$
+  update launches
+  set volume_eth = volume_eth + greatest(p_delta, 0)
+  where scope = p_scope and id = p_launch_id;
+$$;
+
+revoke all on function increment_launch_volume(text, numeric, numeric) from public;
+grant execute on function increment_launch_volume(text, numeric, numeric) to service_role;
+
+create or replace function get_launchpad_metrics(p_scopes text[], p_start_block numeric)
+returns table(total_volume_eth numeric, total_tokens bigint, total_creators bigint, total_graduated bigint)
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select
+    coalesce((select sum(eth_amount) from trades where scope = any(p_scopes) and block_number >= p_start_block), 0)::numeric,
+    count(*)::bigint,
+    count(distinct creator)::bigint,
+    count(*) filter (where status = 'graduated')::bigint
+  from launches
+  where scope = any(p_scopes) and created_block >= p_start_block;
+$$;
+
+revoke all on function get_launchpad_metrics(text[], numeric) from public;
+grant execute on function get_launchpad_metrics(text[], numeric) to anon, authenticated, service_role;
 
 do $$
 begin

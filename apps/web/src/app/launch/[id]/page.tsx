@@ -6,15 +6,30 @@ import { siteUrl } from "@/lib/site-url";
 import { ipfsToGatewayUrl } from "@/lib/token-metadata";
 import { getRobinhoodLaunch } from "@/lib/robinhood-launches";
 import { getDbTrades } from "@/lib/db-launches";
+import { unstable_cache } from "next/cache";
 
-export const dynamic = "force-dynamic";
+export const revalidate = 15;
 
 type LaunchParams = { params: Promise<{ id: string }>; searchParams: Promise<{ chain?: string }> };
+
+const getCachedLaunch = unstable_cache(
+  async (id: string, chainId: number) => chainId === 4663 ? getRobinhoodLaunch(id) : getDeployedLaunch(id),
+  ["market-launch-v1"],
+  { revalidate: 15 }
+);
+
+const getCachedTrades = unstable_cache(
+  async (id: string, chainId: number) => chainId === 4663
+    ? getDbTrades(id, 4663).then((value) => value ?? [])
+    : getLaunchTrades(id),
+  ["market-trades-v1"],
+  { revalidate: 10 }
+);
 
 export async function generateMetadata({ params, searchParams }: LaunchParams): Promise<Metadata> {
   const { id } = await params;
   const isRobinhood = Number((await searchParams).chain) === 4663;
-  const launch = await (isRobinhood ? getRobinhoodLaunch(id) : getDeployedLaunch(id)).catch(() => undefined);
+  const launch = await getCachedLaunch(id, isRobinhood ? 4663 : 8453).catch(() => undefined);
   if (!launch) {
     return {
       title: "BlueFun Market",
@@ -53,9 +68,10 @@ export async function generateMetadata({ params, searchParams }: LaunchParams): 
 export default async function LaunchMarketPage({ params, searchParams }: LaunchParams) {
   const { id } = await params;
   const isRobinhood = Number((await searchParams).chain) === 4663;
+  const chainId = isRobinhood ? 4663 : 8453;
   const [launch, trades] = await Promise.all([
-    isRobinhood ? getRobinhoodLaunch(id) : getDeployedLaunch(id),
-    isRobinhood ? getDbTrades(id, 4663).then((value) => value ?? []) : getLaunchTrades(id)
+    getCachedLaunch(id, chainId),
+    getCachedTrades(id, chainId)
   ]);
   if (!launch) notFound();
   return <MarketClient id={id} launch={launch} trades={trades} />;

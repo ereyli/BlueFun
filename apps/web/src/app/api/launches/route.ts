@@ -17,7 +17,7 @@ export async function GET(request: Request) {
   }
   const filter = requestedFilter as LaunchPageFilter;
   const indexed = await getDbLaunchPage(chainId, { page, pageSize: 21, query, filter });
-  if (indexed) return NextResponse.json({ ...indexed, page, totalPages: Math.ceil(indexed.total / 21) });
+  if (indexed) return jsonLaunchPage({ ...indexed, page, totalPages: Math.ceil(indexed.total / 21) }, query);
 
   const all = chainId === 4663 ? await getRobinhoodLaunches() : await getDeployedLaunches();
   const normalized = query.trim().toLowerCase();
@@ -28,5 +28,15 @@ export async function GET(request: Request) {
     return true;
   }).sort((a, b) => filter === "Progress" ? b.progress - a.progress || Number(b.id) - Number(a.id) : Number(b.id) - Number(a.id));
   const start = (page - 1) * 21;
-  return NextResponse.json({ launches: filtered.slice(start, start + 21), total: filtered.length, page, totalPages: Math.ceil(filtered.length / 21) });
+  return jsonLaunchPage({ launches: filtered.slice(start, start + 21), total: filtered.length, page, totalPages: Math.ceil(filtered.length / 21) }, query);
+}
+
+function jsonLaunchPage(payload: object, query: string) {
+  return NextResponse.json(payload, {
+    headers: {
+      "cache-control": query
+        ? "private, no-store"
+        : "public, s-maxage=10, stale-while-revalidate=60"
+    }
+  });
 }
