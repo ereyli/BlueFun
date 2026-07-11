@@ -49,9 +49,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 <span className="sidebar-network-icons"><NetworkIcon chainId={8453} size={25} /><NetworkIcon chainId={4663} size={25} /></span>
                 <span><strong>Multichain</strong><small>Base + Robinhood live</small></span>
               </div>
-              <a className="sidebar-social-link" href="https://x.com/B20base" target="_blank" rel="noreferrer" aria-label="BlueFun on X">
+              <a className="sidebar-social-link" href="https://x.com/BluefunLaunch" target="_blank" rel="noreferrer" aria-label="BlueFun on X">
                 <span className="x-icon" aria-hidden="true">X</span>
-                <span>@B20base</span>
+                <span>@BluefunLaunch</span>
               </a>
             </aside>
             <section className="content">

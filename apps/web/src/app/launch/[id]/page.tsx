@@ -56,8 +56,8 @@ export async function generateMetadata({ params, searchParams }: LaunchParams): 
     },
     twitter: {
       card: "summary_large_image",
-      site: "@B20base",
-      creator: "@B20base",
+      site: "@BluefunLaunch",
+      creator: "@BluefunLaunch",
       title,
       description,
       images: [image]
