@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 import { formatEther, maxUint256, parseEther, zeroAddress } from "viem";
-import { useAccount, useBalance, useReadContract, useReadContracts, useSignMessage, useWaitForTransactionReceipt, useWriteContract } from "wagmi";
+import { useAccount, useBalance, useChainId, useReadContract, useReadContracts, useSignMessage, useSwitchChain, useWaitForTransactionReceipt, useWriteContract } from "wagmi";
 import { ArrowDownUp, Copy, ExternalLink, Loader2, LockKeyhole, RotateCcw, Settings, ShieldCheck, Sparkles } from "lucide-react";
 import type {
   CandlestickData,
@@ -62,10 +62,25 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [ethUsd, setEthUsd] = useState<number | null>(null);
   const [dexPair, setDexPair] = useState<DexPairSnapshot | null>(null);
-  const { address, isConnected, chainId } = useAccount();
+  const [chainSwitchError, setChainSwitchError] = useState("");
+  const { address, isConnected } = useAccount();
+  const chainId = useChainId();
+  const { switchChainAsync, isPending: isSwitchingChain } = useSwitchChain();
   const activeChainId = launch?.chainId === 4663 ? 4663 : 8453;
   const { addresses, chain, uniswapV4Addresses } = contractsForLaunch(activeChainId, id);
   const wrongNetwork = Boolean(isConnected && chainId && chainId !== activeChainId);
+
+  async function switchWalletNetwork() {
+    setChainSwitchError("");
+    try {
+      await switchChainAsync({ chainId: activeChainId });
+    } catch (switchError) {
+      const message = switchError instanceof Error ? switchError.message.toLowerCase() : "";
+      setChainSwitchError(message.includes("rejected") || message.includes("denied")
+        ? "Network switch was cancelled in your wallet."
+        : `Could not switch to ${chain.name}. Open your wallet and select it manually.`);
+    }
+  }
   const { data: hash, error, writeContract, isPending } = useWriteContract();
   const receipt = useWaitForTransactionReceipt({ hash });
   const parsedAmount = parsePositiveEther(amount);
@@ -546,7 +561,9 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
             exceedsSellBalance={exceedsSellBalance}
             isConnected={isConnected}
             isPending={isPending}
+            isSwitchingNetwork={isSwitchingChain}
             isWorking={isWorking}
+            chainSwitchError={chainSwitchError}
             launch={launch}
             minOut={graduatedMinOut}
             mode={mode}
@@ -555,6 +572,7 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
             onApprovePermit2={approveGraduatedPermit2Router}
             onApproveToken={approveGraduatedTokenPermit2}
             onBuy={buyGraduated}
+            onSwitchNetwork={switchWalletNetwork}
             onSell={sellGraduated}
             quote={graduatedQuotedOut}
             quoteError={graduatedQuote.error?.message}
@@ -571,6 +589,7 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
             tradeDisabled={mode === "buy" ? graduatedBuyDisabled : graduatedSellDisabled}
             transactionSubmitted={Boolean(hash && !receipt.isSuccess && !isPending)}
             updateSlippage={setSlippageBps}
+            wrongNetwork={wrongNetwork}
           />
         ) : (
           <section className="trade-card">
@@ -582,7 +601,15 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
               {!isConnected ? (
                 <div className="wallet-trade-gate"><span className="wallet-status-dot" />Connect wallet to trade</div>
               ) : null}
-              {wrongNetwork ? <TradeStatus tone="danger">Switch your wallet to {chain.name} before trading.</TradeStatus> : null}
+              {wrongNetwork ? (
+                <TradeStatus tone="danger">
+                  <span>Wallet is on chain {chainId}. Switch to {chain.name} to trade.</span>
+                  <button className="inline-network-switch" disabled={isSwitchingChain} onClick={switchWalletNetwork} type="button">
+                    {isSwitchingChain ? "Switching…" : `Switch to ${chain.name}`}
+                  </button>
+                </TradeStatus>
+              ) : null}
+              {chainSwitchError ? <TradeStatus tone="danger">{chainSwitchError}</TradeStatus> : null}
               <div className="trade-amount-block">
                 <div className="trade-amount-head">
                   <span>You pay</span>
@@ -917,7 +944,7 @@ function TokenChat({
 }
 
 function TradeStatus({ children, tone }: { children: React.ReactNode; tone: "info" | "success" | "danger" }) {
-  return <p className={`trade-status ${tone}`}>{children}</p>;
+  return <div className={`trade-status ${tone}`}>{children}</div>;
 }
 
 function xShareUrl(launch: DeployedLaunch, id: string) {
@@ -928,11 +955,13 @@ function xShareUrl(launch: DeployedLaunch, id: string) {
 
 function GraduatedTradeCard({
   amount,
+  chainSwitchError,
   error,
   exceedsEthBalance,
   exceedsSellBalance,
   isConnected,
   isPending,
+  isSwitchingNetwork,
   isWorking,
   launch,
   minOut,
@@ -942,6 +971,7 @@ function GraduatedTradeCard({
   onApprovePermit2,
   onApproveToken,
   onBuy,
+  onSwitchNetwork,
   onSell,
   quote,
   quoteError,
@@ -957,14 +987,17 @@ function GraduatedTradeCard({
   slippageBps,
   tradeDisabled,
   transactionSubmitted,
-  updateSlippage
+  updateSlippage,
+  wrongNetwork
 }: {
   amount: string;
+  chainSwitchError: string;
   error?: string;
   exceedsEthBalance: boolean;
   exceedsSellBalance: boolean;
   isConnected: boolean;
   isPending: boolean;
+  isSwitchingNetwork: boolean;
   isWorking: boolean;
   launch: DeployedLaunch;
   minOut: bigint;
@@ -974,6 +1007,7 @@ function GraduatedTradeCard({
   onApprovePermit2: () => void;
   onApproveToken: () => void;
   onBuy: () => void;
+  onSwitchNetwork: () => void;
   onSell: () => void;
   quote?: bigint;
   quoteError?: string;
@@ -990,6 +1024,7 @@ function GraduatedTradeCard({
   tradeDisabled: boolean;
   transactionSubmitted: boolean;
   updateSlippage: (value: bigint) => void;
+  wrongNetwork: boolean;
 }) {
   const { chain, uniswapChainName } = contractsForChain(launch.chainId);
   return (
@@ -1015,6 +1050,15 @@ function GraduatedTradeCard({
             <span>Wallet connection is required before trading.</span>
           </div>
         ) : null}
+        {wrongNetwork ? (
+          <TradeStatus tone="danger">
+            <span>Switch your wallet to {chain.name} before trading.</span>
+            <button className="inline-network-switch" disabled={isSwitchingNetwork} onClick={onSwitchNetwork} type="button">
+              {isSwitchingNetwork ? "Switching…" : `Switch to ${chain.name}`}
+            </button>
+          </TradeStatus>
+        ) : null}
+        {chainSwitchError ? <TradeStatus tone="danger">{chainSwitchError}</TradeStatus> : null}
         <div className="field">
           <div className="field-head">
             <label>{mode === "buy" ? "ETH in" : `${launch.symbol} amount`}</label>

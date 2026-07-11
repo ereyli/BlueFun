@@ -4,6 +4,7 @@ out/
 contracts/out/
 cache/
 broadcast/
+.deploy/
 coverage/
 apps/indexer/dist/
 *.tsbuildinfo

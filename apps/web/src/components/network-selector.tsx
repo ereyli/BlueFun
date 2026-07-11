@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { useAccount, useSwitchChain } from "wagmi";
+import { useAccount, useChainId, useSwitchChain } from "wagmi";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Check, ChevronDown } from "lucide-react";
 import { baseChain } from "@/lib/base-chain";
@@ -11,12 +11,14 @@ import { NetworkIcon, networkMeta } from "@/components/network-icon";
 const networks = [baseChain.id, robinhoodChain.id] as const;
 
 export function NetworkSelector() {
-  const { chainId } = useAccount();
-  const { switchChain, isPending } = useSwitchChain();
+  const { isConnected } = useAccount();
+  const chainId = useChainId();
+  const { switchChainAsync, isPending } = useSwitchChain();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [open, setOpen] = useState(false);
+  const [switchError, setSwitchError] = useState("");
   const rootRef = useRef<HTMLDivElement>(null);
   const requestedChainId = Number(searchParams.get("chain"));
   const selectedChainId = requestedChainId === robinhoodChain.id
@@ -43,12 +45,24 @@ export function NetworkSelector() {
     };
   }, []);
 
-  function selectNetwork(nextChainId: number) {
+  async function selectNetwork(nextChainId: number) {
+    setSwitchError("");
+    if (isConnected && chainId !== nextChainId) {
+      try {
+        await switchChainAsync({ chainId: nextChainId });
+      } catch (error) {
+        const message = error instanceof Error ? error.message.toLowerCase() : "";
+        setSwitchError(message.includes("rejected") || message.includes("denied")
+          ? "Network switch was cancelled in your wallet."
+          : "Your wallet could not switch networks. Try again from the wallet.");
+        setOpen(false);
+        return;
+      }
+    }
     const params = new URLSearchParams(searchParams.toString());
     params.set("chain", String(nextChainId));
     const destination = /^\/launch\/[^/]+$/.test(pathname) ? "/" : pathname;
     router.push(`${destination}?${params.toString()}`);
-    if (chainId && chainId !== nextChainId) switchChain({ chainId: nextChainId });
     setOpen(false);
   }
 
@@ -89,6 +103,7 @@ export function NetworkSelector() {
           })}
         </div>
       ) : null}
+      {switchError ? <div className="network-switch-error" role="status">{switchError}</div> : null}
     </div>
   );
 }
