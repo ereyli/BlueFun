@@ -575,7 +575,6 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
             onSwitchNetwork={switchWalletNetwork}
             onSell={sellGraduated}
             quote={graduatedQuotedOut}
-            quoteError={graduatedQuote.error?.message}
             quoteFromFallback={quoteFromFallback}
             quoteLoading={(graduatedQuote.isLoading || graduatedQuote.isFetching) && !graduatedQuotedOut}
             receiptSuccess={Boolean(receipt.isSuccess)}
@@ -587,7 +586,6 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
             settingsOpen={settingsOpen}
             slippageBps={slippageBps}
             tradeDisabled={mode === "buy" ? graduatedBuyDisabled : graduatedSellDisabled}
-            transactionSubmitted={Boolean(hash && !receipt.isSuccess && !isPending)}
             updateSlippage={setSlippageBps}
             wrongNetwork={wrongNetwork}
           />
@@ -698,12 +696,8 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
                 </>
               )}
               <div className="trade-status-stack">
-                {isPending ? <TradeStatus tone="info">Confirm this order in your wallet.</TradeStatus> : null}
-                {hash && !receipt.isSuccess && !isPending ? <TradeStatus tone="info">Order submitted. Waiting for confirmation.</TradeStatus> : null}
-                {receipt.isSuccess ? <TradeStatus tone="success">Order confirmed. Market data is refreshing.</TradeStatus> : null}
-                {exceedsEthBalance ? <TradeStatus tone="danger">Not enough ETH for this order.</TradeStatus> : null}
-                {exceedsSellBalance ? <TradeStatus tone="danger">Insufficient token balance.</TradeStatus> : null}
-                {error ? <TradeStatus tone="danger">{friendlyTradeError(error.message)}</TradeStatus> : null}
+                {receipt.isSuccess ? <TradeStatus tone="success">{mode === "buy" ? "Purchase completed." : "Sale completed."}</TradeStatus> : null}
+                {!receipt.isSuccess && error ? <TradeStatus tone="danger">{friendlyTradeError(error.message)}</TradeStatus> : null}
               </div>
             </div>
           </section>
@@ -974,7 +968,6 @@ function GraduatedTradeCard({
   onSwitchNetwork,
   onSell,
   quote,
-  quoteError,
   quoteFromFallback,
   quoteLoading,
   receiptSuccess,
@@ -986,7 +979,6 @@ function GraduatedTradeCard({
   settingsOpen,
   slippageBps,
   tradeDisabled,
-  transactionSubmitted,
   updateSlippage,
   wrongNetwork
 }: {
@@ -1010,7 +1002,6 @@ function GraduatedTradeCard({
   onSwitchNetwork: () => void;
   onSell: () => void;
   quote?: bigint;
-  quoteError?: string;
   quoteFromFallback: boolean;
   quoteLoading: boolean;
   receiptSuccess: boolean;
@@ -1022,7 +1013,6 @@ function GraduatedTradeCard({
   settingsOpen: boolean;
   slippageBps: bigint;
   tradeDisabled: boolean;
-  transactionSubmitted: boolean;
   updateSlippage: (value: bigint) => void;
   wrongNetwork: boolean;
 }) {
@@ -1163,15 +1153,8 @@ function GraduatedTradeCard({
           </>
         )}
         <div className="trade-status-stack">
-          {quoteLoading ? <TradeStatus tone="info">Uniswap quote is updating.</TradeStatus> : null}
-          {isPending ? <TradeStatus tone="info">Confirm this Uniswap order in your wallet.</TradeStatus> : null}
-          {transactionSubmitted ? <TradeStatus tone="info">Order submitted. Waiting for confirmation.</TradeStatus> : null}
-          {receiptSuccess ? <TradeStatus tone="success">Order confirmed. Market data is refreshing.</TradeStatus> : null}
-          {exceedsEthBalance ? <TradeStatus tone="danger">Not enough ETH for this order.</TradeStatus> : null}
-          {exceedsSellBalance ? <TradeStatus tone="danger">Insufficient token balance.</TradeStatus> : null}
-          {quoteError && quoteFromFallback ? <TradeStatus tone="info">Live quote is rate limited; using the latest indexed pool price.</TradeStatus> : null}
-          {quoteError && !quoteFromFallback ? <TradeStatus tone="danger">Uniswap pool quote is not available yet.</TradeStatus> : null}
-          {error ? <TradeStatus tone="danger">{friendlyTradeError(error)}</TradeStatus> : null}
+          {receiptSuccess ? <TradeStatus tone="success">{mode === "buy" ? "Purchase completed." : "Sale completed."}</TradeStatus> : null}
+          {!receiptSuccess && error ? <TradeStatus tone="danger">{friendlyTradeError(error)}</TradeStatus> : null}
         </div>
       </div>
       <div className="graduated-checks">

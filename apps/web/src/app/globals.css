@@ -2534,16 +2534,16 @@ button:disabled,
 }
 
 .trade-status-stack {
-  display: grid;
-  gap: 7px;
+  min-height: 0;
 }
 
 .trade-status {
-  border-radius: 10px;
-  font-size: 12px;
-  font-weight: 850;
+  border-radius: 8px;
+  font-size: 10px;
+  font-weight: 800;
+  line-height: 1.2;
   margin: 0;
-  padding: 9px 10px;
+  padding: 6px 8px;
 }
 
 .trade-status.info {
