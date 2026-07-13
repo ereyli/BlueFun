@@ -311,10 +311,19 @@ function paginationItems(current: number, total: number): Array<number | "…"> 
 }
 
 function TokenAvatar({ hot, launch }: { hot?: boolean; launch: DeployedLaunch }) {
+  const [failedImage, setFailedImage] = useState("");
+  const showImage = Boolean(launch.imageURI) && failedImage !== launch.imageURI;
   return (
     <div className={hot ? "token-art hot" : "token-art"}>
-      {launch.imageURI ? (
-        <img className="token-image" src={optimizedTokenImageUrl(launch.imageURI)} alt={launch.name} loading="lazy" decoding="async" />
+      {showImage ? (
+        <img
+          className="token-image"
+          src={optimizedTokenImageUrl(launch.imageURI)}
+          alt={launch.name}
+          loading="lazy"
+          decoding="async"
+          onError={() => setFailedImage(launch.imageURI || "")}
+        />
       ) : (
         <>
           <div className="token-symbol-art">{launch.symbol.slice(0, 4)}</div>

@@ -22,6 +22,7 @@ import {
   updateLaunchState,
   upsertLaunch
 } from "./db.js";
+import { mirrorTokenImage } from "./token-image-cdn.js";
 
 const rpcUrls = uniqueUrls([
   ...splitRpcUrls(process.env.RPC_URL || process.env.BASE_RPC_URL),
@@ -317,6 +318,12 @@ async function handleLaunchCreated(
   log: Awaited<ReturnType<typeof client.getContractEvents<typeof launchFactoryAbi, "LaunchCreated">>>[number]
 ) {
   const metadata: LaunchMetadata = await readLaunchMetadata(log.args.contractURI || "").catch(() => ({}));
+  const cdnImage = metadata.image
+    ? await mirrorTokenImage(metadata.image, chainId, log.args.token!).catch((error) => {
+      console.warn("Token image CDN mirror failed", { token: log.args.token, error });
+      return undefined;
+    })
+    : undefined;
   await upsertLaunch(deployment.scope, {
     id: log.args.launchId!,
     token: log.args.token!,
@@ -324,7 +331,7 @@ async function handleLaunchCreated(
     name: log.args.name!,
     symbol: log.args.symbol!,
     contractURI: log.args.contractURI!,
-    imageUri: metadata.image,
+    imageUri: cdnImage || metadata.image,
     description: metadata.description,
     website: metadata.website,
     twitter: metadata.twitter,

@@ -1447,8 +1447,18 @@ function formatChatAge(createdAt: number) {
 }
 
 function TokenAvatar({ launch, className }: { launch: DeployedLaunch; className: string }) {
-  if (launch.imageURI) {
-    return <img className={`${className} token-avatar-image`} src={optimizedTokenImageUrl(launch.imageURI)} alt={launch.name} loading="lazy" decoding="async" />;
+  const [failedImage, setFailedImage] = useState("");
+  if (launch.imageURI && failedImage !== launch.imageURI) {
+    return (
+      <img
+        className={`${className} token-avatar-image`}
+        src={optimizedTokenImageUrl(launch.imageURI)}
+        alt={launch.name}
+        loading="lazy"
+        decoding="async"
+        onError={() => setFailedImage(launch.imageURI || "")}
+      />
+    );
   }
   return <span className={className}>{launch.symbol.slice(0, 4)}</span>;
 }

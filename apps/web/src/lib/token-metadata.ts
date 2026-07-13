@@ -90,10 +90,11 @@ export function ipfsToGatewayUrl(uri?: string) {
 }
 
 export function optimizedTokenImageUrl(uri?: string) {
+  if (isBlueFunCdnUrl(uri)) return uri;
   return uri ? `/api/token-image?uri=${encodeURIComponent(uri)}` : "";
 }
 
-function ipfsToGatewayUrls(uri?: string) {
+export function ipfsToGatewayUrls(uri?: string) {
   if (!uri) return [];
   if (uri.startsWith("https://") || uri.startsWith("http://")) return [uri];
   if (!uri.startsWith("ipfs://")) return [];
@@ -104,4 +105,17 @@ function ipfsToGatewayUrls(uri?: string) {
     `https://ipfs.io/ipfs/${cidPath}`,
     `https://cloudflare-ipfs.com/ipfs/${cidPath}`
   ];
+}
+
+function isBlueFunCdnUrl(uri?: string) {
+  try {
+    const url = new URL(uri || "");
+    const configuredCdn = process.env.NEXT_PUBLIC_TOKEN_IMAGE_CDN_URL?.replace(/\/$/, "");
+    if (configuredCdn && uri?.startsWith(`${configuredCdn}/`)) return true;
+    return url.protocol === "https:"
+      && url.hostname.endsWith(".supabase.co")
+      && url.pathname.startsWith("/storage/v1/object/public/bluefun-token-images/");
+  } catch {
+    return false;
+  }
 }
