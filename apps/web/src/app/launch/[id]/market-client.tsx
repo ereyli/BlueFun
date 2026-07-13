@@ -633,16 +633,12 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
           <section className="trade-card">
             <div className="trade-card-toolbar">
               <div><strong>Trade</strong><span>BlueFun curve</span></div>
-              <button
-                className={settingsOpen ? "settings-button active" : "settings-button"}
-                onClick={() => setSettingsOpen((open) => !open)}
-                type="button"
-                aria-label="Trade settings"
-              >
-                <Settings size={15} />
-              </button>
             </div>
             <div className="form">
+              <div className="trade-tabs trade-tabs-top" role="tablist" aria-label="Trade direction">
+                <button aria-selected={mode === "buy"} className={mode === "buy" ? "active" : ""} onClick={() => setMode("buy")} role="tab" type="button">Buy ${launch.symbol}</button>
+                <button aria-selected={mode === "sell"} className={mode === "sell" ? "active" : ""} onClick={() => setMode("sell")} role="tab" type="button">Sell</button>
+              </div>
               {!isConnected ? (
                 <div className="wallet-trade-gate"><span className="wallet-status-dot" />Connect wallet to trade</div>
               ) : null}
@@ -669,12 +665,15 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
                   <strong>{mode === "buy" ? "ETH" : launch.symbol}</strong>
                 </div>
               </div>
-              <div className={mode === "buy" ? "quick-grid" : "quick-grid sell-grid"}>
-                {mode === "buy" ? (
-                  <><button type="button" onClick={() => setAmount("0.01")}>0.01</button><button type="button" onClick={() => setAmount("0.05")}>0.05</button><button type="button" onClick={() => setAmount("0.1")}>0.1</button></>
-                ) : (
-                  <><button type="button" onClick={() => setSellPercent(25n)}>25%</button><button type="button" onClick={() => setSellPercent(50n)}>50%</button><button type="button" onClick={() => setSellPercent(75n)}>75%</button><button type="button" onClick={() => setSellPercent(100n)}>Max</button></>
-                )}
+              <div className="trade-quick-settings">
+                <div className={mode === "buy" ? "quick-grid" : "quick-grid sell-grid"}>
+                  {mode === "buy" ? (
+                    <><button type="button" onClick={() => setAmount("0.01")}>0.01</button><button type="button" onClick={() => setAmount("0.05")}>0.05</button><button type="button" onClick={() => setAmount("0.1")}>0.1</button></>
+                  ) : (
+                    <><button type="button" onClick={() => setSellPercent(25n)}>25%</button><button type="button" onClick={() => setSellPercent(50n)}>50%</button><button type="button" onClick={() => setSellPercent(75n)}>75%</button><button type="button" onClick={() => setSellPercent(100n)}>Max</button></>
+                  )}
+                </div>
+                <button className={settingsOpen ? "settings-button active" : "settings-button"} onClick={() => setSettingsOpen((open) => !open)} type="button" aria-label="Trade settings"><Settings size={16} /></button>
               </div>
               <div className="quote-box">
                 <div className="quote-head">
@@ -714,10 +713,6 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
                   </div>
                 </div>
               ) : null}
-              <div className="trade-tabs trade-tabs-bottom" role="tablist" aria-label="Trade direction">
-                <button aria-selected={mode === "buy"} className={mode === "buy" ? "active" : ""} onClick={() => setMode("buy")} role="tab" type="button">Buy</button>
-                <button aria-selected={mode === "sell"} className={mode === "sell" ? "active" : ""} onClick={() => setMode("sell")} role="tab" type="button">Sell</button>
-              </div>
               {mode === "buy" ? (
                 <>
                   <button className="button primary trade-submit buy" disabled={tradeDisabled} onClick={buy}>
@@ -1067,22 +1062,12 @@ function GraduatedTradeCard({
           <Sparkles size={16} />
           Graduated
         </div>
-        <button
-          className={settingsOpen ? "settings-button active" : "settings-button"}
-          onClick={() => setSettingsOpen((open) => !open)}
-          type="button"
-          aria-label="Trade settings"
-        >
-          <Settings size={15} />
-        </button>
-      </div>
-      <div className="graduated-card-copy">
-        <h2>Trade locked liquidity</h2>
-        <p>
-          Bonding curve trading is complete. Orders now route through the locked Uniswap v4 pool.
-        </p>
       </div>
       <div className="form graduated-swap-form">
+        <div className="trade-tabs trade-tabs-top" role="tablist" aria-label="Trade direction">
+          <button aria-selected={mode === "buy"} className={mode === "buy" ? "active" : ""} onClick={() => setMode("buy")} role="tab" type="button">Buy ${launch.symbol}</button>
+          <button aria-selected={mode === "sell"} className={mode === "sell" ? "active" : ""} onClick={() => setMode("sell")} role="tab" type="button">Sell</button>
+        </div>
         {!isConnected ? (
           <div className="notice compact">
             <strong>Connect wallet</strong>
@@ -1112,21 +1097,24 @@ function GraduatedTradeCard({
             <strong>{mode === "buy" ? "ETH" : launch.symbol}</strong>
           </div>
         </div>
-        <div className={mode === "buy" ? "quick-grid" : "quick-grid sell-grid"}>
-          {mode === "buy" ? (
-            <>
-              <button type="button" onClick={() => setAmount("0.01")}>0.01</button>
-              <button type="button" onClick={() => setAmount("0.05")}>0.05</button>
-              <button type="button" onClick={() => setAmount("0.1")}>0.1</button>
-            </>
-          ) : (
-            <>
-              <button type="button" onClick={() => setSellPercent(25n)}>25%</button>
-              <button type="button" onClick={() => setSellPercent(50n)}>50%</button>
-              <button type="button" onClick={() => setSellPercent(75n)}>75%</button>
-              <button type="button" onClick={() => setSellPercent(100n)}>Max</button>
-            </>
-          )}
+        <div className="trade-quick-settings">
+          <div className={mode === "buy" ? "quick-grid" : "quick-grid sell-grid"}>
+            {mode === "buy" ? (
+              <>
+                <button type="button" onClick={() => setAmount("0.01")}>0.01</button>
+                <button type="button" onClick={() => setAmount("0.05")}>0.05</button>
+                <button type="button" onClick={() => setAmount("0.1")}>0.1</button>
+              </>
+            ) : (
+              <>
+                <button type="button" onClick={() => setSellPercent(25n)}>25%</button>
+                <button type="button" onClick={() => setSellPercent(50n)}>50%</button>
+                <button type="button" onClick={() => setSellPercent(75n)}>75%</button>
+                <button type="button" onClick={() => setSellPercent(100n)}>Max</button>
+              </>
+            )}
+          </div>
+          <button className={settingsOpen ? "settings-button active" : "settings-button"} onClick={() => setSettingsOpen((open) => !open)} type="button" aria-label="Trade settings"><Settings size={16} /></button>
         </div>
         <div className="quote-box">
           <div className="quote-head">
@@ -1165,10 +1153,6 @@ function GraduatedTradeCard({
           </div>
         ) : null}
         <div className="trade-meta-line"><span><NetworkIcon chainId={launch.chainId} size={14} />{chain.name}</span><i />Uniswap v4<i />Locked liquidity</div>
-        <div className="trade-tabs trade-tabs-bottom" role="tablist" aria-label="Trade direction">
-          <button aria-selected={mode === "buy"} className={mode === "buy" ? "active" : ""} onClick={() => setMode("buy")} role="tab" type="button">Buy</button>
-          <button aria-selected={mode === "sell"} className={mode === "sell" ? "active" : ""} onClick={() => setMode("sell")} role="tab" type="button">Sell</button>
-        </div>
         {mode === "buy" ? (
           <>
             <button className="button primary wide trade-submit buy" disabled={tradeDisabled} onClick={onBuy} type="button">
@@ -1231,29 +1215,34 @@ function ProjectInfo({ launch }: { launch: DeployedLaunch }) {
   ].filter((link): link is { label: string; href: string } => Boolean(link.href));
 
   return (
-    <section className="project-info-panel">
+    <section className="project-info-panel market-overview-panel">
       <div className="project-info-head">
-        <h2>Market facts</h2>
+        <h2>Market overview</h2>
         <span><NetworkIcon chainId={launch.chainId} size={15} />{launch.chainId === 4663 ? "Robinhood" : "Base"}</span>
       </div>
       {launch.description ? <p>{launch.description}</p> : null}
-      <dl className="market-facts-grid">
-        <div><dt>Token</dt><dd>{shortAddress(launch.token)}</dd></div>
-        <div><dt>Creator</dt><dd>{shortAddress(launch.creator)}</dd></div>
+      <dl className="market-overview-grid">
         <div><dt>Standard</dt><dd>{launch.chainId === 4663 ? "ERC-20" : "B20"}</dd></div>
-        <div><dt>Supply</dt><dd>1,000,000,000</dd></div>
         <div><dt>Trading fee</dt><dd>1% total</dd></div>
         <div><dt>Liquidity</dt><dd>{launch.status === "Graduated" ? "Uniswap v4 · locked" : "Bonding curve"}</dd></div>
       </dl>
-      {links.length ? (
-        <div className="project-link-row">
-          {links.map((link) => (
-            <a href={link.href} key={link.label} target="_blank" rel="noreferrer">
-              {link.label}<ExternalLink size={13} />
-            </a>
-          ))}
-        </div>
-      ) : null}
+      <details className="market-details-disclosure">
+        <summary><span>Contract details</span><small>Token, creator and supply</small></summary>
+        <dl className="market-facts-grid compact">
+          <div><dt>Token</dt><dd>{shortAddress(launch.token)}</dd></div>
+          <div><dt>Creator</dt><dd>{shortAddress(launch.creator)}</dd></div>
+          <div><dt>Supply</dt><dd>1,000,000,000</dd></div>
+        </dl>
+        {links.length ? (
+          <div className="project-link-row">
+            {links.map((link) => (
+              <a href={link.href} key={link.label} target="_blank" rel="noreferrer">
+                {link.label}<ExternalLink size={13} />
+              </a>
+            ))}
+          </div>
+        ) : null}
+      </details>
       <p className="market-risk-note">Community tokens are volatile. Verify the contract and trade responsibly. <a href="/risk">Read risk disclosure</a></p>
     </section>
   );
@@ -1315,7 +1304,6 @@ function MarketStats({
     let sells = 0;
     let boughtTokens = 0;
     let soldTokens = 0;
-    const netByWallet = new Map<string, number>();
 
     for (const trade of trades) {
       if (trade.trader) unique.add(trade.trader.toLowerCase());
@@ -1323,25 +1311,17 @@ function MarketStats({
       if (trade.side === "buy") {
         buys += 1;
         boughtTokens += tokens;
-        if (trade.trader) netByWallet.set(trade.trader, (netByWallet.get(trade.trader) || 0) + tokens);
       } else {
         sells += 1;
         soldTokens += tokens;
-        if (trade.trader) netByWallet.set(trade.trader, (netByWallet.get(trade.trader) || 0) - tokens);
       }
     }
-
-    const topCurveWallets = Array.from(netByWallet.entries())
-      .filter(([, value]) => value > 0)
-      .sort(([, a], [, b]) => b - a)
-      .slice(0, 3);
 
     return {
       buys,
       sells,
       uniqueTraders: unique.size,
-      netTokens: Math.max(boughtTokens - soldTokens, 0),
-      topCurveWallets
+      netTokens: Math.max(boughtTokens - soldTokens, 0)
     };
   }, [trades]);
 
@@ -1357,19 +1337,12 @@ function MarketStats({
         <div><span>Traders</span><strong>{stats.uniqueTraders}</strong></div>
         <div><span>Net flow</span><strong>{compactTokenAmount(String(stats.netTokens))} {launch.symbol}</strong></div>
       </div>
-      {stats.topCurveWallets.length ? (
-        <div className="holder-mini-list">
-          {stats.topCurveWallets.map(([wallet, amount]) => (
-            <span key={wallet}>{shortAddress(wallet)} <strong>{compactTokenAmount(String(amount))}</strong></span>
-          ))}
-        </div>
-      ) : null}
     </section>
   );
 }
 
 function HolderDistribution({ launch, trades }: { launch: DeployedLaunch; trades: DeployedTrade[] }) {
-  const panelRef = useRef<HTMLElement | null>(null);
+  const panelRef = useRef<HTMLDetailsElement | null>(null);
   const [shouldLoad, setShouldLoad] = useState(false);
   const { addresses, uniswapV4Addresses } = contractsForChain(launch.chainId);
   useEffect(() => {
@@ -1445,19 +1418,19 @@ function HolderDistribution({ launch, trades }: { launch: DeployedLaunch; trades
   }, [addresses.bondingCurveMarket, balances.data, holderAddresses, launch.creator, launch.status, uniswapV4Addresses.poolManager]);
 
   if (!shouldLoad) {
-    return <section className="holder-distribution-panel deferred-panel" ref={panelRef}><div className="holder-distribution-head"><h2>Observed holders</h2><span>Loads on view</span></div></section>;
+    return <details className="holder-distribution-panel market-accordion deferred-panel" ref={panelRef}><summary className="holder-distribution-head"><div><h2>Holder distribution</h2><p>Onchain balances</p></div><span>Loading</span></summary></details>;
   }
   if (!rows.length) return null;
 
   return (
-    <section className="holder-distribution-panel" ref={panelRef}>
-      <div className="holder-distribution-head">
+    <details className="holder-distribution-panel market-accordion" ref={panelRef}>
+      <summary className="holder-distribution-head">
         <div>
-          <h2>Observed holders</h2>
-          <p>Curve, creator and recent participant balances read onchain.</p>
+          <h2>Holder distribution</h2>
+          <p>Onchain balances for the pool and recent participants</p>
         </div>
         <span>Top {rows.length}</span>
-      </div>
+      </summary>
       <div className="holder-distribution-list">
         {rows.map((row, index) => (
           <div className="holder-row" key={row.holder}>
@@ -1477,7 +1450,7 @@ function HolderDistribution({ launch, trades }: { launch: DeployedLaunch; trades
           </div>
         ))}
       </div>
-    </section>
+    </details>
   );
 }
 
