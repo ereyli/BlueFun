@@ -3,9 +3,9 @@
 import "@rainbow-me/rainbowkit/styles.css";
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { getDefaultConfig, lightTheme, RainbowKitProvider } from "@rainbow-me/rainbowkit";
+import { darkTheme, getDefaultConfig, lightTheme, RainbowKitProvider } from "@rainbow-me/rainbowkit";
 import { WagmiProvider, fallback, http } from "wagmi";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { baseChain } from "@/lib/base-chain";
 import { robinhoodChain } from "@/lib/robinhood-chain";
 import { baseRpcUrls, robinhoodRpcUrls } from "@/lib/rpc";
@@ -26,15 +26,25 @@ const config = getDefaultConfig({
 
 export function Providers({ children }: { children: React.ReactNode }) {
   const [queryClient] = useState(() => new QueryClient());
+  const [dark, setDark] = useState(false);
+
+  useEffect(() => {
+    const syncTheme = () => setDark(document.documentElement.dataset.theme === "dark");
+    syncTheme();
+    window.addEventListener("bluefun-theme-change", syncTheme);
+    return () => window.removeEventListener("bluefun-theme-change", syncTheme);
+  }, []);
+
+  const walletTheme = (dark ? darkTheme : lightTheme)({
+    accentColor: "#2457f5",
+    borderRadius: "small"
+  });
 
   return (
     <WagmiProvider config={config}>
       <QueryClientProvider client={queryClient}>
         <RainbowKitProvider
-          theme={lightTheme({
-            accentColor: "#0052ff",
-            borderRadius: "small"
-          })}
+          theme={walletTheme}
           modalSize="compact"
         >
           {children}

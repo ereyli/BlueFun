@@ -12,6 +12,7 @@ import { NetworkSelector } from "@/components/network-selector";
 import { Suspense } from "react";
 import { ChainLink } from "@/components/chain-link";
 import { NetworkIcon } from "@/components/network-icon";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl("/")),
@@ -32,7 +33,10 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: `(function(){try{var t=localStorage.getItem('bluefun-theme');if(t!=='light'&&t!=='dark')t=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';document.documentElement.dataset.theme=t;document.documentElement.style.colorScheme=t;var m=document.querySelector('meta[name="theme-color"]');if(m)m.content=t==='dark'?'#080d18':'#f6f8ff'}catch(e){}})();` }} />
+      </head>
       <body>
         <Providers>
           <RouteFeedback />
@@ -62,6 +66,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 <div className="topbar-actions">
                   <Suspense fallback={<Link className="button primary" href="/launch">Create</Link>}><ChainLink className="button primary topbar-create" href="/launch">Create</ChainLink></Suspense>
                   <Suspense fallback={null}><NetworkSelector /></Suspense>
+                  <ThemeToggle />
                   <WalletButton />
                 </div>
               </header>

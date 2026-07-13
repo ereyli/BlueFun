@@ -1575,6 +1575,7 @@ function TradeChart({ trades, status, symbol, ethUsd }: { trades: DeployedTrade[
   const userTouchedChartRef = useRef(false);
   const [chartMode, setChartMode] = useState<"marketCap" | "price">("marketCap");
   const [intervalMinutes, setIntervalMinutes] = useState(1);
+  const [darkChart, setDarkChart] = useState(false);
   const { candles, volume, latestValue } = useMemo(
     () => buildChartData(trades, chartMode, ethUsd, intervalMinutes, status === "Graduated"),
     [trades, chartMode, ethUsd, intervalMinutes, status]
@@ -1582,6 +1583,14 @@ function TradeChart({ trades, status, symbol, ethUsd }: { trades: DeployedTrade[
   const chartDataRef = useRef({ candles, volume });
   chartDataRef.current = { candles, volume };
   const chartTitle = chartMode === "marketCap" ? `${symbol} market cap` : `${symbol} price`;
+
+  useEffect(() => {
+    const syncTheme = () => setDarkChart(document.documentElement.dataset.theme === "dark");
+    syncTheme();
+    window.addEventListener("bluefun-theme-change", syncTheme);
+    return () => window.removeEventListener("bluefun-theme-change", syncTheme);
+  }, []);
+
   function resetChart() {
     userTouchedChartRef.current = false;
     shouldFitChartRef.current = true;
@@ -1609,20 +1618,20 @@ function TradeChart({ trades, status, symbol, ethUsd }: { trades: DeployedTrade[
       autoSize: true,
       height: 340,
       layout: {
-        background: { type: ColorType.Solid, color: "#f8faff" },
-        textColor: "#5f6f95",
+        background: { type: ColorType.Solid, color: darkChart ? "#101827" : "#f8faff" },
+        textColor: darkChart ? "#9aa8bd" : "#5f6f95",
         fontFamily: "Inter, ui-sans-serif, system-ui"
       },
       grid: {
-        vertLines: { color: "rgba(184, 198, 230, 0.45)" },
-        horzLines: { color: "rgba(184, 198, 230, 0.45)" }
+        vertLines: { color: darkChart ? "rgba(71, 85, 105, 0.34)" : "rgba(184, 198, 230, 0.45)" },
+        horzLines: { color: darkChart ? "rgba(71, 85, 105, 0.34)" : "rgba(184, 198, 230, 0.45)" }
       },
       rightPriceScale: {
-        borderColor: "#d8e0f3",
+        borderColor: darkChart ? "#2b3950" : "#d8e0f3",
         scaleMargins: { top: 0.12, bottom: 0.28 }
       },
       timeScale: {
-        borderColor: "#d8e0f3",
+        borderColor: darkChart ? "#2b3950" : "#d8e0f3",
         timeVisible: true,
         secondsVisible: false
       },
@@ -1692,7 +1701,7 @@ function TradeChart({ trades, status, symbol, ethUsd }: { trades: DeployedTrade[
       candleSeriesRef.current = null;
       volumeSeriesRef.current = null;
     };
-  }, [chartMode]);
+  }, [chartMode, darkChart]);
 
   useEffect(() => {
     if (!chartApiRef.current || !candleSeriesRef.current || !volumeSeriesRef.current) return;
