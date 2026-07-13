@@ -10,12 +10,13 @@ export async function GET(request: Request) {
   const chainId = Number(params.get("chain"));
   const page = Number(params.get("page") || "1");
   const query = (params.get("q") || "").slice(0, 80);
-  const requestedFilter = params.get("filter") || "New";
-  const filters: LaunchPageFilter[] = ["Live", "New", "Ready", "Graduated", "Safe", "Progress"];
-  if ((chainId !== 8453 && chainId !== 4663) || !Number.isInteger(page) || page < 1 || page > 100_000 || !filters.includes(requestedFilter as LaunchPageFilter)) {
+  const requestedFilter = params.get("filter") || "All";
+  const normalizedFilter = requestedFilter === "New" || requestedFilter === "Safe" ? "All" : requestedFilter;
+  const filters: LaunchPageFilter[] = ["All", "Live", "Ready", "Graduated", "Progress"];
+  if ((chainId !== 8453 && chainId !== 4663) || !Number.isInteger(page) || page < 1 || page > 100_000 || !filters.includes(normalizedFilter as LaunchPageFilter)) {
     return NextResponse.json({ launches: [], total: 0, page: 1, totalPages: 0 }, { status: 400 });
   }
-  const filter = requestedFilter as LaunchPageFilter;
+  const filter = normalizedFilter as LaunchPageFilter;
   const indexed = await getDbLaunchPage(chainId, { page, pageSize: 21, query, filter });
   if (indexed) return jsonLaunchPage({ ...indexed, page, totalPages: Math.ceil(indexed.total / 21) }, query);
 

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, useTransition, type ReactNode } from "react";
 import Link from "next/link";
-import { Activity, BarChart3, Clock, Coins, Rocket, Search, ShieldCheck, Sparkles, Trophy, Users } from "lucide-react";
+import { Activity, BarChart3, Coins, Rocket, Search, ShieldCheck, Sparkles, Trophy, Users } from "lucide-react";
 import { isFeaturedLaunch, isTrustedLaunch } from "@/lib/featured-launches";
 import { compactUsd, parseDisplayAmount } from "@/lib/market-math";
 import type { DbLaunchMetrics } from "@/lib/db-launches";
@@ -10,7 +10,7 @@ import type { DeployedLaunch } from "@/lib/onchain-launches";
 import { optimizedTokenImageUrl } from "@/lib/token-metadata";
 import { NetworkIcon, networkMeta } from "@/components/network-icon";
 
-type Filter = "Live" | "New" | "Graduated" | "Progress";
+type Filter = "All" | "Live" | "Graduated" | "Progress";
 
 export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metrics, chainId = 8453 }: { launches: DeployedLaunch[]; totalLaunches: number; metrics?: DbLaunchMetrics; chainId?: number }) {
   const [launches, setLaunches] = useState(initialLaunches);
@@ -20,7 +20,7 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metri
   const [loadError, setLoadError] = useState(false);
   const [refreshNonce, setRefreshNonce] = useState(0);
   const [query, setQuery] = useState("");
-  const [filter, setFilter] = useState<Filter>("New");
+  const [filter, setFilter] = useState<Filter>("All");
   const [ethUsd, setEthUsd] = useState<number | null>(null);
   const [isPending, startTransition] = useTransition();
   const tokensRef = useRef<HTMLDivElement>(null);
@@ -31,7 +31,7 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metri
     setTotal(totalLaunches);
     setPage(1);
     setQuery("");
-    setFilter("New");
+    setFilter("All");
   }, [chainId, initialLaunches, totalLaunches]);
 
   useEffect(() => {
@@ -203,7 +203,7 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metri
 
         <div className="explore-controls">
           <div className="feed-tabs" role="tablist" aria-label="Launch filters">
-            <FilterButton active={filter === "New"} onClick={() => { setFilter("New"); setPage(1); }}><Clock size={14} />Newest</FilterButton>
+            <FilterButton active={filter === "All"} onClick={() => { setFilter("All"); setPage(1); }}><Coins size={14} />All launches</FilterButton>
             <FilterButton active={filter === "Live"} onClick={() => { setFilter("Live"); setPage(1); }}><Sparkles size={14} />Bonding</FilterButton>
             <FilterButton active={filter === "Progress"} onClick={() => { setFilter("Progress"); setPage(1); }}><Trophy size={14} />Progress</FilterButton>
             <FilterButton active={filter === "Graduated"} onClick={() => { setFilter("Graduated"); setPage(1); }}><Rocket size={14} />Graduated</FilterButton>

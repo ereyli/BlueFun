@@ -16,7 +16,7 @@ export type DbLaunchMetrics = {
   totalGraduated: number;
 };
 
-export type LaunchPageFilter = "Live" | "New" | "Ready" | "Graduated" | "Safe" | "Progress";
+export type LaunchPageFilter = "All" | "Live" | "Ready" | "Graduated" | "Progress";
 export type DbLaunchPage = { launches: DeployedLaunch[]; total: number };
 
 const launchColumns = "scope, id, token, creator, name, symbol, contract_uri, image_url, description, website_url, twitter_url, telegram_url, discord_url, status, raised_eth, graduation_target_eth, progress, volume_eth, token_created_at, created_block, position_id";
@@ -32,7 +32,7 @@ export async function getDbLaunchPage(
   const pageSize = Math.min(Math.max(Math.floor(options.pageSize || 21), 1), 21);
   const offset = (page - 1) * pageSize;
   const search = normalizeSearchTerm(options.query);
-  const filter = options.filter || "New";
+  const filter = options.filter || "All";
   const statusFilter = filter === "Live" || filter === "Ready" || filter === "Graduated" ? filter.toLowerCase() : "";
 
   try {
