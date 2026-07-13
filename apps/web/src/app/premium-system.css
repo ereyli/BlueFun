@@ -403,6 +403,17 @@ summary:focus-visible {
 .trade-tabs button { border-radius: 9px; min-height: 40px; }
 .trade-tabs button.active:first-child { background: var(--green); box-shadow: 0 7px 16px rgba(23, 168, 107, .18); color: #fff; }
 .trade-tabs button.active:last-child { background: var(--red); box-shadow: 0 7px 16px rgba(220, 63, 79, .16); color: #fff; }
+.trade-card-toolbar {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  min-height: 34px;
+}
+.trade-card-toolbar > div:not(.graduated-badge) { display: grid; gap: 2px; }
+.trade-card-toolbar > div > strong { color: var(--text); font-size: 14px; letter-spacing: -.015em; }
+.trade-card-toolbar > div > span { color: var(--muted); font-size: 9px; font-weight: 750; }
+.graduated-trade-toolbar .graduated-badge { justify-self: auto; }
+.trade-tabs-bottom { margin-top: 2px; order: initial; }
 .trade-input-shell,
 .quote-box { background: #f8f9fc; border-color: var(--line); }
 .quote-box > strong { font-size: clamp(18px, 2vw, 25px); letter-spacing: -.025em; overflow-wrap: anywhere; }
@@ -900,6 +911,35 @@ html[data-theme="dark"] .premium-hero::before {
 html[data-theme="dark"] .network-metric-row { background: rgba(255,255,255,.035); border-color: rgba(255,255,255,.08); }
 html[data-theme="dark"] .network-metric-row.active { background: linear-gradient(135deg,rgba(108,124,255,.14),rgba(157,99,255,.07)); border-color: rgba(108,124,255,.34); }
 
+/* BlueFun live-market motion: focused accents, never a rainbow UI */
+.trending-section,
+.discovery-panel { overflow: hidden; position: relative; }
+.trending-section::before,
+.discovery-panel::before {
+  background: linear-gradient(90deg,transparent,#6c7cff 24%,#9d63ff 48%,#27d7b0 72%,transparent);
+  background-size: 210% 100%;
+  content: "";
+  height: 1px;
+  inset: 0 0 auto;
+  opacity: .72;
+  pointer-events: none;
+  position: absolute;
+  animation: bluefun-market-signal 5.5s linear infinite;
+}
+.trending-card.featured { animation: bluefun-featured-breathe 4.6s ease-in-out infinite; }
+.trending-card.featured:hover { animation-play-state: paused; }
+.live-sync .dot { animation: bluefun-live-dot 1.8s ease-in-out infinite; }
+.network-metric-row.active { overflow: hidden; position: relative; }
+.network-metric-row.active::after {
+  background: linear-gradient(100deg,transparent 30%,rgba(255,255,255,.09) 50%,transparent 70%);
+  content: "";
+  inset: 0;
+  pointer-events: none;
+  position: absolute;
+  transform: translateX(-110%);
+  animation: bluefun-row-scan 5s ease-in-out infinite;
+}
+
 @keyframes bluefun-energy-flow {
   from { background-position: 0 50%; }
   to { background-position: -220% 50%; }
@@ -908,11 +948,32 @@ html[data-theme="dark"] .network-metric-row.active { background: linear-gradient
   0% { filter: hue-rotate(0deg); opacity: .78; transform: scale(1); }
   100% { filter: hue-rotate(24deg); opacity: 1; transform: scale(1.04); }
 }
+@keyframes bluefun-market-signal {
+  from { background-position: 210% 50%; }
+  to { background-position: -210% 50%; }
+}
+@keyframes bluefun-featured-breathe {
+  0%,100% { box-shadow: 0 0 0 rgba(108,124,255,0); }
+  50% { box-shadow: 0 10px 28px rgba(108,124,255,.11),0 0 22px rgba(39,215,176,.045); }
+}
+@keyframes bluefun-live-dot {
+  0%,100% { box-shadow: 0 0 0 0 rgba(42,203,136,.1); transform: scale(.9); }
+  50% { box-shadow: 0 0 0 5px rgba(42,203,136,0); transform: scale(1.08); }
+}
+@keyframes bluefun-row-scan {
+  0%,55% { transform: translateX(-110%); }
+  80%,100% { transform: translateX(110%); }
+}
 
 @media (prefers-reduced-motion: reduce) {
   .progress span,
   .market-header-card > .progress span,
-  html[data-theme="dark"] .premium-hero::before {
+  html[data-theme="dark"] .premium-hero::before,
+  .trending-section::before,
+  .discovery-panel::before,
+  .trending-card.featured,
+  .live-sync .dot,
+  .network-metric-row.active::after {
     animation: none;
   }
 }

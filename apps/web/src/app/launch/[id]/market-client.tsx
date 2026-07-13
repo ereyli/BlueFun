@@ -631,9 +631,16 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
           />
         ) : (
           <section className="trade-card">
-            <div className="trade-tabs" role="tablist" aria-label="Trade direction">
-              <button aria-selected={mode === "buy"} className={mode === "buy" ? "active" : ""} onClick={() => setMode("buy")} role="tab" type="button">Buy</button>
-              <button aria-selected={mode === "sell"} className={mode === "sell" ? "active" : ""} onClick={() => setMode("sell")} role="tab" type="button">Sell</button>
+            <div className="trade-card-toolbar">
+              <div><strong>Trade</strong><span>BlueFun curve</span></div>
+              <button
+                className={settingsOpen ? "settings-button active" : "settings-button"}
+                onClick={() => setSettingsOpen((open) => !open)}
+                type="button"
+                aria-label="Trade settings"
+              >
+                <Settings size={15} />
+              </button>
             </div>
             <div className="form">
               {!isConnected ? (
@@ -672,14 +679,6 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
               <div className="quote-box">
                 <div className="quote-head">
                   <span>{quoteLoading ? "Updating quote" : "You receive"}</span>
-                  <button
-                    className={settingsOpen ? "settings-button active" : "settings-button"}
-                    onClick={() => setSettingsOpen((open) => !open)}
-                    type="button"
-                    aria-label="Trade settings"
-                  >
-                    <Settings size={15} />
-                  </button>
                 </div>
                 <strong>{quotedOut ? formatQuote(quotedOut, mode === "buy" ? launch.symbol : "ETH") : "-"}</strong>
                 <div className="quote-breakdown">
@@ -715,6 +714,10 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
                   </div>
                 </div>
               ) : null}
+              <div className="trade-tabs trade-tabs-bottom" role="tablist" aria-label="Trade direction">
+                <button aria-selected={mode === "buy"} className={mode === "buy" ? "active" : ""} onClick={() => setMode("buy")} role="tab" type="button">Buy</button>
+                <button aria-selected={mode === "sell"} className={mode === "sell" ? "active" : ""} onClick={() => setMode("sell")} role="tab" type="button">Sell</button>
+              </div>
               {mode === "buy" ? (
                 <>
                   <button className="button primary trade-submit buy" disabled={tradeDisabled} onClick={buy}>
@@ -1059,19 +1062,25 @@ function GraduatedTradeCard({
   const { chain, uniswapChainName } = contractsForChain(launch.chainId);
   return (
     <section className="graduated-trade-card">
-      <div className="graduated-badge">
-        <Sparkles size={16} />
-        Graduated
+      <div className="trade-card-toolbar graduated-trade-toolbar">
+        <div className="graduated-badge">
+          <Sparkles size={16} />
+          Graduated
+        </div>
+        <button
+          className={settingsOpen ? "settings-button active" : "settings-button"}
+          onClick={() => setSettingsOpen((open) => !open)}
+          type="button"
+          aria-label="Trade settings"
+        >
+          <Settings size={15} />
+        </button>
       </div>
       <div className="graduated-card-copy">
         <h2>Trade locked liquidity</h2>
         <p>
           Bonding curve trading is complete. Orders now route through the locked Uniswap v4 pool.
         </p>
-      </div>
-      <div className="trade-tabs" role="tablist" aria-label="Trade direction">
-        <button aria-selected={mode === "buy"} className={mode === "buy" ? "active" : ""} onClick={() => setMode("buy")} role="tab" type="button">Buy</button>
-        <button aria-selected={mode === "sell"} className={mode === "sell" ? "active" : ""} onClick={() => setMode("sell")} role="tab" type="button">Sell</button>
       </div>
       <div className="form graduated-swap-form">
         {!isConnected ? (
@@ -1103,14 +1112,6 @@ function GraduatedTradeCard({
         <div className="quote-box">
           <div className="quote-head">
             <span>{quoteLoading ? "Quoting Uniswap v4..." : mode === "buy" ? "Estimated tokens" : "Estimated ETH"}</span>
-            <button
-              className={settingsOpen ? "settings-button active" : "settings-button"}
-              onClick={() => setSettingsOpen((open) => !open)}
-              type="button"
-              aria-label="Trade settings"
-            >
-              <Settings size={15} />
-            </button>
           </div>
           <strong>{quote ? formatQuote(quote, mode === "buy" ? launch.symbol : "ETH") : "-"}</strong>
           <div className="quote-breakdown">
@@ -1144,13 +1145,28 @@ function GraduatedTradeCard({
             </div>
           </div>
         ) : null}
-        {mode === "buy" ? (
-          <>
-            <div className="quick-grid">
+        <div className={mode === "buy" ? "quick-grid" : "quick-grid sell-grid"}>
+          {mode === "buy" ? (
+            <>
               <button type="button" onClick={() => setAmount("0.01")}>0.01</button>
               <button type="button" onClick={() => setAmount("0.05")}>0.05</button>
               <button type="button" onClick={() => setAmount("0.1")}>0.1</button>
-            </div>
+            </>
+          ) : (
+            <>
+              <button type="button" onClick={() => setSellPercent(25n)}>25%</button>
+              <button type="button" onClick={() => setSellPercent(50n)}>50%</button>
+              <button type="button" onClick={() => setSellPercent(75n)}>75%</button>
+              <button type="button" onClick={() => setSellPercent(100n)}>Max</button>
+            </>
+          )}
+        </div>
+        <div className="trade-tabs trade-tabs-bottom" role="tablist" aria-label="Trade direction">
+          <button aria-selected={mode === "buy"} className={mode === "buy" ? "active" : ""} onClick={() => setMode("buy")} role="tab" type="button">Buy</button>
+          <button aria-selected={mode === "sell"} className={mode === "sell" ? "active" : ""} onClick={() => setMode("sell")} role="tab" type="button">Sell</button>
+        </div>
+        {mode === "buy" ? (
+          <>
             <button className="button primary wide" disabled={tradeDisabled} onClick={onBuy} type="button">
               {isWorking ? <Loader2 className="spin" size={16} /> : <ArrowDownUp size={16} />}
               {isPending ? "Confirm in wallet" : isWorking ? "Buying" : exceedsEthBalance ? "Insufficient ETH" : `Buy $${launch.symbol}`}
@@ -1158,12 +1174,6 @@ function GraduatedTradeCard({
           </>
         ) : (
           <>
-            <div className="quick-grid sell-grid">
-              <button type="button" onClick={() => setSellPercent(25n)}>25%</button>
-              <button type="button" onClick={() => setSellPercent(50n)}>50%</button>
-              <button type="button" onClick={() => setSellPercent(75n)}>75%</button>
-              <button type="button" onClick={() => setSellPercent(100n)}>Max</button>
-            </div>
             <button
               className="button primary wide"
               disabled={tradeDisabled}
@@ -1196,11 +1206,6 @@ function GraduatedTradeCard({
           {receiptSuccess ? <TradeStatus tone="success">{mode === "buy" ? "Purchase completed." : "Sale completed."}</TradeStatus> : null}
           {!receiptSuccess && error ? <TradeStatus tone="danger">{friendlyTradeError(error)}</TradeStatus> : null}
         </div>
-      </div>
-      <div className="graduated-checks">
-        <span><ShieldCheck size={15} />Graduated</span>
-        <span><LockKeyhole size={15} />LP locked</span>
-        <span><Sparkles size={15} />Adminless token</span>
       </div>
       <a className="button primary wide" href={uniswapSwapUrl(launch.token, uniswapChainName)} target="_blank" rel="noreferrer">
         <ExternalLink size={16} />
