@@ -1098,16 +1098,35 @@ function GraduatedTradeCard({
           </TradeStatus>
         ) : null}
         {chainSwitchError ? <TradeStatus tone="danger">{chainSwitchError}</TradeStatus> : null}
-        <div className="field">
-          <div className="field-head">
-            <label>{mode === "buy" ? "ETH in" : `${launch.symbol} amount`}</label>
+        <div className="trade-amount-block">
+          <div className="trade-amount-head">
+            <span>{mode === "buy" ? "You pay" : "You sell"}</span>
             {mode === "sell" ? (
               <button className="balance-button" onClick={() => setSellPercent(100n)} type="button">
-                Balance {formatTokenBalance(sellBalance)} {launch.symbol}
+                {formatTokenBalance(sellBalance)} {launch.symbol}
               </button>
             ) : null}
           </div>
-          <input className="amount-input" value={amount} onChange={(event) => setAmount(event.target.value)} />
+          <div className="trade-input-shell">
+            <input aria-label={mode === "buy" ? "ETH amount" : `${launch.symbol} amount`} className="amount-input" inputMode="decimal" value={amount} onChange={(event) => setAmount(event.target.value)} />
+            <strong>{mode === "buy" ? "ETH" : launch.symbol}</strong>
+          </div>
+        </div>
+        <div className={mode === "buy" ? "quick-grid" : "quick-grid sell-grid"}>
+          {mode === "buy" ? (
+            <>
+              <button type="button" onClick={() => setAmount("0.01")}>0.01</button>
+              <button type="button" onClick={() => setAmount("0.05")}>0.05</button>
+              <button type="button" onClick={() => setAmount("0.1")}>0.1</button>
+            </>
+          ) : (
+            <>
+              <button type="button" onClick={() => setSellPercent(25n)}>25%</button>
+              <button type="button" onClick={() => setSellPercent(50n)}>50%</button>
+              <button type="button" onClick={() => setSellPercent(75n)}>75%</button>
+              <button type="button" onClick={() => setSellPercent(100n)}>Max</button>
+            </>
+          )}
         </div>
         <div className="quote-box">
           <div className="quote-head">
@@ -1145,22 +1164,7 @@ function GraduatedTradeCard({
             </div>
           </div>
         ) : null}
-        <div className={mode === "buy" ? "quick-grid" : "quick-grid sell-grid"}>
-          {mode === "buy" ? (
-            <>
-              <button type="button" onClick={() => setAmount("0.01")}>0.01</button>
-              <button type="button" onClick={() => setAmount("0.05")}>0.05</button>
-              <button type="button" onClick={() => setAmount("0.1")}>0.1</button>
-            </>
-          ) : (
-            <>
-              <button type="button" onClick={() => setSellPercent(25n)}>25%</button>
-              <button type="button" onClick={() => setSellPercent(50n)}>50%</button>
-              <button type="button" onClick={() => setSellPercent(75n)}>75%</button>
-              <button type="button" onClick={() => setSellPercent(100n)}>Max</button>
-            </>
-          )}
-        </div>
+        <div className="trade-meta-line"><span><NetworkIcon chainId={launch.chainId} size={14} />{chain.name}</span><i />Uniswap v4<i />Locked liquidity</div>
         <div className="trade-tabs trade-tabs-bottom" role="tablist" aria-label="Trade direction">
           <button aria-selected={mode === "buy"} className={mode === "buy" ? "active" : ""} onClick={() => setMode("buy")} role="tab" type="button">Buy</button>
           <button aria-selected={mode === "sell"} className={mode === "sell" ? "active" : ""} onClick={() => setMode("sell")} role="tab" type="button">Sell</button>

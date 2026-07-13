@@ -179,6 +179,7 @@ function LaunchPageContent() {
     <div className="launch-page">
       <section className="launch-intro">
         <div className="launch-hero-panel">
+          <div className="launch-signal-kicker"><i />BlueFun launch studio <span>Live</span></div>
           <div className="launch-network-chip"><NetworkIcon chainId={activeChainId} size={22} /><span>Launching on <strong>{chain.name}</strong></span></div>
           <h1>Create a fair launch.</h1>
           <p className="muted">
@@ -207,8 +208,11 @@ function LaunchPageContent() {
       </section>
       <section className="launch-form-card">
         <div className="launch-form-header">
-          <span className="pill">Launch setup</span>
-          <h2>Create token</h2>
+          <div>
+            <span className="pill">Launch setup</span>
+            <h2>Create token</h2>
+          </div>
+          <span className="launch-form-network"><NetworkIcon chainId={activeChainId} size={14} />{chain.name}</span>
         </div>
         <div className="form">
           {!isConnected ? (
