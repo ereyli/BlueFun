@@ -25,6 +25,7 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metri
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("Activity");
   const [ethUsd, setEthUsd] = useState<number | null>(null);
+  const [dexMarketCaps, setDexMarketCaps] = useState<Map<string, number>>(new Map());
   const [activityByLaunch, setActivityByLaunch] = useState<Map<string, LaunchBuyActivity>>(new Map());
   const [hotLaunchId, setHotLaunchId] = useState<string>();
   const [isPending, startTransition] = useTransition();
@@ -134,6 +135,34 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metri
       document.removeEventListener("visibilitychange", refreshWhenVisible);
     };
   }, []);
+
+  useEffect(() => {
+    const graduated = launches.filter((launch) => launch.chainId === 8453 && launch.status === "Graduated");
+    if (graduated.length === 0) {
+      setDexMarketCaps(new Map());
+      return;
+    }
+
+    const controller = new AbortController();
+    let active = true;
+    Promise.all(graduated.map(async (launch) => {
+      try {
+        const response = await fetch(`/api/dexscreener/token/${launch.token}?chain=base`, { signal: controller.signal });
+        const payload = await response.json() as { pair?: { marketCap?: number } | null };
+        const marketCap = Number(payload.pair?.marketCap);
+        return Number.isFinite(marketCap) && marketCap > 0 ? [launch.token.toLowerCase(), marketCap] as const : undefined;
+      } catch {
+        return undefined;
+      }
+    })).then((items) => {
+      if (active) setDexMarketCaps(new Map(items.filter((item): item is readonly [string, number] => Boolean(item))));
+    });
+
+    return () => {
+      active = false;
+      controller.abort();
+    };
+  }, [launches]);
 
   useEffect(() => {
     let active = true;
@@ -316,8 +345,10 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metri
             const isHot = hotLaunchId === launch.id;
             const activity = activityByLaunch.get(launch.id);
             const hasMarketCap = launch.marketCap.trim().toLowerCase() !== "live" && parseDisplayAmount(launch.marketCap) > 0;
+            const dexMarketCap = dexMarketCaps.get(launch.token.toLowerCase());
             const marketCapEth = hasMarketCap ? launch.marketCap : estimateCurveMarketCapEth(launch.raised);
-            const marketCap = formatLaunchUsd(marketCapEth, ethUsd);
+            const marketCap = dexMarketCap ? compactUsd(dexMarketCap) : formatLaunchUsd(marketCapEth, ethUsd);
+            const marketCapLabel = dexMarketCap || hasMarketCap ? "Market cap" : "Estimated MC";
             const volume = formatLaunchUsd(launch.volume, ethUsd);
             return (
             <Link className={`${featured ? "token-card featured" : "token-card"}${isHot ? " activity-hot" : ""}`} href={tokenPath(launch)} key={`${launch.chainId}-${launch.id}-${launch.token}`}>
@@ -334,7 +365,7 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metri
                   <div className="token-symbol">${launch.symbol}<span className={activity ? "token-activity-signal active" : "token-activity-signal"}><i />{activity ? `Buy ${formatActivityAge(activity.createdAt)}` : launch.age}</span></div>
                 </div>
                 <div className="token-market-row">
-                  <div className="token-market-cap"><span>Market cap</span><strong>{marketCap}</strong></div>
+                  <div className="token-market-cap"><span>{marketCapLabel}</span><strong>{marketCap}</strong></div>
                   <div className="token-volume"><span>Volume</span><strong>{volume}</strong></div>
                 </div>
                 <div className="token-progress-label">
