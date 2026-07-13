@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState, useTransition, type ReactNode } from "react";
 import Link from "next/link";
 import { Activity, BarChart3, Clock3, Coins, Radio, Rocket, Search, ShieldCheck, Sparkles, Trophy } from "lucide-react";
-import { isFeaturedLaunch, isTrustedLaunch } from "@/lib/featured-launches";
+import { isFeaturedLaunch, isOfficialBlue, isTrustedLaunch } from "@/lib/featured-launches";
 import { compactUsd, parseDisplayAmount } from "@/lib/market-math";
 import type { DbLaunchMetrics, LaunchBuyActivity } from "@/lib/db-launches";
 import type { DeployedLaunch } from "@/lib/onchain-launches";
@@ -236,11 +236,12 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metri
             {trendingLaunches.map((launch) => {
               const featured = isFeaturedLaunch(launch);
               const trusted = isTrustedLaunch(launch);
+              const officialBlue = isOfficialBlue(launch);
               return (
               <Link className={featured ? "trending-card featured" : "trending-card"} href={tokenPath(launch)} key={`trend-${launch.id}-${launch.token}`}>
                 <TokenAvatar launch={launch} />
                 <div className="trending-copy">
-                  <strong>{launch.symbol}{trusted ? <span>Trusted</span> : null}</strong>
+                  <strong>{launch.symbol}{officialBlue ? <span>Official</span> : trusted ? <span>Trusted</span> : null}</strong>
                   <span>Raised {launch.raised}</span>
                 </div>
                 <div className="trending-progress">
@@ -307,6 +308,7 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metri
           {displayedLaunches.map((launch, index) => {
             const featured = isFeaturedLaunch(launch);
             const trusted = isTrustedLaunch(launch);
+            const officialBlue = isOfficialBlue(launch);
             const isHot = hotLaunchId === launch.id;
             return (
             <Link className={`${featured ? "token-card featured" : "token-card"}${isHot ? " activity-hot" : ""}`} href={tokenPath(launch)} key={`${launch.chainId}-${launch.id}-${launch.token}`}>
@@ -315,7 +317,7 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metri
                 <div className="token-card-copy">
                   <div className="token-card-head">
                     <div>
-                      <div className="token-title">{launch.name}{trusted ? <span>Trusted</span> : null}</div>
+                      <div className="token-title">{launch.name}{officialBlue ? <span>Official BLUE</span> : trusted ? <span>Trusted</span> : null}</div>
                       <div className="token-symbol">${launch.symbol}</div>
                     </div>
                     <span className={launch.status === "Live" ? "token-status live" : "token-status"}>{isHot ? "Buy now" : launch.status === "Live" ? "Bonding" : launch.status}</span>

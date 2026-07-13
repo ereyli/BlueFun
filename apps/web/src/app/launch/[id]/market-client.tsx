@@ -37,7 +37,7 @@ import {
   parseDisplayAmount,
   shortAddress
 } from "@/lib/market-math";
-import { isTrustedLaunch } from "@/lib/featured-launches";
+import { isOfficialBlue, isTrustedLaunch } from "@/lib/featured-launches";
 import type { DeployedLaunch, DeployedTrade } from "@/lib/onchain-launches";
 import { chainSlug } from "@/lib/chain-slug";
 import { tokenPath } from "@/lib/token-url";
@@ -510,6 +510,7 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
   }
 
   const trusted = isTrustedLaunch(launch);
+  const officialBlue = isOfficialBlue(launch);
 
   return (
     <div className="trade-layout">
@@ -520,7 +521,9 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
             <div className="market-title-block">
               <div className="market-title-row">
                 <h1>{launch.name}</h1>
-                {trusted ? <span className="trusted-badge"><ShieldCheck size={13} />Trusted</span> : null}
+                {officialBlue
+                  ? <span className="trusted-badge official-blue-badge"><ShieldCheck size={13} />Official BLUE</span>
+                  : trusted ? <span className="trusted-badge"><ShieldCheck size={13} />Trusted</span> : null}
                 <span className={launch.status === "Live" ? "token-status live" : "token-status"}>{launch.status === "Live" ? "Bonding" : launch.status === "Ready" ? "Bonded" : launch.status}</span>
               </div>
               <div className="market-meta">
@@ -544,6 +547,19 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
               </button>
             </div>
           </div>
+          {officialBlue ? (
+            <section className="official-blue-identity" aria-label="Official BLUE network identity">
+              <div className="official-blue-identity-title">
+                <span><Sparkles size={14} />Official BLUE</span>
+                <small>Canonical asset</small>
+              </div>
+              <div className="official-blue-identity-grid">
+                <div><span>Home network</span><strong><NetworkIcon chainId={8453} size={16} />Base</strong></div>
+                <div><span>Also available on</span><strong><NetworkIcon chainId={4663} size={16} />Robinhood Chain <em>Coming soon</em></strong></div>
+                <div><span>Supply model</span><strong><LockKeyhole size={15} />Unified global supply</strong></div>
+              </div>
+            </section>
+          ) : null}
           <div className="market-header-stats">
             <div><span>Market cap</span><strong>{displayMarketCapText}</strong></div>
             <div><span>Price</span><strong>{displayPriceText}</strong></div>
