@@ -1,4 +1,5 @@
 import { NextResponse } from "next/server";
+import { chainIdFromParam } from "@/lib/chain-slug";
 
 export const revalidate = 30;
 
@@ -17,8 +18,12 @@ type DexPair = {
 
 export async function GET(request: Request, context: { params: Promise<{ token: string }> }) {
   const { token } = await context.params;
-  const chainId = Number(new URL(request.url).searchParams.get("chain"));
+  const chainParam = new URL(request.url).searchParams.get("chain");
+  const chainId = chainIdFromParam(chainParam);
   if (!/^0x[a-fA-F0-9]{40}$/.test(token)) {
+    return NextResponse.json({ pair: null }, { status: 400 });
+  }
+  if (!chainParam || !["base", "robinhood", "8453", "4663"].includes(chainParam.toLowerCase())) {
     return NextResponse.json({ pair: null }, { status: 400 });
   }
   if (chainId === 4663) {
@@ -26,8 +31,6 @@ export async function GET(request: Request, context: { params: Promise<{ token: 
     // Robinhood graduated pricing is sourced from indexed Uniswap v4 swaps instead.
     return NextResponse.json({ pair: null });
   }
-  if (chainId !== 8453) return NextResponse.json({ pair: null }, { status: 400 });
-
   try {
     const response = await fetch(`https://api.dexscreener.com/tokens/v1/base/${token}`, {
       headers: { accept: "application/json" },

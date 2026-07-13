@@ -9,6 +9,7 @@ import type { DbLaunchMetrics, LaunchBuyActivity } from "@/lib/db-launches";
 import type { DeployedLaunch } from "@/lib/onchain-launches";
 import { optimizedTokenImageUrl } from "@/lib/token-metadata";
 import { NetworkIcon, networkMeta } from "@/components/network-icon";
+import { chainSlug } from "@/lib/chain-slug";
 
 type Filter = "Activity" | "Newest" | "Live" | "Graduated" | "Progress";
 type NetworkMetrics = Partial<Record<8453 | 4663, DbLaunchMetrics>>;
@@ -50,7 +51,7 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metri
       setLoadError(false);
       try {
         const serverFilter = filter === "Activity" || filter === "Newest" ? "All" : filter;
-        const params = new URLSearchParams({ chain: String(chainId), page: String(page), filter: serverFilter });
+        const params = new URLSearchParams({ chain: chainSlug(chainId), page: String(page), filter: serverFilter });
         if (query.trim()) params.set("q", query.trim());
         const response = await fetch(`/api/launches?${params.toString()}`, { signal: controller.signal });
         const payload = await response.json() as { launches?: DeployedLaunch[]; total?: number; totalPages?: number };
@@ -80,7 +81,7 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metri
       if (activityLoading) return;
       activityLoading = true;
       try {
-        const response = await fetch(`/api/launch-activity?chain=${chainId}`, { signal: controller.signal });
+        const response = await fetch(`/api/launch-activity?chain=${chainSlug(chainId)}`, { signal: controller.signal });
         const payload = await response.json() as { activity?: LaunchBuyActivity[] };
         if (!response.ok || !active) return;
         const items = payload.activity ?? [];
@@ -193,7 +194,7 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metri
           <h1>Discover fair launches.<span>Trade with clarity.</span></h1>
           <p>Transparent bonding curves, fixed rules and permanently locked liquidity in one focused market.</p>
           <div className="launchpad-intro-actions">
-            <Link className="button primary hero-action" href={`/launch?chain=${chainId}`}><Rocket size={17} />Create a token</Link>
+            <Link className="button primary hero-action" href={`/launch?chain=${chainSlug(chainId)}`}><Rocket size={17} />Create a token</Link>
             <button
               className="button hero-secondary"
               onClick={() => {
@@ -210,7 +211,7 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metri
         <div className="overview-metrics network-overview" aria-label="Network launch metrics">
           <div className="network-overview-head"><span>Network overview</span><small>Live indexed data</small></div>
           {networkStats.map((network) => (
-            <Link className={network.chainId === chainId ? "network-metric-row active" : "network-metric-row"} href={`/?chain=${network.chainId}`} key={network.chainId}>
+            <Link className={network.chainId === chainId ? "network-metric-row active" : "network-metric-row"} href={`/?chain=${chainSlug(network.chainId)}`} key={network.chainId}>
               <div className="network-metric-name"><NetworkIcon chainId={network.chainId} size={22} /><strong>{network.name}</strong>{network.chainId === chainId ? <i>Viewing</i> : null}</div>
               <MetricCompact icon={<Coins size={14} />} label="Tokens" value={network.tokens.toLocaleString("en-US")} />
               <MetricCompact icon={<Trophy size={14} />} label="LP locked" value={network.graduated.toLocaleString("en-US")} />
@@ -235,7 +236,7 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metri
               const featured = isFeaturedLaunch(launch);
               const trusted = isTrustedLaunch(launch);
               return (
-              <Link className={featured ? "trending-card featured" : "trending-card"} href={`/launch/${launch.id}?chain=${launch.chainId}`} key={`trend-${launch.id}-${launch.token}`}>
+              <Link className={featured ? "trending-card featured" : "trending-card"} href={`/launch/${launch.id}?chain=${chainSlug(launch.chainId)}`} key={`trend-${launch.id}-${launch.token}`}>
                 <TokenAvatar launch={launch} />
                 <div className="trending-copy">
                   <strong>{launch.symbol}{trusted ? <span>Trusted</span> : null}</strong>
@@ -298,7 +299,7 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metri
           <div className="empty-orb"><Rocket size={27} /></div>
           <strong>{totalLaunches === 0 ? `Be first on ${activeNetwork.name}` : "No matching launches"}</strong>
           <span>{totalLaunches === 0 ? "Create the first fair token and start the market." : "Try another search or filter."}</span>
-          {totalLaunches === 0 ? <Link className="button primary compact" href={`/launch?chain=${chainId}`}>Launch a token</Link> : null}
+          {totalLaunches === 0 ? <Link className="button primary compact" href={`/launch?chain=${chainSlug(chainId)}`}>Launch a token</Link> : null}
         </div>
       ) : (
         <div className={isPageLoading ? "token-grid page-loading" : "token-grid"} aria-busy={isPageLoading}>
@@ -307,7 +308,7 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metri
             const trusted = isTrustedLaunch(launch);
             const isHot = hotLaunchId === launch.id;
             return (
-            <Link className={`${featured ? "token-card featured" : "token-card"}${isHot ? " activity-hot" : ""}`} href={`/launch/${launch.id}?chain=${launch.chainId}`} key={`${launch.chainId}-${launch.id}-${launch.token}`}>
+            <Link className={`${featured ? "token-card featured" : "token-card"}${isHot ? " activity-hot" : ""}`} href={`/launch/${launch.id}?chain=${chainSlug(launch.chainId)}`} key={`${launch.chainId}-${launch.id}-${launch.token}`}>
               <div className="token-card-main">
                 <TokenAvatar launch={launch} hot={isHot || index === 0} />
                 <div className="token-card-copy">

@@ -39,6 +39,7 @@ import {
 } from "@/lib/market-math";
 import { isTrustedLaunch } from "@/lib/featured-launches";
 import type { DeployedLaunch, DeployedTrade } from "@/lib/onchain-launches";
+import { chainSlug } from "@/lib/chain-slug";
 import { siteUrl } from "@/lib/site-url";
 import { optimizedTokenImageUrl } from "@/lib/token-metadata";
 import { blueFunV4PoolKey, buildV4EthToTokenSwap, buildV4TokenToEthSwap } from "@/lib/uniswap-v4-swap";
@@ -337,7 +338,7 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
     async function loadDexPair() {
       if (active) setMarketDataState((current) => current === "ready" ? current : "loading");
       try {
-        const response = await fetch(`/api/dexscreener/token/${launch?.token}?chain=${activeChainId}`, { cache: "no-store" });
+        const response = await fetch(`/api/dexscreener/token/${launch?.token}?chain=${chainSlug(activeChainId)}`, { cache: "no-store" });
         const payload = await response.json() as { pair?: Partial<DexPairSnapshot> | null };
         const priceUsd = Number(payload.pair?.priceUsd);
         const marketCap = Number(payload.pair?.marketCap);
@@ -871,7 +872,7 @@ function TokenChat({
     let active = true;
     async function loadMessages() {
       try {
-        const response = await fetch(`/api/chat/messages?token=${launch.token}&chain=${launch.chainId}`, { cache: "no-store" });
+        const response = await fetch(`/api/chat/messages?token=${launch.token}&chain=${chainSlug(launch.chainId)}`, { cache: "no-store" });
         const payload = await response.json() as { messages?: ChatMessage[] };
         if (active) setMessages(payload.messages ?? []);
       } catch {
@@ -965,7 +966,7 @@ function TradeStatus({ children, tone }: { children: React.ReactNode; tone: "inf
 
 function xShareUrl(launch: DeployedLaunch, id: string) {
   const text = `Trade ${launch.name} ($${launch.symbol}) on BlueFun`;
-  const url = siteUrl(`/launch/${id}?chain=${launch.chainId}`);
+  const url = siteUrl(`/launch/${id}?chain=${chainSlug(launch.chainId)}`);
   return `https://x.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`;
 }
 

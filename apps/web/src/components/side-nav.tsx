@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { Home, Rocket } from "lucide-react";
+import { namedChainParam } from "@/lib/chain-slug";
 
 const items = [
   { href: "/", label: "Explore", icon: Home },
@@ -11,7 +12,7 @@ const items = [
 
 export function SideNav({ mobile = false }: { mobile?: boolean }) {
   const pathname = usePathname();
-  const chain = useSearchParams().get("chain");
+  const chain = namedChainParam(useSearchParams().get("chain"));
 
   return (
     <nav className={mobile ? "bottom-nav" : "side-nav"} aria-label={mobile ? "Mobile navigation" : "Main navigation"}>

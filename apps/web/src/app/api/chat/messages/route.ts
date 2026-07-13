@@ -1,13 +1,15 @@
 import { NextResponse } from "next/server";
 import { listChatMessages } from "@/lib/ephemeral-chat";
+import { chainIdFromParam } from "@/lib/chain-slug";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const token = searchParams.get("token") || "";
-  const chainId = Number(searchParams.get("chain"));
-  if (!/^0x[a-fA-F0-9]{40}$/.test(token) || (chainId !== 8453 && chainId !== 4663)) {
+  const chainParam = searchParams.get("chain");
+  const chainId = chainIdFromParam(chainParam);
+  if (!/^0x[a-fA-F0-9]{40}$/.test(token) || !chainParam || !["base", "robinhood", "8453", "4663"].includes(chainParam.toLowerCase())) {
     return NextResponse.json({ messages: [] });
   }
   try {

@@ -2,18 +2,20 @@ import { NextResponse } from "next/server";
 import { getDbLaunchPage, type LaunchPageFilter } from "@/lib/db-launches";
 import { getDeployedLaunches } from "@/lib/onchain-launches";
 import { getRobinhoodLaunches } from "@/lib/robinhood-launches";
+import { chainIdFromParam } from "@/lib/chain-slug";
 
 export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
   const params = new URL(request.url).searchParams;
-  const chainId = Number(params.get("chain"));
+  const chainParam = params.get("chain");
+  const chainId = chainIdFromParam(chainParam);
   const page = Number(params.get("page") || "1");
   const query = (params.get("q") || "").slice(0, 80);
   const requestedFilter = params.get("filter") || "All";
   const normalizedFilter = ["New", "Newest", "Activity", "Safe"].includes(requestedFilter) ? "All" : requestedFilter;
   const filters: LaunchPageFilter[] = ["All", "Live", "Ready", "Graduated", "Progress"];
-  if ((chainId !== 8453 && chainId !== 4663) || !Number.isInteger(page) || page < 1 || page > 100_000 || !filters.includes(normalizedFilter as LaunchPageFilter)) {
+  if (!chainParam || !["base", "robinhood", "8453", "4663"].includes(chainParam.toLowerCase()) || !Number.isInteger(page) || page < 1 || page > 100_000 || !filters.includes(normalizedFilter as LaunchPageFilter)) {
     return NextResponse.json({ launches: [], total: 0, page: 1, totalPages: 0 }, { status: 400 });
   }
   const filter = normalizedFilter as LaunchPageFilter;

@@ -7,6 +7,7 @@ import { ipfsToGatewayUrl } from "@/lib/token-metadata";
 import { getRobinhoodLaunch } from "@/lib/robinhood-launches";
 import { getDbTrades } from "@/lib/db-launches";
 import { unstable_cache } from "next/cache";
+import { chainIdFromParam, chainSlug } from "@/lib/chain-slug";
 
 export const revalidate = 15;
 
@@ -28,8 +29,8 @@ const getCachedTrades = unstable_cache(
 
 export async function generateMetadata({ params, searchParams }: LaunchParams): Promise<Metadata> {
   const { id } = await params;
-  const isRobinhood = Number((await searchParams).chain) === 4663;
-  const launch = await getCachedLaunch(id, isRobinhood ? 4663 : 8453).catch(() => undefined);
+  const chainId = chainIdFromParam((await searchParams).chain);
+  const launch = await getCachedLaunch(id, chainId).catch(() => undefined);
   if (!launch) {
     return {
       title: "BlueFun Market",
@@ -39,7 +40,7 @@ export async function generateMetadata({ params, searchParams }: LaunchParams): 
 
   const title = `${launch.name} ($${launch.symbol}) on BlueFun`;
   const description = launch.description || `Trade $${launch.symbol} on the BlueFun bonding curve.`;
-  const url = siteUrl(`/launch/${id}${isRobinhood ? "?chain=4663" : ""}`);
+  const url = siteUrl(`/launch/${id}?chain=${chainSlug(chainId)}`);
   const image = ipfsToGatewayUrl(launch.imageURI) || siteUrl("/brand/bluelogo.webp");
 
   return {
@@ -67,8 +68,7 @@ export async function generateMetadata({ params, searchParams }: LaunchParams): 
 
 export default async function LaunchMarketPage({ params, searchParams }: LaunchParams) {
   const { id } = await params;
-  const isRobinhood = Number((await searchParams).chain) === 4663;
-  const chainId = isRobinhood ? 4663 : 8453;
+  const chainId = chainIdFromParam((await searchParams).chain);
   const [launch, trades] = await Promise.all([
     getCachedLaunch(id, chainId),
     getCachedTrades(id, chainId)

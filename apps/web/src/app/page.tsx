@@ -2,12 +2,12 @@ import { getDeployedLaunches } from "@/lib/onchain-launches";
 import { LaunchExplorer } from "@/components/launch-explorer";
 import { getRobinhoodLaunches } from "@/lib/robinhood-launches";
 import { getCachedLaunchOverview } from "@/lib/launch-overview";
+import { chainIdFromParam } from "@/lib/chain-slug";
 
 export const revalidate = 10;
 
 export default async function HomePage({ searchParams }: { searchParams: Promise<{ chain?: string }> }) {
-  const requested = Number((await searchParams).chain);
-  const chainId = requested === 4663 ? 4663 : 8453;
+  const chainId = chainIdFromParam((await searchParams).chain);
   const [baseOverview, robinhoodOverview] = await Promise.all([
     getCachedLaunchOverview(8453),
     getCachedLaunchOverview(4663)
