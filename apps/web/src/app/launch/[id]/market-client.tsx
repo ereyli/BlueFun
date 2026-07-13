@@ -53,6 +53,8 @@ type DexPairSnapshot = {
   marketCap: number;
 };
 
+type MarketDataState = "idle" | "loading" | "ready" | "unavailable";
+
 export function MarketClient({ id, launch, trades: initialTrades }: { id: string; launch?: DeployedLaunch; trades: DeployedTrade[] }) {
   const router = useRouter();
   const [trades, setTrades] = useState(initialTrades);
@@ -62,6 +64,7 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [ethUsd, setEthUsd] = useState<number | null>(null);
   const [dexPair, setDexPair] = useState<DexPairSnapshot | null>(null);
+  const [marketDataState, setMarketDataState] = useState<MarketDataState>("idle");
   const [chainSwitchError, setChainSwitchError] = useState("");
   const { address, isConnected } = useAccount();
   const chainId = useChainId();
@@ -221,10 +224,14 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
   const displayPrice = latestPriceEth > 0 ? `${decimalStringFromNumber(latestPriceEth.toPrecision(18))} ETH` : launch?.price ?? "Live";
   const displayMarketCapText = latestMarketCapEth
     ? formatUsdFromEthText(displayMarketCap, ethUsd)
-    : isGraduated && dexPair?.marketCap ? compactUsd(dexPair.marketCap) : formatUsdFromEthText(displayMarketCap, ethUsd);
+    : isGraduated
+      ? dexPair?.marketCap ? compactUsd(dexPair.marketCap) : marketDataState === "loading" ? "Loading…" : "Unavailable"
+      : formatUsdFromEthText(displayMarketCap, ethUsd);
   const displayPriceText = latestPriceEth > 0
     ? formatUsdFromEthText(displayPrice, ethUsd, true)
-    : isGraduated && dexPair?.priceUsd ? formatUsdPrice(dexPair.priceUsd) : formatUsdFromEthText(displayPrice, ethUsd, true);
+    : isGraduated
+      ? dexPair?.priceUsd ? formatUsdPrice(dexPair.priceUsd) : marketDataState === "loading" ? "Loading…" : "Unavailable"
+      : formatUsdFromEthText(displayPrice, ethUsd, true);
   const showCreatorEarnings = Boolean(address && (
     address.toLowerCase() === launch?.creator.toLowerCase()
     || (accountFeeBalance.data ?? 0n) > 0n
@@ -322,19 +329,28 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
   useEffect(() => {
     if (!isGraduated || !launch?.token) {
       setDexPair(null);
+      setMarketDataState("idle");
       return;
     }
 
     let active = true;
     async function loadDexPair() {
+      if (active) setMarketDataState((current) => current === "ready" ? current : "loading");
       try {
         const response = await fetch(`/api/dexscreener/token/${launch?.token}?chain=${activeChainId}`, { cache: "no-store" });
         const payload = await response.json() as { pair?: Partial<DexPairSnapshot> | null };
         const priceUsd = Number(payload.pair?.priceUsd);
         const marketCap = Number(payload.pair?.marketCap);
-        if (active) setDexPair(Number.isFinite(priceUsd) && priceUsd > 0 && Number.isFinite(marketCap) && marketCap > 0 ? { priceUsd, marketCap } : null);
+        const nextPair = Number.isFinite(priceUsd) && priceUsd > 0 && Number.isFinite(marketCap) && marketCap > 0 ? { priceUsd, marketCap } : null;
+        if (active) {
+          setDexPair(nextPair);
+          setMarketDataState(nextPair ? "ready" : "unavailable");
+        }
       } catch {
-        if (active) setDexPair(null);
+        if (active) {
+          setDexPair(null);
+          setMarketDataState("unavailable");
+        }
       }
     }
 
@@ -503,7 +519,7 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
               <div className="market-title-row">
                 <h1>{launch.name}</h1>
                 {trusted ? <span className="trusted-badge"><ShieldCheck size={13} />Trusted</span> : null}
-                <span className={launch.status === "Live" ? "token-status live" : "token-status"}>{launch.status}</span>
+                <span className={launch.status === "Live" ? "token-status live" : "token-status"}>{launch.status === "Live" ? "Bonding" : launch.status === "Ready" ? "Bonded" : launch.status}</span>
               </div>
               <div className="market-meta">
                 <span>${launch.symbol}</span>
@@ -532,6 +548,12 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
             <div><span>Raised</span><strong>{launch.raised}</strong></div>
             <div><span>Bonded</span><strong>{launch.progress}%</strong></div>
           </div>
+          {isGraduated && !latestMarketCapEth && marketDataState !== "ready" ? (
+            <div className={`market-data-note ${marketDataState}`}>
+              <span className="wallet-status-dot" />
+              {marketDataState === "loading" ? "Fetching live Uniswap market data…" : "Live DEX pricing is temporarily unavailable. Trading remains available onchain."}
+            </div>
+          ) : null}
           <div className="progress"><span style={{ width: `${launch.progress}%` }} /></div>
         </div>
 
@@ -1477,6 +1499,8 @@ function parsePositiveEther(value: string) {
 }
 
 function formatQuote(value: bigint, unit: string) {
+  const formatted = formatEther(value);
+  if (unit !== "ETH") return `${compactTokenAmount(formatted)} ${unit}`;
   const [whole, fraction = ""] = formatEther(value).split(".");
   const trimmed = fraction.slice(0, 6).replace(/0+$/, "");
   return `${trimmed ? `${whole}.${trimmed}` : whole} ${unit}`;

@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import "./globals.css";
+import "./premium-system.css";
 import { Providers } from "@/components/providers";
 import { WalletButton } from "@/components/wallet-button";
 import { RouteFeedback } from "@/components/route-feedback";
@@ -44,7 +45,6 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 <span>BlueFun</span>
               </ChainLink></Suspense>
               <Suspense fallback={null}><SideNav /></Suspense>
-              <Suspense fallback={<Link className="button primary wide" href="/launch">Create</Link>}><ChainLink className="button primary wide" href="/launch">Create</ChainLink></Suspense>
               <div className="sidebar-network-note">
                 <span className="sidebar-network-icons"><NetworkIcon chainId={8453} size={25} /><NetworkIcon chainId={4663} size={25} /></span>
                 <span><strong>Multichain</strong><small>Base + Robinhood live</small></span>

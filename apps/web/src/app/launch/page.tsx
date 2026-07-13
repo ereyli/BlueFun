@@ -4,9 +4,8 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { decodeEventLog, formatEther, parseEther, keccak256, toBytes } from "viem";
 import { useAccount, useWaitForTransactionReceipt, useWriteContract } from "wagmi";
-import { CheckCircle2, Coins, ImagePlus, Info, Loader2, LockKeyhole, Rocket, TimerReset, UploadCloud } from "lucide-react";
+import { CheckCircle2, ChevronLeft, ChevronRight, Coins, ImagePlus, Info, Loader2, LockKeyhole, Rocket, TimerReset, UploadCloud } from "lucide-react";
 import { contractsForChain, FAIR_GRADUATION_TARGET_ETH, FAIR_LAUNCH_FEE_ETH, launchFactoryAbi } from "@/lib/contracts";
-import { WalletButton } from "@/components/wallet-button";
 import { useSearchParams } from "next/navigation";
 import { NetworkIcon } from "@/components/network-icon";
 
@@ -32,6 +31,7 @@ function LaunchPageContent() {
   const [initialBuy, setInitialBuy] = useState("0");
   const [confirmedLaunchId, setConfirmedLaunchId] = useState("");
   const [confirmedToken, setConfirmedToken] = useState("");
+  const [step, setStep] = useState<1 | 2 | 3>(1);
   const { isConnected, chainId } = useAccount();
   const requestedChainId = Number(useSearchParams().get("chain"));
   const activeChainId = requestedChainId === 4663 ? 4663 : requestedChainId === 8453 ? 8453 : chainId === 4663 ? 4663 : 8453;
@@ -60,6 +60,19 @@ function LaunchPageContent() {
   const isWorking = isImageUploading || isMetadataUploading || isPending || receipt.isLoading;
   const launchFeeEth = parseEther(FAIR_LAUNCH_FEE_ETH);
   const totalLaunchValue = launchFeeEth + initialBuyEth;
+  const identityReady = Boolean(name.trim() && symbol.trim() && imageUri && !isImageUploading);
+  const launchStatus = getLaunchStatus({
+    disabledReason,
+    error: error?.message,
+    hash: Boolean(hash),
+    isImageUploading,
+    isMetadataUploading,
+    isPending,
+    isReceiptLoading: receipt.isLoading,
+    isSuccess: receipt.isSuccess,
+    metadataReady: Boolean(metadataUri),
+    uploadError
+  });
 
   useEffect(() => {
     if (!receipt.isSuccess || !receipt.data?.logs.length || confirmedLaunchId) return;
@@ -196,126 +209,102 @@ function LaunchPageContent() {
         </div>
         <div className="form">
           {!isConnected ? (
-            <div className="notice">
-              <strong>Connect wallet to launch</strong>
-              <span>Transactions are sent on {chain.name} and require a connected wallet.</span>
-              <WalletButton />
+            <div className="launch-wallet-gate">
+              <span className="wallet-status-dot" />
+              <div><strong>Connect wallet to launch</strong><small>Use the wallet button in the header. Transactions will be sent on {chain.name}.</small></div>
             </div>
           ) : null}
-          <div className="launch-form-section-head"><span>01</span><div><strong>Token identity</strong><small>The essentials traders see first</small></div></div>
-          <div className="launch-field-grid">
-            <div className="field">
-              <label htmlFor="token-name">Name <small>{name.length}/40</small></label>
-              <input id="token-name" required maxLength={40} autoComplete="off" placeholder="Token name" value={name} onChange={(event) => setName(event.target.value)} />
-            </div>
-            <div className="field">
-              <label htmlFor="token-symbol">Symbol <small>{symbol.length}/10</small></label>
-              <input id="token-symbol" required maxLength={10} autoComplete="off" placeholder="Ticker" value={symbol} onChange={(event) => setSymbol(event.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""))} />
-            </div>
+          <div className="launch-stepper" aria-label="Launch progress">
+            {([1, 2, 3] as const).map((item) => {
+              const complete = item === 1 ? identityReady : item === 2 ? step === 3 : receipt.isSuccess;
+              return (
+                <button
+                  aria-current={step === item ? "step" : undefined}
+                  className={step === item ? "active" : complete ? "complete" : ""}
+                  disabled={item === 3 && !identityReady}
+                  key={item}
+                  onClick={() => setStep(item)}
+                  type="button"
+                >
+                  <span>{complete ? <CheckCircle2 size={15} /> : item}</span>
+                  <small>{item === 1 ? "Identity" : item === 2 ? "Details" : "Review"}</small>
+                </button>
+              );
+            })}
           </div>
-          <div className="launch-form-section-head"><span>02</span><div><strong>Story & community</strong><small>Optional, but strongly recommended</small></div></div>
-          <div className="project-details-card">
-            <div className="project-details-head">
-              <strong>Project details</strong>
-              <span>Shown on the market page</span>
-            </div>
-            <div className="field">
-              <label htmlFor="token-description">Description</label>
-              <textarea
-                id="token-description"
-                maxLength={500}
-                placeholder="What is this token about?"
-                value={description}
-                onChange={(event) => setDescription(event.target.value)}
-              />
-            </div>
-            <div className="social-input-grid">
-              <div className="field">
-                <label htmlFor="token-website">Website</label>
-                <input id="token-website" inputMode="url" placeholder="funblue.xyz" value={website} onChange={(event) => setWebsite(event.target.value)} />
+
+          {step === 1 ? (
+            <section className="launch-step-panel" aria-labelledby="launch-step-identity">
+              <div className="launch-form-section-head"><span>01</span><div><strong id="launch-step-identity">Token identity</strong><small>Name, ticker and artwork</small></div></div>
+              <div className="launch-field-grid">
+                <div className="field">
+                  <label htmlFor="token-name">Name <small>{name.length}/40</small></label>
+                  <input id="token-name" required maxLength={40} autoComplete="off" placeholder="Token name" value={name} onChange={(event) => setName(event.target.value)} />
+                </div>
+                <div className="field">
+                  <label htmlFor="token-symbol">Symbol <small>{symbol.length}/10</small></label>
+                  <input id="token-symbol" required maxLength={10} autoComplete="off" placeholder="Ticker" value={symbol} onChange={(event) => setSymbol(event.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""))} />
+                </div>
               </div>
               <div className="field">
-                <label htmlFor="token-x">X</label>
-                <input id="token-x" inputMode="url" placeholder="x.com/project" value={twitter} onChange={(event) => setTwitter(event.target.value)} />
+                <label htmlFor="token-image">Token image</label>
+                <label className={imagePreview ? "upload-box has-preview" : "upload-box"} htmlFor="token-image">
+                  {imagePreview ? <img src={imagePreview} alt="Token preview" /> : <span><ImagePlus size={22} />Select logo or meme image</span>}
+                  <input accept="image/*" id="token-image" required onChange={(event) => selectImage(event.target.files?.[0])} type="file" />
+                </label>
+                <span className="field-help">{isImageUploading ? "Uploading image…" : imageUri ? "Image ready." : "Square image · max 5 MB · stored on IPFS"}</span>
               </div>
-              <div className="field">
-                <label htmlFor="token-telegram">Telegram</label>
-                <input id="token-telegram" inputMode="url" placeholder="t.me/project" value={telegram} onChange={(event) => setTelegram(event.target.value)} />
+              <div className="launch-step-actions single">
+                <button className="button primary" disabled={!identityReady} onClick={() => setStep(2)} type="button">Continue <ChevronRight size={16} /></button>
               </div>
-              <div className="field">
-                <label htmlFor="token-discord">Discord</label>
-                <input id="token-discord" inputMode="url" placeholder="discord.gg/project" value={discord} onChange={(event) => setDiscord(event.target.value)} />
+            </section>
+          ) : null}
+
+          {step === 2 ? (
+            <section className="launch-step-panel" aria-labelledby="launch-step-details">
+              <div className="launch-form-section-head"><span>02</span><div><strong id="launch-step-details">Story & community</strong><small>Optional, but helps traders understand the launch</small></div></div>
+              <div className="project-details-card">
+                <div className="project-details-head"><strong>Project details</strong><span>Shown on the market page</span></div>
+                <div className="field">
+                  <label htmlFor="token-description">Description</label>
+                  <textarea id="token-description" maxLength={500} placeholder="What is this token about?" value={description} onChange={(event) => setDescription(event.target.value)} />
+                </div>
+                <details className="social-details">
+                  <summary>Add community links <span>Optional</span></summary>
+                  <div className="social-input-grid">
+                    <div className="field"><label htmlFor="token-website">Website</label><input id="token-website" inputMode="url" placeholder="funblue.xyz" value={website} onChange={(event) => setWebsite(event.target.value)} /></div>
+                    <div className="field"><label htmlFor="token-x">X</label><input id="token-x" inputMode="url" placeholder="x.com/project" value={twitter} onChange={(event) => setTwitter(event.target.value)} /></div>
+                    <div className="field"><label htmlFor="token-telegram">Telegram</label><input id="token-telegram" inputMode="url" placeholder="t.me/project" value={telegram} onChange={(event) => setTelegram(event.target.value)} /></div>
+                    <div className="field"><label htmlFor="token-discord">Discord</label><input id="token-discord" inputMode="url" placeholder="discord.gg/project" value={discord} onChange={(event) => setDiscord(event.target.value)} /></div>
+                  </div>
+                </details>
               </div>
-            </div>
-          </div>
-          <div className="launch-form-section-head"><span>03</span><div><strong>Visual identity</strong><small>Square artwork works best</small></div></div>
-          <div className="field">
-            <label htmlFor="token-image">Token image</label>
-            <label className={imagePreview ? "upload-box has-preview" : "upload-box"} htmlFor="token-image">
-              {imagePreview ? (
-                <img src={imagePreview} alt="Token preview" />
-              ) : (
-                <span>
-                  <ImagePlus size={22} />
-                  Select logo or meme image
-                </span>
-              )}
-              <input
-                accept="image/*"
-                id="token-image"
-                required
-                onChange={(event) => selectImage(event.target.files?.[0])}
-                type="file"
-              />
-            </label>
-            <span className="field-help">
-              {isImageUploading ? "Uploading image..." : imageUri ? "Image ready." : "Uploaded to Pinata automatically. Max 5 MB."}
-            </span>
-          </div>
-          <div className="launch-form-section-head"><span>04</span><div><strong>First position</strong><small>Optional creator buy in the same transaction</small></div></div>
-          <div className="field">
-            <label htmlFor="initial-buy">Creator initial buy ETH</label>
-            <input aria-describedby="initial-buy-help" id="initial-buy" inputMode="decimal" placeholder="0" value={initialBuy} onChange={(event) => setInitialBuy(sanitizeDecimal(event.target.value))} />
-            <span className="field-help" id="initial-buy-help">Optional · maximum {FAIR_GRADUATION_TARGET_ETH} ETH</span>
-          </div>
-          <div className="launch-review-card">
-            <div className="launch-review-head"><strong>Launch summary</strong><span><NetworkIcon chainId={activeChainId} size={16} />{chain.name}</span></div>
-            <dl>
-              <div><dt>Token standard</dt><dd>{isRobinhood ? "ERC-20" : "B20"}</dd></div>
-              <div><dt>Supply / creator allocation</dt><dd>1B / 0%</dd></div>
-              <div><dt>Trading fee</dt><dd>1% total</dd></div>
-              <div><dt>Graduation</dt><dd>{FAIR_GRADUATION_TARGET_ETH} ETH → Uniswap v4</dd></div>
-              <div><dt>Launch fee</dt><dd>{FAIR_LAUNCH_FEE_ETH} ETH</dd></div>
-              <div><dt>Initial buy</dt><dd>{formatEth(initialBuyEth)} ETH</dd></div>
-            </dl>
-            <div className="launch-review-total"><span>Wallet confirmation</span><strong>{formatEth(totalLaunchValue)} ETH</strong></div>
-          </div>
-          {initialBuyTooLarge ? <p className="danger-text">Creator initial buy is capped at the 5 ETH graduation target.</p> : null}
-          <button className="button primary" disabled={disabled || isWorking || !isConnected} onClick={submit}>
-            {isWorking ? <Loader2 className="spin" size={16} /> : metadataUri ? <Rocket size={16} /> : <UploadCloud size={16} />}
-            {isImageUploading || isMetadataUploading ? "Preparing launch" : isPending ? "Confirm in wallet" : receipt.isLoading ? "Launching" : isRobinhood ? "Launch ERC-20" : "Launch B20"}
-          </button>
-          <div className="launch-status-stack">
-            {disabledReason ? <LaunchNotice tone="info">{disabledReason}</LaunchNotice> : null}
-            {metadataUri && !receipt.isSuccess ? <LaunchNotice tone="success">Media is ready. You can launch whenever you are set.</LaunchNotice> : null}
-            {metadataUri && !receipt.isSuccess ? <LaunchNotice tone="info">Total wallet confirmation will be {formatEth(totalLaunchValue)} ETH.</LaunchNotice> : null}
-            {hash && !receipt.isSuccess ? <LaunchNotice tone="info">Launch submitted. Waiting for confirmation.</LaunchNotice> : null}
-            {receipt.isSuccess ? (
-              <LaunchNotice tone="success">
-                {confirmedLaunchId ? (
-                  <>
-                    Launch is live.{" "}
-                    <Link href={`/launch/${confirmedLaunchId}?chain=${activeChainId}`}>View now</Link>
-                  </>
-                ) : (
-                  "Launch is live."
-                )}
-              </LaunchNotice>
-            ) : null}
-            {uploadError ? <LaunchNotice tone="danger">{uploadError}</LaunchNotice> : null}
-            {error ? <LaunchNotice tone="danger">{friendlyWalletError(error.message)}</LaunchNotice> : null}
-            {!addresses.launchFactory ? <LaunchNotice tone="danger">Launch creation is temporarily unavailable.</LaunchNotice> : null}
-          </div>
+              <div className="launch-step-actions"><button className="button" onClick={() => setStep(1)} type="button"><ChevronLeft size={16} />Back</button><button className="button primary" disabled={!identityReady} onClick={() => setStep(3)} type="button">{identityReady ? "Review launch" : "Complete identity first"} <ChevronRight size={16} /></button></div>
+            </section>
+          ) : null}
+
+          {step === 3 ? (
+            <section className="launch-step-panel" aria-labelledby="launch-step-review">
+              <div className="launch-form-section-head"><span>03</span><div><strong id="launch-step-review">Review & launch</strong><small>Confirm the transaction details</small></div></div>
+              <div className="field"><label htmlFor="initial-buy">Optional first buy</label><input aria-describedby="initial-buy-help" id="initial-buy" inputMode="decimal" placeholder="0" value={initialBuy} onChange={(event) => setInitialBuy(sanitizeDecimal(event.target.value))} /><span className="field-help" id="initial-buy-help">ETH · maximum {FAIR_GRADUATION_TARGET_ETH}</span></div>
+              <div className="launch-review-card">
+                <div className="launch-review-head"><strong>{name} <span>${symbol}</span></strong><span><NetworkIcon chainId={activeChainId} size={16} />{chain.name}</span></div>
+                <dl>
+                  <div><dt>Token standard</dt><dd>{isRobinhood ? "ERC-20" : "B20"}</dd></div>
+                  <div><dt>Supply / creator allocation</dt><dd>1B / 0%</dd></div>
+                  <div><dt>Trading fee</dt><dd>1% total</dd></div>
+                  <div><dt>Graduation</dt><dd>{FAIR_GRADUATION_TARGET_ETH} ETH → Uniswap v4</dd></div>
+                  <div><dt>Launch fee</dt><dd>{FAIR_LAUNCH_FEE_ETH} ETH</dd></div>
+                  <div><dt>Initial buy</dt><dd>{formatEth(initialBuyEth)} ETH</dd></div>
+                </dl>
+                <div className="launch-review-total"><span>Total wallet confirmation</span><strong>{formatEth(totalLaunchValue)} ETH</strong></div>
+              </div>
+              {initialBuyTooLarge ? <p className="danger-text">Creator initial buy is capped at the {FAIR_GRADUATION_TARGET_ETH} ETH graduation target.</p> : null}
+              <div className="launch-step-actions"><button className="button" disabled={isWorking} onClick={() => setStep(2)} type="button"><ChevronLeft size={16} />Back</button><button className="button primary launch-submit" disabled={disabled || isWorking || !isConnected} onClick={submit}>{isWorking ? <Loader2 className="spin" size={16} /> : metadataUri ? <Rocket size={16} /> : <UploadCloud size={16} />}{isImageUploading || isMetadataUploading ? "Preparing launch" : isPending ? "Confirm in wallet" : receipt.isLoading ? "Launching" : isRobinhood ? "Launch ERC-20" : "Launch B20"}</button></div>
+              {launchStatus ? <LaunchNotice tone={launchStatus.tone}>{launchStatus.message}</LaunchNotice> : null}
+              {receipt.isSuccess && confirmedLaunchId ? <Link className="button wide launch-live-link" href={`/launch/${confirmedLaunchId}?chain=${activeChainId}`}>Open live market <ChevronRight size={16} /></Link> : null}
+            </section>
+          ) : null}
           {receipt.isSuccess ? (
             <LaunchChecklist
               activeChainId={activeChainId}
@@ -384,6 +373,30 @@ function LaunchNotice({ children, tone }: { children: React.ReactNode; tone: "in
       <span>{children}</span>
     </p>
   );
+}
+
+function getLaunchStatus(input: {
+  disabledReason: string;
+  error?: string;
+  hash: boolean;
+  isImageUploading: boolean;
+  isMetadataUploading: boolean;
+  isPending: boolean;
+  isReceiptLoading: boolean;
+  isSuccess: boolean;
+  metadataReady: boolean;
+  uploadError: string;
+}): { tone: "info" | "success" | "danger"; message: string } | null {
+  if (input.uploadError) return { tone: "danger", message: input.uploadError };
+  if (input.error) return { tone: "danger", message: friendlyWalletError(input.error) };
+  if (input.isSuccess) return { tone: "success", message: "Launch confirmed and market is live." };
+  if (input.hash || input.isReceiptLoading) return { tone: "info", message: "Transaction submitted. Waiting for confirmation…" };
+  if (input.isPending) return { tone: "info", message: "Confirm the launch transaction in your wallet." };
+  if (input.isImageUploading) return { tone: "info", message: "Uploading token artwork to IPFS…" };
+  if (input.isMetadataUploading) return { tone: "info", message: "Preparing launch metadata…" };
+  if (input.metadataReady) return { tone: "success", message: "Launch media is ready for wallet confirmation." };
+  if (input.disabledReason) return { tone: "info", message: input.disabledReason };
+  return null;
 }
 
 function getDisabledReason(input: {
