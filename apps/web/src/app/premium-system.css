@@ -1623,3 +1623,191 @@ html[data-theme="dark"] .market-details-disclosure { background: #0e0e11; border
   .market-overview-grid { grid-template-columns: 1fr; }
   .market-details-disclosure > summary small { display: none; }
 }
+
+/* Image-first launch cards: clearer markets without decorative moving stripes */
+.trending-section::before,
+.discovery-panel::before,
+.network-metric-row.active::after { display: none; }
+.market-pulse-rail { scrollbar-width: none; }
+.market-pulse-rail::-webkit-scrollbar { display: none; }
+
+.progress span,
+.market-header-card > .progress span {
+  animation: none;
+  background: #2acb88;
+  background-size: auto;
+  box-shadow: none;
+}
+.route-progress {
+  background: #315dfb;
+  filter: none;
+}
+
+.token-grid {
+  gap: 18px;
+  grid-template-columns: repeat(4,minmax(0,1fr));
+}
+.token-card,
+.token-card.featured {
+  background: #fff;
+  border: 1px solid #dce2eb;
+  border-radius: 18px;
+  box-shadow: 0 7px 22px rgba(16,24,40,.055);
+  display: block;
+  overflow: hidden;
+  padding: 0;
+}
+.token-card:hover,
+.token-card.featured:hover {
+  border-color: #b9c4d4;
+  box-shadow: 0 16px 38px rgba(16,24,40,.11);
+  transform: translateY(-3px);
+}
+.token-card-visual {
+  aspect-ratio: 1.18 / 1;
+  background: #edf1f6;
+  overflow: hidden;
+  position: relative;
+}
+.token-card-visual > .token-art {
+  background: #edf1f6;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  height: 100%;
+  width: 100%;
+}
+.token-card-visual > .token-art .token-image {
+  height: 100%;
+  object-fit: cover;
+  transition: transform 240ms var(--ease-out);
+  width: 100%;
+}
+.token-card:hover .token-card-visual > .token-art .token-image { transform: scale(1.025); }
+.token-card-visual > .token-art .token-symbol-art { font-size: clamp(25px,3vw,42px); }
+.token-card-visual-badges {
+  align-items: flex-start;
+  display: flex;
+  inset: 11px 11px auto;
+  justify-content: space-between;
+  pointer-events: none;
+  position: absolute;
+}
+.token-card-visual-badges .token-status,
+.token-chain-badge {
+  align-items: center;
+  backdrop-filter: blur(12px);
+  background: rgba(255,255,255,.9);
+  border: 1px solid rgba(255,255,255,.72);
+  border-radius: 999px;
+  box-shadow: 0 3px 12px rgba(16,24,40,.12);
+  color: #344054;
+  display: inline-flex;
+  font-size: 9px;
+  font-style: normal;
+  font-weight: 850;
+  gap: 5px;
+  min-height: 27px;
+  padding: 0 9px;
+}
+.token-card-visual-badges .token-status.live { background: rgba(230,250,240,.92); color: #087a4d; }
+.token-card-visual-badges .token-status:not(.live) { background: rgba(255,248,219,.93); color: #8a6100; }
+.token-card-content { display: grid; gap: 12px; padding: 14px 15px 15px; }
+.token-card-identity { min-width: 0; }
+.token-card-identity .token-title {
+  align-items: center;
+  color: #111827;
+  display: flex;
+  font-size: 16px;
+  gap: 6px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.token-card-identity .token-symbol { color: #7b8494; font-size: 12px; margin-top: 3px; }
+.token-market-row {
+  align-items: end;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(0,1fr) auto;
+}
+.token-market-cap,
+.token-volume { display: grid; gap: 2px; min-width: 0; }
+.token-market-row span {
+  color: #8a94a6;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: .045em;
+  text-transform: uppercase;
+}
+.token-market-cap strong {
+  color: #101828;
+  font-size: 20px;
+  letter-spacing: -.03em;
+  line-height: 1.1;
+}
+.token-volume { justify-items: end; }
+.token-volume strong { color: #475467; font-size: 12px; }
+.token-progress-label {
+  align-items: center;
+  color: #667085;
+  display: flex;
+  font-size: 10px;
+  justify-content: space-between;
+}
+.token-progress-label strong { color: #344054; font-size: 10px; }
+.token-card .token-card-progress {
+  background: #e8edf3;
+  border-radius: 999px;
+  height: 6px;
+  margin: -7px 0 0;
+  overflow: hidden;
+}
+.token-card .token-card-progress span { background: #22b978; border-radius: inherit; }
+.token-card .token-card-progress.graduated span { background: #f0b90b; }
+.token-card .token-foot {
+  align-items: center;
+  border-top: 1px solid #edf0f4;
+  color: #8a94a6;
+  display: flex;
+  font-size: 9px;
+  justify-content: space-between;
+  min-width: 0;
+  padding-top: 11px;
+}
+.token-card .token-foot span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.token-card .token-foot span:first-child { max-width: 64%; }
+
+html[data-theme="dark"] .token-card,
+html[data-theme="dark"] .token-card.featured {
+  background: #0b0b0d;
+  border-color: #2b2b31;
+  box-shadow: 0 9px 28px rgba(0,0,0,.34);
+}
+html[data-theme="dark"] .token-card:hover,
+html[data-theme="dark"] .token-card.featured:hover { background: #0f0f12; border-color: #484852; box-shadow: 0 18px 42px rgba(0,0,0,.5); }
+html[data-theme="dark"] .token-card-visual,
+html[data-theme="dark"] .token-card-visual > .token-art { background: #151519; }
+html[data-theme="dark"] .token-card-identity .token-title,
+html[data-theme="dark"] .token-market-cap strong { color: #f7f7f8; }
+html[data-theme="dark"] .token-card-identity .token-symbol,
+html[data-theme="dark"] .token-market-row span,
+html[data-theme="dark"] .token-progress-label,
+html[data-theme="dark"] .token-card .token-foot { color: #92929d; }
+html[data-theme="dark"] .token-volume strong,
+html[data-theme="dark"] .token-progress-label strong { color: #d5d5db; }
+html[data-theme="dark"] .token-card .token-card-progress { background: #26262c; }
+html[data-theme="dark"] .token-card .token-foot { border-top-color: #26262c; }
+
+@media (max-width: 1220px) {
+  .token-grid { grid-template-columns: repeat(3,minmax(0,1fr)); }
+}
+@media (max-width: 900px) {
+  .token-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+}
+@media (max-width: 560px) {
+  .token-grid { gap: 13px; grid-template-columns: 1fr; }
+  .token-card-visual { aspect-ratio: 1.45 / 1; }
+  .token-card-content { padding: 13px 14px 14px; }
+  .token-market-cap strong { font-size: 19px; }
+}

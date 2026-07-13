@@ -316,34 +316,36 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metri
             const isHot = hotLaunchId === launch.id;
             const activity = activityByLaunch.get(launch.id);
             const hasMarketCap = launch.marketCap.trim().toLowerCase() !== "live" && parseDisplayAmount(launch.marketCap) > 0;
-            const primaryMetric = hasMarketCap ? formatLaunchUsd(launch.marketCap, ethUsd) : launch.raised;
+            const marketCapEth = hasMarketCap ? launch.marketCap : estimateCurveMarketCapEth(launch.raised);
+            const marketCap = formatLaunchUsd(marketCapEth, ethUsd);
             const volume = formatLaunchUsd(launch.volume, ethUsd);
             return (
             <Link className={`${featured ? "token-card featured" : "token-card"}${isHot ? " activity-hot" : ""}`} href={tokenPath(launch)} key={`${launch.chainId}-${launch.id}-${launch.token}`}>
-              <div className="token-card-main">
+              <div className="token-card-visual">
                 <TokenAvatar launch={launch} hot={isHot || index === 0} />
-                <div className="token-card-copy">
-                  <div className="token-card-head">
-                    <div>
-                      <div className="token-title">{launch.name}{officialBlue ? <span>Official BLUE</span> : trusted ? <span>Trusted</span> : null}</div>
-                      <div className="token-symbol">${launch.symbol}<span className={activity ? "token-activity-signal active" : "token-activity-signal"}><i />{activity ? `Buy ${formatActivityAge(activity.createdAt)}` : launch.age}</span></div>
-                    </div>
-                    <span className={launch.status === "Live" ? "token-status live" : "token-status"}>{isHot ? "Active buy" : launch.status === "Live" ? "Bonding" : launch.status === "Graduated" ? "DEX live" : "Bonded"}</span>
-                  </div>
-                  <p className="token-description">
-                    {launch.description || (launch.status === "Graduated" ? "DEX ready market" : launch.chainId === 4663 ? "ERC-20 curve launch" : "B20 curve launch")}
-                  </p>
+                <div className="token-card-visual-badges">
+                  <span className={launch.status === "Live" ? "token-status live" : "token-status"}>{isHot ? "Active buy" : launch.status === "Live" ? "Bonding" : launch.status === "Graduated" ? "Graduated" : "Bonded"}</span>
+                  <span className="token-chain-badge"><NetworkIcon chainId={launch.chainId} size={15} />{networkMeta(launch.chainId).name}</span>
                 </div>
               </div>
-              <div className="token-stat-row token-stat-rich">
-                <div><span>{hasMarketCap ? "Market cap" : "Raised"}</span><strong>{primaryMetric}</strong></div>
-                <div><span>Volume</span><strong>{volume}</strong></div>
-                <div><span>{launch.status === "Graduated" ? "Liquidity" : "Bond"}</span><strong>{launch.status === "Graduated" ? "Locked" : `${launch.progress}%`}</strong></div>
-              </div>
-              <div className="progress token-card-progress" aria-label={`Graduation progress ${launch.progress}%`}><span style={{ width: `${launch.progress}%` }} /></div>
-              <div className="token-foot">
-                <span>{launch.age} · Raised {launch.raised} · By {launch.creator.slice(0, 6)}...{launch.creator.slice(-4)}</span>
-                <span className="token-chain"><NetworkIcon chainId={launch.chainId} size={16} />{launch.status === "Graduated" ? "DEX" : networkMeta(launch.chainId).name}</span>
+              <div className="token-card-content">
+                <div className="token-card-identity">
+                  <div className="token-title">{launch.name}{officialBlue ? <span>Official BLUE</span> : trusted ? <span>Trusted</span> : null}</div>
+                  <div className="token-symbol">${launch.symbol}<span className={activity ? "token-activity-signal active" : "token-activity-signal"}><i />{activity ? `Buy ${formatActivityAge(activity.createdAt)}` : launch.age}</span></div>
+                </div>
+                <div className="token-market-row">
+                  <div className="token-market-cap"><span>Market cap</span><strong>{marketCap}</strong></div>
+                  <div className="token-volume"><span>Volume</span><strong>{volume}</strong></div>
+                </div>
+                <div className="token-progress-label">
+                  <span>{launch.status === "Graduated" ? "Liquidity locked" : "Bonding progress"}</span>
+                  <strong>{launch.status === "Graduated" ? "100%" : `${launch.progress}%`}</strong>
+                </div>
+                <div className={launch.status === "Graduated" ? "progress token-card-progress graduated" : "progress token-card-progress"} aria-label={`Graduation progress ${launch.progress}%`}><span style={{ width: `${launch.status === "Graduated" ? 100 : launch.progress}%` }} /></div>
+                <div className="token-foot">
+                  <span>By {launch.creator.slice(0, 6)}...{launch.creator.slice(-4)} · {launch.age}</span>
+                  <span>{launch.status === "Graduated" ? "DEX live" : `Raised ${launch.raised}`}</span>
+                </div>
               </div>
             </Link>
             );
@@ -383,6 +385,14 @@ function formatLaunchUsd(value: string, ethUsd: number | null) {
   if (!ethUsd) return value;
   const usdValue = ethValue * ethUsd;
   return usdValue < 1 ? "<$1" : compactUsd(usdValue);
+}
+
+function estimateCurveMarketCapEth(raisedValue: string) {
+  const grossRaised = Math.max(0, parseDisplayAmount(raisedValue));
+  const initialVirtualEth = 1.25;
+  const virtualEth = initialVirtualEth + grossRaised * (1 - 0.01);
+  const marketCapEth = (virtualEth * virtualEth) / initialVirtualEth;
+  return `${marketCapEth.toLocaleString("en-US", { maximumFractionDigits: 4 })} ETH`;
 }
 
 function formatActivityAge(createdAt: string) {
