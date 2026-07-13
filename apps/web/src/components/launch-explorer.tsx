@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, useTransition, type ReactNode } from "react";
 import Link from "next/link";
-import { Activity, BarChart3, Clock3, Coins, Radio, Rocket, Search, ShieldCheck, Sparkles, Trophy } from "lucide-react";
+import { Activity, BarChart3, Clock3, Coins, Radio, Rocket, Search, Sparkles, Trophy, Zap } from "lucide-react";
 import { isFeaturedLaunch, isOfficialBlue, isTrustedLaunch } from "@/lib/featured-launches";
 import { compactUsd, parseDisplayAmount } from "@/lib/market-math";
 import type { DbLaunchMetrics, LaunchBuyActivity } from "@/lib/db-launches";
@@ -166,15 +166,17 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metri
     };
   }), [chainId, ethUsd, initialLaunches, launches, metrics, networkMetrics, totalLaunches]);
 
-  const trendingLaunches = useMemo(() => {
+  const pulseLaunches = useMemo(() => {
     return [...initialLaunches]
       .sort((a, b) => {
+        const activityDelta = compareBlocks(activityByLaunch.get(b.id)?.blockNumber, activityByLaunch.get(a.id)?.blockNumber);
+        if (activityDelta !== 0) return activityDelta;
         const featuredDelta = Number(isFeaturedLaunch(b)) - Number(isFeaturedLaunch(a));
         if (featuredDelta !== 0) return featuredDelta;
-        return b.progress - a.progress || parseDisplayAmount(b.marketCap) - parseDisplayAmount(a.marketCap);
+        return compareLaunchIds(b.id, a.id);
       })
-      .slice(0, 4);
-  }, [initialLaunches]);
+      .slice(0, 5);
+  }, [activityByLaunch, initialLaunches]);
   const totalPages = Math.ceil(total / 21);
   const pagination = paginationItems(page, totalPages);
   const displayedLaunches = useMemo(() => {
@@ -192,8 +194,8 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metri
       <section className="launchpad-intro launchpad-overview premium-hero">
         <div className="launchpad-intro-copy">
           <div className="launchpad-eyebrow"><NetworkIcon chainId={chainId} size={20} /><span>{activeNetwork.name}</span><i>Markets live</i></div>
-          <h1>Discover fair launches.<span>Trade with clarity.</span></h1>
-          <p>Transparent bonding curves, fixed rules and permanently locked liquidity in one focused market.</p>
+          <h1>Launch fair.<span>Catch the signal.</span></h1>
+          <p>Live multichain markets with fixed rules, clear activity and locked liquidity.</p>
           <div className="launchpad-intro-actions">
             <Link className="button primary hero-action" href={`/launch?chain=${chainSlug(chainId)}`}><Rocket size={17} />Create a token</Link>
             <button
@@ -205,7 +207,7 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metri
               }}
               type="button"
             >
-              <ShieldCheck size={16} />Explore bonding markets
+              <Activity size={16} />View live markets
             </button>
           </div>
         </div>
@@ -222,31 +224,33 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metri
         </div>
       </section>
 
-      <div className="trending-section">
+      <div className="trending-section market-pulse-section">
         <div className="section-row">
           <div>
-            <div className="section-title"><Activity size={17} />Market spotlight</div>
-            <p className="section-subtitle">Notable launches across {activeNetwork.name}</p>
+            <div className="section-title"><Zap size={17} />Market Pulse</div>
+            <p className="section-subtitle">Latest real buys across {activeNetwork.name}</p>
           </div>
+          <span className="pulse-live-label"><i />Live</span>
         </div>
-        {trendingLaunches.length === 0 ? (
-          <div className="empty compact-empty"><Sparkles size={18} /><span>Fresh launches will shine here.</span></div>
+        {pulseLaunches.length === 0 ? (
+          <div className="empty compact-empty"><Sparkles size={18} /><span>Fresh market activity will appear here.</span></div>
         ) : (
-          <div className="trending-rail">
-            {trendingLaunches.map((launch) => {
-              const featured = isFeaturedLaunch(launch);
+          <div className="market-pulse-rail">
+            {pulseLaunches.map((launch) => {
               const trusted = isTrustedLaunch(launch);
               const officialBlue = isOfficialBlue(launch);
+              const activity = activityByLaunch.get(launch.id);
+              const isHot = hotLaunchId === launch.id;
               return (
-              <Link className={featured ? "trending-card featured" : "trending-card"} href={tokenPath(launch)} key={`trend-${launch.id}-${launch.token}`}>
-                <TokenAvatar launch={launch} />
-                <div className="trending-copy">
-                  <strong>{launch.symbol}{officialBlue ? <span>Official</span> : trusted ? <span>Trusted</span> : null}</strong>
-                  <span>Raised {launch.raised}</span>
+              <Link className={isHot ? "market-pulse-item hot" : "market-pulse-item"} href={tokenPath(launch)} key={`pulse-${launch.id}-${launch.token}`}>
+                <TokenAvatar launch={launch} hot={isHot} />
+                <div className="market-pulse-copy">
+                  <strong>${launch.symbol}{officialBlue ? <span>Official</span> : trusted ? <span>Trusted</span> : null}</strong>
+                  <small>{activity ? `Buy ${formatActivityAge(activity.createdAt)}` : `Launched ${launch.age}`}</small>
                 </div>
-                <div className="trending-progress">
-                  <div><span>Progress</span><b>{launch.progress}%</b></div>
-                  <div className="progress"><span style={{ width: `${launch.progress}%` }} /></div>
+                <div className="market-pulse-value">
+                  <span>{launch.status === "Graduated" ? "DEX live" : `${launch.progress}% bond`}</span>
+                  <strong>{launch.raised}</strong>
                 </div>
               </Link>
               );
@@ -310,6 +314,10 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metri
             const trusted = isTrustedLaunch(launch);
             const officialBlue = isOfficialBlue(launch);
             const isHot = hotLaunchId === launch.id;
+            const activity = activityByLaunch.get(launch.id);
+            const hasMarketCap = launch.marketCap.trim().toLowerCase() !== "live" && parseDisplayAmount(launch.marketCap) > 0;
+            const primaryMetric = hasMarketCap ? formatLaunchUsd(launch.marketCap, ethUsd) : launch.raised;
+            const volume = formatLaunchUsd(launch.volume, ethUsd);
             return (
             <Link className={`${featured ? "token-card featured" : "token-card"}${isHot ? " activity-hot" : ""}`} href={tokenPath(launch)} key={`${launch.chainId}-${launch.id}-${launch.token}`}>
               <div className="token-card-main">
@@ -318,23 +326,23 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metri
                   <div className="token-card-head">
                     <div>
                       <div className="token-title">{launch.name}{officialBlue ? <span>Official BLUE</span> : trusted ? <span>Trusted</span> : null}</div>
-                      <div className="token-symbol">${launch.symbol}</div>
+                      <div className="token-symbol">${launch.symbol}<span className={activity ? "token-activity-signal active" : "token-activity-signal"}><i />{activity ? `Buy ${formatActivityAge(activity.createdAt)}` : launch.age}</span></div>
                     </div>
-                    <span className={launch.status === "Live" ? "token-status live" : "token-status"}>{isHot ? "Buy now" : launch.status === "Live" ? "Bonding" : launch.status}</span>
+                    <span className={launch.status === "Live" ? "token-status live" : "token-status"}>{isHot ? "Active buy" : launch.status === "Live" ? "Bonding" : launch.status === "Graduated" ? "DEX live" : "Bonded"}</span>
                   </div>
                   <p className="token-description">
                     {launch.description || (launch.status === "Graduated" ? "DEX ready market" : launch.chainId === 4663 ? "ERC-20 curve launch" : "B20 curve launch")}
                   </p>
                 </div>
               </div>
-              <div className="token-stat-row">
-                <div><span>Raised</span><strong>{launch.raised}</strong></div>
-                <div><span>Progress</span><strong>{launch.progress}%</strong></div>
-                <div><span>Age</span><strong>{launch.age}</strong></div>
+              <div className="token-stat-row token-stat-rich">
+                <div><span>{hasMarketCap ? "Market cap" : "Raised"}</span><strong>{primaryMetric}</strong></div>
+                <div><span>Volume</span><strong>{volume}</strong></div>
+                <div><span>{launch.status === "Graduated" ? "Liquidity" : "Bond"}</span><strong>{launch.status === "Graduated" ? "Locked" : `${launch.progress}%`}</strong></div>
               </div>
               <div className="progress token-card-progress" aria-label={`Graduation progress ${launch.progress}%`}><span style={{ width: `${launch.progress}%` }} /></div>
               <div className="token-foot">
-                <span>By {launch.creator.slice(0, 6)}...{launch.creator.slice(-4)}</span>
+                <span>{launch.age} · Raised {launch.raised} · By {launch.creator.slice(0, 6)}...{launch.creator.slice(-4)}</span>
                 <span className="token-chain"><NetworkIcon chainId={launch.chainId} size={16} />{launch.status === "Graduated" ? "DEX" : networkMeta(launch.chainId).name}</span>
               </div>
             </Link>
@@ -366,6 +374,26 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metri
 function formatUsdFromEthNumber(ethValue: number, ethUsd: number | null) {
   if (!ethUsd || !Number.isFinite(ethValue) || ethValue <= 0) return "$-";
   return compactUsd(ethValue * ethUsd);
+}
+
+function formatLaunchUsd(value: string, ethUsd: number | null) {
+  if (value.trim().toLowerCase() === "live") return "Indexing";
+  const ethValue = parseDisplayAmount(value);
+  if (!Number.isFinite(ethValue) || ethValue <= 0) return "$0";
+  if (!ethUsd) return value;
+  const usdValue = ethValue * ethUsd;
+  return usdValue < 1 ? "<$1" : compactUsd(usdValue);
+}
+
+function formatActivityAge(createdAt: string) {
+  const timestamp = new Date(createdAt).getTime();
+  if (!Number.isFinite(timestamp)) return "recently";
+  const seconds = Math.max(0, Math.floor((Date.now() - timestamp) / 1_000));
+  if (seconds < 10) return "now";
+  if (seconds < 60) return `${seconds}s ago`;
+  if (seconds < 3_600) return `${Math.floor(seconds / 60)}m ago`;
+  if (seconds < 86_400) return `${Math.floor(seconds / 3_600)}h ago`;
+  return `${Math.floor(seconds / 86_400)}d ago`;
 }
 
 function FilterButton({ active, children, onClick }: { active: boolean; children: ReactNode; onClick: () => void }) {
