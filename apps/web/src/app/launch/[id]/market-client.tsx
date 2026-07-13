@@ -1634,20 +1634,20 @@ function TradeChart({ trades, status, symbol, ethUsd }: { trades: DeployedTrade[
       autoSize: true,
       height: 340,
       layout: {
-        background: { type: ColorType.Solid, color: darkChart ? "#101827" : "#f8faff" },
-        textColor: darkChart ? "#9aa8bd" : "#5f6f95",
+        background: { type: ColorType.Solid, color: darkChart ? "#080809" : "#f8faff" },
+        textColor: darkChart ? "#b8bdc9" : "#5f6f95",
         fontFamily: "Inter, ui-sans-serif, system-ui"
       },
       grid: {
-        vertLines: { color: darkChart ? "rgba(71, 85, 105, 0.34)" : "rgba(184, 198, 230, 0.45)" },
-        horzLines: { color: darkChart ? "rgba(71, 85, 105, 0.34)" : "rgba(184, 198, 230, 0.45)" }
+        vertLines: { color: darkChart ? "rgba(255, 255, 255, 0.075)" : "rgba(184, 198, 230, 0.45)" },
+        horzLines: { color: darkChart ? "rgba(255, 255, 255, 0.075)" : "rgba(184, 198, 230, 0.45)" }
       },
       rightPriceScale: {
-        borderColor: darkChart ? "#2b3950" : "#d8e0f3",
+        borderColor: darkChart ? "#29292f" : "#d8e0f3",
         scaleMargins: { top: 0.12, bottom: 0.28 }
       },
       timeScale: {
-        borderColor: darkChart ? "#2b3950" : "#d8e0f3",
+        borderColor: darkChart ? "#29292f" : "#d8e0f3",
         timeVisible: true,
         secondsVisible: false
       },

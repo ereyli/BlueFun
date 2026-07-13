@@ -18,7 +18,7 @@ export function ThemeToggle() {
     const nextTheme: Theme = theme === "dark" ? "light" : "dark";
     document.documentElement.dataset.theme = nextTheme;
     document.documentElement.style.colorScheme = nextTheme;
-    document.querySelector('meta[name="theme-color"]')?.setAttribute("content", nextTheme === "dark" ? "#080d18" : "#f6f8ff");
+    document.querySelector('meta[name="theme-color"]')?.setAttribute("content", nextTheme === "dark" ? "#030303" : "#f6f8ff");
     window.localStorage.setItem("bluefun-theme", nextTheme);
     window.dispatchEvent(new CustomEvent("bluefun-theme-change", { detail: nextTheme }));
     setTheme(nextTheme);
