@@ -1353,3 +1353,121 @@ html[data-theme="dark"] .token-activity-signal.active { color: #62e3ae; }
     animation: none;
   }
 }
+
+/* Readability and DEX-style execution hierarchy */
+.premium-hero .launchpad-intro-copy > p { font-size: 13px; }
+.premium-hero .hero-action,
+.premium-hero .hero-secondary { font-size: 12px; }
+.network-metric-name strong { font-size: 13px; }
+.network-metric-name i { font-size: 8px; }
+.network-metric-value span { font-size: 10px; }
+.network-metric-value strong { font-size: 15px; }
+.market-pulse-copy strong { font-size: 12px; }
+.market-pulse-copy strong span { font-size: 8px; }
+.market-pulse-copy small { font-size: 10px; }
+.market-pulse-value span { font-size: 9px; }
+.market-pulse-value strong { font-size: 11px; }
+.discovery-heading > div:first-child > span { font-size: 9px; }
+.discovery-heading h2 { font-size: 18px; }
+.discovery-panel .searchbar input { font-size: 13px; }
+.discovery-panel .feed-tab { font-size: 11px; }
+.token-title { font-size: 16px; }
+.token-symbol,
+.token-description { font-size: 12px; }
+.token-activity-signal { font-size: 9px; }
+.token-stat-rich span { font-size: 10px; }
+.token-stat-rich strong { font-size: 13px; }
+.token-foot { font-size: 11px; }
+
+.launch-signal-kicker { font-size: 9px; }
+.launch-signal-kicker span { font-size: 8px; }
+.launch-preview-card p,
+.launch-preview-stat span,
+.launch-feature-grid small,
+.launch-form-header .pill,
+.launch-form-network,
+.launch-form-section-head small,
+.launch-form-card .field-help { font-size: 10px; }
+.launch-feature-grid strong,
+.launch-stepper button small,
+.launch-form-card .field label { font-size: 11px; }
+.launch-form-section-head strong { font-size: 13px; }
+
+.market-header-stats span,
+.trade-amount-head,
+.quote-head span,
+.trade-card-toolbar > div > span { font-size: 11px; }
+.market-header-stats strong { font-size: 14px; }
+.trade-card-toolbar > div > strong { font-size: 15px; }
+.quick-grid button { font-size: 12px; }
+.trade-meta-line { font-size: 10px; }
+
+.trade-card .quote-box,
+.graduated-trade-card .quote-box {
+  align-items: center;
+  display: grid;
+  gap: 5px 10px;
+  grid-template-columns: minmax(0,1fr) auto;
+  padding: 8px 9px;
+}
+.trade-card .quote-head,
+.graduated-trade-card .quote-head { grid-column: 1; grid-row: 1; }
+.trade-card .quote-box > strong,
+.graduated-trade-card .quote-box > strong {
+  font-size: 17px;
+  grid-column: 2;
+  grid-row: 1;
+  margin: 0;
+  max-width: 180px;
+  overflow: hidden;
+  text-align: right;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.trade-card .quote-breakdown,
+.graduated-trade-card .quote-breakdown {
+  gap: 6px;
+  grid-column: 1 / -1;
+  margin-top: 1px;
+  padding-top: 6px;
+}
+.trade-card .quote-breakdown span,
+.graduated-trade-card .quote-breakdown span { min-height: 28px; padding: 5px 7px; }
+.trade-card .quote-breakdown small,
+.graduated-trade-card .quote-breakdown small { font-size: 9px; }
+.trade-card .quote-breakdown b,
+.graduated-trade-card .quote-breakdown b { font-size: 10px; }
+
+.graduated-trade-card .trade-submit.buy {
+  background: linear-gradient(135deg,#12a96b,#21c98b) !important;
+  border-color: transparent !important;
+  color: #fff !important;
+}
+.graduated-trade-card .trade-submit.sell {
+  background: linear-gradient(135deg,#ee5967,#e54052) !important;
+  border-color: transparent !important;
+  color: #fff !important;
+}
+.graduated-trade-card .trade-external-link { color: var(--muted); font-size: 11px; min-height: 38px; }
+
+html[data-theme="dark"] .loading-hero,
+html[data-theme="dark"] .loading-card {
+  animation: shimmer 1.25s ease-in-out infinite;
+  background:
+    linear-gradient(90deg,transparent,rgba(255,255,255,.045),transparent),
+    linear-gradient(135deg,#09090b,#111114);
+  background-size: 220% 100%,100% 100%;
+  border-color: #26262c;
+}
+
+@media (max-width: 760px) {
+  .premium-hero .launchpad-intro-copy > p { font-size: 12px; }
+  .network-metric-name strong { font-size: 11px; }
+  .network-metric-value span { font-size: 8px; }
+  .network-metric-value strong { font-size: 13px; }
+  .market-pulse-copy strong { font-size: 11px; }
+  .market-pulse-copy small { font-size: 9px; }
+  .discovery-panel .feed-tab { font-size: 10px; }
+  .trade-card .quote-box > strong,
+  .graduated-trade-card .quote-box > strong { font-size: 15px; max-width: 145px; }
+}

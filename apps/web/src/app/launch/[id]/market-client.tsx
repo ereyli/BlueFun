@@ -1171,7 +1171,7 @@ function GraduatedTradeCard({
         </div>
         {mode === "buy" ? (
           <>
-            <button className="button primary wide" disabled={tradeDisabled} onClick={onBuy} type="button">
+            <button className="button primary wide trade-submit buy" disabled={tradeDisabled} onClick={onBuy} type="button">
               {isWorking ? <Loader2 className="spin" size={16} /> : <ArrowDownUp size={16} />}
               {isPending ? "Confirm in wallet" : isWorking ? "Buying" : exceedsEthBalance ? "Insufficient ETH" : `Buy $${launch.symbol}`}
             </button>
@@ -1179,7 +1179,7 @@ function GraduatedTradeCard({
         ) : (
           <>
             <button
-              className="button primary wide"
+              className="button primary wide trade-submit sell"
               disabled={tradeDisabled}
               onClick={needsTokenApproval ? onApproveToken : needsPermit2Approval ? onApprovePermit2 : onSell}
               type="button"
@@ -1211,7 +1211,7 @@ function GraduatedTradeCard({
           {!receiptSuccess && error ? <TradeStatus tone="danger">{friendlyTradeError(error)}</TradeStatus> : null}
         </div>
       </div>
-      <a className="button primary wide" href={uniswapSwapUrl(launch.token, uniswapChainName)} target="_blank" rel="noreferrer">
+      <a className="button wide trade-external-link" href={uniswapSwapUrl(launch.token, uniswapChainName)} target="_blank" rel="noreferrer">
         <ExternalLink size={16} />
         Trade on Uniswap
       </a>
