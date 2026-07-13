@@ -16,3 +16,8 @@ export function namedChainParam(value: string | null | undefined): ChainSlug | u
   if (!value) return undefined;
   return chainSlug(chainIdFromParam(value));
 }
+
+export function chainSlugFromPath(pathname: string): ChainSlug | undefined {
+  const match = pathname.match(/^\/token\/(base|robinhood)(?:\/|$)/);
+  return match?.[1] as ChainSlug | undefined;
+}

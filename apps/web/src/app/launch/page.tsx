@@ -8,7 +8,8 @@ import { CheckCircle2, ChevronLeft, ChevronRight, Coins, ImagePlus, Info, Loader
 import { contractsForChain, FAIR_GRADUATION_TARGET_ETH, FAIR_LAUNCH_FEE_ETH, launchFactoryAbi } from "@/lib/contracts";
 import { useSearchParams } from "next/navigation";
 import { NetworkIcon } from "@/components/network-icon";
-import { chainIdFromParam, chainSlug } from "@/lib/chain-slug";
+import { chainIdFromParam } from "@/lib/chain-slug";
+import { tokenPath } from "@/lib/token-url";
 
 export default function LaunchPage() {
   return <Suspense fallback={<div className="empty">Loading launch form...</div>}><LaunchPageContent /></Suspense>;
@@ -74,6 +75,7 @@ function LaunchPageContent() {
     metadataReady: Boolean(metadataUri),
     uploadError
   });
+  const confirmedMarketHref = confirmedToken ? tokenPath({ chainId: activeChainId, name, symbol, token: confirmedToken }) : "";
 
   useEffect(() => {
     if (!receipt.isSuccess || !receipt.data?.logs.length || confirmedLaunchId) return;
@@ -303,7 +305,7 @@ function LaunchPageContent() {
               {initialBuyTooLarge ? <p className="danger-text">Creator initial buy is capped at the {FAIR_GRADUATION_TARGET_ETH} ETH graduation target.</p> : null}
               <div className="launch-step-actions"><button className="button" disabled={isWorking} onClick={() => setStep(2)} type="button"><ChevronLeft size={16} />Back</button><button className="button primary launch-submit" disabled={disabled || isWorking || !isConnected} onClick={submit}>{isWorking ? <Loader2 className="spin" size={16} /> : metadataUri ? <Rocket size={16} /> : <UploadCloud size={16} />}{isImageUploading || isMetadataUploading ? "Preparing launch" : isPending ? "Confirm in wallet" : receipt.isLoading ? "Launching" : isRobinhood ? "Launch ERC-20" : "Launch B20"}</button></div>
               {launchStatus ? <LaunchNotice tone={launchStatus.tone}>{launchStatus.message}</LaunchNotice> : null}
-              {receipt.isSuccess && confirmedLaunchId ? <Link className="button wide launch-live-link" href={`/launch/${confirmedLaunchId}?chain=${chainSlug(activeChainId)}`}>Open live market <ChevronRight size={16} /></Link> : null}
+              {receipt.isSuccess && confirmedMarketHref ? <Link className="button wide launch-live-link" href={confirmedMarketHref}>Open live market <ChevronRight size={16} /></Link> : null}
             </section>
           ) : null}
           {receipt.isSuccess ? (
@@ -312,6 +314,8 @@ function LaunchPageContent() {
               hasInitialBuy={initialBuyEth > 0n}
               launchId={confirmedLaunchId}
               metadataReady={Boolean(metadataUri)}
+              name={name}
+              symbol={symbol}
               token={confirmedToken}
             />
           ) : null}
@@ -326,16 +330,20 @@ function LaunchChecklist({
   hasInitialBuy,
   launchId,
   metadataReady,
+  name,
+  symbol,
   token
 }: {
   activeChainId: number;
   hasInitialBuy: boolean;
   launchId: string;
   metadataReady: boolean;
+  name: string;
+  symbol: string;
   token: string;
 }) {
   const { chain } = contractsForChain(activeChainId);
-  const marketHref = launchId ? `/launch/${launchId}?chain=${chainSlug(activeChainId)}` : "";
+  const marketHref = token ? tokenPath({ chainId: activeChainId, name, symbol, token }) : "";
   const basescanHref = token ? `${chain.blockExplorers.default.url}/token/${token}` : "";
   const items = [
     { label: "Token deployed", done: Boolean(token) },

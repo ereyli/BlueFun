@@ -10,6 +10,7 @@ import type { DeployedLaunch } from "@/lib/onchain-launches";
 import { optimizedTokenImageUrl } from "@/lib/token-metadata";
 import { NetworkIcon, networkMeta } from "@/components/network-icon";
 import { chainSlug } from "@/lib/chain-slug";
+import { tokenPath } from "@/lib/token-url";
 
 type Filter = "Activity" | "Newest" | "Live" | "Graduated" | "Progress";
 type NetworkMetrics = Partial<Record<8453 | 4663, DbLaunchMetrics>>;
@@ -236,7 +237,7 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metri
               const featured = isFeaturedLaunch(launch);
               const trusted = isTrustedLaunch(launch);
               return (
-              <Link className={featured ? "trending-card featured" : "trending-card"} href={`/launch/${launch.id}?chain=${chainSlug(launch.chainId)}`} key={`trend-${launch.id}-${launch.token}`}>
+              <Link className={featured ? "trending-card featured" : "trending-card"} href={tokenPath(launch)} key={`trend-${launch.id}-${launch.token}`}>
                 <TokenAvatar launch={launch} />
                 <div className="trending-copy">
                   <strong>{launch.symbol}{trusted ? <span>Trusted</span> : null}</strong>
@@ -308,7 +309,7 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metri
             const trusted = isTrustedLaunch(launch);
             const isHot = hotLaunchId === launch.id;
             return (
-            <Link className={`${featured ? "token-card featured" : "token-card"}${isHot ? " activity-hot" : ""}`} href={`/launch/${launch.id}?chain=${chainSlug(launch.chainId)}`} key={`${launch.chainId}-${launch.id}-${launch.token}`}>
+            <Link className={`${featured ? "token-card featured" : "token-card"}${isHot ? " activity-hot" : ""}`} href={tokenPath(launch)} key={`${launch.chainId}-${launch.id}-${launch.token}`}>
               <div className="token-card-main">
                 <TokenAvatar launch={launch} hot={isHot || index === 0} />
                 <div className="token-card-copy">

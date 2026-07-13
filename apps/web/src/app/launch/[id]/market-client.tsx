@@ -40,6 +40,7 @@ import {
 import { isTrustedLaunch } from "@/lib/featured-launches";
 import type { DeployedLaunch, DeployedTrade } from "@/lib/onchain-launches";
 import { chainSlug } from "@/lib/chain-slug";
+import { tokenPath } from "@/lib/token-url";
 import { siteUrl } from "@/lib/site-url";
 import { optimizedTokenImageUrl } from "@/lib/token-metadata";
 import { blueFunV4PoolKey, buildV4EthToTokenSwap, buildV4TokenToEthSwap } from "@/lib/uniswap-v4-swap";
@@ -532,7 +533,7 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
               </div>
             </div>
             <div className="market-actions">
-              <a className="market-icon-action x-share-button" aria-label="Share on X" title="Share on X" href={xShareUrl(launch, id)} target="_blank" rel="noreferrer">
+              <a className="market-icon-action x-share-button" aria-label="Share on X" title="Share on X" href={xShareUrl(launch)} target="_blank" rel="noreferrer">
                 <span className="x-share-icon">X</span>
               </a>
               <a className="market-icon-action" aria-label="Open token explorer" title={chain.name === "Base" ? "BaseScan" : "Explorer"} href={`${chain.blockExplorers.default.url}/token/${launch.token}`} target="_blank" rel="noreferrer">
@@ -964,9 +965,9 @@ function TradeStatus({ children, tone }: { children: React.ReactNode; tone: "inf
   return <div className={`trade-status ${tone}`}>{children}</div>;
 }
 
-function xShareUrl(launch: DeployedLaunch, id: string) {
+function xShareUrl(launch: DeployedLaunch) {
   const text = `Trade ${launch.name} ($${launch.symbol}) on BlueFun`;
-  const url = siteUrl(`/launch/${id}?chain=${chainSlug(launch.chainId)}`);
+  const url = siteUrl(tokenPath(launch));
   return `https://x.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`;
 }
 

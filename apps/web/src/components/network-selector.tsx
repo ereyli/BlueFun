@@ -7,7 +7,7 @@ import { Check, ChevronDown } from "lucide-react";
 import { baseChain } from "@/lib/base-chain";
 import { robinhoodChain } from "@/lib/robinhood-chain";
 import { NetworkIcon, networkMeta } from "@/components/network-icon";
-import { chainIdFromParam, chainSlug } from "@/lib/chain-slug";
+import { chainIdFromParam, chainSlug, chainSlugFromPath } from "@/lib/chain-slug";
 
 const networks = [baseChain.id, robinhoodChain.id] as const;
 
@@ -21,7 +21,7 @@ export function NetworkSelector() {
   const [open, setOpen] = useState(false);
   const [switchError, setSwitchError] = useState("");
   const rootRef = useRef<HTMLDivElement>(null);
-  const requestedChain = searchParams.get("chain");
+  const requestedChain = searchParams.get("chain") || chainSlugFromPath(pathname);
   const selectedChainId = requestedChain
     ? chainIdFromParam(requestedChain)
     : chainId === robinhoodChain.id
@@ -60,7 +60,7 @@ export function NetworkSelector() {
     }
     const params = new URLSearchParams(searchParams.toString());
     params.set("chain", chainSlug(nextChainId));
-    const destination = /^\/launch\/[^/]+$/.test(pathname) ? "/" : pathname;
+    const destination = /^\/launch\/[^/]+$/.test(pathname) || /^\/token\/(base|robinhood)\//.test(pathname) ? "/" : pathname;
     router.push(`${destination}?${params.toString()}`);
     setOpen(false);
   }

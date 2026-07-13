@@ -1,13 +1,12 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
-import { MarketClient } from "./market-client";
-import { getDeployedLaunch, getLaunchTrades } from "@/lib/onchain-launches";
+import { notFound, permanentRedirect } from "next/navigation";
+import { getDeployedLaunch } from "@/lib/onchain-launches";
 import { siteUrl } from "@/lib/site-url";
 import { ipfsToGatewayUrl } from "@/lib/token-metadata";
 import { getRobinhoodLaunch } from "@/lib/robinhood-launches";
-import { getDbTrades } from "@/lib/db-launches";
 import { unstable_cache } from "next/cache";
-import { chainIdFromParam, chainSlug } from "@/lib/chain-slug";
+import { chainIdFromParam } from "@/lib/chain-slug";
+import { tokenPath } from "@/lib/token-url";
 
 export const revalidate = 15;
 
@@ -17,14 +16,6 @@ const getCachedLaunch = unstable_cache(
   async (id: string, chainId: number) => chainId === 4663 ? getRobinhoodLaunch(id) : getDeployedLaunch(id),
   ["market-launch-v1"],
   { revalidate: 15 }
-);
-
-const getCachedTrades = unstable_cache(
-  async (id: string, chainId: number) => chainId === 4663
-    ? getDbTrades(id, 4663).then((value) => value ?? [])
-    : getLaunchTrades(id),
-  ["market-trades-v1"],
-  { revalidate: 10 }
 );
 
 export async function generateMetadata({ params, searchParams }: LaunchParams): Promise<Metadata> {
@@ -40,7 +31,7 @@ export async function generateMetadata({ params, searchParams }: LaunchParams): 
 
   const title = `${launch.name} ($${launch.symbol}) on BlueFun`;
   const description = launch.description || `Trade $${launch.symbol} on the BlueFun bonding curve.`;
-  const url = siteUrl(`/launch/${id}?chain=${chainSlug(chainId)}`);
+  const url = siteUrl(tokenPath(launch));
   const image = ipfsToGatewayUrl(launch.imageURI) || siteUrl("/brand/bluelogo.webp");
 
   return {
@@ -69,10 +60,7 @@ export async function generateMetadata({ params, searchParams }: LaunchParams): 
 export default async function LaunchMarketPage({ params, searchParams }: LaunchParams) {
   const { id } = await params;
   const chainId = chainIdFromParam((await searchParams).chain);
-  const [launch, trades] = await Promise.all([
-    getCachedLaunch(id, chainId),
-    getCachedTrades(id, chainId)
-  ]);
+  const launch = await getCachedLaunch(id, chainId);
   if (!launch) notFound();
-  return <MarketClient id={id} launch={launch} trades={trades} />;
+  permanentRedirect(tokenPath(launch));
 }

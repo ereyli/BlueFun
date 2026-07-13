@@ -206,6 +206,59 @@ export async function getDbLaunch(launchId: string, chainId = 8453): Promise<Dep
   }
 }
 
+export async function getDbLaunchByTokenSuffix(tokenSuffix: string, chainId = 8453): Promise<DeployedLaunch | undefined> {
+  if (process.env.POSTGRES_INDEXER_ENABLED !== "true" || !/^[a-fA-F0-9]{8}$/.test(tokenSuffix)) return undefined;
+  const context = dbContext(chainId);
+  const suffix = tokenSuffix.toLowerCase();
+
+  try {
+    let rows: Array<Record<string, unknown>>;
+    if (hasSupabaseConfig()) {
+      let response: { data: Array<Record<string, unknown>> | null; error: { message?: string; details?: string } | null } = await getSupabase()
+        .from("launches")
+        .select(launchColumns)
+        .in("scope", context.scopes)
+        .gte("created_block", context.deploymentBlock)
+        .ilike("token", `%${suffix}`)
+        .limit(2);
+      if (response.error && isMissingSocialColumnError(response.error)) {
+        response = await getSupabase()
+          .from("launches")
+          .select(legacyLaunchColumns)
+          .in("scope", context.scopes)
+          .gte("created_block", context.deploymentBlock)
+          .ilike("token", `%${suffix}`)
+          .limit(2);
+      }
+      if (response.error) throw response.error;
+      rows = (response.data ?? []) as Array<Record<string, unknown>>;
+    } else {
+      if (!process.env.DATABASE_URL) return undefined;
+      pool ??= new pg.Pool({ connectionString: process.env.DATABASE_URL, connectionTimeoutMillis: 750, idleTimeoutMillis: 5_000, max: 5 });
+      const result = await withTimeout(pool.query(
+        `select scope, id, token, creator, name, symbol, contract_uri, image_url, description,
+                website_url, twitter_url, telegram_url, discord_url, status, raised_eth,
+                graduation_target_eth, progress, volume_eth, token_created_at, created_block, position_id
+         from launches
+         where scope = any($1::text[])
+           and created_block >= $2
+           and right(lower(token), 8) = $3
+         limit 2`,
+        [context.scopes, context.deploymentBlock, suffix]
+      ), 1_500);
+      rows = result.rows;
+    }
+
+    const exactMatches = rows.filter((row) => String(row.token || "").toLowerCase().endsWith(suffix));
+    if (exactMatches.length !== 1) return undefined;
+    const launch = (await mapRows(exactMatches, context.chainId))[0];
+    return launch ? await attachGraduationPosition(launch, context.scopes) : undefined;
+  } catch (error) {
+    console.error("Failed to read launch by token suffix", error);
+    return undefined;
+  }
+}
+
 export async function getDbLaunchMetrics(chainId = 8453): Promise<DbLaunchMetrics | undefined> {
   if (process.env.POSTGRES_INDEXER_ENABLED !== "true") return undefined;
   const context = dbContext(chainId);
