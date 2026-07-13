@@ -16,6 +16,12 @@ export type DbLaunchMetrics = {
   totalGraduated: number;
 };
 
+export type LaunchBuyActivity = {
+  launchId: string;
+  blockNumber: string;
+  createdAt: string;
+};
+
 export type LaunchPageFilter = "All" | "Live" | "Ready" | "Graduated" | "Progress";
 export type DbLaunchPage = { launches: DeployedLaunch[]; total: number };
 
@@ -313,6 +319,54 @@ export async function getDbTrades(launchId: string, chainId = 8453): Promise<Dep
     return mapTrades(result.rows);
   } catch (error) {
     console.error("Failed to read trades from database", error);
+    return undefined;
+  }
+}
+
+export async function getDbRecentBuyActivity(chainId = 8453, limit = 80): Promise<LaunchBuyActivity[] | undefined> {
+  if (process.env.POSTGRES_INDEXER_ENABLED !== "true") return undefined;
+  const context = dbContext(chainId);
+  const safeLimit = Math.min(Math.max(Math.floor(limit), 1), 120);
+
+  try {
+    let rows: Array<Record<string, unknown>>;
+    if (hasSupabaseConfig()) {
+      const response = await getSupabase()
+        .from("trades")
+        .select("launch_id, block_number, created_at")
+        .in("scope", context.scopes)
+        .eq("side", "buy")
+        .gte("block_number", context.deploymentBlock)
+        .order("block_number", { ascending: false })
+        .order("id", { ascending: false })
+        .limit(safeLimit);
+      if (response.error) throw response.error;
+      rows = (response.data ?? []) as Array<Record<string, unknown>>;
+    } else {
+      if (!process.env.DATABASE_URL) return undefined;
+      pool ??= new pg.Pool({ connectionString: process.env.DATABASE_URL, connectionTimeoutMillis: 500, idleTimeoutMillis: 1_000, max: 2 });
+      const result = await withTimeout(pool.query(
+        `select launch_id, block_number, created_at
+         from trades
+         where scope = any($1::text[])
+           and side = 'buy'
+           and block_number >= $2
+         order by block_number desc, id desc
+         limit $3`,
+        [context.scopes, context.deploymentBlock, safeLimit]
+      ), 300);
+      rows = result.rows;
+    }
+
+    const seen = new Set<string>();
+    return rows.flatMap((row) => {
+      const launchId = String(row.launch_id || "");
+      if (!launchId || seen.has(launchId)) return [];
+      seen.add(launchId);
+      return [{ launchId, blockNumber: String(row.block_number || "0"), createdAt: String(row.created_at || "") }];
+    });
+  } catch (error) {
+    console.error("Failed to read recent buy activity", error);
     return undefined;
   }
 }

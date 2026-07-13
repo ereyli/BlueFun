@@ -11,7 +11,7 @@ export async function GET(request: Request) {
   const page = Number(params.get("page") || "1");
   const query = (params.get("q") || "").slice(0, 80);
   const requestedFilter = params.get("filter") || "All";
-  const normalizedFilter = requestedFilter === "New" || requestedFilter === "Safe" ? "All" : requestedFilter;
+  const normalizedFilter = ["New", "Newest", "Activity", "Safe"].includes(requestedFilter) ? "All" : requestedFilter;
   const filters: LaunchPageFilter[] = ["All", "Live", "Ready", "Graduated", "Progress"];
   if ((chainId !== 8453 && chainId !== 4663) || !Number.isInteger(page) || page < 1 || page > 100_000 || !filters.includes(normalizedFilter as LaunchPageFilter)) {
     return NextResponse.json({ launches: [], total: 0, page: 1, totalPages: 0 }, { status: 400 });

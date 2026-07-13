@@ -120,9 +120,56 @@ summary:focus-visible {
 .site-footer { color: #98a2b3; }
 
 /* Home discovery */
+.launchpad-intro.premium-hero {
+  grid-template-columns: minmax(360px, .78fr) minmax(0, 1.22fr);
+  min-height: 184px;
+}
 .premium-hero { box-shadow: 0 24px 55px rgba(15, 23, 42, .14); }
+.premium-hero .launchpad-intro-copy { padding: 24px 28px; }
+.premium-hero h1 { font-size: clamp(31px, 3vw, 43px); margin: 12px 0 9px; }
+.premium-hero .launchpad-intro-copy > p { font-size: 12px; line-height: 1.5; max-width: 540px; }
+.premium-hero .launchpad-intro-actions { margin-top: 15px; }
 .premium-hero .hero-action { background: #fff; border-color: #fff; box-shadow: none; color: #14224b; }
 .premium-hero .hero-action:hover { background: #f4f7ff; border-color: #f4f7ff; }
+.premium-hero .overview-metrics.network-overview {
+  align-content: center;
+  display: grid;
+  gap: 7px;
+  grid-template-columns: 1fr;
+  padding: 20px 24px 20px 8px;
+}
+.network-overview-head {
+  align-items: center;
+  color: #d8e1f1;
+  display: flex;
+  font-size: 10px;
+  font-weight: 850;
+  justify-content: space-between;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+.network-overview-head small { color: #7f8ca3; font-size: 8px; letter-spacing: .02em; }
+.network-metric-row {
+  align-items: center;
+  background: rgba(255,255,255,.055);
+  border: 1px solid rgba(255,255,255,.07);
+  border-radius: 12px;
+  color: #fff;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: minmax(145px, 1.25fr) repeat(3, minmax(74px, .75fr));
+  min-height: 58px;
+  padding: 8px 11px;
+  transition: background 160ms var(--ease-out), border-color 160ms var(--ease-out);
+}
+.network-metric-row:hover { background: rgba(255,255,255,.085); border-color: rgba(159,182,255,.24); }
+.network-metric-row.active { background: rgba(36,87,245,.13); border-color: rgba(159,182,255,.2); }
+.network-metric-name { align-items: center; display: flex; gap: 8px; min-width: 0; }
+.network-metric-name strong { font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.network-metric-name i { background: rgba(110,231,183,.12); border-radius: 999px; color: #6ee7b7; font-size: 7px; font-style: normal; font-weight: 850; padding: 3px 5px; text-transform: uppercase; }
+.network-metric-value { display: grid; gap: 2px; min-width: 0; }
+.network-metric-value span { align-items: center; color: #8f9db3; display: flex; font-size: 7px; font-weight: 750; gap: 4px; text-transform: uppercase; }
+.network-metric-value strong { color: #fff; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .discovery-panel,
 .trending-section { box-shadow: var(--shadow-sm); }
 .trending-grid { scrollbar-width: thin; scrollbar-color: #c7d2e7 transparent; }
@@ -130,6 +177,29 @@ summary:focus-visible {
 .trending-card:hover { border-color: #b9c9f5; box-shadow: 0 12px 24px rgba(36, 87, 245, .09); transform: translateY(-2px); }
 .token-card { box-shadow: var(--shadow-xs); }
 .token-card:hover { border-color: #b9c9f5; box-shadow: var(--shadow-sm); transform: translateY(-2px); }
+.token-card.activity-hot,
+.token-card.featured.activity-hot {
+  animation: activity-card-pulse 850ms var(--ease-out) 3;
+  background: linear-gradient(135deg, #f0fff8, #f1f5ff);
+  border-color: #4fd59d;
+  box-shadow: 0 14px 32px rgba(23, 168, 107, .15);
+}
+.token-card.activity-hot::before,
+.token-card.featured.activity-hot::before {
+  background: linear-gradient(90deg, var(--green), var(--blue));
+  border-radius: 18px 18px 0 0;
+  content: "";
+  display: block;
+  height: 3px;
+  inset: -1px -1px auto;
+  position: absolute;
+}
+.token-card.activity-hot .token-status { animation: activity-label-pulse 850ms ease 3; background: var(--green); color: #fff; }
+@keyframes activity-card-pulse {
+  0%, 100% { transform: translateY(0) scale(1); }
+  45% { transform: translateY(-2px) scale(1.012); }
+}
+@keyframes activity-label-pulse { 50% { filter: brightness(1.14); } }
 
 /* Create: compact progressive flow */
 .launch-page { align-items: start; }
@@ -228,8 +298,11 @@ summary:focus-visible {
   background: #f8faff;
   border-color: #cfd9f3;
   border-radius: 14px;
+  display: grid;
   min-height: 112px;
+  place-items: center;
 }
+.upload-box > span { margin: auto; text-align: center; width: 100%; }
 .upload-box:hover { background: #f2f6ff; border-color: var(--blue); }
 
 .project-details-card { background: #f8f9fc; border-color: var(--line); border-radius: 14px; }
@@ -307,10 +380,17 @@ summary:focus-visible {
   box-shadow: none;
 }
 
+@media (max-width: 1180px) {
+  .launchpad-intro.premium-hero { grid-template-columns: 1fr; }
+  .premium-hero .overview-metrics.network-overview { padding: 0 28px 22px; }
+}
+
 @media (max-width: 880px) {
   .launch-intro { position: static; }
   .launch-stepper button { gap: 5px; padding-inline: 5px; }
   .market-data-note { margin-inline: 0; }
+  .launchpad-intro.premium-hero { grid-template-columns: 1fr; }
+  .premium-hero .overview-metrics.network-overview { padding: 0 22px 20px; }
 }
 
 @media (max-width: 680px) {
@@ -319,6 +399,18 @@ summary:focus-visible {
   .topbar { min-height: 68px; padding-inline: 12px; }
   .topbar-create { min-width: 62px; padding-inline: 12px; }
   .premium-hero { box-shadow: 0 16px 36px rgba(15, 23, 42, .15); }
+  .premium-hero .launchpad-intro-copy { padding: 19px 18px 14px; }
+  .premium-hero h1 { font-size: clamp(29px, 9vw, 38px); margin-block: 10px 8px; }
+  .premium-hero .launchpad-intro-copy > p { display: none; }
+  .premium-hero .launchpad-intro-actions { margin-top: 13px; }
+  .premium-hero .overview-metrics.network-overview { gap: 6px; padding: 0 14px 15px; }
+  .network-metric-row { gap: 5px; grid-template-columns: minmax(105px, 1.2fr) repeat(3, minmax(48px, .7fr)); min-height: 53px; padding: 7px 8px; }
+  .network-metric-name { gap: 5px; }
+  .network-metric-name strong { font-size: 10px; }
+  .network-metric-name i { display: none; }
+  .network-metric-value span { font-size: 6px; }
+  .network-metric-value span svg { display: none; }
+  .network-metric-value strong { font-size: 11px; }
   .trending-section { position: relative; }
   .trending-section::after {
     background: linear-gradient(90deg, transparent, rgba(255,255,255,.92));

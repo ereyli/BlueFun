@@ -2,17 +2,18 @@
 
 import { useEffect, useMemo, useRef, useState, useTransition, type ReactNode } from "react";
 import Link from "next/link";
-import { Activity, BarChart3, Coins, Rocket, Search, ShieldCheck, Sparkles, Trophy, Users } from "lucide-react";
+import { Activity, BarChart3, Clock3, Coins, Radio, Rocket, Search, ShieldCheck, Sparkles, Trophy } from "lucide-react";
 import { isFeaturedLaunch, isTrustedLaunch } from "@/lib/featured-launches";
 import { compactUsd, parseDisplayAmount } from "@/lib/market-math";
-import type { DbLaunchMetrics } from "@/lib/db-launches";
+import type { DbLaunchMetrics, LaunchBuyActivity } from "@/lib/db-launches";
 import type { DeployedLaunch } from "@/lib/onchain-launches";
 import { optimizedTokenImageUrl } from "@/lib/token-metadata";
 import { NetworkIcon, networkMeta } from "@/components/network-icon";
 
-type Filter = "All" | "Live" | "Graduated" | "Progress";
+type Filter = "Activity" | "Newest" | "Live" | "Graduated" | "Progress";
+type NetworkMetrics = Partial<Record<8453 | 4663, DbLaunchMetrics>>;
 
-export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metrics, chainId = 8453 }: { launches: DeployedLaunch[]; totalLaunches: number; metrics?: DbLaunchMetrics; chainId?: number }) {
+export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metrics, networkMetrics, chainId = 8453 }: { launches: DeployedLaunch[]; totalLaunches: number; metrics?: DbLaunchMetrics; networkMetrics?: NetworkMetrics; chainId?: number }) {
   const [launches, setLaunches] = useState(initialLaunches);
   const [total, setTotal] = useState(totalLaunches);
   const [page, setPage] = useState(1);
@@ -20,10 +21,14 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metri
   const [loadError, setLoadError] = useState(false);
   const [refreshNonce, setRefreshNonce] = useState(0);
   const [query, setQuery] = useState("");
-  const [filter, setFilter] = useState<Filter>("All");
+  const [filter, setFilter] = useState<Filter>("Activity");
   const [ethUsd, setEthUsd] = useState<number | null>(null);
+  const [activityByLaunch, setActivityByLaunch] = useState<Map<string, LaunchBuyActivity>>(new Map());
+  const [hotLaunchId, setHotLaunchId] = useState<string>();
   const [isPending, startTransition] = useTransition();
   const tokensRef = useRef<HTMLDivElement>(null);
+  const activityBlocksRef = useRef<Map<string, bigint>>(new Map());
+  const activityReadyRef = useRef(false);
   const activeNetwork = networkMeta(chainId);
 
   useEffect(() => {
@@ -31,7 +36,11 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metri
     setTotal(totalLaunches);
     setPage(1);
     setQuery("");
-    setFilter("All");
+    setFilter("Activity");
+    setActivityByLaunch(new Map());
+    setHotLaunchId(undefined);
+    activityBlocksRef.current = new Map();
+    activityReadyRef.current = false;
   }, [chainId, initialLaunches, totalLaunches]);
 
   useEffect(() => {
@@ -40,7 +49,8 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metri
       setIsPageLoading(true);
       setLoadError(false);
       try {
-        const params = new URLSearchParams({ chain: String(chainId), page: String(page), filter });
+        const serverFilter = filter === "Activity" || filter === "Newest" ? "All" : filter;
+        const params = new URLSearchParams({ chain: String(chainId), page: String(page), filter: serverFilter });
         if (query.trim()) params.set("q", query.trim());
         const response = await fetch(`/api/launches?${params.toString()}`, { signal: controller.signal });
         const payload = await response.json() as { launches?: DeployedLaunch[]; total?: number; totalPages?: number };
@@ -59,6 +69,55 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metri
       window.clearTimeout(timeout);
     };
   }, [chainId, filter, page, query, refreshNonce]);
+
+  useEffect(() => {
+    let active = true;
+    let activityLoading = false;
+    let highlightTimer: number | undefined;
+    const controller = new AbortController();
+
+    async function loadActivity() {
+      if (activityLoading) return;
+      activityLoading = true;
+      try {
+        const response = await fetch(`/api/launch-activity?chain=${chainId}`, { signal: controller.signal });
+        const payload = await response.json() as { activity?: LaunchBuyActivity[] };
+        if (!response.ok || !active) return;
+        const items = payload.activity ?? [];
+        const nextBlocks = new Map(items.map((item) => [item.launchId, safeBlockNumber(item.blockNumber)]));
+
+        if (activityReadyRef.current) {
+          const fresh = items
+            .filter((item) => safeBlockNumber(item.blockNumber) > (activityBlocksRef.current.get(item.launchId) ?? 0n))
+            .sort((a, b) => compareBlocks(b.blockNumber, a.blockNumber))[0];
+          if (fresh) {
+            setHotLaunchId(fresh.launchId);
+            window.clearTimeout(highlightTimer);
+            highlightTimer = window.setTimeout(() => setHotLaunchId(undefined), 4_000);
+          }
+        }
+
+        activityBlocksRef.current = nextBlocks;
+        activityReadyRef.current = true;
+        setActivityByLaunch(new Map(items.map((item) => [item.launchId, item])));
+      } catch (error) {
+        if (!(error instanceof DOMException && error.name === "AbortError")) {
+          // The launch feed remains usable if the lightweight activity pulse is unavailable.
+        }
+      } finally {
+        activityLoading = false;
+      }
+    }
+
+    loadActivity();
+    const interval = window.setInterval(loadActivity, 4_000);
+    return () => {
+      active = false;
+      controller.abort();
+      window.clearInterval(interval);
+      window.clearTimeout(highlightTimer);
+    };
+  }, [chainId]);
 
   useEffect(() => {
     const refreshWhenVisible = () => {
@@ -93,16 +152,17 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metri
     };
   }, []);
 
-  const stats = useMemo(() => {
-    const totalVolumeEth = metrics?.totalVolumeEth ?? launches.reduce((sum, launch) => sum + parseDisplayAmount(launch.volume), 0);
-    const creatorCount = new Set(launches.map((launch) => launch.creator.toLowerCase())).size;
+  const networkStats = useMemo(() => ([8453, 4663] as const).map((networkChainId) => {
+    const values = networkMetrics?.[networkChainId] ?? (networkChainId === chainId ? metrics : undefined);
+    const activeFallback = networkChainId === chainId;
     return {
-      tokens: (metrics?.totalTokens ?? totalLaunches).toLocaleString("en-US"),
-      volume: formatUsdFromEthNumber(totalVolumeEth, ethUsd),
-      creators: (metrics?.totalCreators ?? creatorCount).toLocaleString("en-US"),
-      graduated: (metrics?.totalGraduated ?? initialLaunches.filter((launch) => launch.status === "Graduated").length).toLocaleString("en-US")
+      chainId: networkChainId,
+      name: networkMeta(networkChainId).name,
+      tokens: values?.totalTokens ?? (activeFallback ? totalLaunches : 0),
+      graduated: values?.totalGraduated ?? (activeFallback ? initialLaunches.filter((launch) => launch.status === "Graduated").length : 0),
+      volume: formatUsdFromEthNumber(values?.totalVolumeEth ?? (activeFallback ? launches.reduce((sum, launch) => sum + parseDisplayAmount(launch.volume), 0) : 0), ethUsd)
     };
-  }, [ethUsd, initialLaunches, launches, metrics, totalLaunches]);
+  }), [chainId, ethUsd, initialLaunches, launches, metrics, networkMetrics, totalLaunches]);
 
   const trendingLaunches = useMemo(() => {
     return [...initialLaunches]
@@ -115,6 +175,15 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metri
   }, [initialLaunches]);
   const totalPages = Math.ceil(total / 21);
   const pagination = paginationItems(page, totalPages);
+  const displayedLaunches = useMemo(() => {
+    const sorted = [...launches];
+    if (filter === "Newest") return sorted.sort((a, b) => compareLaunchIds(b.id, a.id));
+    if (filter === "Progress") return sorted;
+    return sorted.sort((a, b) => {
+      const activityDelta = compareBlocks(activityByLaunch.get(b.id)?.blockNumber, activityByLaunch.get(a.id)?.blockNumber);
+      return activityDelta || compareLaunchIds(b.id, a.id);
+    });
+  }, [activityByLaunch, filter, launches]);
 
   return (
     <section className="explorer-shell">
@@ -138,11 +207,16 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metri
             </button>
           </div>
         </div>
-        <div className="overview-metrics" aria-label="Launchpad metrics">
-          <MetricCard icon={<Coins size={17} />} label="Tokens" value={stats.tokens} detail="Launched" />
-          <MetricCard icon={<BarChart3 size={17} />} label="Volume" value={stats.volume} detail="Buy + sell" />
-          <MetricCard icon={<Users size={17} />} label="Creators" value={stats.creators} detail="Unique" />
-          <MetricCard icon={<Trophy size={17} />} label="Graduated" value={stats.graduated} detail="LP locked" />
+        <div className="overview-metrics network-overview" aria-label="Network launch metrics">
+          <div className="network-overview-head"><span>Network overview</span><small>Live indexed data</small></div>
+          {networkStats.map((network) => (
+            <Link className={network.chainId === chainId ? "network-metric-row active" : "network-metric-row"} href={`/?chain=${network.chainId}`} key={network.chainId}>
+              <div className="network-metric-name"><NetworkIcon chainId={network.chainId} size={22} /><strong>{network.name}</strong>{network.chainId === chainId ? <i>Viewing</i> : null}</div>
+              <MetricCompact icon={<Coins size={14} />} label="Tokens" value={network.tokens.toLocaleString("en-US")} />
+              <MetricCompact icon={<Trophy size={14} />} label="LP locked" value={network.graduated.toLocaleString("en-US")} />
+              <MetricCompact icon={<BarChart3 size={14} />} label="Volume" value={network.volume} />
+            </Link>
+          ))}
         </div>
       </section>
 
@@ -203,7 +277,8 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metri
 
         <div className="explore-controls">
           <div className="feed-tabs" role="tablist" aria-label="Launch filters">
-            <FilterButton active={filter === "All"} onClick={() => { setFilter("All"); setPage(1); }}><Coins size={14} />All launches</FilterButton>
+            <FilterButton active={filter === "Activity"} onClick={() => { setFilter("Activity"); setPage(1); }}><Radio size={14} />Active</FilterButton>
+            <FilterButton active={filter === "Newest"} onClick={() => { setFilter("Newest"); setPage(1); }}><Clock3 size={14} />Newest</FilterButton>
             <FilterButton active={filter === "Live"} onClick={() => { setFilter("Live"); setPage(1); }}><Sparkles size={14} />Bonding</FilterButton>
             <FilterButton active={filter === "Progress"} onClick={() => { setFilter("Progress"); setPage(1); }}><Trophy size={14} />Progress</FilterButton>
             <FilterButton active={filter === "Graduated"} onClick={() => { setFilter("Graduated"); setPage(1); }}><Rocket size={14} />Graduated</FilterButton>
@@ -227,20 +302,21 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metri
         </div>
       ) : (
         <div className={isPageLoading ? "token-grid page-loading" : "token-grid"} aria-busy={isPageLoading}>
-          {launches.map((launch, index) => {
+          {displayedLaunches.map((launch, index) => {
             const featured = isFeaturedLaunch(launch);
             const trusted = isTrustedLaunch(launch);
+            const isHot = hotLaunchId === launch.id;
             return (
-            <Link className={featured ? "token-card featured" : "token-card"} href={`/launch/${launch.id}?chain=${launch.chainId}`} key={`${launch.chainId}-${launch.id}-${launch.token}`}>
+            <Link className={`${featured ? "token-card featured" : "token-card"}${isHot ? " activity-hot" : ""}`} href={`/launch/${launch.id}?chain=${launch.chainId}`} key={`${launch.chainId}-${launch.id}-${launch.token}`}>
               <div className="token-card-main">
-                <TokenAvatar launch={launch} hot={index === 0} />
+                <TokenAvatar launch={launch} hot={isHot || index === 0} />
                 <div className="token-card-copy">
                   <div className="token-card-head">
                     <div>
                       <div className="token-title">{launch.name}{trusted ? <span>Trusted</span> : null}</div>
                       <div className="token-symbol">${launch.symbol}</div>
                     </div>
-                    <span className={launch.status === "Live" ? "token-status live" : "token-status"}>{launch.status === "Live" ? "Bonding" : launch.status}</span>
+                    <span className={launch.status === "Live" ? "token-status live" : "token-status"}>{isHot ? "Buy now" : launch.status === "Live" ? "Bonding" : launch.status}</span>
                   </div>
                   <p className="token-description">
                     {launch.description || (launch.status === "Graduated" ? "DEX ready market" : launch.chainId === 4663 ? "ERC-20 curve launch" : "B20 curve launch")}
@@ -296,14 +372,31 @@ function FilterButton({ active, children, onClick }: { active: boolean; children
   );
 }
 
-function MetricCard({ detail, icon, label, value }: { detail: string; icon: ReactNode; label: string; value: string }) {
+function MetricCompact({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
   return (
-    <div className="explorer-metric-card">
-      <div className="metric-label"><i>{icon}</i><span>{label}</span></div>
+    <div className="network-metric-value">
+      <span>{icon}{label}</span>
       <strong>{value}</strong>
-      <small>{detail}</small>
     </div>
   );
+}
+
+function safeBlockNumber(value?: string) {
+  try {
+    return BigInt(value || "0");
+  } catch {
+    return 0n;
+  }
+}
+
+function compareBlocks(left?: string, right?: string) {
+  const a = safeBlockNumber(left);
+  const b = safeBlockNumber(right);
+  return a === b ? 0 : a > b ? 1 : -1;
+}
+
+function compareLaunchIds(left: string, right: string) {
+  return compareBlocks(left, right);
 }
 
 function paginationItems(current: number, total: number): Array<number | "…"> {
