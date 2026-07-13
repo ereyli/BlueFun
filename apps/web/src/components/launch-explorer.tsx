@@ -10,7 +10,7 @@ import type { DeployedLaunch } from "@/lib/onchain-launches";
 import { optimizedTokenImageUrl } from "@/lib/token-metadata";
 import { NetworkIcon, networkMeta } from "@/components/network-icon";
 
-type Filter = "Live" | "New" | "Ready" | "Graduated" | "Safe" | "Progress";
+type Filter = "Live" | "New" | "Graduated" | "Progress";
 
 export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metrics, chainId = 8453 }: { launches: DeployedLaunch[]; totalLaunches: number; metrics?: DbLaunchMetrics; chainId?: number }) {
   const [launches, setLaunches] = useState(initialLaunches);
@@ -111,21 +111,31 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metri
         if (featuredDelta !== 0) return featuredDelta;
         return b.progress - a.progress || parseDisplayAmount(b.marketCap) - parseDisplayAmount(a.marketCap);
       })
-      .slice(0, 8);
+      .slice(0, 4);
   }, [initialLaunches]);
   const totalPages = Math.ceil(total / 21);
   const pagination = paginationItems(page, totalPages);
 
   return (
     <section className="explorer-shell">
-      <section className="launchpad-intro launchpad-overview">
+      <section className="launchpad-intro launchpad-overview premium-hero">
         <div className="launchpad-intro-copy">
-          <div className="launchpad-eyebrow"><NetworkIcon chainId={chainId} size={22} /><span>{activeNetwork.name} launchpad</span><i>Live</i></div>
-          <h1>Launch bold ideas. <span>Trade them early.</span></h1>
-          <p>Fair curves, transparent rules and permanently locked liquidity—built for communities, not insiders.</p>
+          <div className="launchpad-eyebrow"><NetworkIcon chainId={chainId} size={20} /><span>{activeNetwork.name}</span><i>Markets live</i></div>
+          <h1>Discover fair launches.<span>Trade with clarity.</span></h1>
+          <p>Transparent bonding curves, fixed rules and permanently locked liquidity in one focused market.</p>
           <div className="launchpad-intro-actions">
             <Link className="button primary hero-action" href={`/launch?chain=${chainId}`}><Rocket size={17} />Create a token</Link>
-            <span className="intro-trust"><ShieldCheck size={16} />Auditable onchain</span>
+            <button
+              className="button hero-secondary"
+              onClick={() => {
+                setFilter("Live");
+                setPage(1);
+                window.requestAnimationFrame(() => tokensRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+              }}
+              type="button"
+            >
+              <ShieldCheck size={16} />Explore bonding markets
+            </button>
           </div>
         </div>
         <div className="overview-metrics" aria-label="Launchpad metrics">
@@ -138,8 +148,10 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metri
 
       <div className="trending-section">
         <div className="section-row">
-          <div className="section-title"><Activity size={18} />Trending</div>
-          <Link className="button primary compact" href={`/launch?chain=${chainId}`}><Rocket size={15} />Launch</Link>
+          <div>
+            <div className="section-title"><Activity size={17} />Market spotlight</div>
+            <p className="section-subtitle">Notable launches across {activeNetwork.name}</p>
+          </div>
         </div>
         {trendingLaunches.length === 0 ? (
           <div className="empty compact-empty"><Sparkles size={18} /><span>Fresh launches will shine here.</span></div>
@@ -166,32 +178,38 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metri
         )}
       </div>
 
-      <div className="explore-toolbar" ref={tokensRef}>
-        <div className="searchbar">
-          <Search size={18} color="var(--blue)" />
-          <input
-            onChange={(event) => { setQuery(event.target.value); setPage(1); }}
-            placeholder="Search coins, tickers, creators or addresses..."
-            value={query}
-          />
+      <section className="discovery-panel" ref={tokensRef}>
+        <div className="discovery-heading">
+          <div>
+            <span>Launches</span>
+            <h2>Explore markets</h2>
+          </div>
+          <div className={isPending || isPageLoading ? "live-sync syncing" : "live-sync"}>
+            <span className="dot green" />
+            {isPending || isPageLoading ? "Updating" : "Live data"}
+          </div>
         </div>
-        <div className={isPending || isPageLoading ? "live-sync syncing" : "live-sync"}>
-          <span className="dot green" />
-          {isPending || isPageLoading ? "Syncing" : "Live"}
+        <div className="explore-toolbar">
+          <div className="searchbar">
+            <Search size={18} />
+            <input
+              onChange={(event) => { setQuery(event.target.value); setPage(1); }}
+              placeholder="Search token, ticker or address"
+              value={query}
+            />
+          </div>
+          <span className="explore-result-count">{total} {total === 1 ? "launch" : "launches"}</span>
         </div>
-      </div>
 
-      <div className="explore-controls">
-        <div className="feed-tabs" role="tablist" aria-label="Launch filters">
-          <FilterButton active={filter === "Live"} onClick={() => { setFilter("Live"); setPage(1); }}><Sparkles size={14} />Live</FilterButton>
-          <FilterButton active={filter === "New"} onClick={() => { setFilter("New"); setPage(1); }}><Clock size={14} />Newest</FilterButton>
-          <FilterButton active={filter === "Ready"} onClick={() => { setFilter("Ready"); setPage(1); }}>Ready</FilterButton>
-          <FilterButton active={filter === "Graduated"} onClick={() => { setFilter("Graduated"); setPage(1); }}><Rocket size={14} />Graduated</FilterButton>
-          <FilterButton active={filter === "Safe"} onClick={() => { setFilter("Safe"); setPage(1); }}><ShieldCheck size={14} />Safe</FilterButton>
-          <FilterButton active={filter === "Progress"} onClick={() => { setFilter("Progress"); setPage(1); }}><Trophy size={14} />Progress</FilterButton>
+        <div className="explore-controls">
+          <div className="feed-tabs" role="tablist" aria-label="Launch filters">
+            <FilterButton active={filter === "New"} onClick={() => { setFilter("New"); setPage(1); }}><Clock size={14} />Newest</FilterButton>
+            <FilterButton active={filter === "Live"} onClick={() => { setFilter("Live"); setPage(1); }}><Sparkles size={14} />Bonding</FilterButton>
+            <FilterButton active={filter === "Progress"} onClick={() => { setFilter("Progress"); setPage(1); }}><Trophy size={14} />Progress</FilterButton>
+            <FilterButton active={filter === "Graduated"} onClick={() => { setFilter("Graduated"); setPage(1); }}><Rocket size={14} />Graduated</FilterButton>
+          </div>
         </div>
-        <span className="explore-result-count">{total} {total === 1 ? "launch" : "launches"}</span>
-      </div>
+      </section>
 
       {loadError ? (
         <div className="explore-data-warning" role="status">
@@ -222,23 +240,19 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metri
                       <div className="token-title">{launch.name}{trusted ? <span>Trusted</span> : null}</div>
                       <div className="token-symbol">${launch.symbol}</div>
                     </div>
-                    <span className={launch.status === "Live" ? "token-status live" : "token-status"}>{launch.status}</span>
+                    <span className={launch.status === "Live" ? "token-status live" : "token-status"}>{launch.status === "Live" ? "Bonding" : launch.status}</span>
                   </div>
                   <p className="token-description">
                     {launch.description || (launch.status === "Graduated" ? "DEX ready market" : launch.chainId === 4663 ? "ERC-20 curve launch" : "B20 curve launch")}
                   </p>
                 </div>
               </div>
-              <div className="token-progress-row">
-                <span>Graduation Progress</span>
-                <b>{launch.progress}%</b>
-              </div>
-              <div className="progress"><span style={{ width: `${launch.progress}%` }} /></div>
               <div className="token-stat-row">
                 <div><span>Raised</span><strong>{launch.raised}</strong></div>
-                <div><span>Market cap</span><strong>{formatUsdFromEthText(launch.marketCap, ethUsd)}</strong></div>
+                <div><span>Progress</span><strong>{launch.progress}%</strong></div>
                 <div><span>Age</span><strong>{launch.age}</strong></div>
               </div>
+              <div className="progress token-card-progress" aria-label={`Graduation progress ${launch.progress}%`}><span style={{ width: `${launch.progress}%` }} /></div>
               <div className="token-foot">
                 <span>By {launch.creator.slice(0, 6)}...{launch.creator.slice(-4)}</span>
                 <span className="token-chain"><NetworkIcon chainId={launch.chainId} size={16} />{launch.status === "Graduated" ? "DEX" : networkMeta(launch.chainId).name}</span>
@@ -267,11 +281,6 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metri
     setPage(safePage);
     window.requestAnimationFrame(() => tokensRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
   }
-}
-
-function formatUsdFromEthText(value: string, ethUsd: number | null) {
-  const ethValue = parseDisplayAmount(value);
-  return formatUsdFromEthNumber(ethValue, ethUsd);
 }
 
 function formatUsdFromEthNumber(ethValue: number, ethUsd: number | null) {
