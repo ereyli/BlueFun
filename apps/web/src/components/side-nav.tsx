@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { Home, Rocket } from "lucide-react";
+import { Home, Rocket, ShieldCheck } from "lucide-react";
 import { chainSlugFromPath, namedChainParam } from "@/lib/chain-slug";
 
 const items = [
   { href: "/", label: "Explore", icon: Home },
+  { href: "/transparency", label: "BLUE", icon: ShieldCheck },
   { href: "/launch", label: "Create", icon: Rocket }
 ];
 
