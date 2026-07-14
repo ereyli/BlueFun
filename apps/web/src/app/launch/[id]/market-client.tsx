@@ -56,6 +56,7 @@ type DexPairSnapshot = {
 };
 
 type MarketDataState = "idle" | "loading" | "ready" | "unavailable";
+type RealtimeStatus = "connecting" | "subscribed" | "unavailable";
 
 export function MarketClient({ id, launch, trades: initialTrades }: { id: string; launch?: DeployedLaunch; trades: DeployedTrade[] }) {
   const router = useRouter();
@@ -67,6 +68,7 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
   const [ethUsd, setEthUsd] = useState<number | null>(null);
   const [dexPair, setDexPair] = useState<DexPairSnapshot | null>(null);
   const [marketDataState, setMarketDataState] = useState<MarketDataState>("idle");
+  const [realtimeStatus, setRealtimeStatus] = useState<RealtimeStatus>("connecting");
   const [chainSwitchError, setChainSwitchError] = useState("");
   const { address, isConnected } = useAccount();
   const chainId = useChainId();
@@ -221,9 +223,21 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
       .find((trade) => trade.marketCapEth && parseDisplayAmount(trade.marketCapEth) > 0)
       ?.marketCapEth;
   }, [trades]);
-  const displayMarketCap = latestMarketCapEth ? `${latestMarketCapEth} ETH` : launch?.marketCap ?? "Live";
+  const launchMarketCapEth = launch && launch.marketCap.trim().toLowerCase() !== "live" && parseDisplayAmount(launch.marketCap) > 0
+    ? launch.marketCap
+    : undefined;
+  const launchPriceEth = launch && launch.price.trim().toLowerCase() !== "live" && parseDisplayAmount(launch.price) > 0
+    ? launch.price
+    : undefined;
+  const estimatedCurve = launch && !isGraduated ? estimateCurveSnapshot(launch.raised) : undefined;
+  const displayMarketCap = latestMarketCapEth
+    ? `${latestMarketCapEth} ETH`
+    : launchMarketCapEth ?? estimatedCurve?.marketCap ?? "Live";
   const latestPriceEth = latestMarketCapEth ? parseDisplayAmount(latestMarketCapEth) / TOTAL_SUPPLY : 0;
-  const displayPrice = latestPriceEth > 0 ? `${decimalStringFromNumber(latestPriceEth.toPrecision(18))} ETH` : launch?.price ?? "Live";
+  const displayPrice = latestPriceEth > 0
+    ? `${decimalStringFromNumber(latestPriceEth.toPrecision(18))} ETH`
+    : launchPriceEth ?? estimatedCurve?.price ?? "Live";
+  const isEstimatedCurveData = Boolean(!isGraduated && !latestMarketCapEth && !launchMarketCapEth);
   const displayMarketCapText = latestMarketCapEth
     ? formatUsdFromEthText(displayMarketCap, ethUsd)
     : isGraduated
@@ -259,13 +273,13 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
     const refreshWhenVisible = () => {
       if (document.visibilityState === "visible") router.refresh();
     };
-    const interval = window.setInterval(refreshWhenVisible, 60_000);
+    const interval = window.setInterval(refreshWhenVisible, realtimeStatus === "subscribed" ? 60_000 : 8_000);
     document.addEventListener("visibilitychange", refreshWhenVisible);
     return () => {
       window.clearInterval(interval);
       document.removeEventListener("visibilitychange", refreshWhenVisible);
     };
-  }, [router]);
+  }, [realtimeStatus, router]);
 
   useEffect(() => {
     setTrades((current) => mergeTrades(initialTrades, current));
@@ -275,7 +289,11 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
     const scope = indexerScopeForLaunch(activeChainId, id);
-    if (!supabaseUrl || !supabaseAnonKey || !scope) return;
+    if (!supabaseUrl || !supabaseAnonKey || !scope) {
+      setRealtimeStatus("unavailable");
+      return;
+    }
+    setRealtimeStatus("connecting");
 
     const supabase = createClient(supabaseUrl, supabaseAnonKey, {
       auth: { persistSession: false }
@@ -302,7 +320,11 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
           });
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") setRealtimeStatus("subscribed");
+        else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") setRealtimeStatus("unavailable");
+        else setRealtimeStatus("connecting");
+      });
 
     return () => {
       supabase.removeChannel(channel);
@@ -561,8 +583,8 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
             </section>
           ) : null}
           <div className="market-header-stats">
-            <div><span>Market cap</span><strong>{displayMarketCapText}</strong></div>
-            <div><span>Price</span><strong>{displayPriceText}</strong></div>
+            <div><span>{isEstimatedCurveData ? "Estimated MC" : "Market cap"}</span><strong>{displayMarketCapText}</strong></div>
+            <div><span>{isEstimatedCurveData ? "Estimated price" : "Price"}</span><strong>{displayPriceText}</strong></div>
             <div><span>Raised</span><strong>{launch.raised}</strong></div>
             <div><span>Bonded</span><strong>{launch.progress}%</strong></div>
           </div>
@@ -1562,6 +1584,18 @@ function decimalStringFromNumber(value: string) {
   if (point <= 0) return `0.${"0".repeat(Math.abs(point))}${digits}`.replace(/0+$/, "").replace(/\.$/, "") || "0";
   if (point >= digits.length) return `${digits}${"0".repeat(point - digits.length)}`;
   return `${digits.slice(0, point)}.${digits.slice(point)}`.replace(/0+$/, "").replace(/\.$/, "") || "0";
+}
+
+function estimateCurveSnapshot(raisedValue: string) {
+  const grossRaised = Math.max(0, parseDisplayAmount(raisedValue));
+  const initialVirtualEth = 1.25;
+  const virtualEth = initialVirtualEth + grossRaised * (1 - CURVE_FEE_RATE);
+  const marketCapEth = (virtualEth * virtualEth) / initialVirtualEth;
+  const priceEth = marketCapEth / TOTAL_SUPPLY;
+  return {
+    marketCap: `${decimalStringFromNumber(marketCapEth.toPrecision(18))} ETH`,
+    price: `${decimalStringFromNumber(priceEth.toPrecision(18))} ETH`
+  };
 }
 
 function TradeChart({ trades, status, symbol, ethUsd }: { trades: DeployedTrade[]; status: DeployedLaunch["status"]; symbol: string; ethUsd: number | null }) {

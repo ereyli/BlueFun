@@ -37,8 +37,8 @@ const deploymentContexts: DeploymentContext[] = deployments.map((deployment) => 
 const v4PoolFee = 3000;
 const v4TickSpacing = 60;
 const chunkSize = BigInt(process.env.LOG_CHUNK_SIZE || "1900");
-const pollMs = Number(process.env.POLL_MS || "30000");
-const confirmations = BigInt(process.env.CONFIRMATIONS || "3");
+const pollMs = Number(process.env.POLL_MS || (chainId === 8453 ? "5000" : "12000"));
+const confirmations = BigInt(process.env.CONFIRMATIONS || (chainId === 8453 ? "2" : "3"));
 const totalSupplyRaw = 1_000_000_000n * 10n ** 18n;
 const q192 = 1n << 192n;
 let isPolling = false;
