@@ -34,9 +34,11 @@ const MAINNET_DEPLOYMENT: ContractDeployment = {
   liquidityLocker: "0xe309983df86803f62e10d07d9522af005ec08ee4",
   deploymentBlock: 48451170n,
   firstLaunchId: 22n,
-  directLaunchFactory: process.env.NEXT_PUBLIC_BASE_DIRECT_LAUNCH_FACTORY as `0x${string}` | undefined,
-  directLiquidityLocker: process.env.NEXT_PUBLIC_BASE_DIRECT_LIQUIDITY_LOCKER as `0x${string}` | undefined,
-  directDeploymentBlock: BigInt(process.env.NEXT_PUBLIC_BASE_DIRECT_DEPLOYMENT_BLOCK || "0")
+  directLaunchFactory: (process.env.NEXT_PUBLIC_BASE_DIRECT_LAUNCH_FACTORY
+    || "0xe4e8fd53d961566bd3a9c6f41e7f30af9952f1c5") as `0x${string}`,
+  directLiquidityLocker: (process.env.NEXT_PUBLIC_BASE_DIRECT_LIQUIDITY_LOCKER
+    || "0x58ec23054353686f36667a6213539beb1bd8d11d") as `0x${string}`,
+  directDeploymentBlock: BigInt(process.env.NEXT_PUBLIC_BASE_DIRECT_DEPLOYMENT_BLOCK || "48640497")
 };
 
 export const addresses = {

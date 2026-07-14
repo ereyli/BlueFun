@@ -43,6 +43,15 @@ The default native/token curve uses tick range `[-887200, 199200]`, tick spacing
 
 ## Mainnet deployments
 
+Base was deployed and verified onchain on 2026-07-15:
+
+- Factory: `0xe4e8fd53d961566bd3a9c6f41e7f30af9952f1c5`
+- Permanent liquidity locker: `0x58ec23054353686f36667a6213539beb1bd8d11d`
+- Start block: `48640497`
+- Launch fee: `0.002 ETH`
+- Pool fee: `1%`
+- Fee split: 70% platform / 30% creator
+
 Robinhood Chain was deployed and verified onchain on 2026-07-15:
 
 - Factory: `0xde6414a1140f97b4de63462608af79f7b1bbc393`
@@ -52,11 +61,11 @@ Robinhood Chain was deployed and verified onchain on 2026-07-15:
 - Pool fee: `1%`
 - Fee split: 70% platform / 30% creator
 
-The frontend and Robinhood indexer use these addresses as checked-in defaults. Environment variables may override them when operating a replacement deployment.
+The frontend and both indexers use these addresses as checked-in defaults. Environment variables may override them when operating a replacement deployment.
 
 ## Deployment gate
 
-Base direct mode remains visibly unavailable until its contracts are deployed and the factory, locker, and deployment block variables are configured. Deployment scripts are:
+Deployment scripts are:
 
 - `contracts/script/DeployDirectBaseMainnet.s.sol`
 - `contracts/script/DeployDirectRobinhoodMainnet.s.sol`

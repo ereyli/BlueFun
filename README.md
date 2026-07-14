@@ -18,7 +18,7 @@ Professional multichain launchpad for Base-native B20 `ASSET` tokens and fixed-s
 - Graduation uses the network's Uniswap v4 deployment and custody-locks the LP position permanently.
 - Creators can choose the existing bond route or a direct v4 route. Direct launches use 1B fixed supply, a default 1% pool fee, and immutable per-position 70% platform / 30% creator fee accounting.
 
-See [the direct-to-DEX design note](docs/direct-dex-launch.md) for the O1 comparison, curve model, deployment gate, and security assumptions. Robinhood Direct DEX mainnet is deployed at factory `0xde6414a1140f97b4de63462608af79f7b1bbc393` with permanent locker `0x237b48ca046c49ff59b99142334c3631ebacd757` from block `9900658`.
+See [the direct-to-DEX design note](docs/direct-dex-launch.md) for the O1 comparison, curve model, deployment gate, and security assumptions. Base Direct DEX mainnet is deployed at factory `0xe4e8fd53d961566bd3a9c6f41e7f30af9952f1c5` with permanent locker `0x58ec23054353686f36667a6213539beb1bd8d11d` from block `48640497`. Robinhood Direct DEX mainnet is deployed at factory `0xde6414a1140f97b4de63462608af79f7b1bbc393` with permanent locker `0x237b48ca046c49ff59b99142334c3631ebacd757` from block `9900658`.
 
 ## Commands
 
