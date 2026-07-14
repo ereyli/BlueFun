@@ -16,6 +16,13 @@ export type IndexerDeployment = {
   startBlock: bigint;
 };
 
+export type DirectIndexerDeployment = {
+  launchFactory: `0x${string}`;
+  liquidityLocker: `0x${string}`;
+  startBlock: bigint;
+  scope: string;
+};
+
 export const legacyDeployment: IndexerDeployment = robinhood ? {
   version: "legacy",
   launchFactory: "0x6a05304638bed7c96b78f420c612e84111fad4d1" as `0x${string}`,
@@ -51,6 +58,23 @@ export const mainnetDeployment: IndexerDeployment = robinhood ? {
 export const deployments = Array.from(
   new Map([legacyDeployment, mainnetDeployment].map((deployment) => [deployment.bondingCurveMarket, deployment])).values()
 );
+
+const configuredDirectFactory = (process.env.DIRECT_LAUNCH_FACTORY
+  || (robinhood ? "0xde6414a1140f97b4de63462608af79f7b1bbc393" : undefined)) as `0x${string}` | undefined;
+const configuredDirectLocker = (process.env.DIRECT_LIQUIDITY_LOCKER
+  || (robinhood ? "0x237b48ca046c49ff59b99142334c3631ebacd757" : undefined)) as `0x${string}` | undefined;
+const configuredDirectStartBlock = BigInt(
+  process.env.DIRECT_DEPLOYMENT_BLOCK || (robinhood ? "9900658" : "0")
+);
+export const directDeployment: DirectIndexerDeployment | undefined =
+  configuredDirectFactory && configuredDirectLocker && configuredDirectStartBlock > 0n
+    ? {
+        launchFactory: configuredDirectFactory,
+        liquidityLocker: configuredDirectLocker,
+        startBlock: configuredDirectStartBlock,
+        scope: `${chainId}:direct:${configuredDirectFactory.toLowerCase()}:${configuredDirectStartBlock.toString()}`
+      }
+    : undefined;
 
 export const chainDefinition = defineChain({
   id: chainId,

@@ -31,6 +31,10 @@ export async function upsertLaunch(scope: string, input: {
   twitter?: string;
   telegram?: string;
   discord?: string;
+  launchMode?: "bond" | "direct";
+  poolFee?: number;
+  tickSpacing?: number;
+  liquidityLocker?: string;
   txHash: string;
   blockNumber?: bigint;
 }) {
@@ -53,6 +57,10 @@ export async function upsertLaunch(scope: string, input: {
             twitter_url: input.twitter || null,
             telegram_url: input.telegram || null,
             discord_url: input.discord || null,
+            launch_mode: input.launchMode || "bond",
+            pool_fee: input.poolFee ?? 3000,
+            tick_spacing: input.tickSpacing ?? 60,
+            liquidity_locker: input.liquidityLocker || null,
             created_tx: input.txHash,
             created_block: input.blockNumber?.toString()
           },
@@ -66,9 +74,10 @@ export async function upsertLaunch(scope: string, input: {
   await pool.query(
     `insert into launches (
        scope, id, token, creator, name, symbol, contract_uri, image_url, description,
-       website_url, twitter_url, telegram_url, discord_url, created_tx, created_block
+       website_url, twitter_url, telegram_url, discord_url, launch_mode, pool_fee, tick_spacing,
+       liquidity_locker, created_tx, created_block
      )
-     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
      on conflict (scope, id) do update set
        token = excluded.token,
        creator = excluded.creator,
@@ -81,6 +90,10 @@ export async function upsertLaunch(scope: string, input: {
        twitter_url = excluded.twitter_url,
        telegram_url = excluded.telegram_url,
        discord_url = excluded.discord_url,
+       launch_mode = excluded.launch_mode,
+       pool_fee = excluded.pool_fee,
+       tick_spacing = excluded.tick_spacing,
+       liquidity_locker = excluded.liquidity_locker,
        created_tx = excluded.created_tx,
        created_block = coalesce(excluded.created_block, launches.created_block)`,
     [
@@ -97,6 +110,10 @@ export async function upsertLaunch(scope: string, input: {
       input.twitter || null,
       input.telegram || null,
       input.discord || null,
+      input.launchMode || "bond",
+      input.poolFee ?? 3000,
+      input.tickSpacing ?? 60,
+      input.liquidityLocker || null,
       input.txHash,
       input.blockNumber?.toString()
     ]
@@ -288,7 +305,7 @@ async function refreshLaunchVolume(scope: string, launchId: bigint) {
   await pool.query("select refresh_launch_volume($1, $2)", [scope, launchId.toString()]);
 }
 
-export async function markGraduated(scope: string, input: { launchId: bigint; token: string; positionId: string; txHash: string; blockNumber?: bigint }) {
+export async function markGraduated(scope: string, input: { launchId: bigint; token: string; positionId: string; poolId?: string; txHash: string; blockNumber?: bigint }) {
   if (hasSupabaseConfig()) {
     await runSupabase(
       getSupabase()
@@ -299,6 +316,7 @@ export async function markGraduated(scope: string, input: { launchId: bigint; to
             launch_id: input.launchId.toString(),
             token: input.token,
             position_id: input.positionId,
+            pool_id: input.poolId || null,
             tx_hash: input.txHash,
             block_number: input.blockNumber?.toString()
           },
@@ -324,10 +342,10 @@ export async function markGraduated(scope: string, input: { launchId: bigint; to
 
   if (!pool) throw new Error("Database client is not configured");
   await pool.query(
-    `insert into graduations (scope, launch_id, token, position_id, tx_hash, block_number)
-     values ($1, $2, $3, $4, $5, $6)
-     on conflict (scope, launch_id) do nothing`,
-    [scope, input.launchId.toString(), input.token, input.positionId, input.txHash, input.blockNumber?.toString()]
+    `insert into graduations (scope, launch_id, token, position_id, pool_id, tx_hash, block_number)
+     values ($1, $2, $3, $4, $5, $6, $7)
+     on conflict (scope, launch_id) do update set pool_id = coalesce(excluded.pool_id, graduations.pool_id)`,
+    [scope, input.launchId.toString(), input.token, input.positionId, input.poolId || null, input.txHash, input.blockNumber?.toString()]
   );
   await pool.query("update launches set status = 'graduated', position_id = $3 where scope = $1 and id = $2", [
     scope,
@@ -336,28 +354,30 @@ export async function markGraduated(scope: string, input: { launchId: bigint; to
   ]);
 }
 
-export async function getGraduatedLaunches(scope: string): Promise<Array<{ launchId: bigint; token: string; blockNumber?: bigint }>> {
+export async function getGraduatedLaunches(scope: string): Promise<Array<{ launchId: bigint; token: string; poolId?: string; blockNumber?: bigint }>> {
   if (hasSupabaseConfig()) {
     const { data, error } = await getSupabase()
       .from("graduations")
-      .select("launch_id, token, block_number")
+      .select("launch_id, token, pool_id, block_number")
       .eq("scope", scope);
     if (error) throw error;
     return (data ?? []).map((row) => ({
       launchId: BigInt(String(row.launch_id)),
       token: String(row.token),
+      poolId: row.pool_id ? String(row.pool_id) : undefined,
       blockNumber: row.block_number ? BigInt(String(row.block_number)) : undefined
     }));
   }
 
   if (!pool) throw new Error("Database client is not configured");
   const result = await pool.query(
-    "select launch_id, token, block_number from graduations where scope = $1",
+    "select launch_id, token, pool_id, block_number from graduations where scope = $1",
     [scope]
   );
   return result.rows.map((row) => ({
     launchId: BigInt(String(row.launch_id)),
     token: String(row.token),
+    poolId: row.pool_id ? String(row.pool_id) : undefined,
     blockNumber: row.block_number ? BigInt(String(row.block_number)) : undefined
   }));
 }

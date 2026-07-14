@@ -13,6 +13,10 @@ create table if not exists launches (
   telegram_url text,
   discord_url text,
   status text not null default 'live',
+  launch_mode text not null default 'bond',
+  pool_fee integer not null default 3000,
+  tick_spacing integer not null default 60,
+  liquidity_locker text,
   raised_eth numeric not null default 0,
   graduation_target_eth numeric not null default 0,
   progress integer not null default 0,
@@ -35,6 +39,10 @@ alter table launches add column if not exists creator_allocation numeric not nul
 alter table launches add column if not exists created_block numeric;
 alter table launches add column if not exists token_created_at numeric;
 alter table launches add column if not exists position_id text;
+alter table launches add column if not exists launch_mode text not null default 'bond';
+alter table launches add column if not exists pool_fee integer not null default 3000;
+alter table launches add column if not exists tick_spacing integer not null default 60;
+alter table launches add column if not exists liquidity_locker text;
 alter table launches add column if not exists description text;
 alter table launches add column if not exists image_url text;
 alter table launches add column if not exists website_url text;
@@ -72,6 +80,7 @@ create table if not exists graduations (
   launch_id numeric not null,
   token text not null,
   position_id text not null,
+  pool_id text,
   tx_hash text not null,
   block_number numeric,
   created_at timestamptz not null default now(),
@@ -80,6 +89,7 @@ create table if not exists graduations (
 
 alter table graduations add column if not exists scope text not null default 'legacy';
 alter table graduations add column if not exists block_number numeric;
+alter table graduations add column if not exists pool_id text;
 
 update trades t
 set source = 'uniswap_v4'

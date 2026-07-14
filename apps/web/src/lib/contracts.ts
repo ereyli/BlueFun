@@ -11,6 +11,9 @@ export type ContractDeployment = {
   liquidityLocker: `0x${string}`;
   deploymentBlock: bigint;
   firstLaunchId: bigint;
+  directLaunchFactory?: `0x${string}`;
+  directLiquidityLocker?: `0x${string}`;
+  directDeploymentBlock?: bigint;
 };
 
 const LEGACY_BASE_DEPLOYMENT: ContractDeployment = {
@@ -30,16 +33,24 @@ const MAINNET_DEPLOYMENT: ContractDeployment = {
   graduationManager: "0xa2b7626f6a92b366e6e787ac4db4840f57f253af",
   liquidityLocker: "0xe309983df86803f62e10d07d9522af005ec08ee4",
   deploymentBlock: 48451170n,
-  firstLaunchId: 22n
+  firstLaunchId: 22n,
+  directLaunchFactory: process.env.NEXT_PUBLIC_BASE_DIRECT_LAUNCH_FACTORY as `0x${string}` | undefined,
+  directLiquidityLocker: process.env.NEXT_PUBLIC_BASE_DIRECT_LIQUIDITY_LOCKER as `0x${string}` | undefined,
+  directDeploymentBlock: BigInt(process.env.NEXT_PUBLIC_BASE_DIRECT_DEPLOYMENT_BLOCK || "0")
 };
 
 export const addresses = {
+  version: MAINNET_DEPLOYMENT.version,
   launchFactory: MAINNET_DEPLOYMENT.launchFactory,
   bondingCurveMarket: MAINNET_DEPLOYMENT.bondingCurveMarket,
   graduationManager: MAINNET_DEPLOYMENT.graduationManager,
   liquidityLocker: MAINNET_DEPLOYMENT.liquidityLocker,
+  directLaunchFactory: MAINNET_DEPLOYMENT.directLaunchFactory,
+  directLiquidityLocker: MAINNET_DEPLOYMENT.directLiquidityLocker,
+  directDeploymentBlock: MAINNET_DEPLOYMENT.directDeploymentBlock,
   activationRegistry: "0x8453000000000000000000000000000000000001" as `0x${string}`,
-  deploymentBlock: MAINNET_DEPLOYMENT.deploymentBlock
+  deploymentBlock: MAINNET_DEPLOYMENT.deploymentBlock,
+  firstLaunchId: MAINNET_DEPLOYMENT.firstLaunchId
 };
 
 const LEGACY_ROBINHOOD_DEPLOYMENT: ContractDeployment = {
@@ -59,7 +70,12 @@ export const robinhoodAddresses: ContractDeployment = {
   graduationManager: "0x55d343fc936463c97b7e89dc0ac08c20a08bfb2a",
   liquidityLocker: "0x2176cbc6cb7e650289fe2ec4417b7a27fd0354d5",
   deploymentBlock: 6131828n,
-  firstLaunchId: 1n
+  firstLaunchId: 1n,
+  directLaunchFactory: (process.env.NEXT_PUBLIC_ROBINHOOD_DIRECT_LAUNCH_FACTORY
+    || "0xde6414a1140f97b4de63462608af79f7b1bbc393") as `0x${string}`,
+  directLiquidityLocker: (process.env.NEXT_PUBLIC_ROBINHOOD_DIRECT_LIQUIDITY_LOCKER
+    || "0x237b48ca046c49ff59b99142334c3631ebacd757") as `0x${string}`,
+  directDeploymentBlock: BigInt(process.env.NEXT_PUBLIC_ROBINHOOD_DIRECT_DEPLOYMENT_BLOCK || "9900658")
 };
 
 export const legacyBaseAddresses = LEGACY_BASE_DEPLOYMENT;
@@ -127,10 +143,26 @@ export function indexerScopeForDeployment(chainId: number, deployment: ContractD
 
 export function indexerScopesForChain(chainId: number | undefined) {
   const resolvedChainId = chainId === robinhoodChain.id ? robinhoodChain.id : baseChain.id;
-  return deploymentsForChain(resolvedChainId).map((deployment) => ({
+  const contexts = deploymentsForChain(resolvedChainId).map((deployment) => ({
     scope: indexerScopeForDeployment(resolvedChainId, deployment),
     deployment
   }));
+  const current = contractsForChain(resolvedChainId).addresses;
+  if (current.directLaunchFactory && current.directDeploymentBlock && current.directDeploymentBlock > 0n) {
+    contexts.push({
+      scope: `${resolvedChainId}:direct:${current.directLaunchFactory.toLowerCase()}:${current.directDeploymentBlock.toString()}`,
+      deployment: {
+        ...current,
+        launchFactory: current.directLaunchFactory,
+        bondingCurveMarket: "0x0000000000000000000000000000000000000000",
+        graduationManager: "0x0000000000000000000000000000000000000000",
+        liquidityLocker: current.directLiquidityLocker ?? "0x0000000000000000000000000000000000000000",
+        deploymentBlock: current.directDeploymentBlock,
+        firstLaunchId: 1n
+      }
+    });
+  }
+  return contexts;
 }
 
 export function indexerScopeForLaunch(chainId: number | undefined, launchId: string | bigint) {
@@ -140,6 +172,7 @@ export function indexerScopeForLaunch(chainId: number | undefined, launchId: str
 
 export const FAIR_GRADUATION_TARGET_ETH = "5";
 export const FAIR_LAUNCH_FEE_ETH = "0.002";
+export const DIRECT_LAUNCH_FEE_FALLBACK_ETH = "0.002";
 
 export const uniswapV4Addresses = {
   poolManager: "0x498581ff718922c3f8e6a244956af099b2652b2b" as `0x${string}`,
@@ -245,6 +278,73 @@ export const launchFactoryAbi = [
     stateMutability: "view",
     inputs: [{ name: "salt", type: "bytes32" }],
     outputs: [{ name: "token", type: "address" }]
+  }
+] as const;
+
+export const directLaunchFactoryAbi = [
+  {
+    type: "event",
+    name: "DirectLaunchCreated",
+    inputs: [
+      { indexed: true, name: "launchId", type: "uint256" },
+      { indexed: true, name: "token", type: "address" },
+      { indexed: true, name: "creator", type: "address" },
+      { indexed: false, name: "poolId", type: "bytes32" },
+      { indexed: false, name: "positionId", type: "bytes32" },
+      { indexed: false, name: "poolFee", type: "uint24" },
+      { indexed: false, name: "tickSpacing", type: "int24" },
+      { indexed: false, name: "platformShareBps", type: "uint16" },
+      { indexed: false, name: "creatorShareBps", type: "uint16" },
+      { indexed: false, name: "name", type: "string" },
+      { indexed: false, name: "symbol", type: "string" },
+      { indexed: false, name: "contractURI", type: "string" }
+    ]
+  },
+  {
+    type: "function",
+    name: "launchFee",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "uint256" }]
+  },
+  {
+    type: "function",
+    name: "launchConfig",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [
+      { name: "poolFee", type: "uint24" },
+      { name: "tickSpacing", type: "int24" },
+      { name: "tickLower", type: "int24" },
+      { name: "tickUpper", type: "int24" },
+      { name: "sqrtPriceLowerX96", type: "uint160" },
+      { name: "sqrtPriceUpperX96", type: "uint160" },
+      { name: "platformShareBps", type: "uint16" },
+      { name: "creatorShareBps", type: "uint16" }
+    ]
+  },
+  {
+    type: "function",
+    name: "createLaunch",
+    stateMutability: "payable",
+    inputs: [
+      {
+        name: "metadata",
+        type: "tuple",
+        components: [
+          { name: "name", type: "string" },
+          { name: "symbol", type: "string" },
+          { name: "contractURI", type: "string" },
+          { name: "salt", type: "bytes32" }
+        ]
+      }
+    ],
+    outputs: [
+      { name: "launchId", type: "uint256" },
+      { name: "token", type: "address" },
+      { name: "poolId", type: "bytes32" },
+      { name: "positionId", type: "bytes32" }
+    ]
   }
 ] as const;
 

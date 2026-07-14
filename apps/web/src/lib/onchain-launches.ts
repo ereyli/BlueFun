@@ -15,6 +15,11 @@ import { readTokenMetadata, type TokenMetadata } from "@/lib/token-metadata";
 
 export type DeployedLaunch = {
   chainId: number;
+  scope?: string;
+  launchMode?: "bond" | "direct";
+  poolFee?: number;
+  tickSpacing?: number;
+  liquidityLocker?: `0x${string}`;
   id: string;
   token: `0x${string}`;
   creator: `0x${string}`;

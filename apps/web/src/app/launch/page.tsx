@@ -3,9 +3,9 @@
 import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { decodeEventLog, formatEther, parseEther, keccak256, toBytes } from "viem";
-import { useAccount, useWaitForTransactionReceipt, useWriteContract } from "wagmi";
-import { CheckCircle2, ChevronLeft, ChevronRight, Coins, ImagePlus, Info, Loader2, LockKeyhole, Rocket, TimerReset, UploadCloud } from "lucide-react";
-import { contractsForChain, FAIR_GRADUATION_TARGET_ETH, FAIR_LAUNCH_FEE_ETH, launchFactoryAbi } from "@/lib/contracts";
+import { useAccount, useReadContract, useWaitForTransactionReceipt, useWriteContract } from "wagmi";
+import { CheckCircle2, ChevronLeft, ChevronRight, Coins, ImagePlus, Info, Loader2, LockKeyhole, Rocket, TimerReset, UploadCloud, Zap } from "lucide-react";
+import { contractsForChain, DIRECT_LAUNCH_FEE_FALLBACK_ETH, directLaunchFactoryAbi, FAIR_GRADUATION_TARGET_ETH, FAIR_LAUNCH_FEE_ETH, launchFactoryAbi } from "@/lib/contracts";
 import { useSearchParams } from "next/navigation";
 import { NetworkIcon } from "@/components/network-icon";
 import { chainIdFromParam } from "@/lib/chain-slug";
@@ -31,6 +31,7 @@ function LaunchPageContent() {
   const [isImageUploading, setIsImageUploading] = useState(false);
   const [isMetadataUploading, setIsMetadataUploading] = useState(false);
   const [initialBuy, setInitialBuy] = useState("0");
+  const [launchMode, setLaunchMode] = useState<"bond" | "direct">("bond");
   const [confirmedLaunchId, setConfirmedLaunchId] = useState("");
   const [confirmedToken, setConfirmedToken] = useState("");
   const [step, setStep] = useState<1 | 2 | 3>(1);
@@ -39,18 +40,36 @@ function LaunchPageContent() {
   const activeChainId = requestedChain ? chainIdFromParam(requestedChain) : chainId === 4663 ? 4663 : 8453;
   const { addresses, chain } = contractsForChain(activeChainId);
   const isRobinhood = chain.id === 4663;
+  const selectedFactory = launchMode === "direct" ? addresses.directLaunchFactory : addresses.launchFactory;
   const { data: hash, error, writeContract, isPending } = useWriteContract();
   const receipt = useWaitForTransactionReceipt({ hash });
+  const directLaunchFee = useReadContract({
+    chainId: activeChainId,
+    address: addresses.directLaunchFactory,
+    abi: directLaunchFactoryAbi,
+    functionName: "launchFee",
+    query: { enabled: launchMode === "direct" && Boolean(addresses.directLaunchFactory) }
+  });
+  const directLaunchConfig = useReadContract({
+    chainId: activeChainId,
+    address: addresses.directLaunchFactory,
+    abi: directLaunchFactoryAbi,
+    functionName: "launchConfig",
+    query: { enabled: launchMode === "direct" && Boolean(addresses.directLaunchFactory) }
+  });
+  const directPoolFee = Number(directLaunchConfig.data?.[0] ?? 10_000);
+  const directPlatformShare = Number(directLaunchConfig.data?.[6] ?? 7_000);
+  const directCreatorShare = Number(directLaunchConfig.data?.[7] ?? 3_000);
 
   const salt = useMemo(() => keccak256(toBytes(`${name}:${symbol}:${Date.now()}`)), [name, symbol]);
   const initialBuyEth = parsePositiveEther(initialBuy);
-  const initialBuyTooLarge = initialBuyEth > parseEther(FAIR_GRADUATION_TARGET_ETH);
+  const initialBuyTooLarge = launchMode === "bond" && initialBuyEth > parseEther(FAIR_GRADUATION_TARGET_ETH);
   const metadataKey = imageUri
     ? `${name.trim()}:${symbol.trim()}:${imageUri}:${description.trim()}:${website.trim()}:${twitter.trim()}:${telegram.trim()}:${discord.trim()}`
     : "";
-  const disabled = !addresses.launchFactory || !name.trim() || !symbol.trim() || !imageUri || initialBuyTooLarge;
+  const disabled = !selectedFactory || !name.trim() || !symbol.trim() || !imageUri || initialBuyTooLarge;
   const disabledReason = getDisabledReason({
-    hasFactory: Boolean(addresses.launchFactory),
+    hasFactory: Boolean(selectedFactory),
     hasName: Boolean(name.trim()),
     hasSymbol: Boolean(symbol.trim()),
     hasImage: Boolean(imagePreview),
@@ -60,8 +79,10 @@ function LaunchPageContent() {
     isConnected
   });
   const isWorking = isImageUploading || isMetadataUploading || isPending || receipt.isLoading;
-  const launchFeeEth = parseEther(FAIR_LAUNCH_FEE_ETH);
-  const totalLaunchValue = launchFeeEth + initialBuyEth;
+  const launchFeeEth = launchMode === "direct"
+    ? directLaunchFee.data ?? parseEther(DIRECT_LAUNCH_FEE_FALLBACK_ETH)
+    : parseEther(FAIR_LAUNCH_FEE_ETH);
+  const totalLaunchValue = launchFeeEth + (launchMode === "bond" ? initialBuyEth : 0n);
   const identityReady = Boolean(name.trim() && symbol.trim() && imageUri && !isImageUploading);
   const launchStatus = getLaunchStatus({
     disabledReason,
@@ -75,7 +96,9 @@ function LaunchPageContent() {
     metadataReady: Boolean(metadataUri),
     uploadError
   });
-  const confirmedMarketHref = confirmedToken ? tokenPath({ chainId: activeChainId, name, symbol, token: confirmedToken }) : "";
+  const confirmedMarketHref = launchMode === "bond" && confirmedToken
+    ? tokenPath({ chainId: activeChainId, name, symbol, token: confirmedToken })
+    : "";
 
   useEffect(() => {
     if (!receipt.isSuccess || !receipt.data?.logs.length || confirmedLaunchId) return;
@@ -83,11 +106,11 @@ function LaunchPageContent() {
     for (const log of receipt.data.logs) {
       try {
         const decoded = decodeEventLog({
-          abi: launchFactoryAbi,
+          abi: launchMode === "direct" ? directLaunchFactoryAbi : launchFactoryAbi,
           data: log.data,
           topics: log.topics
         });
-        if (decoded.eventName === "LaunchCreated") {
+        if (decoded.eventName === "LaunchCreated" || decoded.eventName === "DirectLaunchCreated") {
           const launchId = decoded.args.launchId.toString();
           setConfirmedLaunchId(launchId);
           setConfirmedToken(decoded.args.token);
@@ -97,10 +120,10 @@ function LaunchPageContent() {
         // Ignore unrelated logs.
       }
     }
-  }, [receipt.isSuccess, receipt.data?.logs, confirmedLaunchId]);
+  }, [receipt.isSuccess, receipt.data?.logs, confirmedLaunchId, launchMode]);
 
   async function submit() {
-    if (!addresses.launchFactory || disabled || !isConnected) return;
+    if (!selectedFactory || disabled || !isConnected) return;
     setUploadError("");
 
     let launchMetadataUri = metadataUri;
@@ -119,13 +142,25 @@ function LaunchPageContent() {
       }
     }
 
+    const metadata = { name: name.trim(), symbol: symbol.trim(), contractURI: launchMetadataUri, salt };
+    if (launchMode === "direct") {
+      writeContract({
+        chainId: activeChainId,
+        address: selectedFactory,
+        abi: directLaunchFactoryAbi,
+        functionName: "createLaunch",
+        args: [metadata],
+        value: launchFeeEth
+      });
+      return;
+    }
     writeContract({
       chainId: activeChainId,
-      address: addresses.launchFactory,
+      address: selectedFactory,
       abi: launchFactoryAbi,
       functionName: "createLaunch",
       args: [
-        { name: name.trim(), symbol: symbol.trim(), contractURI: launchMetadataUri, salt },
+        metadata,
         {
           virtualTokenReserve: parseEther("1000000000"),
           virtualEthReserve: parseEther("1.25"),
@@ -183,7 +218,9 @@ function LaunchPageContent() {
           <div className="launch-network-chip"><NetworkIcon chainId={activeChainId} size={22} /><span>Launching on <strong>{chain.name}</strong></span></div>
           <h1>Create a fair launch.</h1>
           <p className="muted">
-            Add metadata, choose an optional first buy, and publish directly to the bonding curve.
+            {launchMode === "direct"
+              ? "Create the token and its permanently locked Uniswap v4 market in one transaction."
+              : "Add metadata, choose an optional first buy, and publish directly to the bonding curve."}
           </p>
           <div className="launch-preview-card">
             <div className="launch-preview-art">
@@ -192,18 +229,18 @@ function LaunchPageContent() {
             <div>
               <span className="muted">Preview</span>
               <h2>{name.trim() || (isRobinhood ? "Your ERC-20 token" : "Your B20 token")}</h2>
-              <p className="muted">${symbol.trim() || "SYMBOL"} · first buy {initialBuy || "0"} ETH · fee {FAIR_LAUNCH_FEE_ETH} ETH</p>
+              <p className="muted">${symbol.trim() || "SYMBOL"} · {launchMode === "direct" ? "DEX live immediately" : `first buy ${initialBuy || "0"} ETH`} · fee {formatEth(launchFeeEth)} ETH</p>
             </div>
             <div className="launch-preview-stat">
-              <span>Target</span>
-              <strong>{FAIR_GRADUATION_TARGET_ETH} ETH</strong>
+              <span>{launchMode === "direct" ? "Route" : "Target"}</span>
+              <strong>{launchMode === "direct" ? "Uniswap v4" : `${FAIR_GRADUATION_TARGET_ETH} ETH`}</strong>
             </div>
           </div>
         </div>
         <section className="launch-feature-grid">
           <div><Coins /><span><strong>1B fixed supply</strong><small>0% creator allocation</small></span></div>
-          <div><TimerReset /><span><strong>60s launch guard</strong><small>Fair early access</small></span></div>
-          <div><LockKeyhole /><span><strong>Liquidity locked</strong><small>After graduation</small></span></div>
+          <div>{launchMode === "direct" ? <Zap /> : <TimerReset />}<span><strong>{launchMode === "direct" ? "Instant DEX market" : "60s launch guard"}</strong><small>{launchMode === "direct" ? "No bond threshold" : "Fair early access"}</small></span></div>
+          <div><LockKeyhole /><span><strong>Liquidity locked</strong><small>{launchMode === "direct" ? "Forever from creation" : "After graduation"}</small></span></div>
         </section>
       </section>
       <section className="launch-form-card">
@@ -221,6 +258,15 @@ function LaunchPageContent() {
               <div><strong>Connect wallet to launch</strong><small>Use the wallet button in the header. Transactions will be sent on {chain.name}.</small></div>
             </div>
           ) : null}
+          <div className="launch-mode-picker" role="radiogroup" aria-label="Launch route">
+            <button aria-checked={launchMode === "bond"} className={launchMode === "bond" ? "active" : ""} disabled={isWorking} onClick={() => setLaunchMode("bond")} role="radio" type="button">
+              <TimerReset size={19} /><span><strong>Bond launch</strong><small>Trade on the fair curve, then graduate at {FAIR_GRADUATION_TARGET_ETH} ETH.</small></span>{launchMode === "bond" ? <CheckCircle2 size={17} /> : null}
+            </button>
+            <button aria-checked={launchMode === "direct"} className={launchMode === "direct" ? "active" : ""} disabled={isWorking} onClick={() => setLaunchMode("direct")} role="radio" type="button">
+              <Zap size={19} /><span><strong>Direct DEX launch</strong><small>Token-only v4 curve, permanent LP lock, {formatPercent(directPoolFee, 1_000_000)} swap fee.</small></span>{launchMode === "direct" ? <CheckCircle2 size={17} /> : null}
+            </button>
+          </div>
+          {launchMode === "direct" && !addresses.directLaunchFactory ? <LaunchNotice tone="info">Direct DEX contracts are ready in the codebase but are not configured for {chain.name} yet.</LaunchNotice> : null}
           <div className="launch-stepper" aria-label="Launch progress">
             {([1, 2, 3] as const).map((item) => {
               const complete = item === 1 ? identityReady : item === 2 ? step === 3 : receipt.isSuccess;
@@ -293,21 +339,21 @@ function LaunchPageContent() {
           {step === 3 ? (
             <section className="launch-step-panel" aria-labelledby="launch-step-review">
               <div className="launch-form-section-head"><span>03</span><div><strong id="launch-step-review">Review & launch</strong><small>Confirm the transaction details</small></div></div>
-              <div className="field"><label htmlFor="initial-buy">Optional first buy</label><input aria-describedby="initial-buy-help" id="initial-buy" inputMode="decimal" placeholder="0" value={initialBuy} onChange={(event) => setInitialBuy(sanitizeDecimal(event.target.value))} /><span className="field-help" id="initial-buy-help">ETH · maximum {FAIR_GRADUATION_TARGET_ETH}</span></div>
+              {launchMode === "bond" ? <div className="field"><label htmlFor="initial-buy">Optional first buy</label><input aria-describedby="initial-buy-help" id="initial-buy" inputMode="decimal" placeholder="0" value={initialBuy} onChange={(event) => setInitialBuy(sanitizeDecimal(event.target.value))} /><span className="field-help" id="initial-buy-help">ETH · maximum {FAIR_GRADUATION_TARGET_ETH}</span></div> : <LaunchNotice tone="info">The pool starts with token-only liquidity. The first buys add ETH depth; very early sells may have no quote until buy-side liquidity exists.</LaunchNotice>}
               <div className="launch-review-card">
                 <div className="launch-review-head"><strong>{name} <span>${symbol}</span></strong><span><NetworkIcon chainId={activeChainId} size={16} />{chain.name}</span></div>
                 <dl>
                   <div><dt>Token standard</dt><dd>{isRobinhood ? "ERC-20" : "B20"}</dd></div>
                   <div><dt>Supply / creator allocation</dt><dd>1B / 0%</dd></div>
-                  <div><dt>Trading fee</dt><dd>1% total</dd></div>
-                  <div><dt>Graduation</dt><dd>{FAIR_GRADUATION_TARGET_ETH} ETH → Uniswap v4</dd></div>
-                  <div><dt>Launch fee</dt><dd>{FAIR_LAUNCH_FEE_ETH} ETH</dd></div>
-                  <div><dt>Initial buy</dt><dd>{formatEth(initialBuyEth)} ETH</dd></div>
+                  <div><dt>Trading fee</dt><dd>{launchMode === "direct" ? `${formatPercent(directPoolFee, 1_000_000)} total · ${formatPercent(directPlatformShare, 10_000)} platform / ${formatPercent(directCreatorShare, 10_000)} creator` : "1% total · 70% platform / 30% creator"}</dd></div>
+                  <div><dt>Launch route</dt><dd>{launchMode === "direct" ? "Immediate locked Uniswap v4 pool" : `${FAIR_GRADUATION_TARGET_ETH} ETH bond → Uniswap v4`}</dd></div>
+                  <div><dt>Launch fee</dt><dd>{formatEth(launchFeeEth)} ETH</dd></div>
+                  {launchMode === "bond" ? <div><dt>Initial buy</dt><dd>{formatEth(initialBuyEth)} ETH</dd></div> : null}
                 </dl>
                 <div className="launch-review-total"><span>Total wallet confirmation</span><strong>{formatEth(totalLaunchValue)} ETH</strong></div>
               </div>
               {initialBuyTooLarge ? <p className="danger-text">Creator initial buy is capped at the {FAIR_GRADUATION_TARGET_ETH} ETH graduation target.</p> : null}
-              <div className="launch-step-actions"><button className="button" disabled={isWorking} onClick={() => setStep(2)} type="button"><ChevronLeft size={16} />Back</button><button className="button primary launch-submit" disabled={disabled || isWorking || !isConnected} onClick={submit}>{isWorking ? <Loader2 className="spin" size={16} /> : metadataUri ? <Rocket size={16} /> : <UploadCloud size={16} />}{isImageUploading || isMetadataUploading ? "Preparing launch" : isPending ? "Confirm in wallet" : receipt.isLoading ? "Launching" : isRobinhood ? "Launch ERC-20" : "Launch B20"}</button></div>
+              <div className="launch-step-actions"><button className="button" disabled={isWorking} onClick={() => setStep(2)} type="button"><ChevronLeft size={16} />Back</button><button className="button primary launch-submit" disabled={disabled || isWorking || !isConnected} onClick={submit}>{isWorking ? <Loader2 className="spin" size={16} /> : metadataUri ? <Rocket size={16} /> : <UploadCloud size={16} />}{isImageUploading || isMetadataUploading ? "Preparing launch" : isPending ? "Confirm in wallet" : receipt.isLoading ? "Launching" : launchMode === "direct" ? "Launch direct to DEX" : isRobinhood ? "Launch ERC-20" : "Launch B20"}</button></div>
               {launchStatus ? <LaunchNotice tone={launchStatus.tone}>{launchStatus.message}</LaunchNotice> : null}
               {receipt.isSuccess && confirmedMarketHref ? <Link className="button wide launch-live-link" href={confirmedMarketHref}>Open live market <ChevronRight size={16} /></Link> : null}
             </section>
@@ -315,8 +361,9 @@ function LaunchPageContent() {
           {receipt.isSuccess ? (
             <LaunchChecklist
               activeChainId={activeChainId}
-              hasInitialBuy={initialBuyEth > 0n}
+              hasInitialBuy={launchMode === "bond" && initialBuyEth > 0n}
               launchId={confirmedLaunchId}
+              launchMode={launchMode}
               metadataReady={Boolean(metadataUri)}
               name={name}
               symbol={symbol}
@@ -333,6 +380,7 @@ function LaunchChecklist({
   activeChainId,
   hasInitialBuy,
   launchId,
+  launchMode,
   metadataReady,
   name,
   symbol,
@@ -341,20 +389,21 @@ function LaunchChecklist({
   activeChainId: number;
   hasInitialBuy: boolean;
   launchId: string;
+  launchMode: "bond" | "direct";
   metadataReady: boolean;
   name: string;
   symbol: string;
   token: string;
 }) {
   const { chain } = contractsForChain(activeChainId);
-  const marketHref = token ? tokenPath({ chainId: activeChainId, name, symbol, token }) : "";
+  const marketHref = launchMode === "bond" && token ? tokenPath({ chainId: activeChainId, name, symbol, token }) : "";
   const basescanHref = token ? `${chain.blockExplorers.default.url}/token/${token}` : "";
   const items = [
     { label: "Token deployed", done: Boolean(token) },
-    { label: "Initial buy processed", done: hasInitialBuy || Boolean(launchId) },
+    { label: launchMode === "direct" ? "Uniswap v4 pool created" : "Initial buy processed", done: launchMode === "direct" ? Boolean(launchId) : hasInitialBuy || Boolean(launchId) },
     { label: "Metadata pinned", done: metadataReady },
     { label: "Launch event confirmed", done: Boolean(launchId) },
-    { label: "Trade page ready", done: Boolean(marketHref) }
+    { label: launchMode === "direct" ? "LP locked permanently" : "Trade page ready", done: launchMode === "direct" ? Boolean(launchId) : Boolean(marketHref) }
   ];
 
   return (
@@ -452,6 +501,10 @@ function formatEth(value: bigint) {
   const [whole, fraction = ""] = formatEther(value).split(".");
   const trimmed = fraction.slice(0, 6).replace(/0+$/, "");
   return trimmed ? `${whole}.${trimmed}` : whole;
+}
+
+function formatPercent(value: number, denominator: number) {
+  return `${Number(((value * 100) / denominator).toFixed(3))}%`;
 }
 
 async function uploadImage(file: File) {

@@ -13,6 +13,27 @@ export const launchFactoryAbi = [
   }
 ] as const;
 
+export const directLaunchFactoryAbi = [
+  {
+    type: "event",
+    name: "DirectLaunchCreated",
+    inputs: [
+      { indexed: true, name: "launchId", type: "uint256" },
+      { indexed: true, name: "token", type: "address" },
+      { indexed: true, name: "creator", type: "address" },
+      { indexed: false, name: "poolId", type: "bytes32" },
+      { indexed: false, name: "positionId", type: "bytes32" },
+      { indexed: false, name: "poolFee", type: "uint24" },
+      { indexed: false, name: "tickSpacing", type: "int24" },
+      { indexed: false, name: "platformShareBps", type: "uint16" },
+      { indexed: false, name: "creatorShareBps", type: "uint16" },
+      { indexed: false, name: "name", type: "string" },
+      { indexed: false, name: "symbol", type: "string" },
+      { indexed: false, name: "contractURI", type: "string" }
+    ]
+  }
+] as const;
+
 export const marketAbi = [
   {
     type: "function",

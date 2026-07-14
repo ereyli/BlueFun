@@ -1,11 +1,12 @@
 import "dotenv/config";
 import { createServer } from "node:http";
 import { createPublicClient, encodeAbiParameters, fallback, getAddress, http, keccak256, zeroAddress } from "viem";
-import { graduationAbi, launchFactoryAbi, marketAbi, poolManagerAbi } from "./abi.js";
+import { directLaunchFactoryAbi, graduationAbi, launchFactoryAbi, marketAbi, poolManagerAbi } from "./abi.js";
 import {
   chainDefinition,
   chainId,
   defaultRpcUrls,
+  directDeployment,
   deployments,
   poolManager,
   scopeForDeployment,
@@ -30,6 +31,7 @@ const rpcUrls = uniqueUrls([
   ...defaultRpcUrls
 ]);
 type DeploymentContext = IndexerDeployment & { scope: string };
+type ScopeContext = { scope: string; startBlock: bigint };
 const deploymentContexts: DeploymentContext[] = deployments.map((deployment) => ({
   ...deployment,
   scope: scopeForDeployment(deployment)
@@ -76,7 +78,7 @@ const healthServer = createServer((request, response) => {
   const payload = JSON.stringify({
     status: healthy ? lastSuccessfulPollAt ? "ok" : "starting" : "stale",
     chainId,
-    scopes: deploymentContexts.map((deployment) => deployment.scope),
+    scopes: [...deploymentContexts.map((deployment) => deployment.scope), ...(directDeployment ? [directDeployment.scope] : [])],
     isPolling,
     lastIndexedBlock: lastIndexedBlock.toString(),
     lastSuccessfulPollAt: lastSuccessfulPollAt ? new Date(lastSuccessfulPollAt).toISOString() : null,
@@ -159,6 +161,10 @@ async function backfillLoop() {
     await backfillGraduations(deployment, latest);
     await backfillUniswapV4Swaps(deployment, latest);
   }
+  if (directDeployment && latest >= directDeployment.startBlock) {
+    await backfillDirectLaunches(directDeployment, latest);
+    await backfillUniswapV4Swaps(directDeployment, latest);
+  }
 }
 
 async function shutdown(signal: string) {
@@ -194,6 +200,29 @@ async function backfillLaunchCreated(deployment: DeploymentContext, latest: bigi
     }
 
     await setIndexerState(stateKey(deployment, "launch_factory_last_block"), toBlock + 1n);
+    fromBlock = toBlock + 1n;
+  }
+}
+
+async function backfillDirectLaunches(
+  deployment: ScopeContext & { launchFactory: `0x${string}`; liquidityLocker: `0x${string}` },
+  latest: bigint
+) {
+  let fromBlock = (await getIndexerState(stateKey(deployment, "direct_launches_last_block"))) ?? deployment.startBlock;
+  if (fromBlock < deployment.startBlock) fromBlock = deployment.startBlock;
+  if (fromBlock > latest) return;
+
+  while (fromBlock <= latest) {
+    const toBlock = fromBlock + chunkSize > latest ? latest : fromBlock + chunkSize;
+    const logs = await client.getContractEvents({
+      address: deployment.launchFactory,
+      abi: directLaunchFactoryAbi,
+      eventName: "DirectLaunchCreated",
+      fromBlock,
+      toBlock
+    });
+    for (const log of logs) await handleDirectLaunchCreated(deployment, log);
+    await setIndexerState(stateKey(deployment, "direct_launches_last_block"), toBlock + 1n);
     fromBlock = toBlock + 1n;
   }
 }
@@ -270,7 +299,7 @@ async function backfillGraduations(deployment: DeploymentContext, latest: bigint
   }
 }
 
-async function backfillUniswapV4Swaps(deployment: DeploymentContext, latest: bigint) {
+async function backfillUniswapV4Swaps(deployment: ScopeContext, latest: bigint) {
   const graduated = await getGraduatedLaunches(deployment.scope);
   if (graduated.length === 0) return;
 
@@ -278,7 +307,7 @@ async function backfillUniswapV4Swaps(deployment: DeploymentContext, latest: big
   let firstGraduationBlock = latest;
   for (const launch of graduated) {
     const token = getAddress(launch.token) as `0x${string}`;
-    poolMap.set(blueFunV4PoolId(token), { launchId: launch.launchId, token });
+    poolMap.set((launch.poolId || blueFunV4PoolId(token)).toLowerCase(), { launchId: launch.launchId, token });
     if (launch.blockNumber && launch.blockNumber < firstGraduationBlock) firstGraduationBlock = launch.blockNumber;
   }
 
@@ -309,7 +338,7 @@ async function backfillUniswapV4Swaps(deployment: DeploymentContext, latest: big
   }
 }
 
-function stateKey(deployment: DeploymentContext, key: string) {
+function stateKey(deployment: ScopeContext, key: string) {
   return `${deployment.scope}:${key}`;
 }
 
@@ -341,6 +370,54 @@ async function handleLaunchCreated(
     blockNumber: log.blockNumber
   });
   await refreshLaunchState(deployment, log.args.launchId!);
+}
+
+async function handleDirectLaunchCreated(
+  deployment: ScopeContext & { liquidityLocker: `0x${string}` },
+  log: Awaited<ReturnType<typeof client.getContractEvents<typeof directLaunchFactoryAbi, "DirectLaunchCreated">>>[number]
+) {
+  const metadata: LaunchMetadata = await readLaunchMetadata(log.args.contractURI || "").catch(() => ({}));
+  const cdnImage = metadata.image
+    ? await mirrorTokenImage(metadata.image, chainId, log.args.token!).catch(() => undefined)
+    : undefined;
+  await upsertLaunch(deployment.scope, {
+    id: log.args.launchId!,
+    token: log.args.token!,
+    creator: log.args.creator!,
+    name: log.args.name!,
+    symbol: log.args.symbol!,
+    contractURI: log.args.contractURI!,
+    imageUri: cdnImage || metadata.image,
+    description: metadata.description,
+    website: metadata.website,
+    twitter: metadata.twitter,
+    telegram: metadata.telegram,
+    discord: metadata.discord,
+    launchMode: "direct",
+    poolFee: Number(log.args.poolFee!),
+    tickSpacing: Number(log.args.tickSpacing!),
+    liquidityLocker: deployment.liquidityLocker,
+    txHash: log.transactionHash,
+    blockNumber: log.blockNumber
+  });
+  await markGraduated(deployment.scope, {
+    launchId: log.args.launchId!,
+    token: log.args.token!,
+    positionId: log.args.positionId!,
+    poolId: log.args.poolId!,
+    txHash: log.transactionHash,
+    blockNumber: log.blockNumber
+  });
+  const block = await client.getBlock({ blockNumber: log.blockNumber });
+  await updateLaunchState(deployment.scope, {
+    id: log.args.launchId!,
+    status: "graduated",
+    raisedEth: 0n,
+    graduationTargetEth: 0n,
+    progress: 100,
+    creatorAllocation: 0n,
+    tokenCreatedAt: block.timestamp
+  });
 }
 
 async function readLaunchMetadata(contractURI: string): Promise<LaunchMetadata> {
@@ -458,7 +535,7 @@ async function handleGraduated(
 }
 
 async function handleUniswapV4Swap(
-  deployment: DeploymentContext,
+  deployment: ScopeContext,
   log: Awaited<ReturnType<typeof client.getContractEvents<typeof poolManagerAbi, "Swap">>>[number],
   launchId: bigint
 ) {

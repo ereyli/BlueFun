@@ -25,7 +25,7 @@ export type LaunchBuyActivity = {
 export type LaunchPageFilter = "All" | "Live" | "Ready" | "Graduated" | "Progress";
 export type DbLaunchPage = { launches: DeployedLaunch[]; total: number };
 
-const launchColumns = "scope, id, token, creator, name, symbol, contract_uri, image_url, description, website_url, twitter_url, telegram_url, discord_url, status, raised_eth, graduation_target_eth, progress, volume_eth, token_created_at, created_block, position_id";
+const launchColumns = "scope, id, token, creator, name, symbol, contract_uri, image_url, description, website_url, twitter_url, telegram_url, discord_url, status, launch_mode, pool_fee, tick_spacing, liquidity_locker, raised_eth, graduation_target_eth, progress, volume_eth, token_created_at, created_block, position_id";
 const legacyLaunchColumns = "scope, id, token, creator, name, symbol, contract_uri, status, raised_eth, graduation_target_eth, progress, volume_eth, token_created_at, created_block";
 
 export async function getDbLaunchPage(
@@ -78,7 +78,8 @@ export async function getDbLaunchPage(
     pool ??= new pg.Pool({ connectionString: process.env.DATABASE_URL, connectionTimeoutMillis: 750, idleTimeoutMillis: 5_000, max: 5 });
     const result = await withTimeout(pool.query(
       `select scope, id, token, creator, name, symbol, contract_uri, image_url, description,
-              website_url, twitter_url, telegram_url, discord_url, status, raised_eth,
+              website_url, twitter_url, telegram_url, discord_url, status, launch_mode, pool_fee,
+              tick_spacing, liquidity_locker, raised_eth,
               graduation_target_eth, progress, volume_eth, token_created_at, created_block, position_id,
               count(*) over() as total_count
        from launches
@@ -142,7 +143,8 @@ export async function getDbLaunches(chainId = 8453, options: { cursor?: string; 
     });
     const result = await withTimeout(pool.query(
       `select scope, id, token, creator, name, symbol, contract_uri, image_url, description,
-              website_url, twitter_url, telegram_url, discord_url, status, raised_eth,
+              website_url, twitter_url, telegram_url, discord_url, status, launch_mode, pool_fee,
+              tick_spacing, liquidity_locker, raised_eth,
               graduation_target_eth, progress, volume_eth, token_created_at, position_id
        from launches
        where scope = any($1::text[])
@@ -190,7 +192,8 @@ export async function getDbLaunch(launchId: string, chainId = 8453): Promise<Dep
     pool ??= new pg.Pool({ connectionString: process.env.DATABASE_URL, connectionTimeoutMillis: 750, idleTimeoutMillis: 5_000, max: 5 });
     const result = await withTimeout(pool.query(
       `select scope, id, token, creator, name, symbol, contract_uri, image_url, description,
-              website_url, twitter_url, telegram_url, discord_url, status, raised_eth,
+              website_url, twitter_url, telegram_url, discord_url, status, launch_mode, pool_fee,
+              tick_spacing, liquidity_locker, raised_eth,
               graduation_target_eth, progress, volume_eth, token_created_at, created_block, position_id
        from launches
        where scope = any($1::text[]) and id = $2 and created_block >= $3
@@ -237,7 +240,8 @@ export async function getDbLaunchByTokenSuffix(tokenSuffix: string, chainId = 84
       pool ??= new pg.Pool({ connectionString: process.env.DATABASE_URL, connectionTimeoutMillis: 750, idleTimeoutMillis: 5_000, max: 5 });
       const result = await withTimeout(pool.query(
         `select scope, id, token, creator, name, symbol, contract_uri, image_url, description,
-                website_url, twitter_url, telegram_url, discord_url, status, raised_eth,
+                website_url, twitter_url, telegram_url, discord_url, status, launch_mode, pool_fee,
+                tick_spacing, liquidity_locker, raised_eth,
                 graduation_target_eth, progress, volume_eth, token_created_at, created_block, position_id
          from launches
          where scope = any($1::text[])
@@ -311,7 +315,7 @@ export async function getDbLaunchMetrics(chainId = 8453): Promise<DbLaunchMetric
 
 function isMissingSocialColumnError(error: { message?: string; details?: string }) {
   const text = `${error.message || ""} ${error.details || ""}`.toLowerCase();
-  return ["image_url", "description", "website_url", "twitter_url", "telegram_url", "discord_url", "position_id"].some((column) => text.includes(column));
+  return ["image_url", "description", "website_url", "twitter_url", "telegram_url", "discord_url", "position_id", "launch_mode", "pool_fee", "tick_spacing", "liquidity_locker"].some((column) => text.includes(column));
 }
 
 function isMissingTradeColumnError(error: { message?: string; details?: string }) {
@@ -319,9 +323,9 @@ function isMissingTradeColumnError(error: { message?: string; details?: string }
   return text.includes("market_cap_eth") || text.includes("source");
 }
 
-export async function getDbTrades(launchId: string, chainId = 8453): Promise<DeployedTrade[] | undefined> {
+export async function getDbTrades(launchId: string, chainId = 8453, launchScope?: string): Promise<DeployedTrade[] | undefined> {
   if (process.env.POSTGRES_INDEXER_ENABLED !== "true") return undefined;
-  const context = dbContextForLaunch(chainId, launchId);
+  const context = dbContextForLaunch(chainId, launchId, launchScope);
 
   try {
     if (hasSupabaseConfig()) {
@@ -436,6 +440,11 @@ async function mapRows(rows: Array<Record<string, unknown>>, chainId: number): P
 
     return {
       chainId,
+      scope: cleanDbText(row.scope),
+      launchMode: row.launch_mode === "direct" ? "direct" : "bond",
+      poolFee: Number(row.pool_fee || 3000),
+      tickSpacing: Number(row.tick_spacing || 60),
+      liquidityLocker: row.liquidity_locker ? getAddress(String(row.liquidity_locker)) as `0x${string}` : undefined,
       id: String(row.id),
       token: getAddress(String(row.token)) as `0x${string}`,
       creator: getAddress(String(row.creator)) as `0x${string}`,
@@ -456,7 +465,7 @@ async function mapRows(rows: Array<Record<string, unknown>>, chainId: number): P
       holders: "indexed",
       volume: `${trimEth(formatEther(volume))} ETH`,
       age: formatAge(Number(row.token_created_at || 0)),
-      risk: status === "Graduated" ? "Adminless" : chainId === 4663 ? "Fixed-supply ERC-20" : "B20 gated",
+      risk: row.launch_mode === "direct" ? "Direct DEX · LP locked" : status === "Graduated" ? "Adminless" : chainId === 4663 ? "Fixed-supply ERC-20" : "B20 gated",
       price: "Live",
       marketCap: "Live"
     };
@@ -593,9 +602,9 @@ function dbContext(chainId: number) {
   };
 }
 
-function dbContextForLaunch(chainId: number, launchId: string) {
+function dbContextForLaunch(chainId: number, launchId: string, launchScope?: string) {
   const config = contractsForChain(chainId);
-  const scope = indexerScopeForLaunch(config.chain.id, launchId);
+  const scope = launchScope || indexerScopeForLaunch(config.chain.id, launchId);
   const deployment = indexerScopesForChain(config.chain.id).find((context) => context.scope === scope)?.deployment;
   return {
     chainId: config.chain.id,

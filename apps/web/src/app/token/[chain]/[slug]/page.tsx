@@ -27,9 +27,11 @@ const getCachedLaunchBySuffix = unstable_cache(
 );
 
 const getCachedTokenTrades = unstable_cache(
-  async (launchId: string, chainId: number) => chainId === 4663
-    ? getDbTrades(launchId, 4663).then((value) => value ?? [])
-    : getLaunchTrades(launchId),
+  async (launchId: string, chainId: number, scope?: string) => scope
+    ? getDbTrades(launchId, chainId, scope).then((value) => value ?? [])
+    : chainId === 4663
+      ? getDbTrades(launchId, 4663).then((value) => value ?? [])
+      : getLaunchTrades(launchId),
   ["market-token-trades-v1"],
   { revalidate: 10 }
 );
@@ -57,7 +59,7 @@ export default async function TokenMarketPage({ params }: TokenParams) {
   const launch = await resolveTokenLaunch(chain, slug);
   if (!launch) notFound();
   if (slug !== tokenSlug(launch) || chain !== (launch.chainId === 4663 ? "robinhood" : "base")) permanentRedirect(tokenPath(launch));
-  const trades = await getCachedTokenTrades(launch.id, launch.chainId);
+  const trades = await getCachedTokenTrades(launch.id, launch.chainId, launch.scope);
   return <MarketClient id={launch.id} launch={launch} trades={trades} />;
 }
 

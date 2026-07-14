@@ -92,6 +92,8 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
   const receipt = useWaitForTransactionReceipt({ hash });
   const parsedAmount = parsePositiveEther(amount);
   const isGraduated = launch?.status === "Graduated";
+  const v4PoolConfig = { fee: launch?.poolFee, tickSpacing: launch?.tickSpacing };
+  const liquidityLockerAddress = launch?.liquidityLocker ?? addresses.liquidityLocker;
   const ethBalance = useBalance({
     address,
     query: { enabled: Boolean(address) }
@@ -118,23 +120,25 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
     args: [address!],
     query: { enabled: Boolean(addresses.bondingCurveMarket && address) }
   });
-  const feeSharingEnabled = addresses.version === "current" && Boolean(launch?.positionId);
+  const feeSharingEnabled = Boolean(
+    launch?.positionId && (launch.launchMode === "direct" || addresses.version === "current")
+  );
   const lpFeeRevenue = useReadContract({
-    address: addresses.liquidityLocker,
+    address: liquidityLockerAddress,
     abi: feeSharingLockerAbi,
     functionName: "feeRevenue",
     args: [launch?.positionId ?? `0x${"0".repeat(64)}`],
     query: { enabled: feeSharingEnabled }
   });
   const lpNativePending = useReadContract({
-    address: addresses.liquidityLocker,
+    address: liquidityLockerAddress,
     abi: feeSharingLockerAbi,
     functionName: "pendingFees",
     args: [address ?? zeroAddress, zeroAddress],
     query: { enabled: Boolean(feeSharingEnabled && address) }
   });
   const lpTokenPending = useReadContract({
-    address: addresses.liquidityLocker,
+    address: liquidityLockerAddress,
     abi: feeSharingLockerAbi,
     functionName: "pendingFees",
     args: [address ?? zeroAddress, launch?.token ?? zeroAddress],
@@ -174,7 +178,7 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
     functionName: "quoteExactInputSingle",
     args: [
       {
-        poolKey: blueFunV4PoolKey(launch?.token ?? zeroAddress),
+        poolKey: blueFunV4PoolKey(launch?.token ?? zeroAddress, v4PoolConfig),
         zeroForOne: mode === "buy",
         exactAmount: parsedAmount,
         hookData: "0x"
@@ -405,7 +409,9 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
     const swap = buildV4EthToTokenSwap({
       amountIn: parsedAmount,
       amountOutMinimum: graduatedMinOut,
-      token: launch.token
+      token: launch.token,
+      poolFee: launch.poolFee,
+      tickSpacing: launch.tickSpacing
     });
 
     writeContract({
@@ -445,7 +451,9 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
     const swap = buildV4TokenToEthSwap({
       amountIn: parsedAmount,
       amountOutMinimum: graduatedMinOut,
-      token: launch.token
+      token: launch.token,
+      poolFee: launch.poolFee,
+      tickSpacing: launch.tickSpacing
     });
 
     writeContract({
@@ -501,10 +509,10 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
   }
 
   function collectLpFees() {
-    if (!launch?.positionId || addresses.version !== "current") return;
+    if (!launch?.positionId || (launch.launchMode !== "direct" && addresses.version !== "current")) return;
     writeContract({
       chainId: activeChainId,
-      address: addresses.liquidityLocker,
+      address: liquidityLockerAddress,
       abi: feeSharingLockerAbi,
       functionName: "collectFees",
       args: [launch.positionId]
@@ -512,10 +520,10 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
   }
 
   function claimLpFees(currency: `0x${string}`) {
-    if (addresses.version !== "current") return;
+    if (launch?.launchMode !== "direct" && addresses.version !== "current") return;
     writeContract({
       chainId: activeChainId,
-      address: addresses.liquidityLocker,
+      address: liquidityLockerAddress,
       abi: feeSharingLockerAbi,
       functionName: "claimFees",
       args: [currency]

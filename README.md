@@ -5,6 +5,7 @@ Professional multichain launchpad for Base-native B20 `ASSET` tokens and fixed-s
 ## What is included
 
 - Foundry smart contracts for B20 launch creation, ETH bonding curve trading, policy validation, Uniswap v4 LP graduation, and adminless role cleanup.
+- Optional direct-to-DEX factories for atomic token creation plus permanently locked, token-only Uniswap v4 liquidity on both networks.
 - Mock B20 precompile contracts for local tests.
 - Next.js application with launch, market, explore, signed community chat, cursor pagination, and responsive error/legal surfaces.
 - Production Node.js indexer for launch, curve trade, Uniswap v4 trade, graduation, metadata, health, and aggregate metrics.
@@ -15,6 +16,9 @@ Professional multichain launchpad for Base-native B20 `ASSET` tokens and fixed-s
 - Robinhood Chain (`4663`) launches use fixed-supply ERC-20 tokens.
 - Each network has an independent indexer process. Both processes may share the same Supabase/Postgres database because every row and checkpoint is isolated by deployment scope.
 - Graduation uses the network's Uniswap v4 deployment and custody-locks the LP position permanently.
+- Creators can choose the existing bond route or a direct v4 route. Direct launches use 1B fixed supply, a default 1% pool fee, and immutable per-position 70% platform / 30% creator fee accounting.
+
+See [the direct-to-DEX design note](docs/direct-dex-launch.md) for the O1 comparison, curve model, deployment gate, and security assumptions. Robinhood Direct DEX mainnet is deployed at factory `0xde6414a1140f97b4de63462608af79f7b1bbc393` with permanent locker `0x237b48ca046c49ff59b99142334c3631ebacd757` from block `9900658`.
 
 ## Commands
 
