@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Image from "next/image";
 import { CheckCircle2, Copy, ExternalLink, LoaderCircle, LockKeyhole, RefreshCw, ShieldCheck } from "lucide-react";
 import type { BlueTransparencyData } from "@/lib/blue-transparency";
+import { BlueStakingPanel } from "@/components/blue-staking-panel";
 
 const compact = new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 2 });
 const blueExplorerUrl = (address: string) => `https://basescan.org/address/${address}`;
@@ -113,6 +114,8 @@ export function BlueTransparencyClient({ initialData }: { initialData: BlueTrans
         <div className="blue-live-panel"><span className="blue-live-label"><i />Live on Base</span><strong>Official BLUE</strong><div className="blue-live-rule" /><AddressLink address={data.token} /><div className="blue-hero-actions"><a className="button primary" href={blueExplorerUrl(data.token)} target="_blank" rel="noreferrer">View contract <ExternalLink size={15} /></a><button className="button" onClick={refresh} disabled={isRefreshing} aria-label="Refresh balances">{isRefreshing ? <LoaderCircle className="spin" size={16} /> : <RefreshCw size={16} />}</button></div></div>
       </div>
     </section>
+
+    <BlueStakingPanel />
 
     <section className="blue-distribution-card">
       <div className="blue-section-heading"><div><span>Live distribution</span><h2>Supply distribution</h2></div><p>Onchain balances</p></div>

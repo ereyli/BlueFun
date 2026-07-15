@@ -13,7 +13,19 @@
     "directLiquidityLocker": "0x2e83029d88d0af58ba55b31980dc709920fab941",
     "directLaunchFactory": "0x0246688cef66734c1cada909cfd202e1448ba275",
     "bondDeploymentBlock": 48642000,
-    "directDeploymentBlock": 48647525
+    "directDeploymentBlock": 48647525,
+    "blueStaking": {
+      "token": "0xb200000000000000000000Af2d07754b927109bc",
+      "rewardToken": "0x4200000000000000000000000000000000000006",
+      "governance": "0x58eB258f651491CdE4fe7637F26AbC321ede6b35",
+      "revenueRouter": "0xF0fDc20e10A58aa78e1264fADB49C9F0Acc01593",
+      "vault": "0x41eE16C145ac64e45817ea9F394913E9AB8441c0",
+      "stakingShareBps": 5000,
+      "rewardsDurationSeconds": 604800,
+      "cooldownDurationSeconds": 2592000,
+      "adminDelaySeconds": 604800,
+      "deploymentBlock": 48670679
+    }
   },
   "robinhood": {
     "chainId": 4663,

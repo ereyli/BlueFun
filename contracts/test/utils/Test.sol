@@ -10,6 +10,7 @@ interface Vm {
     function expectRevert() external;
     function warp(uint256) external;
     function etch(address target, bytes calldata code) external;
+    function assume(bool condition) external;
 }
 
 contract Test {
@@ -33,5 +34,9 @@ contract Test {
 
     function assertGt(uint256 a, uint256 b) internal pure {
         require(a > b, "assertGt failed");
+    }
+
+    function assertLe(uint256 a, uint256 b) internal pure {
+        require(a <= b, "assertLe failed");
     }
 }

@@ -3,6 +3,16 @@ import { robinhoodChain } from "@/lib/robinhood-chain";
 
 export const chain = baseChain;
 
+export const blueStakingAddresses = {
+  token: "0xb200000000000000000000Af2d07754b927109bc" as `0x${string}`,
+  governance: (process.env.NEXT_PUBLIC_BLUE_STAKING_GOVERNANCE
+    || "0x58eB258f651491CdE4fe7637F26AbC321ede6b35") as `0x${string}`,
+  revenueRouter: (process.env.NEXT_PUBLIC_BLUE_REVENUE_ROUTER
+    || "0xF0fDc20e10A58aa78e1264fADB49C9F0Acc01593") as `0x${string}`,
+  vault: (process.env.NEXT_PUBLIC_BLUE_STAKING_VAULT
+    || "0x41eE16C145ac64e45817ea9F394913E9AB8441c0") as `0x${string}`
+};
+
 export type ContractDeployment = {
   version: "legacy" | "fee-sharing-v1" | "current";
   launchFactory: `0x${string}`;

@@ -8,6 +8,7 @@ import {
   Boxes,
   CheckCircle2,
   CircleDollarSign,
+  Coins,
   ExternalLink,
   Flame,
   Gauge,
@@ -20,7 +21,7 @@ import {
   WalletCards
 } from "lucide-react";
 import { getBlueTransparency, OFFICIAL_BLUE_TOKEN } from "@/lib/blue-transparency";
-import { addresses, robinhoodAddresses } from "@/lib/contracts";
+import { addresses, blueStakingAddresses, robinhoodAddresses } from "@/lib/contracts";
 
 export const dynamic = "force-dynamic";
 
@@ -38,6 +39,7 @@ const sections = [
   ["creator-tools", "Creator tools"],
   ["trading", "Trading"],
   ["blue", "BLUE token"],
+  ["staking", "BLUE staking"],
   ["contracts", "Contracts"],
   ["security", "Security & risk"]
 ] as const;
@@ -110,6 +112,7 @@ export default async function DocsPage() {
             <Feature icon={<LayoutDashboard />} title="Dashboard" text="Track created tokens, held assets, trading activity and claimable creator revenue from one wallet view." />
             <Feature icon={<LockKeyhole />} title="Locked liquidity" text="Production LP positions remain in protocol custody without a principal-withdrawal or NFT-transfer path." />
             <Feature icon={<Boxes />} title="Historical continuity" text="Tokens created by legacy deployments remain indexed and continue to use the contracts they launched with." />
+            <Feature icon={<Coins />} title="BLUE staking" text="Stake BLUE on Base and receive a proportional share of WETH revenue deposited into the staking vault." />
           </div>
         </section>
 
@@ -228,7 +231,24 @@ export default async function DocsPage() {
               <div><Link className="button primary" href="/transparency">Open BLUE transparency</Link><a className="button" href={`https://basescan.org/token/${OFFICIAL_BLUE_TOKEN}`} target="_blank" rel="noreferrer">BaseScan <ExternalLink size={13} /></a></div>
             </div>
           </div>
-          <p className="docs-blue-disclaimer">BLUE is a community and platform identity asset. This documentation does not promise price appreciation, yield, governance rights or future utility.</p>
+          <p className="docs-blue-disclaimer">BLUE is a community and platform identity asset. Staking rewards are variable and exist only when protocol revenue is deposited; no fixed return or price appreciation is promised.</p>
+        </section>
+
+        <section className="docs-section" id="staking">
+          <SectionTitle eyebrow="Base revenue vault" title="BLUE staking" description="A Base-only, non-custodial staking vault distributes deposited protocol revenue in proportion to each wallet's active BLUE stake." />
+          <div className="docs-fee-summary">
+            <article><span>Current staker share</span><strong>50%</strong><p>The router sends half of each deposited revenue batch to the staking vault and half to treasury.</p></article>
+            <article><span>Reward asset</span><strong>WETH</strong><p>Native ETH deposits are wrapped automatically. Rewards stream over seven days instead of arriving in one block.</p></article>
+            <article><span>Unstake delay</span><strong>30 days</strong><p>BLUE stops earning when unstaking begins and remains withdrawable after the countdown.</p></article>
+            <article><span>Admin delay</span><strong>7 days</strong><p>Share, treasury, operator and duration changes require a public timelocked transaction.</p></article>
+          </div>
+          <div className="docs-check-grid">
+            <Check text="Administration cannot withdraw active or cooling user stakes and cannot seize accounted WETH rewards." />
+            <Check text="Claims and matured withdrawals remain available while new deposits or reward funding are paused." />
+            <Check text="An irreversible emergency mode removes cooldown waiting without transferring user funds to administration." />
+            <Check text="Owner, guardian and delay configuration can migrate to future multisig governance through delayed, onchain actions." />
+          </div>
+          <Callout tone="info" title="Revenue is deposited manually">Platform revenue from Base or other networks is not bridged automatically. The configured operator deposits realized Base ETH or WETH; only deposited amounts become staking rewards.</Callout>
         </section>
 
         <section className="docs-section" id="contracts">
@@ -242,6 +262,11 @@ export default async function DocsPage() {
               <ContractRow label="Direct factory" value={network.directFactory} explorer={network.explorer} />
               <ContractRow label="Direct LP locker" value={network.directLocker} explorer={network.explorer} />
               <ContractRow label="Direct fee hook" value={network.directHook} explorer={network.explorer} />
+              {network.name === "Base" ? <>
+                <ContractRow label="BLUE staking vault" value={blueStakingAddresses.vault} explorer={network.explorer} />
+                <ContractRow label="Revenue router" value={blueStakingAddresses.revenueRouter} explorer={network.explorer} />
+                <ContractRow label="Staking timelock" value={blueStakingAddresses.governance} explorer={network.explorer} />
+              </> : null}
             </article>)}
           </div>
           <Callout tone="info" title="Legacy deployments remain intentional">A token&apos;s rules do not change when BlueFun deploys a newer factory. The indexer resolves each launch to its original market, graduation manager and locker so previously launched tokens remain visible and usable.</Callout>
