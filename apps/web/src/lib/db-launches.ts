@@ -186,6 +186,8 @@ export async function getDbLaunchPage(
           ? query.order("volume_eth", { ascending: false }).order("created_block", { ascending: false })
           : filter === "MarketCap"
             ? query.order("raised_eth", { ascending: false }).order("created_block", { ascending: false })
+            : filter === "All"
+              ? query.order("volume_eth", { ascending: false }).order("raised_eth", { ascending: false }).order("created_block", { ascending: false })
             : query.order("created_block", { ascending: false }).order("id", { ascending: false });
       let response: {
         data: Array<Record<string, unknown>> | null;
@@ -208,6 +210,8 @@ export async function getDbLaunchPage(
             ? legacyQuery.order("volume_eth", { ascending: false }).order("created_block", { ascending: false })
             : filter === "MarketCap"
               ? legacyQuery.order("raised_eth", { ascending: false }).order("created_block", { ascending: false })
+              : filter === "All"
+                ? legacyQuery.order("volume_eth", { ascending: false }).order("raised_eth", { ascending: false }).order("created_block", { ascending: false })
               : legacyQuery.order("created_block", { ascending: false }).order("id", { ascending: false });
         response = await legacyQuery.range(offset, offset + pageSize - 1);
       }
@@ -234,6 +238,8 @@ export async function getDbLaunchPage(
        order by case when $5 = 'Progress' then progress end desc,
                 case when $5 = 'Volume' then volume_eth end desc,
                 case when $5 = 'MarketCap' then raised_eth end desc,
+                case when $5 = 'All' then volume_eth end desc,
+                case when $5 = 'All' then raised_eth end desc,
                 created_block desc, id desc
        limit $6 offset $7`,
       [context.scopes, context.deploymentBlock, statusFilter, search, filter, pageSize, offset]

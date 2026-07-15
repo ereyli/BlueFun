@@ -36,6 +36,7 @@ export async function GET(request: Request) {
     if (filter === "Progress") return b.progress - a.progress || compareCreated(b, a);
     if (filter === "Volume") return numericMarketValue(b.volume) - numericMarketValue(a.volume) || compareCreated(b, a);
     if (filter === "MarketCap") return numericMarketValue(b.marketCap) - numericMarketValue(a.marketCap) || numericMarketValue(b.raised) - numericMarketValue(a.raised) || compareCreated(b, a);
+    if (filter === "All") return numericMarketValue(b.volume) - numericMarketValue(a.volume) || numericMarketValue(b.marketCap) - numericMarketValue(a.marketCap) || numericMarketValue(b.raised) - numericMarketValue(a.raised) || compareCreated(b, a);
     return compareCreated(b, a);
   });
   const start = (page - 1) * 21;

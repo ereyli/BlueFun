@@ -214,11 +214,10 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metri
     if (filter === "New") return sorted.sort((a, b) => compareLaunchCreated(b, a));
     if (filter === "Volume") return sorted.sort((a, b) => parseDisplayAmount(b.volume) - parseDisplayAmount(a.volume) || compareLaunchCreated(b, a));
     if (filter === "MarketCap") return sorted.sort((a, b) => marketCapSortValue(b, dexMarketCaps) - marketCapSortValue(a, dexMarketCaps) || compareLaunchCreated(b, a));
-    return sorted.sort((a, b) => {
-      const activityDelta = compareBlocks(activityByLaunch.get(b.id)?.blockNumber, activityByLaunch.get(a.id)?.blockNumber);
-      return activityDelta || compareLaunchIds(b.id, a.id);
-    });
-  }, [activityByLaunch, dexMarketCaps, filter, launches]);
+    return sorted.sort((a, b) => parseDisplayAmount(b.volume) - parseDisplayAmount(a.volume)
+      || marketCapSortValue(b, dexMarketCaps) - marketCapSortValue(a, dexMarketCaps)
+      || compareLaunchCreated(b, a));
+  }, [dexMarketCaps, filter, launches]);
 
   return (
     <section className="explorer-shell">
