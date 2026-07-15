@@ -71,6 +71,8 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
   const [realtimeStatus, setRealtimeStatus] = useState<RealtimeStatus>("connecting");
   const [chainSwitchError, setChainSwitchError] = useState("");
   const [tradeFlowError, setTradeFlowError] = useState("");
+  const lastRefreshedReceiptHash = useRef<`0x${string}` | undefined>(undefined);
+  const refreshTradeStateRef = useRef<() => void>(() => undefined);
   const { address, isConnected } = useAccount();
   const chainId = useChainId();
   const { switchChainAsync, isPending: isSwitchingChain } = useSwitchChain();
@@ -246,16 +248,32 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
     : isGraduated
       ? dexPair?.priceUsd ? formatUsdPrice(dexPair.priceUsd) : marketDataState === "loading" ? "Loading…" : "Unavailable"
       : formatUsdFromEthText(displayPrice, ethUsd, true);
+
+  refreshTradeStateRef.current = () => {
+    const refreshes: Promise<unknown>[] = [tokenBalance.refetch()];
+    if (isGraduated) {
+      refreshes.push(
+        graduatedTokenPermit2Allowance.refetch(),
+        graduatedPermit2RouterAllowance.refetch(),
+        graduatedQuote.refetch()
+      );
+    } else {
+      refreshes.push(tokenAllowance.refetch(), buyQuote.refetch(), sellQuote.refetch());
+    }
+    void Promise.allSettled(refreshes);
+  };
+
   useEffect(() => {
-    if (!receipt.isSuccess) return;
-    const timeout = window.setTimeout(() => router.refresh(), 1_200);
-    tokenAllowance.refetch();
-    tokenBalance.refetch();
-    graduatedTokenPermit2Allowance.refetch();
-    graduatedPermit2RouterAllowance.refetch();
-    graduatedQuote.refetch();
-    return () => window.clearTimeout(timeout);
-  }, [graduatedPermit2RouterAllowance, graduatedQuote, graduatedTokenPermit2Allowance, receipt.isSuccess, router, tokenAllowance, tokenBalance]);
+    if (!receipt.isSuccess || !hash || lastRefreshedReceiptHash.current === hash) return;
+    lastRefreshedReceiptHash.current = hash;
+    refreshTradeStateRef.current();
+    const pageRefreshTimeout = window.setTimeout(() => router.refresh(), 1_200);
+    const stateRetryTimeout = window.setTimeout(() => refreshTradeStateRef.current(), 2_500);
+    return () => {
+      window.clearTimeout(pageRefreshTimeout);
+      window.clearTimeout(stateRetryTimeout);
+    };
+  }, [hash, receipt.isSuccess, router]);
 
   useEffect(() => {
     const refreshWhenVisible = () => {
