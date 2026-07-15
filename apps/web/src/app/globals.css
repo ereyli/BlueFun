@@ -1736,6 +1736,145 @@ button:disabled,
   padding: 14px;
 }
 
+.community-burn-card {
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.06), rgba(245, 158, 11, 0.04));
+  border-top: 1px solid var(--line);
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+}
+
+.community-burn-head {
+  align-items: center;
+  display: flex;
+  gap: 9px;
+}
+
+.community-burn-mark {
+  align-items: center;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  border-radius: 10px;
+  color: #ef4444;
+  display: inline-flex;
+  flex: 0 0 auto;
+  height: 34px;
+  justify-content: center;
+  width: 34px;
+}
+
+.community-burn-head div {
+  flex: 1;
+  min-width: 0;
+}
+
+.community-burn-head h2 {
+  font-size: 15px;
+  margin: 0;
+}
+
+.community-burn-head p {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 720;
+  margin: 2px 0 0;
+}
+
+.community-burn-permission {
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.16);
+  border-radius: 999px;
+  color: #c9363e;
+  font-size: 10px;
+  font-weight: 900;
+  padding: 5px 8px;
+}
+
+.community-burn-metrics {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.community-burn-metrics div {
+  background: var(--panel-2);
+  border: 1px solid rgba(239, 68, 68, 0.1);
+  border-radius: 10px;
+  display: grid;
+  gap: 3px;
+  padding: 9px 10px;
+}
+
+.community-burn-metrics span {
+  color: var(--muted);
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.community-burn-metrics strong {
+  color: var(--text);
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+
+.community-burn-button {
+  align-items: center;
+  background: #ef4444;
+  border: 0;
+  border-radius: 10px;
+  color: #fff;
+  display: inline-flex;
+  font-size: 12px;
+  font-weight: 900;
+  gap: 7px;
+  justify-content: center;
+  min-height: 40px;
+  padding: 9px 12px;
+}
+
+.community-burn-button:hover:not(:disabled) {
+  background: #dc2626;
+  transform: translateY(-1px);
+}
+
+.community-burn-button:disabled {
+  background: rgba(239, 68, 68, 0.13);
+  color: #ad7477;
+}
+
+.community-burn-status {
+  font-size: 11px;
+  font-weight: 800;
+  margin: 0;
+  text-align: center;
+}
+
+.community-burn-status.success { color: #0b7a45; }
+.community-burn-status.error { color: #c9363e; }
+
+.launch-burn-summary {
+  align-items: center;
+  background: rgba(239, 68, 68, 0.06);
+  border: 1px solid rgba(239, 68, 68, 0.12);
+  border-radius: 9px;
+  color: #ef4444;
+  display: flex;
+  gap: 6px;
+  padding: 8px 9px;
+}
+
+.launch-burn-summary span {
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.launch-burn-summary strong {
+  color: var(--text);
+  font-size: 12px;
+  margin-left: auto;
+}
+
 .market-stats-panel {
   border-top: 1px solid var(--line);
   display: grid;
@@ -1907,6 +2046,19 @@ button:disabled,
 
 .holder-dot.holder {
   background: #17b26a;
+}
+
+.holder-burn-icon {
+  align-items: center;
+  background: rgba(239, 68, 68, 0.1);
+  border: 1px solid rgba(239, 68, 68, 0.2);
+  border-radius: 999px;
+  color: #ef4444;
+  display: inline-flex;
+  flex: 0 0 auto;
+  height: 20px;
+  justify-content: center;
+  width: 20px;
 }
 
 .holder-bar {

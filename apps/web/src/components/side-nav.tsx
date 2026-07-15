@@ -2,14 +2,15 @@
 
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { Home, LayoutDashboard, Rocket, ShieldCheck } from "lucide-react";
+import { BookOpen, Home, LayoutDashboard, Rocket, ShieldCheck } from "lucide-react";
 import { chainSlugFromPath, namedChainParam } from "@/lib/chain-slug";
 
 const items = [
   { href: "/", label: "Explore", icon: Home },
   { href: "/launch", label: "Create", icon: Rocket },
   { href: "/transparency", label: "BLUE", icon: ShieldCheck },
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard }
+  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
+  { href: "/docs", label: "Docs", icon: BookOpen, desktopOnly: true }
 ];
 
 export function SideNav({ mobile = false }: { mobile?: boolean }) {
@@ -18,7 +19,7 @@ export function SideNav({ mobile = false }: { mobile?: boolean }) {
 
   return (
     <nav className={mobile ? "bottom-nav" : "side-nav"} aria-label={mobile ? "Mobile navigation" : "Main navigation"}>
-      {items.map((item) => {
+      {items.filter((item) => !mobile || !item.desktopOnly).map((item) => {
         const Icon = item.icon;
         const active = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
         return (

@@ -58,15 +58,28 @@ function LaunchPageContent() {
     functionName: "launchConfigHash",
     query: { enabled: launchMode === "direct" && Boolean(addresses.directLaunchFactory) }
   });
+  const directLaunchConfig = useReadContract({
+    chainId: activeChainId,
+    address: addresses.directLaunchFactory,
+    abi: directLaunchFactoryAbi,
+    functionName: "launchConfig",
+    query: { enabled: launchMode === "direct" && Boolean(addresses.directLaunchFactory) }
+  });
   const directConfigReady = launchMode !== "direct" || Boolean(directLaunchConfigHash.data);
 
   const salt = useMemo(() => keccak256(toBytes(`${name}:${symbol}:${Date.now()}`)), [name, symbol]);
   const initialBuyEth = parsePositiveEther(initialBuy);
-  const initialBuyTooLarge = launchMode === "bond" && initialBuyEth > parseEther(FAIR_GRADUATION_TARGET_ETH);
+  const estimatedInitialTokens = useMemo(() => {
+    if (launchMode !== "direct" || !directLaunchConfig.data || initialBuyEth === 0n) return 0n;
+    return estimateDirectInitialBuyTokens(initialBuyEth, directLaunchConfig.data[2], directLaunchConfig.data[3]);
+  }, [directLaunchConfig.data, initialBuyEth, launchMode]);
+  const initialBuyError = launchMode === "direct"
+    ? estimatedInitialTokens > parseEther("50000000") ? "Creator first buy is limited to 50M tokens (5%)." : ""
+    : initialBuyEth > parseEther(FAIR_GRADUATION_TARGET_ETH) ? `Creator first buy must be ${FAIR_GRADUATION_TARGET_ETH} ETH or less.` : "";
   const metadataKey = imageUri
     ? `${name.trim()}:${symbol.trim()}:${imageUri}:${description.trim()}:${website.trim()}:${twitter.trim()}:${telegram.trim()}:${discord.trim()}`
     : "";
-  const disabled = !selectedFactory || !name.trim() || !symbol.trim() || !imageUri || initialBuyTooLarge || !directConfigReady;
+  const disabled = !selectedFactory || !name.trim() || !symbol.trim() || !imageUri || Boolean(initialBuyError) || !directConfigReady;
   const disabledReason = getDisabledReason({
     hasFactory: Boolean(selectedFactory),
     hasName: Boolean(name.trim()),
@@ -74,7 +87,7 @@ function LaunchPageContent() {
     hasImage: Boolean(imagePreview),
     imageReady: Boolean(imageUri),
     imageUploading: isImageUploading,
-    initialBuyTooLarge,
+    initialBuyError,
     isConnected
   });
   const isWorking = isImageUploading || isMetadataUploading || isPending || receipt.isLoading;
@@ -347,21 +360,21 @@ function LaunchPageContent() {
           {step === 3 ? (
             <section className="launch-step-panel" aria-labelledby="launch-step-review">
               <div className="launch-form-section-head"><span>03</span><div><strong id="launch-step-review">Review & launch</strong><small>Confirm the transaction details</small></div></div>
-              <div className="field"><label htmlFor="initial-buy">Optional creator first buy</label><input aria-describedby="initial-buy-help" id="initial-buy" inputMode="decimal" placeholder="0" value={initialBuy} onChange={(event) => setInitialBuy(sanitizeDecimal(event.target.value))} /><span className="field-help" id="initial-buy-help">ETH · {launchMode === "direct" ? "atomic with launch; received tokens cannot exceed 5% of supply" : `maximum ${FAIR_GRADUATION_TARGET_ETH} ETH`}</span></div>
-              {launchMode === "direct" ? <LaunchNotice tone="info">Buy fee: 0.7% platform + 0.3% creator in ETH. Sell: 0.7% platform in ETH + 0.3% token burn. Creator earns only from buys.</LaunchNotice> : null}
+              <div className="field"><label htmlFor="initial-buy">Optional creator first buy</label><input aria-describedby="initial-buy-help" id="initial-buy" inputMode="decimal" placeholder="0" value={initialBuy} onChange={(event) => setInitialBuy(sanitizeDecimal(event.target.value))} /><span className="field-help" id="initial-buy-help">ETH · {launchMode === "direct" ? initialBuyEth > 0n && estimatedInitialTokens > 0n ? `≈ ${formatTokenEstimate(estimatedInitialTokens)} $${symbol.trim() || "TOKEN"} · Max 50M` : "Max 50M tokens (5%)" : `Maximum ${FAIR_GRADUATION_TARGET_ETH} ETH`}</span></div>
+              {launchMode === "direct" ? <LaunchNotice tone="info">1% trading fee · Liquidity locked.</LaunchNotice> : null}
               <div className="launch-review-card">
                 <div className="launch-review-head"><strong>{name} <span>${symbol}</span></strong><span><NetworkIcon chainId={activeChainId} size={16} />{chain.name}</span></div>
                 <dl>
                   <div><dt>Token standard</dt><dd>{isRobinhood ? "ERC-20" : "B20"}</dd></div>
                   <div><dt>Supply / creator allocation</dt><dd>1B / 0%</dd></div>
-                  <div><dt>Trading fee</dt><dd>{launchMode === "direct" ? "1% · buy 70/30 ETH · sell 0.7% ETH + 0.3% burn" : "1% total · creator receives 30%"}</dd></div>
+                  <div><dt>Trading fee</dt><dd>{launchMode === "direct" ? "1% total" : "1% total · creator receives 30%"}</dd></div>
                   <div><dt>Launch route</dt><dd>{launchMode === "direct" ? "Immediate locked Uniswap v4 pool" : `${FAIR_GRADUATION_TARGET_ETH} ETH bond → Uniswap v4`}</dd></div>
                   <div><dt>Launch fee</dt><dd>{formatEth(launchFeeEth)} ETH</dd></div>
-                  <div><dt>Initial buy</dt><dd>{formatEth(initialBuyEth)} ETH{launchMode === "direct" ? " · max 5% supply" : ""}</dd></div>
+                  <div><dt>Initial buy</dt><dd>{formatEth(initialBuyEth)} ETH{launchMode === "direct" && estimatedInitialTokens > 0n ? ` · ≈ ${formatTokenEstimate(estimatedInitialTokens)} $${symbol.trim() || "TOKEN"}` : ""}</dd></div>
                 </dl>
                 <div className="launch-review-total"><span>Total wallet confirmation</span><strong>{formatEth(totalLaunchValue)} ETH</strong></div>
               </div>
-              {initialBuyTooLarge ? <p className="danger-text">Creator initial buy is capped at the {FAIR_GRADUATION_TARGET_ETH} ETH graduation target.</p> : null}
+              {initialBuyError ? <p className="danger-text">{initialBuyError}</p> : null}
               <div className="launch-step-actions"><button className="button" disabled={isWorking} onClick={() => setStep(2)} type="button"><ChevronLeft size={16} />Back</button><button className="button primary launch-submit" disabled={disabled || isWorking || !isConnected} onClick={submit}>{isWorking ? <Loader2 className="spin" size={16} /> : metadataUri ? <Rocket size={16} /> : <UploadCloud size={16} />}{isImageUploading || isMetadataUploading ? "Preparing launch" : isPending ? "Confirm in wallet" : receipt.isLoading ? "Launching" : launchMode === "direct" ? "Launch direct to DEX" : isRobinhood ? "Launch ERC-20" : "Launch B20"}</button></div>
               {launchStatus && !receipt.isSuccess ? <LaunchNotice tone={launchStatus.tone}>{launchStatus.message}</LaunchNotice> : null}
               {receipt.isSuccess ? <button className="button wide launch-live-link" onClick={() => setShowSuccess(true)} type="button"><CheckCircle2 size={16} />View launch result</button> : null}
@@ -527,7 +540,7 @@ function getDisabledReason(input: {
   hasImage: boolean;
   imageReady: boolean;
   imageUploading: boolean;
-  initialBuyTooLarge: boolean;
+  initialBuyError: string;
   isConnected: boolean;
 }) {
   if (!input.isConnected) return "Connect your wallet to launch.";
@@ -537,7 +550,7 @@ function getDisabledReason(input: {
   if (!input.hasImage) return "Select a token image.";
   if (input.imageUploading) return "Preparing your image.";
   if (!input.imageReady) return "Image is being prepared.";
-  if (input.initialBuyTooLarge) return "Creator initial buy must be 5 ETH or less.";
+  if (input.initialBuyError) return input.initialBuyError;
   return "";
 }
 
@@ -560,6 +573,33 @@ function formatEth(value: bigint) {
   const [whole, fraction = ""] = formatEther(value).split(".");
   const trimmed = fraction.slice(0, 6).replace(/0+$/, "");
   return trimmed ? `${whole}.${trimmed}` : whole;
+}
+
+function estimateDirectInitialBuyTokens(ethIn: bigint, tickLower: number, tickUpper: number) {
+  if (ethIn <= 0n) return 0n;
+  const q96 = 1n << 96n;
+  const supply = parseEther("1000000000");
+  const sqrtLower = approximateSqrtPriceX96(tickLower);
+  const sqrtUpper = approximateSqrtPriceX96(tickUpper);
+  if (sqrtLower <= 0n || sqrtUpper <= sqrtLower) return 0n;
+
+  const liquidity = supply * q96 / (sqrtUpper - sqrtLower);
+  const amountAfterFee = ethIn * 990_000n / 1_000_000n;
+  const nextSqrtPrice = liquidity * sqrtUpper * q96 / (liquidity * q96 + amountAfterFee * sqrtUpper);
+  return liquidity * (sqrtUpper - nextSqrtPrice) / q96;
+}
+
+function approximateSqrtPriceX96(tick: number) {
+  const value = Math.pow(1.0001, tick / 2) * Math.pow(2, 96);
+  return Number.isFinite(value) && value > 0 ? BigInt(Math.floor(value)) : 0n;
+}
+
+function formatTokenEstimate(value: bigint) {
+  const amount = Number(formatEther(value));
+  return new Intl.NumberFormat("en-US", {
+    notation: amount >= 1_000 ? "compact" : "standard",
+    maximumFractionDigits: amount >= 1_000 ? 2 : 4
+  }).format(amount);
 }
 
 async function uploadImage(file: File) {

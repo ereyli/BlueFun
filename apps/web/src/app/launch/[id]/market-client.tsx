@@ -4,8 +4,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 import { formatEther, maxUint256, parseEther, zeroAddress } from "viem";
-import { useAccount, useBalance, useChainId, useReadContract, useReadContracts, useSignMessage, useSignTypedData, useSwitchChain, useWaitForTransactionReceipt, useWriteContract } from "wagmi";
-import { ArrowDownUp, Copy, ExternalLink, Loader2, LockKeyhole, RotateCcw, Settings, ShieldCheck, Sparkles } from "lucide-react";
+import { useAccount, useBalance, useChainId, useReadContract, useReadContracts, useSignMessage, useSignTypedData, useSimulateContract, useSwitchChain, useWaitForTransactionReceipt, useWriteContract } from "wagmi";
+import { ArrowDownUp, Copy, ExternalLink, Flame, Loader2, LockKeyhole, RotateCcw, Settings, ShieldCheck, Sparkles } from "lucide-react";
 import type {
   CandlestickData,
   HistogramData,
@@ -19,6 +19,7 @@ import {
   contractsForChain,
   contractsForLaunch,
   graduationManagerAbi,
+  feeSharingLockerAbi,
   indexerScopeForLaunch,
   liquidityLockerPoolAbi,
   permit2Abi,
@@ -49,6 +50,7 @@ import { chatMessageToSign } from "@/lib/chat-auth";
 
 const MAX_UINT160 = (1n << 160n) - 1n;
 const PERMIT2_SESSION_SECONDS = 30 * 24 * 60 * 60;
+const BURN_ADDRESS = "0x000000000000000000000000000000000000dEaD" as const;
 
 type DexPairSnapshot = {
   priceUsd: number;
@@ -598,6 +600,7 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
             <HolderDistribution launch={launch} trades={trades} />
             <ProjectInfo launch={launch} />
             <RecentTrades trades={trades} symbol={launch.symbol} chainId={launch.chainId} />
+            <CommunityBurnCard launch={launch} />
           </div>
         </div>
       </section>
@@ -1300,6 +1303,84 @@ function RecentTrades({ trades, symbol, chainId: launchChainId }: { trades: Depl
   );
 }
 
+function CommunityBurnCard({ launch }: { launch: DeployedLaunch }) {
+  const enabled = Boolean(launch.launchMode === "direct" && launch.poolFee === 0x800000 && launch.positionId && launch.liquidityLocker);
+  const { address, isConnected } = useAccount();
+  const chainId = useChainId();
+  const { switchChainAsync, isPending: isSwitching } = useSwitchChain();
+  const [flowError, setFlowError] = useState("");
+  const { data: burnHash, error: burnWriteError, isPending: isSubmitting, writeContractAsync } = useWriteContract();
+  const burnReceipt = useWaitForTransactionReceipt({ chainId: launch.chainId, hash: burnHash });
+  const totalBurned = useReadContract({
+    chainId: launch.chainId,
+    address: launch.token,
+    abi: b20TokenAbi,
+    functionName: "balanceOf",
+    args: [BURN_ADDRESS],
+    query: { enabled, refetchInterval: enabled ? 15_000 : false, refetchOnWindowFocus: true }
+  });
+  const burnPreview = useSimulateContract({
+    account: address ?? launch.creator,
+    chainId: launch.chainId,
+    address: launch.liquidityLocker ?? zeroAddress,
+    abi: feeSharingLockerAbi,
+    functionName: "collectFees",
+    args: [launch.positionId ?? `0x${"0".repeat(64)}`],
+    query: { enabled, refetchInterval: enabled ? 15_000 : false, retry: false }
+  });
+  const previewResult = burnPreview.data?.result as readonly [bigint, bigint] | undefined;
+  const readyToBurn = previewResult?.[1] ?? 0n;
+  const burned = totalBurned.data ?? 0n;
+  const working = isSwitching || isSubmitting || burnReceipt.isLoading;
+
+  useEffect(() => {
+    if (!burnReceipt.isSuccess) return;
+    setFlowError("");
+    void totalBurned.refetch();
+    void burnPreview.refetch();
+  }, [burnReceipt.isSuccess]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  if (!enabled) return null;
+
+  async function triggerBurn() {
+    if (!isConnected || !launch.positionId || !launch.liquidityLocker) return;
+    setFlowError("");
+    try {
+      if (chainId !== launch.chainId) await switchChainAsync({ chainId: launch.chainId as 8453 | 4663 });
+      await writeContractAsync({
+        account: address,
+        chainId: launch.chainId,
+        address: launch.liquidityLocker,
+        abi: feeSharingLockerAbi,
+        functionName: "collectFees",
+        args: [launch.positionId]
+      });
+    } catch (error) {
+      setFlowError(friendlyBurnError(error));
+    }
+  }
+
+  return (
+    <section className="community-burn-card" aria-label="Community token burn">
+      <div className="community-burn-head">
+        <span className="community-burn-mark"><Flame size={17} /></span>
+        <div><h2>Community burn</h2><p>Anyone can finalize accrued sell-fee burns.</p></div>
+        <span className="community-burn-permission">Permissionless</span>
+      </div>
+      <div className="community-burn-metrics">
+        <div><span>Ready to burn</span><strong>{compactTokenAmount(formatEther(readyToBurn))} {launch.symbol}</strong></div>
+        <div><span>Total burned</span><strong>{compactTokenAmount(formatEther(burned))} {launch.symbol}</strong></div>
+      </div>
+      <button className="community-burn-button" disabled={!isConnected || readyToBurn === 0n || working} onClick={triggerBurn} type="button">
+        {working ? <Loader2 className="spin" size={16} /> : <Flame size={16} />}
+        {!isConnected ? "Connect wallet to burn" : readyToBurn === 0n ? "No tokens ready" : working ? "Finalizing burn…" : `Burn ${compactTokenAmount(formatEther(readyToBurn))} ${launch.symbol}`}
+      </button>
+      {burnReceipt.isSuccess ? <p className="community-burn-status success">Burn finalized onchain.</p> : null}
+      {!burnReceipt.isSuccess && (flowError || burnWriteError) ? <p className="community-burn-status error">{flowError || friendlyBurnError(burnWriteError)}</p> : null}
+    </section>
+  );
+}
+
 function MarketStats({
   launch,
   trades
@@ -1387,6 +1468,7 @@ function HolderDistribution({ launch, trades }: { launch: DeployedLaunch; trades
     const values = [
       launch.status === "Graduated" ? uniswapV4Addresses.poolManager : addresses.bondingCurveMarket,
       launch.creator,
+      BURN_ADDRESS,
       ...candidateWallets
     ].filter(Boolean) as `0x${string}`[];
     return Array.from(new Map(values.map((value) => [value.toLowerCase(), value])).values());
@@ -1413,15 +1495,16 @@ function HolderDistribution({ launch, trades }: { launch: DeployedLaunch; trades
         const isCurve = addresses.bondingCurveMarket?.toLowerCase() === holder.toLowerCase();
         const isUniswapPool = launch.status === "Graduated" && uniswapV4Addresses.poolManager.toLowerCase() === holder.toLowerCase();
         const isCreator = launch.creator.toLowerCase() === holder.toLowerCase();
+        const isBurn = BURN_ADDRESS.toLowerCase() === holder.toLowerCase();
         return {
           holder,
-          label: isUniswapPool ? "Uniswap v4 pool" : isCurve ? "Bonding curve" : isCreator ? "Creator" : shortAddress(holder),
+          label: isBurn ? "Burn address" : isUniswapPool ? "Uniswap v4 pool" : isCurve ? "Bonding curve" : isCreator ? "Creator" : shortAddress(holder),
           balance,
           percent,
-          tone: isUniswapPool ? "pool" : isCurve ? "curve" : isCreator ? "creator" : "holder"
+          tone: isBurn ? "burn" : isUniswapPool ? "pool" : isCurve ? "curve" : isCreator ? "creator" : "holder"
         };
       })
-      .filter((row) => row.balance > 0n)
+      .filter((row) => row.balance > 0n || row.tone === "burn")
       .sort((a, b) => Number(b.balance - a.balance))
       .slice(0, 20);
   }, [addresses.bondingCurveMarket, balances.data, holderAddresses, launch.creator, launch.status, uniswapV4Addresses.poolManager]);
@@ -1445,7 +1528,7 @@ function HolderDistribution({ launch, trades }: { launch: DeployedLaunch; trades
           <div className="holder-row" key={row.holder}>
             <div className="holder-row-top">
               <em>{index + 1}</em>
-              <span className={`holder-dot ${row.tone}`} />
+              {row.tone === "burn" ? <span className="holder-burn-icon"><Flame size={12} /></span> : <span className={`holder-dot ${row.tone}`} />}
               <strong>{row.label}</strong>
               <small>{formatHolderPercent(row.percent)}</small>
             </div>
@@ -1908,4 +1991,12 @@ function friendlyTradeError(message: string) {
   if (lower.includes("insufficient funds")) return "Not enough ETH for this order.";
   if (lower.includes("slippage")) return "Price moved. Try again with a smaller amount or higher slippage.";
   return "Order could not be completed. Please check your wallet and try again.";
+}
+
+function friendlyBurnError(error: unknown) {
+  const message = error instanceof Error ? error.message : String(error || "");
+  const lower = message.toLowerCase();
+  if (lower.includes("user rejected") || lower.includes("rejected") || lower.includes("denied")) return "Request cancelled in wallet.";
+  if (lower.includes("nofeescollected") || lower.includes("no fees")) return "There are no new sell fees to burn.";
+  return "Burn could not be finalized. Please try again.";
 }

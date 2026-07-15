@@ -4,6 +4,7 @@ import Link from "next/link";
 import "./globals.css";
 import "./premium-system.css";
 import "./dashboard.css";
+import "./docs.css";
 import { Providers } from "@/components/providers";
 import { WalletButton } from "@/components/wallet-button";
 import { RouteFeedback } from "@/components/route-feedback";
@@ -78,7 +79,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <main className="main">{children}</main>
               <footer className="site-footer">
                 <span>© {new Date().getFullYear()} BlueFun</span>
-                <nav aria-label="Legal"><Link href="/risk">Risk</Link><Link href="/terms">Terms</Link><Link href="/privacy">Privacy</Link></nav>
+                <nav aria-label="Footer"><Link href="/docs">Docs</Link><Link href="/risk">Risk</Link><Link href="/terms">Terms</Link><Link href="/privacy">Privacy</Link></nav>
               </footer>
             </section>
             <Suspense fallback={null}><SideNav mobile /></Suspense>
