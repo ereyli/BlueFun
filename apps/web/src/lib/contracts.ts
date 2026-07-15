@@ -628,6 +628,23 @@ export const feeSharingLockerAbi = [
   }
 ] as const;
 
+export const liquidityLockerPoolAbi = [
+  {
+    type: "function",
+    name: "hooks",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "address" }]
+  },
+  {
+    type: "function",
+    name: "initializationGuard",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "address" }]
+  }
+] as const;
+
 export const universalRouterAbi = [
   {
     type: "function",

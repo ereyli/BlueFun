@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, useTransition, type ReactNode } from "react";
 import Link from "next/link";
-import { Activity, BarChart3, Clock3, Coins, Radio, Rocket, Search, Sparkles, Trophy, Zap } from "lucide-react";
+import { Activity, BarChart3, Clock3, Coins, LockKeyhole, Radio, Rocket, Search, Sparkles, Trophy, Zap } from "lucide-react";
 import { isFeaturedLaunch, isOfficialBlue, isTrustedLaunch } from "@/lib/featured-launches";
 import { compactUsd, parseDisplayAmount } from "@/lib/market-math";
 import type { DbLaunchMetrics, LaunchBuyActivity } from "@/lib/db-launches";
@@ -12,7 +12,7 @@ import { NetworkIcon, networkMeta } from "@/components/network-icon";
 import { chainSlug } from "@/lib/chain-slug";
 import { tokenPath } from "@/lib/token-url";
 
-type Filter = "Activity" | "Newest" | "Live" | "Graduated" | "Progress";
+type Filter = "Activity" | "Newest" | "Direct" | "Live" | "Graduated" | "Progress";
 type NetworkMetrics = Partial<Record<8453 | 4663, DbLaunchMetrics>>;
 
 export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metrics, networkMetrics, chainId = 8453 }: { launches: DeployedLaunch[]; totalLaunches: number; metrics?: DbLaunchMetrics; networkMetrics?: NetworkMetrics; chainId?: number }) {
@@ -52,7 +52,7 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metri
       setIsPageLoading(true);
       setLoadError(false);
       try {
-        const serverFilter = filter === "Activity" || filter === "Newest" ? "All" : filter;
+        const serverFilter = filter === "Activity" ? "All" : filter;
         const params = new URLSearchParams({ chain: chainSlug(chainId), page: String(page), filter: serverFilter });
         if (query.trim()) params.set("q", query.trim());
         const response = await fetch(`/api/launches?${params.toString()}`, { signal: controller.signal });
@@ -210,7 +210,7 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metri
   const pagination = paginationItems(page, totalPages);
   const displayedLaunches = useMemo(() => {
     const sorted = [...launches];
-    if (filter === "Newest") return sorted.sort((a, b) => compareLaunchIds(b.id, a.id));
+    if (filter === "Newest") return sorted.sort((a, b) => compareLaunchCreated(b, a));
     if (filter === "Progress") return sorted;
     return sorted.sort((a, b) => {
       const activityDelta = compareBlocks(activityByLaunch.get(b.id)?.blockNumber, activityByLaunch.get(a.id)?.blockNumber);
@@ -278,8 +278,8 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metri
                   <small>{activity ? `Buy ${formatActivityAge(activity.createdAt)}` : `Launched ${launch.age}`}</small>
                 </div>
                 <div className="market-pulse-value">
-                  <span>{launch.status === "Graduated" ? "DEX live" : `${launch.progress}% bond`}</span>
-                  <strong>{launch.raised}</strong>
+                  <span>{launch.launchMode === "direct" ? "Direct DEX" : launch.status === "Graduated" ? "DEX live" : `${launch.progress}% bond`}</span>
+                  <strong>{launch.launchMode === "direct" ? "LP locked" : launch.raised}</strong>
                 </div>
               </Link>
               );
@@ -315,6 +315,7 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metri
           <div className="feed-tabs" role="tablist" aria-label="Launch filters">
             <FilterButton active={filter === "Activity"} onClick={() => { setFilter("Activity"); setPage(1); }}><Radio size={14} />Active</FilterButton>
             <FilterButton active={filter === "Newest"} onClick={() => { setFilter("Newest"); setPage(1); }}><Clock3 size={14} />Newest</FilterButton>
+            <FilterButton active={filter === "Direct"} onClick={() => { setFilter("Direct"); setPage(1); }}><Zap size={14} />Direct</FilterButton>
             <FilterButton active={filter === "Live"} onClick={() => { setFilter("Live"); setPage(1); }}><Sparkles size={14} />Bonding</FilterButton>
             <FilterButton active={filter === "Progress"} onClick={() => { setFilter("Progress"); setPage(1); }}><Trophy size={14} />Progress</FilterButton>
             <FilterButton active={filter === "Graduated"} onClick={() => { setFilter("Graduated"); setPage(1); }}><Rocket size={14} />Graduated</FilterButton>
@@ -339,6 +340,7 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metri
       ) : (
         <div className={isPageLoading ? "token-grid page-loading" : "token-grid"} aria-busy={isPageLoading}>
           {displayedLaunches.map((launch, index) => {
+            const direct = launch.launchMode === "direct";
             const featured = isFeaturedLaunch(launch);
             const trusted = isTrustedLaunch(launch);
             const officialBlue = isOfficialBlue(launch);
@@ -346,16 +348,16 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metri
             const activity = activityByLaunch.get(launch.id);
             const hasMarketCap = launch.marketCap.trim().toLowerCase() !== "live" && parseDisplayAmount(launch.marketCap) > 0;
             const dexMarketCap = dexMarketCaps.get(launch.token.toLowerCase());
-            const marketCapEth = hasMarketCap ? launch.marketCap : estimateCurveMarketCapEth(launch.raised);
+            const marketCapEth = hasMarketCap ? launch.marketCap : direct ? "Live" : estimateCurveMarketCapEth(launch.raised);
             const marketCap = dexMarketCap ? compactUsd(dexMarketCap) : formatLaunchUsd(marketCapEth, ethUsd);
-            const marketCapLabel = dexMarketCap || hasMarketCap ? "Market cap" : "Estimated MC";
+            const marketCapLabel = dexMarketCap || hasMarketCap ? "Market cap" : direct ? "Market data" : "Estimated MC";
             const volume = formatLaunchUsd(launch.volume, ethUsd);
             return (
             <Link className={`${featured ? "token-card featured" : "token-card"}${isHot ? " activity-hot" : ""}`} href={tokenPath(launch)} key={`${launch.chainId}-${launch.id}-${launch.token}`}>
               <div className="token-card-visual">
                 <TokenAvatar launch={launch} hot={isHot || index === 0} />
                 <div className="token-card-visual-badges">
-                  <span className={launch.status === "Live" ? "token-status live" : "token-status"}>{isHot ? "Active buy" : launch.status === "Live" ? "Bonding" : launch.status === "Graduated" ? "Graduated" : "Bonded"}</span>
+                  <span className={direct ? "token-status direct" : launch.status === "Live" ? "token-status live" : "token-status"}>{direct ? "Direct DEX" : isHot ? "Active buy" : launch.status === "Live" ? "Bonding" : launch.status === "Graduated" ? "Graduated" : "Bonded"}</span>
                   <span className="token-chain-badge"><NetworkIcon chainId={launch.chainId} size={15} />{networkMeta(launch.chainId).name}</span>
                 </div>
               </div>
@@ -368,14 +370,20 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metri
                   <div className="token-market-cap"><span>{marketCapLabel}</span><strong>{marketCap}</strong></div>
                   <div className="token-volume"><span>Volume</span><strong>{volume}</strong></div>
                 </div>
-                <div className="token-progress-label">
-                  <span>{launch.status === "Graduated" ? "Liquidity locked" : "Bonding progress"}</span>
-                  <strong>{launch.status === "Graduated" ? "100%" : `${launch.progress}%`}</strong>
-                </div>
-                <div className={launch.status === "Graduated" ? "progress token-card-progress graduated" : "progress token-card-progress"} aria-label={`Graduation progress ${launch.progress}%`}><span style={{ width: `${launch.status === "Graduated" ? 100 : launch.progress}%` }} /></div>
+                {direct ? (
+                  <div className="token-direct-state"><span><Zap size={12} />Direct DEX</span><strong><LockKeyhole size={12} />LP locked</strong></div>
+                ) : (
+                  <>
+                    <div className="token-progress-label">
+                      <span>{launch.status === "Graduated" ? "Liquidity locked" : "Bonding progress"}</span>
+                      <strong>{launch.status === "Graduated" ? "100%" : `${launch.progress}%`}</strong>
+                    </div>
+                    <div className={launch.status === "Graduated" ? "progress token-card-progress graduated" : "progress token-card-progress"} aria-label={`Graduation progress ${launch.progress}%`}><span style={{ width: `${launch.status === "Graduated" ? 100 : launch.progress}%` }} /></div>
+                  </>
+                )}
                 <div className="token-foot">
                   <span>By {launch.creator.slice(0, 6)}...{launch.creator.slice(-4)} · {launch.age}</span>
-                  <span>{launch.status === "Graduated" ? "DEX live" : `Raised ${launch.raised}`}</span>
+                  <span>{direct || launch.status === "Graduated" ? "DEX live" : `Raised ${launch.raised}`}</span>
                 </div>
               </div>
             </Link>
@@ -470,6 +478,11 @@ function compareBlocks(left?: string, right?: string) {
 
 function compareLaunchIds(left: string, right: string) {
   return compareBlocks(left, right);
+}
+
+function compareLaunchCreated(left: DeployedLaunch, right: DeployedLaunch) {
+  const blockDelta = compareBlocks(left.createdBlock, right.createdBlock);
+  return blockDelta || compareLaunchIds(left.id, right.id);
 }
 
 function paginationItems(current: number, total: number): Array<number | "…"> {

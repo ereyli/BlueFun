@@ -33,6 +33,7 @@ export type DeployedLaunch = {
   telegram?: string;
   discord?: string;
   positionId?: `0x${string}`;
+  createdBlock?: string;
   status: "Live" | "Ready" | "Graduated";
   raised: string;
   target: string;

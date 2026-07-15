@@ -11,14 +11,14 @@ export type BlueFunV4PoolKey = {
 
 export function blueFunV4PoolKey(
   token: `0x${string}`,
-  config: { fee?: number; tickSpacing?: number } = {}
+  config: { fee?: number; tickSpacing?: number; hooks?: `0x${string}` } = {}
 ): BlueFunV4PoolKey {
   return {
     currency0: zeroAddress,
     currency1: token,
     fee: config.fee ?? BLUEFUN_V4_POOL_FEE,
     tickSpacing: config.tickSpacing ?? BLUEFUN_V4_TICK_SPACING,
-    hooks: zeroAddress
+    hooks: config.hooks ?? zeroAddress
   };
 }
 
@@ -27,15 +27,17 @@ export function buildV4EthToTokenSwap({
   amountOutMinimum,
   token,
   poolFee,
-  tickSpacing
+  tickSpacing,
+  hooks
 }: {
   amountIn: bigint;
   amountOutMinimum: bigint;
   token: `0x${string}`;
   poolFee?: number;
   tickSpacing?: number;
+  hooks?: `0x${string}`;
 }) {
-  const poolKey = blueFunV4PoolKey(token, { fee: poolFee, tickSpacing });
+  const poolKey = blueFunV4PoolKey(token, { fee: poolFee, tickSpacing, hooks });
   const actions = "0x060c0f" as const;
   const swapExactInSingle = encodeAbiParameters(
     [
@@ -105,15 +107,17 @@ export function buildV4TokenToEthSwap({
   amountOutMinimum,
   token,
   poolFee,
-  tickSpacing
+  tickSpacing,
+  hooks
 }: {
   amountIn: bigint;
   amountOutMinimum: bigint;
   token: `0x${string}`;
   poolFee?: number;
   tickSpacing?: number;
+  hooks?: `0x${string}`;
 }) {
-  const poolKey = blueFunV4PoolKey(token, { fee: poolFee, tickSpacing });
+  const poolKey = blueFunV4PoolKey(token, { fee: poolFee, tickSpacing, hooks });
   const actions = "0x060c0f" as const;
   const swapExactInSingle = encodeAbiParameters(
     [

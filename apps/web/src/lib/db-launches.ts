@@ -23,7 +23,7 @@ export type LaunchBuyActivity = {
   createdAt: string;
 };
 
-export type LaunchPageFilter = "All" | "Live" | "Ready" | "Graduated" | "Progress";
+export type LaunchPageFilter = "All" | "Newest" | "Direct" | "Live" | "Ready" | "Graduated" | "Progress";
 export type DbLaunchPage = { launches: DeployedLaunch[]; total: number };
 
 const launchColumns = "scope, id, token, creator, name, symbol, contract_uri, image_url, description, website_url, twitter_url, telegram_url, discord_url, status, launch_mode, pool_fee, tick_spacing, liquidity_locker, raised_eth, graduation_target_eth, progress, volume_eth, token_created_at, created_block, position_id";
@@ -177,10 +177,12 @@ export async function getDbLaunchPage(
         .in("scope", context.scopes)
         .gte("created_block", context.deploymentBlock);
       if (statusFilter) query = query.eq("status", statusFilter);
+      if (filter === "Direct") query = query.eq("launch_mode", "direct");
+      if (filter === "Graduated" || filter === "Progress") query = query.neq("launch_mode", "direct");
       if (search) query = query.or(`name.ilike.%${search}%,symbol.ilike.%${search}%,token.ilike.%${search}%,creator.ilike.%${search}%`);
       query = filter === "Progress"
-        ? query.order("progress", { ascending: false }).order("id", { ascending: false })
-        : query.order("id", { ascending: false });
+        ? query.order("progress", { ascending: false }).order("created_block", { ascending: false }).order("id", { ascending: false })
+        : query.order("created_block", { ascending: false }).order("id", { ascending: false });
       let response: {
         data: Array<Record<string, unknown>> | null;
         error: { message?: string; details?: string } | null;
@@ -193,10 +195,12 @@ export async function getDbLaunchPage(
           .in("scope", context.scopes)
           .gte("created_block", context.deploymentBlock);
         if (statusFilter) legacyQuery = legacyQuery.eq("status", statusFilter);
+        if (filter === "Direct") legacyQuery = legacyQuery.eq("launch_mode", "direct");
+        if (filter === "Graduated" || filter === "Progress") legacyQuery = legacyQuery.neq("launch_mode", "direct");
         if (search) legacyQuery = legacyQuery.or(`name.ilike.%${search}%,symbol.ilike.%${search}%,token.ilike.%${search}%,creator.ilike.%${search}%`);
         legacyQuery = filter === "Progress"
-          ? legacyQuery.order("progress", { ascending: false }).order("id", { ascending: false })
-          : legacyQuery.order("id", { ascending: false });
+          ? legacyQuery.order("progress", { ascending: false }).order("created_block", { ascending: false }).order("id", { ascending: false })
+          : legacyQuery.order("created_block", { ascending: false }).order("id", { ascending: false });
         response = await legacyQuery.range(offset, offset + pageSize - 1);
       }
       if (response.error) throw response.error;
@@ -216,7 +220,10 @@ export async function getDbLaunchPage(
          and ($3 = '' or status = $3)
          and ($4 = '' or name ilike '%' || $4 || '%' or symbol ilike '%' || $4 || '%'
            or token ilike '%' || $4 || '%' or creator ilike '%' || $4 || '%')
-       order by case when $5 = 'Progress' then progress end desc, id desc
+         and ($5 <> 'Direct' or launch_mode = 'direct')
+         and ($5 <> 'Graduated' or launch_mode <> 'direct')
+         and ($5 <> 'Progress' or launch_mode <> 'direct')
+       order by case when $5 = 'Progress' then progress end desc, created_block desc, id desc
        limit $6 offset $7`,
       [context.scopes, context.deploymentBlock, statusFilter, search, filter, pageSize, offset]
     ), 1_500);
@@ -587,6 +594,7 @@ async function mapRows(rows: Array<Record<string, unknown>>, chainId: number): P
       telegram: cleanDbText(row.telegram_url) || metadata.telegram,
       discord: cleanDbText(row.discord_url) || metadata.discord,
       positionId: cleanDbText(row.position_id) as `0x${string}` | undefined,
+      createdBlock: row.created_block === null || row.created_block === undefined ? undefined : String(row.created_block),
       status,
       raised: `${trimEth(formatEther(raised))} ETH`,
       target: `${trimEth(formatEther(target))} ETH`,

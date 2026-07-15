@@ -4,7 +4,7 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { decodeEventLog, formatEther, parseEther, keccak256, toBytes } from "viem";
 import { useAccount, useReadContract, useWaitForTransactionReceipt, useWriteContract } from "wagmi";
-import { CheckCircle2, ChevronLeft, ChevronRight, Coins, ImagePlus, Info, Loader2, LockKeyhole, Rocket, TimerReset, UploadCloud, Zap } from "lucide-react";
+import { Check, CheckCircle2, ChevronLeft, ChevronRight, Coins, Copy, ExternalLink, ImagePlus, Info, LayoutDashboard, Loader2, LockKeyhole, Rocket, TimerReset, UploadCloud, X, Zap } from "lucide-react";
 import { contractsForChain, DIRECT_LAUNCH_FEE_FALLBACK_ETH, directLaunchFactoryAbi, FAIR_GRADUATION_TARGET_ETH, FAIR_LAUNCH_FEE_ETH, launchFactoryAbi } from "@/lib/contracts";
 import { useSearchParams } from "next/navigation";
 import { NetworkIcon } from "@/components/network-icon";
@@ -34,6 +34,7 @@ function LaunchPageContent() {
   const [launchMode, setLaunchMode] = useState<"bond" | "direct">("bond");
   const [confirmedLaunchId, setConfirmedLaunchId] = useState("");
   const [confirmedToken, setConfirmedToken] = useState("");
+  const [showSuccess, setShowSuccess] = useState(false);
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const { isConnected, chainId } = useAccount();
   const requestedChain = useSearchParams().get("chain");
@@ -104,9 +105,13 @@ function LaunchPageContent() {
     metadataReady: Boolean(metadataUri),
     uploadError
   });
-  const confirmedMarketHref = launchMode === "bond" && confirmedToken
+  const confirmedMarketHref = confirmedToken
     ? tokenPath({ chainId: activeChainId, name, symbol, token: confirmedToken })
     : "";
+
+  useEffect(() => {
+    if (receipt.isSuccess) setShowSuccess(true);
+  }, [receipt.isSuccess]);
 
   useEffect(() => {
     if (!receipt.isSuccess || !receipt.data?.logs.length || confirmedLaunchId) return;
@@ -133,6 +138,7 @@ function LaunchPageContent() {
   async function submit() {
     if (!selectedFactory || disabled || !isConnected) return;
     setUploadError("");
+    setShowSuccess(false);
 
     let launchMetadataUri = metadataUri;
     if (!launchMetadataUri || metadataUploadKey !== metadataKey) {
@@ -363,77 +369,127 @@ function LaunchPageContent() {
               </div>
               {initialBuyTooLarge ? <p className="danger-text">Creator initial buy is capped at the {FAIR_GRADUATION_TARGET_ETH} ETH graduation target.</p> : null}
               <div className="launch-step-actions"><button className="button" disabled={isWorking} onClick={() => setStep(2)} type="button"><ChevronLeft size={16} />Back</button><button className="button primary launch-submit" disabled={disabled || isWorking || !isConnected} onClick={submit}>{isWorking ? <Loader2 className="spin" size={16} /> : metadataUri ? <Rocket size={16} /> : <UploadCloud size={16} />}{isImageUploading || isMetadataUploading ? "Preparing launch" : isPending ? "Confirm in wallet" : receipt.isLoading ? "Launching" : launchMode === "direct" ? "Launch direct to DEX" : isRobinhood ? "Launch ERC-20" : "Launch B20"}</button></div>
-              {launchStatus ? <LaunchNotice tone={launchStatus.tone}>{launchStatus.message}</LaunchNotice> : null}
-              {receipt.isSuccess && confirmedMarketHref ? <Link className="button wide launch-live-link" href={confirmedMarketHref}>Open live market <ChevronRight size={16} /></Link> : null}
+              {launchStatus && !receipt.isSuccess ? <LaunchNotice tone={launchStatus.tone}>{launchStatus.message}</LaunchNotice> : null}
+              {receipt.isSuccess ? <button className="button wide launch-live-link" onClick={() => setShowSuccess(true)} type="button"><CheckCircle2 size={16} />View launch result</button> : null}
             </section>
-          ) : null}
-          {receipt.isSuccess ? (
-            <LaunchChecklist
-              activeChainId={activeChainId}
-              hasInitialBuy={launchMode === "bond" && initialBuyEth > 0n}
-              launchId={confirmedLaunchId}
-              launchMode={launchMode}
-              metadataReady={Boolean(metadataUri)}
-              name={name}
-              symbol={symbol}
-              token={confirmedToken}
-            />
           ) : null}
         </div>
       </section>
+      {receipt.isSuccess && showSuccess ? (
+        <LaunchSuccessModal
+          activeChainId={activeChainId}
+          hasInitialBuy={launchMode === "bond" && initialBuyEth > 0n}
+          imagePreview={imagePreview}
+          launchId={confirmedLaunchId}
+          launchMode={launchMode}
+          marketHref={confirmedMarketHref}
+          metadataReady={Boolean(metadataUri)}
+          name={name}
+          onClose={() => setShowSuccess(false)}
+          symbol={symbol}
+          token={confirmedToken}
+          transactionHash={hash || ""}
+        />
+      ) : null}
     </div>
   );
 }
 
-function LaunchChecklist({
+function LaunchSuccessModal({
   activeChainId,
   hasInitialBuy,
+  imagePreview,
   launchId,
   launchMode,
+  marketHref,
   metadataReady,
   name,
+  onClose,
   symbol,
-  token
+  token,
+  transactionHash
 }: {
   activeChainId: number;
   hasInitialBuy: boolean;
+  imagePreview: string;
   launchId: string;
   launchMode: "bond" | "direct";
+  marketHref: string;
   metadataReady: boolean;
   name: string;
+  onClose: () => void;
   symbol: string;
   token: string;
+  transactionHash: string;
 }) {
   const { chain } = contractsForChain(activeChainId);
-  const marketHref = launchMode === "bond" && token ? tokenPath({ chainId: activeChainId, name, symbol, token }) : "";
-  const basescanHref = token ? `${chain.blockExplorers.default.url}/token/${token}` : "";
+  const [copied, setCopied] = useState(false);
+  const tokenExplorerHref = token ? `${chain.blockExplorers.default.url}/token/${token}` : "";
+  const transactionHref = transactionHash ? `${chain.blockExplorers.default.url}/tx/${transactionHash}` : "";
   const items = [
     { label: "Token deployed", done: Boolean(token) },
-    { label: launchMode === "direct" ? "Uniswap v4 pool created" : "Initial buy processed", done: launchMode === "direct" ? Boolean(launchId) : hasInitialBuy || Boolean(launchId) },
+    { label: launchMode === "direct" ? "Uniswap v4 pool created" : "Bonding curve activated", done: Boolean(launchId) },
     { label: "Metadata pinned", done: metadataReady },
-    { label: "Launch event confirmed", done: Boolean(launchId) },
-    { label: launchMode === "direct" ? "LP locked permanently" : "Trade page ready", done: launchMode === "direct" ? Boolean(launchId) : Boolean(marketHref) }
+    { label: launchMode === "direct" ? "LP locked permanently" : hasInitialBuy ? "Initial buy processed" : "Market opened fairly", done: Boolean(launchId) }
   ];
 
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") onClose();
+    };
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [onClose]);
+
+  async function copyToken() {
+    if (!token) return;
+    await navigator.clipboard.writeText(token);
+    setCopied(true);
+    window.setTimeout(() => setCopied(false), 1800);
+  }
+
   return (
-    <section className="launch-checklist">
-      <div className="launch-checklist-head">
-        <strong>Launch verification</strong>
-        {marketHref ? <Link href={marketHref}>Open market</Link> : null}
-      </div>
-      <div className="launch-checklist-grid">
-        {items.map((item) => (
-          <span className={item.done ? "done" : ""} key={item.label}>
-            <CheckCircle2 size={15} />{item.label}
-          </span>
-        ))}
-      </div>
-      {basescanHref ? (
-        <a className="button wide" href={basescanHref} target="_blank" rel="noreferrer">
-          View on {chain.name === "Base" ? "BaseScan" : "Robinhood Explorer"}
-        </a>
-      ) : null}
-    </section>
+    <div className="launch-success-backdrop" onMouseDown={(event) => { if (event.currentTarget === event.target) onClose(); }}>
+      <section aria-labelledby="launch-success-title" aria-modal="true" className="launch-success-modal" role="dialog">
+        <button aria-label="Close launch result" className="launch-success-close" onClick={onClose} type="button"><X size={18} /></button>
+        <header className="launch-success-hero">
+          <div className="launch-success-mark"><Check size={29} /></div>
+          <span>Launch confirmed</span>
+          <h2 id="launch-success-title">Your market is live.</h2>
+          <p>{launchMode === "direct" ? "The token, locked Uniswap v4 pool and creator fee share are now active." : "The token and bonding curve are active. Trading can begin immediately."}</p>
+        </header>
+
+        <div className="launch-success-token">
+          <div className="launch-success-art">{imagePreview ? <img alt="" src={imagePreview} /> : <Rocket size={25} />}</div>
+          <div><strong>{name}</strong><span>${symbol} · Launch #{launchId || "confirmed"}</span></div>
+          <div className="launch-success-network"><NetworkIcon chainId={activeChainId} size={20} />{chain.name}</div>
+        </div>
+
+        <div className="launch-success-address">
+          <span>Token contract</span>
+          <div><code>{token || "Confirming token address…"}</code>{token ? <button aria-label="Copy token address" onClick={() => void copyToken()} type="button">{copied ? <Check size={15} /> : <Copy size={15} />}{copied ? "Copied" : "Copy"}</button> : null}</div>
+        </div>
+
+        <div className="launch-success-checks">
+          {items.map((item) => <span className={item.done ? "done" : ""} key={item.label}><CheckCircle2 size={15} />{item.label}</span>)}
+        </div>
+
+        <div className="launch-success-actions">
+          {marketHref ? <Link className="button primary" href={marketHref}>Open live market <ChevronRight size={16} /></Link> : <button className="button primary" disabled type="button"><Loader2 className="spin" size={16} />Preparing market link</button>}
+          <Link className="button" href="/dashboard"><LayoutDashboard size={15} />Creator dashboard</Link>
+        </div>
+        <footer className="launch-success-links">
+          {transactionHref ? <a href={transactionHref} target="_blank" rel="noreferrer">View transaction <ExternalLink size={12} /></a> : null}
+          {tokenExplorerHref ? <a href={tokenExplorerHref} target="_blank" rel="noreferrer">View token on explorer <ExternalLink size={12} /></a> : null}
+          <span>Indexing may take a few seconds.</span>
+        </footer>
+      </section>
+    </div>
   );
 }
 

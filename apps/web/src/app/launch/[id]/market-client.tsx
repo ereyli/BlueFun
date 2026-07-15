@@ -21,6 +21,7 @@ import {
   feeSharingLockerAbi,
   graduationManagerAbi,
   indexerScopeForLaunch,
+  liquidityLockerPoolAbi,
   permit2Abi,
   universalRouterAbi,
   uniswapV4QuoterAbi
@@ -91,9 +92,23 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
   const { data: hash, error, writeContract, isPending } = useWriteContract();
   const receipt = useWaitForTransactionReceipt({ hash });
   const parsedAmount = parsePositiveEther(amount);
+  const isDirect = launch?.launchMode === "direct";
   const isGraduated = launch?.status === "Graduated" || launch?.launchMode === "direct";
-  const v4PoolConfig = { fee: launch?.poolFee, tickSpacing: launch?.tickSpacing };
   const liquidityLockerAddress = launch?.liquidityLocker ?? addresses.liquidityLocker;
+  const directPoolHook = useReadContract({
+    address: liquidityLockerAddress,
+    abi: liquidityLockerPoolAbi,
+    functionName: "initializationGuard",
+    query: { enabled: Boolean(isGraduated && isDirect && liquidityLockerAddress) }
+  });
+  const graduatedPoolHook = useReadContract({
+    address: liquidityLockerAddress,
+    abi: liquidityLockerPoolAbi,
+    functionName: "hooks",
+    query: { enabled: Boolean(isGraduated && !isDirect && liquidityLockerAddress) }
+  });
+  const poolHooks = isDirect ? directPoolHook.data : graduatedPoolHook.data;
+  const v4PoolConfig = { fee: launch?.poolFee, tickSpacing: launch?.tickSpacing, hooks: poolHooks };
   const ethBalance = useBalance({
     address,
     query: { enabled: Boolean(address) }
@@ -118,7 +133,7 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
     abi: bondingCurveAbi,
     functionName: "pendingFees",
     args: [address!],
-    query: { enabled: Boolean(addresses.bondingCurveMarket && address) }
+    query: { enabled: Boolean(!isDirect && addresses.bondingCurveMarket && address) }
   });
   const feeSharingEnabled = Boolean(
     launch?.positionId && (launch.launchMode === "direct" || addresses.version !== "legacy")
@@ -185,7 +200,7 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
       }
     ],
     query: {
-      enabled: Boolean(isGraduated && launch?.token && parsedAmount > 0n),
+      enabled: Boolean(isGraduated && launch?.token && poolHooks && parsedAmount > 0n),
       refetchOnWindowFocus: false,
       retry: 1,
       staleTime: 8_000
@@ -254,7 +269,7 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
       : formatUsdFromEthText(displayPrice, ethUsd, true);
   const showCreatorEarnings = Boolean(address && (
     address.toLowerCase() === launch?.creator.toLowerCase()
-    || (accountFeeBalance.data ?? 0n) > 0n
+    || (!isDirect && (accountFeeBalance.data ?? 0n) > 0n)
     || (lpNativePending.data ?? 0n) > 0n
     || (lpTokenPending.data ?? 0n) > 0n
   ));
@@ -411,7 +426,8 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
       amountOutMinimum: graduatedMinOut,
       token: launch.token,
       poolFee: launch.poolFee,
-      tickSpacing: launch.tickSpacing
+      tickSpacing: launch.tickSpacing,
+      hooks: poolHooks
     });
 
     writeContract({
@@ -453,7 +469,8 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
       amountOutMinimum: graduatedMinOut,
       token: launch.token,
       poolFee: launch.poolFee,
-      tickSpacing: launch.tickSpacing
+      tickSpacing: launch.tickSpacing,
+      hooks: poolHooks
     });
 
     writeContract({
@@ -499,7 +516,7 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
   }
 
   function claimFees() {
-    if (!addresses.bondingCurveMarket) return;
+    if (isDirect || !addresses.bondingCurveMarket) return;
     writeContract({
       chainId: activeChainId,
       address: addresses.bondingCurveMarket,
@@ -554,7 +571,7 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
                 {officialBlue
                   ? <span className="trusted-badge official-blue-badge"><ShieldCheck size={13} />Official BLUE</span>
                   : trusted ? <span className="trusted-badge"><ShieldCheck size={13} />Trusted</span> : null}
-                <span className={launch.status === "Live" ? "token-status live" : "token-status"}>{launch.status === "Live" ? "Bonding" : launch.status === "Ready" ? "Bonded" : launch.status}</span>
+                <span className={launch.status === "Live" ? "token-status live" : "token-status"}>{isDirect ? "Direct DEX" : launch.status === "Live" ? "Bonding" : launch.status === "Ready" ? "Bonded" : launch.status}</span>
               </div>
               <div className="market-meta">
                 <span>${launch.symbol}</span>
@@ -562,7 +579,7 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
                 <span>{launch.creator.slice(0, 6)}...{launch.creator.slice(-4)}</span>
               </div>
               <div className={trusted ? "market-route-pill trusted" : "market-route-pill"}>
-                <ShieldCheck size={12} />{trusted ? "Verified market" : "Official curve"}
+                <ShieldCheck size={12} />{trusted ? "Verified market" : isDirect ? "Direct market" : "Official curve"}
               </div>
             </div>
             <div className="market-actions">
@@ -593,16 +610,16 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
           <div className="market-header-stats">
             <div><span>{isEstimatedCurveData ? "Estimated MC" : "Market cap"}</span><strong>{displayMarketCapText}</strong></div>
             <div><span>{isEstimatedCurveData ? "Estimated price" : "Price"}</span><strong>{displayPriceText}</strong></div>
-            <div><span>Raised</span><strong>{launch.raised}</strong></div>
-            <div><span>Bonded</span><strong>{launch.progress}%</strong></div>
+            <div><span>{isDirect ? "Liquidity" : "Raised"}</span><strong>{isDirect ? "Permanently locked" : launch.raised}</strong></div>
+            <div><span>{isDirect ? "Route" : "Bonded"}</span><strong>{isDirect ? "Direct DEX" : `${launch.progress}%`}</strong></div>
           </div>
           {isGraduated && !latestMarketCapEth && marketDataState !== "ready" ? (
             <div className={`market-data-note ${marketDataState}`}>
               <span className="wallet-status-dot" />
-              {marketDataState === "loading" ? "Fetching live Uniswap market data…" : "Live DEX pricing is temporarily unavailable. Trading remains available onchain."}
+              {marketDataState === "loading" ? "Fetching live Uniswap market data…" : "Live USD pricing is temporarily unavailable. Onchain quoting and trading remain available."}
             </div>
           ) : null}
-          <div className="progress"><span style={{ width: `${launch.progress}%` }} /></div>
+          {!isDirect ? <div className="progress"><span style={{ width: `${launch.progress}%` }} /></div> : null}
         </div>
 
       </section>
@@ -623,7 +640,7 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
       </section>
 
       <aside className="trade-box">
-        {launch.status === "Graduated" ? (
+        {isGraduated ? (
           <GraduatedTradeCard
             amount={amount}
             error={error?.message}
@@ -810,10 +827,10 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
 
         {showCreatorEarnings ? <section className="side-compact-card">
           <div className="side-card-head">
-            <span>Your earnings</span>
-            <strong>{accountFeeBalance.data ? formatQuote(accountFeeBalance.data, "ETH") : "0 ETH"}</strong>
+            <span>{isDirect ? "Your LP earnings" : "Your earnings"}</span>
+            <strong>{formatQuote(isDirect ? (lpNativePending.data ?? 0n) : (accountFeeBalance.data ?? 0n), "ETH")}</strong>
           </div>
-          <button
+          {!isDirect ? <button
             className="button primary wide"
             disabled={!isConnected || isWorking || !accountFeeBalance.data}
             onClick={claimFees}
@@ -821,7 +838,7 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
           >
             {isWorking ? <Loader2 className="spin" size={16} /> : null}
             {isPending ? "Confirm in wallet" : receipt.isLoading ? "Claiming" : "Claim curve fees"}
-          </button>
+          </button> : null}
           {feeSharingEnabled ? <div className="lp-claim-actions">
             <button
               className="button secondary wide"
@@ -1090,7 +1107,7 @@ function GraduatedTradeCard({
       <div className="trade-card-toolbar graduated-trade-toolbar">
         <div className="graduated-badge">
           <Sparkles size={16} />
-          Graduated
+          {launch.launchMode === "direct" ? "Direct DEX" : "Graduated"}
         </div>
       </div>
       <div className="form graduated-swap-form">
@@ -1254,7 +1271,7 @@ function ProjectInfo({ launch }: { launch: DeployedLaunch }) {
       <dl className="market-overview-grid">
         <div><dt>Standard</dt><dd>{launch.chainId === 4663 ? "ERC-20" : "B20"}</dd></div>
         <div><dt>Trading fee</dt><dd>1% total</dd></div>
-        <div><dt>Liquidity</dt><dd>{launch.status === "Graduated" ? "Uniswap v4 · locked" : "Bonding curve"}</dd></div>
+        <div><dt>Liquidity</dt><dd>{launch.status === "Graduated" || launch.launchMode === "direct" ? "Uniswap v4 · locked" : "Bonding curve"}</dd></div>
       </dl>
       <details className="market-details-disclosure">
         <summary><span>Contract details</span><small>Token, creator and supply</small></summary>
@@ -1359,7 +1376,7 @@ function MarketStats({
     <section className="market-stats-panel">
       <div className="market-stats-head">
         <h2>Recent activity</h2>
-        <span>{launch.progress}% bonded</span>
+        <span>{launch.launchMode === "direct" ? "Direct DEX" : `${launch.progress}% bonded`}</span>
       </div>
       <div className="market-stats-grid">
         <div><span>Buys</span><strong>{stats.buys}</strong></div>

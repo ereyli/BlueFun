@@ -13,8 +13,8 @@ export async function GET(request: Request) {
   const page = Number(params.get("page") || "1");
   const query = (params.get("q") || "").slice(0, 80);
   const requestedFilter = params.get("filter") || "All";
-  const normalizedFilter = ["New", "Newest", "Activity", "Safe"].includes(requestedFilter) ? "All" : requestedFilter;
-  const filters: LaunchPageFilter[] = ["All", "Live", "Ready", "Graduated", "Progress"];
+  const normalizedFilter = ["New", "Activity", "Safe"].includes(requestedFilter) ? "All" : requestedFilter;
+  const filters: LaunchPageFilter[] = ["All", "Newest", "Direct", "Live", "Ready", "Graduated", "Progress"];
   if (!chainParam || !["base", "robinhood", "8453", "4663"].includes(chainParam.toLowerCase()) || !Number.isInteger(page) || page < 1 || page > 100_000 || !filters.includes(normalizedFilter as LaunchPageFilter)) {
     return NextResponse.json({ launches: [], total: 0, page: 1, totalPages: 0 }, { status: 400 });
   }
@@ -27,11 +27,23 @@ export async function GET(request: Request) {
   const filtered = all.filter((launch) => {
     const matchesQuery = !normalized || [launch.name, launch.symbol, launch.token, launch.creator].some((value) => value.toLowerCase().includes(normalized));
     if (!matchesQuery) return false;
-    if (filter === "Live" || filter === "Ready" || filter === "Graduated") return launch.status === filter;
+    if (filter === "Direct") return launch.launchMode === "direct";
+    if (filter === "Live" || filter === "Ready") return launch.launchMode !== "direct" && launch.status === filter;
+    if (filter === "Graduated") return launch.launchMode !== "direct" && launch.status === "Graduated";
+    if (filter === "Progress") return launch.launchMode !== "direct";
     return true;
-  }).sort((a, b) => filter === "Progress" ? b.progress - a.progress || Number(b.id) - Number(a.id) : Number(b.id) - Number(a.id));
+  }).sort((a, b) => filter === "Progress" ? b.progress - a.progress || compareCreated(b, a) : compareCreated(b, a));
   const start = (page - 1) * 21;
   return jsonLaunchPage({ launches: filtered.slice(start, start + 21), total: filtered.length, page, totalPages: Math.ceil(filtered.length / 21) }, query);
+}
+
+function compareCreated(left: { createdBlock?: string; id: string }, right: { createdBlock?: string; id: string }) {
+  const leftBlock = BigInt(left.createdBlock || "0");
+  const rightBlock = BigInt(right.createdBlock || "0");
+  if (leftBlock !== rightBlock) return leftBlock > rightBlock ? 1 : -1;
+  const leftId = BigInt(left.id || "0");
+  const rightId = BigInt(right.id || "0");
+  return leftId === rightId ? 0 : leftId > rightId ? 1 : -1;
 }
 
 function jsonLaunchPage(payload: object, query: string) {
