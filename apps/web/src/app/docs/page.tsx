@@ -38,6 +38,7 @@ const sections = [
   ["liquidity", "Liquidity security"],
   ["creator-tools", "Creator tools"],
   ["trading", "Trading"],
+  ["legacy", "Legacy tokens"],
   ["blue", "BLUE token"],
   ["staking", "BLUE staking"],
   ["contracts", "Contracts"],
@@ -57,6 +58,7 @@ const productionContracts = [
     directHook: "0xf0b8dde19510ee7d6d50be289c4257ecd14c60cc",
     feePolicy: "0xe5c5585ab34f8e2ba55c30ef5e6b0254d87a4941",
     revenueRouter: blueStakingAddresses.revenueRouter,
+    governance: blueStakingAddresses.governance,
     version: "vNext"
   },
   {
@@ -71,6 +73,7 @@ const productionContracts = [
     directHook: "0x4c77a461669c0345960dd33d415747c8932f60cc",
     feePolicy: "0x4d0baacfb8267c8f7ca39756bb29f924ddd72a6a",
     revenueRouter: "0xf42f51728ddfff6b4a556175dc5e5b68a1e5371b",
+    governance: "0xa64ed8d4c4cacff075a4d1d50ee2f7795b4b0039",
     version: "vNext"
   }
 ] as const;
@@ -198,8 +201,19 @@ export default async function DocsPage() {
             <article><WalletCards /><span>01</span><strong>Connect</strong><p>Select Base or Robinhood Chain and connect the wallet that will own the launch identity.</p></article>
             <article><Rocket /><span>02</span><strong>Launch</strong><p>Add token identity, choose a launch route and optionally execute the creator first buy atomically.</p></article>
             <article><LayoutDashboard /><span>03</span><strong>Monitor</strong><p>View created tokens, holdings, trades and creator-fee balances in the dashboard.</p></article>
-            <article><CircleDollarSign /><span>04</span><strong>Claim</strong><p>Claim available ETH or legacy Bond LP token fees directly to the creator wallet.</p></article>
+            <article><CircleDollarSign /><span>04</span><strong>Claim</strong><p>Claim vNext buy-side creator ETH. Historical tokens keep the claim rules of the contracts they originally launched through.</p></article>
           </div>
+        </section>
+
+        <section className="docs-section" id="legacy">
+          <SectionTitle eyebrow="Historical continuity" title="Old tokens remain tradable" description="A new deployment changes future launches; it does not migrate or rewrite tokens that already exist." />
+          <div className="docs-check-grid">
+            <Check text="The web app and indexers retain every supported Base and Robinhood deployment generation." />
+            <Check text="Each token is resolved by chain, deployment scope, launch mode and original contract addresses." />
+            <Check text="Bonding tokens continue through their original market; graduated and Direct tokens continue through their original Uniswap v4 pool." />
+            <Check text="Legacy tokens keep their original fee, creator-revenue, burn and LP-fee behavior and are never presented as vNext tokens." />
+          </div>
+          <Callout tone="warning" title="Rules are deployment-specific">The current 0.7% platform, 0.3% creator-buy and 0.3% sell-burn policy applies only to vNext. Always use the token page generated from its indexed deployment instead of assuming every historical token has the newest rules.</Callout>
         </section>
 
         <section className="docs-section" id="trading">
@@ -243,7 +257,7 @@ export default async function DocsPage() {
         <section className="docs-section" id="staking">
           <SectionTitle eyebrow="Base revenue vault" title="BLUE staking" description="A Base-only, non-custodial staking vault distributes deposited protocol revenue in proportion to each wallet's active BLUE stake." />
           <div className="docs-fee-summary">
-            <article><span>Current staker share</span><strong>50%</strong><p>The router sends half of each deposited revenue batch to the staking vault and half to treasury.</p></article>
+            <article><span>Current staker share</span><strong>50%</strong><p>The router sends half of vNext trade platform revenue to staking. Launch fees currently remain 100% treasury.</p></article>
             <article><span>Reward asset</span><strong>ETH</strong><p>Native ETH rewards stream over seven days instead of arriving in one block.</p></article>
             <article><span>Unstake delay</span><strong>30 days</strong><p>Additional requests aggregate and reset the timer; partial cancel and withdrawal are supported.</p></article>
             <article><span>Admin delay</span><strong>7 days</strong><p>Share, treasury, operator and duration changes require a public timelocked transaction.</p></article>
@@ -258,7 +272,7 @@ export default async function DocsPage() {
         </section>
 
         <section className="docs-section" id="contracts">
-          <SectionTitle eyebrow="Mainnet references" title="Current production contracts" description="Base uses vNext. Robinhood vNext is deployed and integrated but creation remains gated until its final live smoke; historical launches stay connected to their original contracts." />
+          <SectionTitle eyebrow="Mainnet references" title="Current production contracts" description="Base and Robinhood vNext are verified, live-smoke tested and active for new creation. Historical launches stay connected to their original contracts." />
           <div className="docs-contract-networks">
             {productionContracts.map((network) => <article key={network.name}>
               <header><div><Network size={18} /><span><strong>{network.name}</strong><small>{network.standard}</small></span></div><span className="docs-live-pill">{network.version}</span></header>
@@ -269,10 +283,10 @@ export default async function DocsPage() {
               <ContractRow label="Direct LP locker" value={network.directLocker} explorer={network.explorer} />
               <ContractRow label="Unified fee hook" value={network.directHook} explorer={network.explorer} />
               <ContractRow label="Fee policy" value={network.feePolicy} explorer={network.explorer} />
+              <ContractRow label="Revenue router" value={network.revenueRouter} explorer={network.explorer} />
+              <ContractRow label="Governance timelock" value={network.governance} explorer={network.explorer} />
               {network.name === "Base" ? <>
                 <ContractRow label="BLUE staking vault" value={blueStakingAddresses.vault} explorer={network.explorer} />
-                <ContractRow label="Revenue router" value={blueStakingAddresses.revenueRouter} explorer={network.explorer} />
-                <ContractRow label="Staking timelock" value={blueStakingAddresses.governance} explorer={network.explorer} />
               </> : null}
             </article>)}
           </div>
@@ -284,7 +298,7 @@ export default async function DocsPage() {
           <div className="docs-security-grid">
             <article><ShieldCheck /><h3>Delayed governance</h3><p>vNext fee and future-launch settings are behind a seven-day, two-key timelock with rotatable owner and guardian roles.</p></article>
             <article><LockKeyhole /><h3>Immutable pool identity</h3><p>The unified hook accepts pool registration only from its frozen locker allowlist and never permits a registered creator mapping to change.</p></article>
-            <article><Flame /><h3>Burn accounting</h3><p>Direct sell-token fees are sent to <code>0x0000…dEaD</code>. Burn and platform revenue are emitted and readable onchain.</p></article>
+            <article><Flame /><h3>Burn accounting</h3><p>vNext Bond, Direct and graduated-pool sell-token fees are sent to <code>0x0000…dEaD</code>. Burn and platform revenue are emitted and readable onchain.</p></article>
             <article><Gauge /><h3>Market risk</h3><p>Low liquidity, volatility, price impact, failed routing, RPC outages and irreversible transactions remain possible.</p></article>
           </div>
           <Callout tone="warning" title="Use independent judgment">BlueFun is launch and trading software, not an endorsement of community tokens or investment advice. Verify the network, token address, quote and minimum received before signing.</Callout>

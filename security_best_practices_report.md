@@ -1,13 +1,13 @@
 # BlueFun vNext Contract Security Review
 
-Date: 2026-07-15
+Date: 2026-07-16
 Scope: vNext contracts, deployment scripts, Foundry tests, Base fork execution and deployment configuration.
 
 ## Release assessment
 
 No known high or critical finding remains in the reviewed vNext scope. This is a repository-grounded engineering review, not an independent third-party audit, and it cannot guarantee the absence of undiscovered defects.
 
-Base vNext was deployed at block `48678791`; all twelve deployment contracts are source-verified on BaseScan. Robinhood vNext was deployed at block `10703400`; all eleven deployment contracts are source-verified on Robinhood Blockscout. Robinhood creation remains gated until its low-value Bond and Direct live smoke succeeds.
+Base vNext was deployed at block `48678791`; all twelve deployment contracts are source-verified on BaseScan. Robinhood vNext was deployed at block `10703400`; all eleven deployment contracts are source-verified on Robinhood Blockscout. Controlled Bond and Direct live smoke tests passed on both networks and both vNext create flows are active. See [`docs/PROTOCOL.md`](docs/PROTOCOL.md) for the canonical addresses, transaction evidence and legacy-compatibility rules.
 
 ## Security properties
 
@@ -52,18 +52,20 @@ Base vNext was deployed at block `48678791`; all twelve deployment contracts are
   - router external calls target immutable trusted vaults or use checks-effects-interactions.
 - Base and Robinhood mainnet deployment simulations completed.
 
-## Operational release gates
+## Operational status and remaining hardening
 
-The following remain required before public activation on each network:
+Completed release gates:
 
-1. Fund the deployer with sufficient gas and complete broadcast.
-2. Source-verify every deployment contract and constructor argument.
-3. Run low-value Bond and Direct mainnet smoke launches, buy, sell, burn, revenue split and graduation checks.
-4. Deploy web and indexer together so no generation is only partially activated.
-5. Move timelock owner and guardian roles to independent hardware-backed multisig addresses.
-6. Enable legacy staking emergency exit only after the V2 UI and withdrawal path are live.
+1. Base and Robinhood deployments broadcast successfully.
+2. Every vNext deployment contract and constructor argument was source-verified.
+3. Low-value Bond and Direct mainnet launches, buys, sells, exact 0.3% burns and revenue splits passed on both networks.
+4. Web and indexer catalogs include vNext while retaining historical deployment scopes.
 
-Base source verification is complete, but the live low-value smoke launch is pending additional Base deployer funding for the `0.001 ETH` launch fee. The legacy staking vault has therefore not been placed into emergency mode.
+Remaining operational hardening:
+
+1. Move timelock owner and guardian roles to independent hardware-backed multisig addresses.
+2. Obtain an independent third-party audit and establish a public bug bounty.
+3. Enable legacy staking emergency exit only after the V2 UI is deployed to production and a real user withdrawal is verified.
 
 ## Residual risks
 
