@@ -25,9 +25,10 @@
     "graduationManager": "0xeb3e83ab91bd44959ace28b5f1cccb79b4b4092d",
     "liquidityLocker": "0x6e77d6418b9065cc947dba95bd1cbba3ca881318",
     "launchFactory": "0xb880ea1d3453968243722b9c1529870c796b060f",
-    "directLiquidityLocker": "0xb16edc36c64878d9884ae5e99f6212a6c227dd62",
-    "directLaunchFactory": "0xc4b8ec8839d3141aa5f7816eb181076a34725734",
+    "directFeeBurnHook": "0xebdabdc79bb91faee2c4142d4a4b95f4adfce0c4",
+    "directLiquidityLocker": "0xe0158cb5c659e95e0ef461e1f7518c4f3b557e81",
+    "directLaunchFactory": "0x9d0e5d76ca2d79ca6ab0c800763eb8e5c39a5079",
     "bondDeploymentBlock": 9943107,
-    "directDeploymentBlock": 9943294
+    "directDeploymentBlock": 10283960
   }
 }

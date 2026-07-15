@@ -94,10 +94,10 @@ export const robinhoodAddresses: ContractDeployment = {
   deploymentBlock: 9943107n,
   firstLaunchId: 2n,
   directLaunchFactory: (process.env.NEXT_PUBLIC_ROBINHOOD_DIRECT_LAUNCH_FACTORY
-    || "0xc4b8ec8839d3141aa5f7816eb181076a34725734") as `0x${string}`,
+    || "0x9d0e5d76ca2d79ca6ab0c800763eb8e5c39a5079") as `0x${string}`,
   directLiquidityLocker: (process.env.NEXT_PUBLIC_ROBINHOOD_DIRECT_LIQUIDITY_LOCKER
-    || "0xb16edc36c64878d9884ae5e99f6212a6c227dd62") as `0x${string}`,
-  directDeploymentBlock: BigInt(process.env.NEXT_PUBLIC_ROBINHOOD_DIRECT_DEPLOYMENT_BLOCK || "9943294")
+    || "0xe0158cb5c659e95e0ef461e1f7518c4f3b557e81") as `0x${string}`,
+  directDeploymentBlock: BigInt(process.env.NEXT_PUBLIC_ROBINHOOD_DIRECT_DEPLOYMENT_BLOCK || "10283960")
 };
 
 export const legacyBaseAddresses = LEGACY_BASE_DEPLOYMENT;
