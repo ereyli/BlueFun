@@ -4,6 +4,7 @@ pragma solidity ^0.8.25;
 import {Test} from "./utils/Test.sol";
 import {TimelockedAdmin} from "../src/TimelockedAdmin.sol";
 import {BondingCurveMarket} from "../src/BondingCurveMarket.sol";
+import {MockVNextPolicyRouter} from "./mocks/MockVNextPolicyRouter.sol";
 
 contract SecurityHardeningTest is Test {
     address owner = address(0xA11CE);
@@ -42,7 +43,8 @@ contract SecurityHardeningTest is Test {
     }
 
     function testNewBondMarketHasNoEmergencyDrainEntryPoint() public {
-        BondingCurveMarket market = new BondingCurveMarket(address(this), address(0xFEE));
+        MockVNextPolicyRouter policyRouter = new MockVNextPolicyRouter();
+        BondingCurveMarket market = new BondingCurveMarket(address(this), policyRouter, policyRouter);
         (bool ok,) =
             address(market).call(abi.encodeWithSignature("emergencyCloseUnbonded(uint256,address)", 1, address(this)));
         assertFalse(ok);

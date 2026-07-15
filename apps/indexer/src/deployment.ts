@@ -8,7 +8,7 @@ export const defaultRpcUrls = robinhood
   : [defaultRpcUrl, "https://base-rpc.publicnode.com", "https://1rpc.io/base", "https://base.meowrpc.com"];
 
 export type IndexerDeployment = {
-  version: "legacy" | "fee-sharing-v1" | "current";
+  version: "legacy" | "fee-sharing-v1" | "current" | "vnext";
   launchFactory: `0x${string}`;
   bondingCurveMarket: `0x${string}`;
   graduationManager: `0x${string}`;
@@ -71,8 +71,19 @@ export const mainnetDeployment: IndexerDeployment = robinhood ? {
   startBlock: 48642000n
 };
 
+export const vNextDeployment: IndexerDeployment | undefined = robinhood ? undefined : {
+  version: "vnext",
+  launchFactory: "0x820344fb4c0a518d0caef5d3de96ff41cbe6b345",
+  bondingCurveMarket: "0x7d42dd1435e9567c1edfb513c45c8ea82fe03a38",
+  graduationManager: "0x989bd9259408f73bb17099d37df2ccdc57b271f3",
+  liquidityLocker: "0x484345c0fc777d1945a84adb6284d487dafb1de8",
+  startBlock: 48678791n
+};
+
 export const deployments = Array.from(
-  new Map([legacyDeployment, feeSharingDeployment, mainnetDeployment].map((deployment) => [deployment.bondingCurveMarket, deployment])).values()
+  new Map([legacyDeployment, feeSharingDeployment, mainnetDeployment, vNextDeployment]
+    .filter((deployment): deployment is IndexerDeployment => Boolean(deployment))
+    .map((deployment) => [deployment.bondingCurveMarket, deployment])).values()
 );
 
 const configuredDirectFactory = (process.env.DIRECT_LAUNCH_FACTORY
@@ -86,7 +97,7 @@ const configuredDirectLocker = (process.env.DIRECT_LIQUIDITY_LOCKER
 const configuredDirectStartBlock = BigInt(
   process.env.DIRECT_DEPLOYMENT_BLOCK || (robinhood ? "10283960" : "48647525")
 );
-export const directDeployment: DirectIndexerDeployment | undefined =
+const configuredDirectDeployment: DirectIndexerDeployment | undefined =
   configuredDirectFactory && configuredDirectLocker && configuredDirectStartBlock > 0n
     ? {
         launchFactory: configuredDirectFactory,
@@ -95,6 +106,31 @@ export const directDeployment: DirectIndexerDeployment | undefined =
         scope: `${chainId}:direct:${configuredDirectFactory.toLowerCase()}:${configuredDirectStartBlock.toString()}`
       }
     : undefined;
+
+const legacyCurrentDirectDeployment: DirectIndexerDeployment = robinhood ? {
+  launchFactory: "0x9d0e5d76ca2d79ca6ab0c800763eb8e5c39a5079",
+  liquidityLocker: "0xe0158cb5c659e95e0ef461e1f7518c4f3b557e81",
+  startBlock: 10283960n,
+  scope: `${chainId}:direct:0x9d0e5d76ca2d79ca6ab0c800763eb8e5c39a5079:10283960`
+} : {
+  launchFactory: "0x0246688cef66734c1cada909cfd202e1448ba275",
+  liquidityLocker: "0x2e83029d88d0af58ba55b31980dc709920fab941",
+  startBlock: 48647525n,
+  scope: `${chainId}:direct:0x0246688cef66734c1cada909cfd202e1448ba275:48647525`
+};
+
+const vNextDirectDeployment: DirectIndexerDeployment | undefined = robinhood ? undefined : {
+  launchFactory: "0x394c5d0244b49e1eed533cd3505583e504589157",
+  liquidityLocker: "0x857f7d11474235d8cafd79826d4d2e0d2b7dabd7",
+  startBlock: 48678791n,
+  scope: `${chainId}:direct:0x394c5d0244b49e1eed533cd3505583e504589157:48678791`
+};
+
+export const directDeployments = Array.from(new Map(
+  [legacyCurrentDirectDeployment, configuredDirectDeployment, vNextDirectDeployment]
+    .filter((deployment): deployment is DirectIndexerDeployment => Boolean(deployment))
+    .map((deployment) => [deployment.scope, deployment])
+).values());
 
 export const chainDefinition = defineChain({
   id: chainId,

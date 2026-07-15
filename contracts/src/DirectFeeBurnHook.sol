@@ -90,6 +90,14 @@ contract DirectFeeBurnHook {
         emit PoolInitializationAuthorized(poolId, sqrtPriceX96);
     }
 
+    function authorizePool(bytes32 poolId, uint160 sqrtPriceX96, address, address) external {
+        if (!allowedLockers[msg.sender]) revert NotLocker();
+        if (sqrtPriceX96 == 0 || registeredPools[poolId]) revert UnauthorizedInitialization();
+        authorizedInitializations[poolId] = sqrtPriceX96;
+        registeredPools[poolId] = true;
+        emit PoolInitializationAuthorized(poolId, sqrtPriceX96);
+    }
+
     function beforeInitialize(address, PoolKey calldata key, uint160 sqrtPriceX96) external returns (bytes4) {
         if (msg.sender != poolManager) revert NotPoolManager();
         bytes32 poolId = _validatePool(key);

@@ -1,81 +1,69 @@
-# Direct-to-DEX launch design
+# Direct DEX and unified fee architecture
 
-## What O1 does
+## Launch model
 
-The live O1 launchpad does not use a bonding/graduation threshold. Its current Base and Robinhood Chain factories create a fixed-supply token and a Uniswap v4 pool atomically, seed the pool with token-only liquidity, and keep the launch liquidity permanently locked.
+BlueFun vNext supports two routes with one economic policy:
 
-Verified live configuration on both networks on 2026-07-15:
+- **Bond:** users trade against the protocol curve until the fixed 5 ETH gross target, then remaining reserves enter a permanently locked Uniswap v4 pool.
+- **Direct DEX:** the token, token-only Uniswap v4 liquidity and permanent LP lock are created atomically. A creator first buy is optional and cannot receive more than 5% of supply.
 
-- Fixed supply: `1,000,000,000` tokens with 18 decimals.
-- Base swap fee: `1%` (`100` basis points).
-- Fee split: 50% creator, 30% platform, 20% referrer.
-- Anti-snipe fee window: 16 seconds, with a high temporary starting fee.
-- Tick spacing: `200`.
-- Native-token launch start tick: `-199200` in O1's token-price frame.
-- Launch creation and the pool are created in the same transaction.
-- The pool starts token-only. Early buys add quote/native liquidity; a sell can have no executable quote before enough buy-side liquidity exists.
+Both routes create a fixed 1 billion supply with zero free creator allocation. A new token-only pool can require buy-side ETH depth before a meaningful sell quote exists.
 
-Sources:
+## Shared fee behavior
 
-- [O1 launchpad](https://launch.o1.exchange/)
-- [O1 fee documentation](https://docs.o1.exchange/getting-started/fees)
-- [Uniswap v4 periphery](https://github.com/Uniswap/v4-periphery)
-- [Uniswap Liquidity Launchpad paper](https://docs.uniswap.org/whitepaper_cca.pdf)
+`FeePolicy` begins with these bounded values:
 
-The O1 contracts are not copied or called by BlueFun. Their public interface and live onchain configuration were used to understand the product model.
+| Trade | Platform | Creator | Burn |
+| --- | ---: | ---: | ---: |
+| Buy | 0.7% ETH | 0.3% ETH | — |
+| Sell | 0.7% ETH | — | 0.3% token input |
 
-## BlueFun implementation
+The maximum fee for either side is 2%. The launch fee begins at `0.001 ETH` and cannot exceed `0.01 ETH`. Changes execute only through the seven-day governance timelock.
 
-BlueFun keeps the existing bond route unchanged and adds an independent direct route for both networks:
+`UnifiedFeeHook` serves Direct launches and graduated Bond pools. It accepts only exact-input swaps, overrides the Uniswap LP fee to zero and rejects exact-output paths. This prevents duplicate fees and keeps the accounting identical after Bond graduation.
 
-- Base: B20 token created through the Base B20 factory.
-- Robinhood Chain: fixed-supply `StandardLaunchToken` ERC-20.
-- Supply: fixed at 1 billion.
-- Pool: Uniswap v4 native/token static-fee pool.
-- Swap fee: 1% by default.
-- Fee ownership: 70% BlueFun / 30% creator, stored per position forever.
-- Liquidity: token-only concentrated-liquidity curve, custody-locked in `DirectDexLiquidityLocker`.
-- Principal: no withdrawal, decrease, NFT transfer, or rescue path exists.
-- Fees: permissionless realization with a zero-liquidity delta, followed by pull-based beneficiary claims.
-- Configuration: owner may change bounded defaults for future launches. Existing positions retain their launch-time fee split and pool parameters.
+Pool registration is restricted to the two permanent lockers. The token and creator mapping is written once and cannot be replaced. Creator buy revenue is pull-based, avoiding swaps that depend on whether a creator smart wallet can receive ETH during a hook callback. Sell burns are transferred directly to `0x000000000000000000000000000000000000dEaD` during the trade.
 
-The default native/token curve uses tick range `[-887200, 199200]`, tick spacing `200`, and initializes at the upper tick. This starts near a low single-digit native-token fully diluted valuation for a 1B/18-decimal supply and lets buys move down the range as token inventory is exchanged for native liquidity.
+## Revenue routing
 
-## Mainnet deployments
+### Base
 
-Base was deployed and verified onchain on 2026-07-15:
+- Trade platform ETH: 50% BLUE staking, 50% treasury.
+- Launch fee: initially 100% treasury.
+- Manually bridged remote staking revenue: 100% staking, with no second split.
 
-- Factory: `0xe4e8fd53d961566bd3a9c6f41e7f30af9952f1c5`
-- Permanent liquidity locker: `0x58ec23054353686f36667a6213539beb1bd8d11d`
-- Start block: `48640497`
-- Launch fee: `0.002 ETH`
-- Pool fee: `1%`
-- Fee split: 70% platform / 30% creator
+### Robinhood Chain
 
-Robinhood Chain was deployed and verified onchain on 2026-07-15:
+- Trade platform ETH: 50% treasury, 50% fixed bridge reserve.
+- The reserve may be released only to the timelock-configured recipient.
+- Bridging is deliberately manual; no third-party bridge contract is a protocol dependency.
 
-- Factory: `0xde6414a1140f97b4de63462608af79f7b1bbc393`
-- Permanent liquidity locker: `0x237b48ca046c49ff59b99142334c3631ebacd757`
-- Start block: `9900658`
-- Launch fee: `0.002 ETH`
-- Pool fee: `1%`
-- Fee split: 70% platform / 30% creator
+## LP custody
 
-The frontend and both indexers use these addresses as checked-in defaults. Environment variables may override them when operating a replacement deployment.
+The locker can mint and account for the position but cannot withdraw principal or transfer the position NFT. The creator, treasury, guardian and governance timelock have no principal escape path. vNext does not need a `Sync fees` or LP fee collection action because fee routing and burn accounting occur inside each trade.
 
-## Deployment gate
+## Base vNext deployment
 
-Deployment scripts are:
+- Unified hook: `0xF0b8dDe19510eE7D6D50Be289C4257EcD14C60CC`
+- Bond factory: `0x820344FB4C0a518d0CaEf5d3De96fF41CBe6b345`
+- Bond locker: `0x484345C0Fc777d1945a84ADB6284D487daFB1de8`
+- Direct factory: `0x394c5D0244b49e1Eed533CD3505583e504589157`
+- Direct locker: `0x857f7D11474235D8cAfd79826d4D2E0d2B7dabd7`
+- Deployment block: `48678791`
 
-- `contracts/script/DeployDirectBaseMainnet.s.sol`
-- `contracts/script/DeployDirectRobinhoodMainnet.s.sol`
+Robinhood vNext has passed local tests and mainnet dry-run. Its broadcast remains pending deployer gas funding.
 
-Required indexer values:
+## Compatibility
 
-- `DIRECT_LAUNCH_FACTORY`
-- `DIRECT_LIQUIDITY_LOCKER`
-- `DIRECT_DEPLOYMENT_BLOCK`
+Legacy factories, markets, lockers and hooks remain indexed for the tokens originally launched through them. They are not used as vNext defaults and are not presented as having vNext automatic routing or burn behavior.
 
-Required web values use the corresponding `NEXT_PUBLIC_BASE_*` and `NEXT_PUBLIC_ROBINHOOD_*` names from `apps/web/.env.example`.
+## Security gates
 
-Before a public deployment, the direct contracts require an independent smart-contract audit and a real Uniswap v4 fork test on both target networks. Unit tests prove the intended custody and accounting invariants but are not an audit.
+- Unit, fuzz and stateful invariant tests.
+- Base Uniswap v4 fork buy/sell/burn and revenue routing test.
+- Static analysis review with no known high or critical vNext finding.
+- Bytecode size checks.
+- Per-network deployment dry-run.
+- Source verification and low-value mainnet smoke test before public activation.
+
+These controls reduce known risk but do not guarantee defect-free contracts. Low liquidity, price impact, RPC failures, aggregator discovery and irreversible transactions remain protocol usage risks.

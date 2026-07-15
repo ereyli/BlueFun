@@ -22,10 +22,11 @@ import {MockPolicyRegistry} from "./mocks/MockPolicyRegistry.sol";
 import {MockB20Factory} from "./mocks/MockB20Factory.sol";
 import {MockB20} from "./mocks/MockB20.sol";
 import {MockPoolInitializationHook} from "./mocks/MockPoolInitializationHook.sol";
+import {MockVNextPolicyRouter} from "./mocks/MockVNextPolicyRouter.sol";
 
 contract DirectDexLaunchpadTest is Test {
     uint160 private constant Q96 = 0x1000000000000000000000000;
-    address private constant HOOK = address(0x2000);
+    address private constant HOOK = address(0x20CC);
 
     address creator = address(0xC0FFEE);
     address platform = address(0xFEE);
@@ -33,6 +34,7 @@ contract DirectDexLaunchpadTest is Test {
     MockDirectPermit2 permit2;
     DirectDexLiquidityLocker locker;
     DirectErc20LaunchFactory factory;
+    MockVNextPolicyRouter vnext;
 
     receive() external payable {}
 
@@ -51,7 +53,9 @@ contract DirectDexLaunchpadTest is Test {
             IPoolInitializationGuard(HOOK)
         );
         MockPoolInitializationHook(HOOK).allowLocker(address(locker));
-        factory = new DirectErc20LaunchFactory(address(this), locker, payable(platform), _config(), 0.002 ether);
+        vnext = new MockVNextPolicyRouter();
+        vnext.setLaunchFee(0.002 ether);
+        factory = new DirectErc20LaunchFactory(address(this), locker, vnext, vnext, _config());
         locker.setFactory(address(factory));
         vm.deal(creator, 1 ether);
     }
@@ -74,7 +78,7 @@ contract DirectDexLaunchpadTest is Test {
         assertEq(storedCreator, creator);
         assertEq(tokenId, 1);
         assertGt(liquidity, 0);
-        assertEq(factory.pendingLaunchFees(), 0.002 ether);
+        assertEq(vnext.launchRevenue(), 0.002 ether);
     }
 
     function testFeeCollectionKeepsPrincipalAndSplitsSeventyThirty() public {
@@ -153,9 +157,9 @@ contract DirectDexLaunchpadTest is Test {
             IActivationRegistry(address(activation)),
             IPolicyRegistry(address(policy)),
             b20Locker,
-            payable(platform),
-            _config(),
-            0.002 ether
+            vnext,
+            vnext,
+            _config()
         );
         b20Locker.setFactory(address(b20LaunchFactory));
         activation.setActivated(B20Constants.B20_ASSET_FEATURE, true);
@@ -171,7 +175,7 @@ contract DirectDexLaunchpadTest is Test {
         DirectLaunchFactoryBase.TokenMetadata memory metadata = _metadata("Protected", "SAFE", "safe");
         address predicted = factory.predictTokenAddress(creator, metadata);
         IUniswapV4PositionManager.PoolKey memory pool = IUniswapV4PositionManager.PoolKey({
-            currency0: address(0), currency1: predicted, fee: 10_000, tickSpacing: 60, hooks: HOOK
+            currency0: address(0), currency1: predicted, fee: 0x800000, tickSpacing: 60, hooks: HOOK
         });
 
         vm.expectRevert();
@@ -183,7 +187,7 @@ contract DirectDexLaunchpadTest is Test {
 
     function _config() internal pure returns (DirectDexLiquidityLocker.PoolConfig memory) {
         return DirectDexLiquidityLocker.PoolConfig({
-            poolFee: 10_000,
+            poolFee: 0x800000,
             tickSpacing: 60,
             tickLower: -60,
             tickUpper: 0,

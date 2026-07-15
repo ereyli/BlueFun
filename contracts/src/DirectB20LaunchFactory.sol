@@ -9,6 +9,8 @@ import {B20Constants} from "./libraries/B20Constants.sol";
 import {PolicyGuard} from "./PolicyGuard.sol";
 import {DirectDexLiquidityLocker} from "./DirectDexLiquidityLocker.sol";
 import {DirectLaunchFactoryBase} from "./DirectLaunchFactoryBase.sol";
+import {IFeePolicy} from "./interfaces/IFeePolicy.sol";
+import {IRevenueRouter} from "./interfaces/IRevenueRouter.sol";
 
 contract DirectB20LaunchFactory is DirectLaunchFactoryBase, PolicyGuard {
     error B20AssetNotActivated();
@@ -25,11 +27,11 @@ contract DirectB20LaunchFactory is DirectLaunchFactoryBase, PolicyGuard {
         IActivationRegistry activationRegistry_,
         IPolicyRegistry policyRegistry_,
         DirectDexLiquidityLocker liquidityLocker_,
-        address payable launchFeeRecipient_,
-        DirectDexLiquidityLocker.PoolConfig memory initialConfig,
-        uint256 initialLaunchFee
+        IFeePolicy feePolicy_,
+        IRevenueRouter revenueRouter_,
+        DirectDexLiquidityLocker.PoolConfig memory initialConfig
     )
-        DirectLaunchFactoryBase(initialOwner, liquidityLocker_, launchFeeRecipient_, initialConfig, initialLaunchFee)
+        DirectLaunchFactoryBase(initialOwner, liquidityLocker_, feePolicy_, revenueRouter_, initialConfig)
         PolicyGuard(policyRegistry_)
     {
         if (address(b20Factory_) == address(0) || address(activationRegistry_) == address(0)) {

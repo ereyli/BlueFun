@@ -6,7 +6,7 @@ import {
   chainDefinition,
   chainId,
   defaultRpcUrls,
-  directDeployment,
+  directDeployments,
   deployments,
   poolManager,
   scopeForDeployment,
@@ -36,8 +36,8 @@ const deploymentContexts: DeploymentContext[] = deployments.map((deployment) => 
   ...deployment,
   scope: scopeForDeployment(deployment)
 }));
-const v4PoolFee = 3000;
 const v4TickSpacing = 60;
+const vNextBaseHook = "0xf0b8dde19510ee7d6d50be289c4257ecd14c60cc" as const;
 const chunkSize = BigInt(process.env.LOG_CHUNK_SIZE || "1900");
 const pollMs = Number(process.env.POLL_MS || (chainId === 8453 ? "5000" : "12000"));
 const confirmations = BigInt(process.env.CONFIRMATIONS || (chainId === 8453 ? "2" : "3"));
@@ -78,7 +78,7 @@ const healthServer = createServer((request, response) => {
   const payload = JSON.stringify({
     status: healthy ? lastSuccessfulPollAt ? "ok" : "starting" : "stale",
     chainId,
-    scopes: [...deploymentContexts.map((deployment) => deployment.scope), ...(directDeployment ? [directDeployment.scope] : [])],
+    scopes: [...deploymentContexts.map((deployment) => deployment.scope), ...directDeployments.map((deployment) => deployment.scope)],
     isPolling,
     lastIndexedBlock: lastIndexedBlock.toString(),
     lastSuccessfulPollAt: lastSuccessfulPollAt ? new Date(lastSuccessfulPollAt).toISOString() : null,
@@ -161,7 +161,8 @@ async function backfillLoop() {
     await backfillGraduations(deployment, latest);
     await backfillUniswapV4Swaps(deployment, latest);
   }
-  if (directDeployment && latest >= directDeployment.startBlock) {
+  for (const directDeployment of directDeployments) {
+    if (latest < directDeployment.startBlock) continue;
     await backfillDirectLaunches(directDeployment, latest);
     await backfillUniswapV4Swaps(directDeployment, latest);
   }
@@ -307,7 +308,7 @@ async function backfillUniswapV4Swaps(deployment: ScopeContext, latest: bigint) 
   let firstGraduationBlock = latest;
   for (const launch of graduated) {
     const token = getAddress(launch.token) as `0x${string}`;
-    poolMap.set((launch.poolId || blueFunV4PoolId(token)).toLowerCase(), { launchId: launch.launchId, token });
+    poolMap.set((launch.poolId || blueFunV4PoolId(token, deployment)).toLowerCase(), { launchId: launch.launchId, token });
     if (launch.blockNumber && launch.blockNumber < firstGraduationBlock) firstGraduationBlock = launch.blockNumber;
   }
 
@@ -562,7 +563,8 @@ async function handleUniswapV4Swap(
   });
 }
 
-function blueFunV4PoolId(token: `0x${string}`) {
+function blueFunV4PoolId(token: `0x${string}`, deployment: ScopeContext & { version?: IndexerDeployment["version"] }) {
+  const vNext = deployment.version === "vnext";
   const encoded = encodeAbiParameters(
     [
       {
@@ -581,9 +583,9 @@ function blueFunV4PoolId(token: `0x${string}`) {
       {
         currency0: zeroAddress,
         currency1: token,
-        fee: v4PoolFee,
+        fee: vNext ? 0x800000 : 3000,
         tickSpacing: v4TickSpacing,
-        hooks: zeroAddress
+        hooks: vNext ? vNextBaseHook : zeroAddress
       }
     ]
   );

@@ -1,112 +1,68 @@
 # BlueFun Launchpad
 
-Professional multichain launchpad for Base-native B20 `ASSET` tokens and fixed-supply ERC-20 tokens on Robinhood Chain.
+BlueFun is a multichain launchpad for Base-native B20 `ASSET` tokens and fixed-supply ERC-20 tokens on Robinhood Chain. It supports fair Bond launches and immediate Uniswap v4 Direct DEX launches while retaining read-only compatibility with historical deployments.
 
-## What is included
+## vNext protocol
 
-- Foundry smart contracts for B20 launch creation, ETH bonding curve trading, policy validation, Uniswap v4 LP graduation, and adminless role cleanup.
-- Optional direct-to-DEX factories for atomic token creation plus permanently locked, token-only Uniswap v4 liquidity on both networks.
-- Mock B20 precompile contracts for local tests.
-- Next.js application with launch, market, explore, signed community chat, cursor pagination, and responsive error/legal surfaces.
-- Production Node.js indexer for launch, curve trade, Uniswap v4 trade, graduation, metadata, health, and aggregate metrics.
+- Fixed launch supply: 1 billion tokens.
+- Launch fee: `0.001 ETH` by default, bounded onchain to `0.01 ETH`.
+- Buy fee: `0.7%` platform ETH plus `0.3%` creator ETH.
+- Sell fee: `0.7%` platform ETH plus `0.3%` of token input sent to `0x0000…dEaD`.
+- Creator revenue comes only from buys.
+- Bond, Direct DEX and graduated Bond pools share the same `FeePolicy` and `UnifiedFeeHook` behavior.
+- Uniswap v4 LP fee is overridden to zero so the protocol fee is never charged twice.
+- LP principal and position custody are permanent; there is no principal withdrawal or NFT transfer path.
+- Mutable parameters are bounded and controlled by a rotatable two-key, seven-day timelock.
 
-## Network model
+On Base, half of trade platform revenue is routed automatically to native ETH BLUE staking and half to treasury. On Robinhood Chain, the staking half accumulates in a fixed bridge reserve for manual transfer to Base.
 
-- Base (`8453`) launches use the Base-only B20 token standard.
-- Robinhood Chain (`4663`) launches use fixed-supply ERC-20 tokens.
-- Each network has an independent indexer process. Both processes may share the same Supabase/Postgres database because every row and checkpoint is isolated by deployment scope.
-- Graduation uses the network's Uniswap v4 deployment and custody-locks the LP position permanently.
-- Creators can choose the existing bond route or a direct v4 route. Direct launches use 1B fixed supply, a default 1% pool fee, and immutable per-position 70% platform / 30% creator fee accounting.
+## BLUE staking V2
 
-See [the direct-to-DEX design note](docs/direct-dex-launch.md) for the O1 comparison, curve model, deployment gate, and security assumptions. Base Direct DEX mainnet is deployed at factory `0xe4e8fd53d961566bd3a9c6f41e7f30af9952f1c5` with permanent locker `0x58ec23054353686f36667a6213539beb1bd8d11d` from block `48640497`. Robinhood Direct DEX mainnet is deployed at factory `0xde6414a1140f97b4de63462608af79f7b1bbc393` with permanent locker `0x237b48ca046c49ff59b99142334c3631ebacd757` from block `9900658`.
+BLUE staking exists only on Base. Native ETH rewards stream over seven days and active stake determines each account's share. Unstaking has a 30-day delay. Additional unstake requests aggregate and reset the countdown for the full pending balance; partial cancellation and partial withdrawal are supported.
 
-## Commands
+## Base vNext mainnet
+
+- Governance: `0xA7DEa156cD6a0a8D5e0c25e94e20E670b426cF26`
+- Fee policy: `0xe5c5585aB34F8e2ba55C30Ef5E6b0254d87a4941`
+- Revenue router: `0x18EdA8de1aFd6B6329BaF742A9eb73F93ec6B741`
+- BLUE staking vault: `0x221a86096a334BcaFd5E561564dC8E6A48F19584`
+- Unified fee hook: `0xF0b8dDe19510eE7D6D50Be289C4257EcD14C60CC`
+- Bond market: `0x7d42dd1435e9567C1edFb513C45c8eA82fe03a38`
+- Bond factory: `0x820344FB4C0a518d0CaEf5d3De96fF41CBe6b345`
+- Bond LP locker: `0x484345C0Fc777d1945a84ADB6284D487daFB1de8`
+- Graduation manager: `0x989bd9259408F73BB17099d37Df2CCdC57B271f3`
+- Direct factory: `0x394c5D0244b49e1Eed533CD3505583e504589157`
+- Direct LP locker: `0x857f7D11474235D8cAfd79826d4D2E0d2B7dabd7`
+- Deployment block: `48678791`
+
+All twelve deployment contracts, including the vault created by the router, are source-verified on BaseScan.
+
+Robinhood vNext artifacts and dry-run are complete. Mainnet activation remains pending sufficient deployer gas funding; Robinhood creation is disabled while the existing deployment remains available only for historical compatibility.
+
+## Applications
+
+- `apps/web`: Next.js launch, market, docs, creator dashboard and staking interface.
+- `apps/indexer`: deployment-scoped Node.js indexer for legacy and vNext launches, trades and graduations.
+- `contracts`: Foundry contracts, tests and deployment scripts.
+
+Both indexers may share one Supabase/Postgres database because rows and checkpoints are isolated by chain and deployment scope. Web and indexer must be deployed together when activating a new contract generation.
+
+## Quality commands
 
 ```sh
 forge test
-npm install
+forge build --sizes
 npm run lint -w apps/web
 npm run typecheck -w apps/web
 npm run build:all
 ```
 
+The vNext gate also includes Slither review, Base/Robinhood deployment simulations and a real Base Uniswap v4 fork test.
+
 ## Environment
 
-Copy `apps/web/.env.example` and `apps/indexer/.env.example`. Never expose `SUPABASE_SERVICE_ROLE_KEY`, `DATABASE_URL`, `PINATA_JWT`, or `RATE_LIMIT_SALT` through a `NEXT_PUBLIC_` variable.
+Copy `apps/web/.env.example` and `apps/indexer/.env.example`. Never commit deployer keys, RPC secrets, `SUPABASE_SERVICE_ROLE_KEY`, `DATABASE_URL`, `PINATA_JWT` or other credentials. Public application variables contain contract addresses only.
 
-For contract deployment, copy `.env.deploy.example`. Base Sepolia Uniswap v4 defaults are included:
+Production topology uses one web application plus independent Base and Robinhood indexer workers. Indexer workers expose `/health` on port `3000` and should not receive public domains.
 
-- PositionManager: `0x4b2c77d209d3405f41a037ec6c77f7f5b8e2ca80`
-- Permit2: `0x000000000022D473030F116dDEE9F6B43aC78BA3`
-
-## Local Postgres indexer
-
-Start Postgres, then run the indexer:
-
-```sh
-docker compose up -d postgres
-npm run dev -w apps/indexer
-```
-
-The indexer applies `apps/indexer/schema.sql`, backfills launch, curve trade, graduation, and Uniswap v4 swap logs in bounded chunks, then polls continuously. It exposes `/health` on port `3000` and backs off on RPC rate limiting.
-
-When `POSTGRES_INDEXER_ENABLED=true`, the web app reads indexed launches and aggregates instead of scanning historical logs during rendering. Public launch/trade reads can use Supabase anon credentials. Shared rate limiting and persistent signed chat additionally require either the server-only service role key or `DATABASE_URL`.
-
-```sh
-docker compose up -d postgres
-npm run dev -w apps/indexer
-npm run dev -w apps/web
-```
-
-For a quick frontend-only fallback without Postgres, keep `POSTGRES_INDEXER_ENABLED=false`; the app will read `launchCount` and per-launch state directly from `BondingCurveMarket` without scanning historical logs.
-
-## Coolify production topology
-
-Deploy three applications from the same `main` branch:
-
-1. `bluefun-web`: the existing web Dockerfile/build configuration and the web environment variables.
-2. `bluefun-indexer-base`: `Dockerfile.indexer`, `CHAIN_ID=8453`, Base RPC values, and the shared database credentials.
-3. `bluefun-indexer-robinhood`: `Dockerfile.indexer`, `CHAIN_ID=4663`, `RPC_URL=https://rpc.mainnet.chain.robinhood.com`, optional `ROBINHOOD_RPC_FALLBACK_URLS`, and the same database credentials.
-
-Do not assign public domains to the indexers. Configure Coolify's container health check against `/health` on port `3000`. Auto-deploying the web application is safe after the quality workflow succeeds; the two indexers should also redeploy because schema and worker code live in this repository.
-
-## Production notes
-
-- Deploy with `UniswapV4LiquidityLocker` for public testnet/mainnet flows.
-- `ProtocolLiquidityLocker` is an escrow-style development locker and reports `isDexBacked() == false`; `GraduationManager` will revert against it so production cannot falsely claim DEX LP lock.
-- Keep `activationGateEnabled` on for production.
-- Do not enable Base mainnet launch creation until `ActivationRegistry.isActivated(keccak256("base.b20_asset"))` returns true.
-- Treat dependency audit output seriously. Remaining moderate wallet/build-tool advisories require coordinated major-version upgrades and should stay tracked until the full wallet flow passes regression testing.
-- Rotate all deployer keys, Supabase service role keys, anon keys, and database passwords that were shared during setup before any public deployment.
-
-## Base Sepolia deployment
-
-- `BondingCurveMarket`: `0x63c1E321822529D86d10f02bc910636Bb85F0831`
-- `UniswapV4LiquidityLocker`: `0xc395473A08912A4CAfC6Ab3CCd65Eb5229B3fdE8`
-- `GraduationManager`: `0x79bCAbD89870d578BdbD00D87E3532d74d0093AD`
-- `LaunchFactory`: `0x6fe3582939f5a25fF5AFAbC59562eA560936AB35`
-- Deployment block: `43826794`
-- Indexer scope: `84532:0x6fe3582939f5a25ff5afabc59562ea560936ab35:0x63c1e321822529d86d10f02bc910636bb85f0831:43826794`
-- Graduation target: fixed `5 ETH` gross raised; curve fees are deducted before DEX liquidity is locked.
-
-## Base mainnet fee-sharing deployment
-
-- `BondingCurveMarket`: `0x94d056be6573bcaa4958cceeb242c3c08eff2b95`
-- `UniswapV4LiquidityLocker`: `0xe309983df86803f62e10d07d9522af005ec08ee4`
-- `GraduationManager`: `0xa2b7626f6a92b366e6e787ac4db4840f57f253af`
-- `LaunchFactory`: `0x29ce28c9cb3f584eb2548883824acd49881e780a`
-- Deployment block: `48451170`
-- First new launch id: `22`
-- Legacy launch ids `1-21` remain on market `0x4ce2154146eacf745133d7755875767d6a00ee5f` and factory `0xf65ebfdacb1a8e0a8217185aae44f489e53b88f9`.
-- Locked LP principal cannot be withdrawn. Realized Uniswap v4 LP fees are credited `70%` to BlueFun and `30%` to the launch creator.
-
-## Robinhood Chain mainnet deployment
-
-- Network: Robinhood Chain (`4663`), standard fixed-supply ERC-20 launches.
-- `BondingCurveMarket`: `0x795fe5649a78496f51c1594a7b435941fb20adb8`
-- `UniswapV4LiquidityLocker`: `0x2176cbc6cb7e650289fe2ec4417b7a27fd0354d5`
-- `Erc20GraduationManager`: `0x55d343fc936463c97b7e89dc0ac08c20a08bfb2a`
-- `Erc20LaunchFactory`: `0x128a32ed2af1787a3fab261bc6158400e2f649c9`
-- Deployment block: `6131828`
-- The legacy deployment remains indexed for historical continuity; it had no launches at migration time.
-- Graduation uses the official Robinhood Chain Uniswap v4 deployment, permanently custody-locks principal, and splits realized LP fees `70%/30%` between BlueFun and the creator.
+See [Direct DEX and fee architecture](docs/direct-dex-launch.md) for hook, burn, custody and migration details, and [vNext deployment status](docs/vnext-deployment.md) for addresses, public transactions and remaining activation gates.

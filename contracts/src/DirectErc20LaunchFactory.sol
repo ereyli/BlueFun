@@ -4,15 +4,17 @@ pragma solidity ^0.8.25;
 import {DirectDexLiquidityLocker} from "./DirectDexLiquidityLocker.sol";
 import {DirectLaunchFactoryBase} from "./DirectLaunchFactoryBase.sol";
 import {StandardLaunchToken} from "./StandardLaunchToken.sol";
+import {IFeePolicy} from "./interfaces/IFeePolicy.sol";
+import {IRevenueRouter} from "./interfaces/IRevenueRouter.sol";
 
 contract DirectErc20LaunchFactory is DirectLaunchFactoryBase {
     constructor(
         address initialOwner,
         DirectDexLiquidityLocker liquidityLocker_,
-        address payable launchFeeRecipient_,
-        DirectDexLiquidityLocker.PoolConfig memory initialConfig,
-        uint256 initialLaunchFee
-    ) DirectLaunchFactoryBase(initialOwner, liquidityLocker_, launchFeeRecipient_, initialConfig, initialLaunchFee) {}
+        IFeePolicy feePolicy_,
+        IRevenueRouter revenueRouter_,
+        DirectDexLiquidityLocker.PoolConfig memory initialConfig
+    ) DirectLaunchFactoryBase(initialOwner, liquidityLocker_, feePolicy_, revenueRouter_, initialConfig) {}
 
     function predictTokenAddress(address creator, TokenMetadata calldata metadata) external view returns (address) {
         bytes32 effectiveSalt = keccak256(abi.encode(creator, block.chainid, metadata.salt));

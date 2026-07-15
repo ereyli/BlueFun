@@ -2,7 +2,7 @@
   "base": {
     "chainId": 8453,
     "feeRecipient": "0x9d5f55a644eF0eB9FF82dbd14Dd0471de3ff5bfb",
-    "timelockedAdmin": "0x40f72a122e96a9e5e87f3ef3263f2e9e092fd1de",
+    "timelockedAdmin": "0x40F72a122E96a9E5e87F3EF3263F2e9E092fD1de",
     "emergencyGuardian": "0x8dc156376dd34f08970f5b3822bd2fdbc94283dc",
     "initializationHook": "0xc57dc713341264e66b8137600f7b4feeb60a2000",
     "bondingCurveMarket": "0xb503b0ef06ec10554f4d960e08869877a41498dd",
@@ -14,7 +14,25 @@
     "directLaunchFactory": "0x0246688cef66734c1cada909cfd202e1448ba275",
     "bondDeploymentBlock": 48642000,
     "directDeploymentBlock": 48647525,
-    "blueStaking": {
+    "vNext": {
+      "status": "deployed-verified-smoke-pending",
+      "governance": "0xA7DEa156cD6a0a8D5e0c25e94e20E670b426cF26",
+      "feePolicy": "0xe5c5585aB34F8e2ba55C30Ef5E6b0254d87a4941",
+      "revenueRouter": "0x18EdA8de1aFd6B6329BaF742A9eb73F93ec6B741",
+      "stakingVault": "0x221a86096a334BcaFd5E561564dC8E6A48F19584",
+      "unifiedFeeHook": "0xF0b8dDe19510eE7D6D50Be289C4257EcD14C60CC",
+      "emergencyGuardian": "0x642592CF4DA396a2d70b930E43B45E108cC37803",
+      "bondingCurveMarket": "0x7d42dd1435e9567C1edFb513C45c8eA82fe03a38",
+      "graduationManager": "0x989bd9259408F73BB17099d37Df2CCdC57B271f3",
+      "liquidityLocker": "0x484345C0Fc777d1945a84ADB6284D487daFB1de8",
+      "launchFactory": "0x820344FB4C0a518d0CaEf5d3De96fF41CBe6b345",
+      "directLiquidityLocker": "0x857f7D11474235D8cAfd79826d4D2E0d2B7dabd7",
+      "directLaunchFactory": "0x394c5D0244b49e1Eed533CD3505583e504589157",
+      "deploymentBlock": 48678791,
+      "firstBondLaunchId": 23,
+      "firstDirectLaunchId": 2
+    },
+    "blueStakingLegacy": {
       "token": "0xb200000000000000000000Af2d07754b927109bc",
       "rewardToken": "0x4200000000000000000000000000000000000006",
       "governance": "0x58eB258f651491CdE4fe7637F26AbC321ede6b35",
@@ -41,6 +59,9 @@
     "directLiquidityLocker": "0xe0158cb5c659e95e0ef461e1f7518c4f3b557e81",
     "directLaunchFactory": "0x9d0e5d76ca2d79ca6ab0c800763eb8e5c39a5079",
     "bondDeploymentBlock": 9943107,
-    "directDeploymentBlock": 10283960
+    "directDeploymentBlock": 10283960,
+    "vNext": {
+      "status": "dry-run-complete-awaiting-gas-funding"
+    }
   }
 }

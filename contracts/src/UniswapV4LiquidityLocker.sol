@@ -39,7 +39,7 @@ interface IUniswapV4StateView {
 }
 
 interface IBondPoolInitializationGuard {
-    function authorizePool(bytes32 poolId, uint160 sqrtPriceX96) external;
+    function authorizePool(bytes32 poolId, uint160 sqrtPriceX96, address token, address creator) external;
 }
 
 contract UniswapV4LiquidityLocker is ILiquidityLocker, ReentrancyGuard {
@@ -78,7 +78,9 @@ contract UniswapV4LiquidityLocker is ILiquidityLocker, ReentrancyGuard {
     uint256 public constant PLATFORM_SHARE_BPS = 7_000;
     uint256 public constant CREATOR_SHARE_BPS = 3_000;
     uint160 private constant ALL_HOOK_MASK = (1 << 14) - 1;
-    uint160 private constant BEFORE_INITIALIZE_FLAG = 1 << 13;
+    uint160 private constant UNIFIED_FEE_HOOK_FLAGS = (1 << 13) | (1 << 7) | (1 << 6) | (1 << 3) | (1 << 2);
+    uint160 private constant LEGACY_INITIALIZATION_FLAGS = 1 << 13;
+    uint24 private constant DYNAMIC_FEE_FLAG = 0x800000;
 
     address public immutable owner;
     address public immutable platformFeeRecipient;
@@ -152,8 +154,11 @@ contract UniswapV4LiquidityLocker is ILiquidityLocker, ReentrancyGuard {
                 || address(stateView_) == address(0) || address(permit2_) == address(0)
         ) revert InvalidAddress();
         if (
-            poolFee_ == 0 || tickSpacing_ != 60
-                || (uint160(hooks_) & ALL_HOOK_MASK) != BEFORE_INITIALIZE_FLAG
+            (poolFee_ != DYNAMIC_FEE_FLAG && poolFee_ == 0) || tickSpacing_ != 60
+                || (
+                    (uint160(hooks_) & ALL_HOOK_MASK) != UNIFIED_FEE_HOOK_FLAGS
+                        && (uint160(hooks_) & ALL_HOOK_MASK) != LEGACY_INITIALIZATION_FLAGS
+                )
         ) revert InvalidPoolConfig();
         owner = owner_;
         platformFeeRecipient = platformFeeRecipient_;
@@ -190,7 +195,7 @@ contract UniswapV4LiquidityLocker is ILiquidityLocker, ReentrancyGuard {
         uint128 liquidity = _liquidityForAmounts(sqrtPriceX96, msg.value, tokenAmount);
         if (liquidity == 0) revert ZeroLiquidity();
 
-        IUniswapV4PositionManager.PoolKey memory pool = _selectPool(token, sqrtPriceX96);
+        IUniswapV4PositionManager.PoolKey memory pool = _selectPool(token, creator, sqrtPriceX96);
 
         uint256 tokenId = positionManager.nextTokenId();
         if (!IERC20Minimal(token).approve(address(permit2), tokenAmount)) revert TokenApprovalFailed();
@@ -294,32 +299,55 @@ contract UniswapV4LiquidityLocker is ILiquidityLocker, ReentrancyGuard {
         emit FeesClaimed(msg.sender, currency, amount);
     }
 
-    function _selectPool(address token, uint160 expectedSqrtPriceX96)
+    function _selectPool(address token, address creator, uint160 expectedSqrtPriceX96)
         private
         returns (IUniswapV4PositionManager.PoolKey memory selectedPool)
     {
-        for (uint256 i = 0; i < 4; i++) {
-            IUniswapV4PositionManager.PoolKey memory pool = IUniswapV4PositionManager.PoolKey({
-                currency0: address(0), currency1: token, fee: _candidateFee(i), tickSpacing: tickSpacing, hooks: hooks
-            });
-
-            bytes32 poolId = _poolId(pool);
-            (bool initialized, uint160 currentSqrtPriceX96) = _poolSqrtPrice(pool);
-            if (initialized) {
-                if (_priceWithinTolerance(currentSqrtPriceX96, expectedSqrtPriceX96)) return pool;
-                continue;
+        if (poolFee != DYNAMIC_FEE_FLAG) {
+            for (uint256 i; i < 4; ++i) {
+                IUniswapV4PositionManager.PoolKey memory candidate = IUniswapV4PositionManager.PoolKey({
+                    currency0: address(0),
+                    currency1: token,
+                    fee: _candidateFee(i),
+                    tickSpacing: tickSpacing,
+                    hooks: hooks
+                });
+                bytes32 candidateId = _poolId(candidate);
+                (bool exists, uint160 price) = _poolSqrtPrice(candidate);
+                if (exists) {
+                    if (_priceWithinTolerance(price, expectedSqrtPriceX96)) return candidate;
+                    continue;
+                }
+                IBondPoolInitializationGuard(hooks).authorizePool(
+                    candidateId, expectedSqrtPriceX96, token, creator
+                );
+                try positionManager.initializePool(candidate, expectedSqrtPriceX96) returns (int24) {
+                    (exists, price) = _poolSqrtPrice(candidate);
+                    if (exists && _priceWithinTolerance(price, expectedSqrtPriceX96)) return candidate;
+                } catch {
+                    (exists, price) = _poolSqrtPrice(candidate);
+                    if (exists && _priceWithinTolerance(price, expectedSqrtPriceX96)) return candidate;
+                }
             }
-
-            IBondPoolInitializationGuard(hooks).authorizePool(poolId, expectedSqrtPriceX96);
-            try positionManager.initializePool(pool, expectedSqrtPriceX96) returns (int24) {
-                (initialized, currentSqrtPriceX96) = _poolSqrtPrice(pool);
-                if (initialized && _priceWithinTolerance(currentSqrtPriceX96, expectedSqrtPriceX96)) return pool;
-            } catch {
-                (initialized, currentSqrtPriceX96) = _poolSqrtPrice(pool);
-                if (initialized && _priceWithinTolerance(currentSqrtPriceX96, expectedSqrtPriceX96)) return pool;
-            }
+            revert NoUsablePool();
         }
-
+        IUniswapV4PositionManager.PoolKey memory pool = IUniswapV4PositionManager.PoolKey({
+            currency0: address(0), currency1: token, fee: poolFee, tickSpacing: tickSpacing, hooks: hooks
+        });
+        bytes32 poolId = _poolId(pool);
+        (bool initialized, uint160 currentSqrtPriceX96) = _poolSqrtPrice(pool);
+        if (initialized) {
+            if (_priceWithinTolerance(currentSqrtPriceX96, expectedSqrtPriceX96)) return pool;
+            revert NoUsablePool();
+        }
+        IBondPoolInitializationGuard(hooks).authorizePool(poolId, expectedSqrtPriceX96, token, creator);
+        try positionManager.initializePool(pool, expectedSqrtPriceX96) returns (int24) {
+            (initialized, currentSqrtPriceX96) = _poolSqrtPrice(pool);
+            if (initialized && _priceWithinTolerance(currentSqrtPriceX96, expectedSqrtPriceX96)) return pool;
+        } catch {
+            (initialized, currentSqrtPriceX96) = _poolSqrtPrice(pool);
+            if (initialized && _priceWithinTolerance(currentSqrtPriceX96, expectedSqrtPriceX96)) return pool;
+        }
         revert NoUsablePool();
     }
 

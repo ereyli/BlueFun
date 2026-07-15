@@ -7,19 +7,23 @@ import {Erc20LaunchFactory} from "../src/Erc20LaunchFactory.sol";
 import {Erc20GraduationManager} from "../src/Erc20GraduationManager.sol";
 import {StandardLaunchToken} from "../src/StandardLaunchToken.sol";
 import {MockLiquidityLocker} from "./mocks/MockLiquidityLocker.sol";
+import {MockVNextPolicyRouter} from "./mocks/MockVNextPolicyRouter.sol";
 
 contract Erc20LaunchpadTest is Test {
     BondingCurveMarket market;
     Erc20LaunchFactory factory;
     Erc20GraduationManager graduation;
     MockLiquidityLocker locker;
+    MockVNextPolicyRouter policyRouter;
     address creator = address(0xCAFE);
 
     function setUp() public {
         locker = new MockLiquidityLocker();
-        market = new BondingCurveMarket(address(this), address(this));
+        policyRouter = new MockVNextPolicyRouter();
+        policyRouter.setLaunchFee(0.002 ether);
+        market = new BondingCurveMarket(address(this), policyRouter, policyRouter);
         graduation = new Erc20GraduationManager(market, locker);
-        factory = new Erc20LaunchFactory(address(this), market, address(graduation), payable(address(this)));
+        factory = new Erc20LaunchFactory(address(this), market, address(graduation), policyRouter, policyRouter);
         market.configure(address(factory), address(graduation), address(this));
         vm.deal(creator, 10 ether);
     }

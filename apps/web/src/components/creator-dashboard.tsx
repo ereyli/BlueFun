@@ -7,7 +7,7 @@ import { formatEther, formatUnits, zeroAddress } from "viem";
 import { useAccount, useReadContracts, useSwitchChain, useWriteContract } from "wagmi";
 import { ArrowUpRight, BarChart3, Coins, ExternalLink, Flame, Layers3, Loader2, LockKeyhole, RefreshCw, Rocket, Sparkles, Wallet, WalletCards } from "lucide-react";
 import { NetworkIcon, networkMeta } from "@/components/network-icon";
-import { b20TokenAbi, bondingCurveAbi, deploymentsForChain, feeSharingLockerAbi, indexerScopeForDeployment } from "@/lib/contracts";
+import { b20TokenAbi, bondingCurveAbi, deploymentsForChain, feeSharingLockerAbi, indexerScopeForDeployment, isVNextLiquidityLocker, unifiedFeeHookAbi } from "@/lib/contracts";
 import type { WalletDashboardData, WalletTradeSummary } from "@/lib/dashboard-types";
 import type { DeployedLaunch } from "@/lib/onchain-launches";
 import { optimizedTokenImageUrl } from "@/lib/token-metadata";
@@ -70,11 +70,29 @@ export function CreatorDashboard() {
   const lockerSources = useMemo(() => {
     const seen = new Set<string>();
     return data.created.flatMap((launch) => {
-      if (!launch.liquidityLocker) return [];
+      if (!launch.liquidityLocker || isVNextLiquidityLocker(launch.chainId, launch.liquidityLocker)) return [];
       const key = `${launch.chainId}:${launch.liquidityLocker.toLowerCase()}`;
       if (seen.has(key)) return [];
       seen.add(key);
       return [{ chainId: launch.chainId, address: launch.liquidityLocker }];
+    });
+  }, [data.created]);
+
+  const hookSources = useMemo(() => {
+    const seen = new Set<string>();
+    return data.created.flatMap((launch) => {
+      const deployment = deploymentsForChain(launch.chainId).find((candidate) => {
+        if (candidate.version !== "vnext" || !candidate.feeHook) return false;
+        if (launch.launchMode === "direct") {
+          return Boolean(candidate.directLaunchFactory && launch.scope?.includes(candidate.directLaunchFactory.toLowerCase()));
+        }
+        return launch.scope === indexerScopeForDeployment(launch.chainId, candidate);
+      });
+      if (!deployment?.feeHook) return [];
+      const key = `${launch.chainId}:${deployment.feeHook.toLowerCase()}`;
+      if (seen.has(key)) return [];
+      seen.add(key);
+      return [{ chainId: launch.chainId, address: deployment.feeHook }];
     });
   }, [data.created]);
 
@@ -86,11 +104,15 @@ export function CreatorDashboard() {
     contracts: lockerSources.map((source) => ({ chainId: source.chainId, address: source.address, abi: feeSharingLockerAbi, functionName: "pendingFees", args: [address!, zeroAddress] })),
     query: { enabled: Boolean(address && lockerSources.length) }
   });
+  const hookCreatorFees = useReadContracts({
+    contracts: hookSources.map((source) => ({ chainId: source.chainId, address: source.address, abi: unifiedFeeHookAbi, functionName: "pendingCreatorRevenue", args: [address!] })),
+    query: { enabled: Boolean(address && hookSources.length) }
+  });
   const balances = useReadContracts({
     contracts: data.traded.map(({ launch }) => ({ chainId: launch.chainId, address: launch.token, abi: b20TokenAbi, functionName: "balanceOf", args: [address!] })),
     query: { enabled: Boolean(address && data.traded.length) }
   });
-  const revenueLaunches = useMemo(() => data.created.filter((launch) => launch.positionId && launch.liquidityLocker), [data.created]);
+  const revenueLaunches = useMemo(() => data.created.filter((launch) => launch.positionId && launch.liquidityLocker && !isVNextLiquidityLocker(launch.chainId, launch.liquidityLocker)), [data.created]);
   const feeRevenue = useReadContracts({
     contracts: revenueLaunches.map((launch) => ({ chainId: launch.chainId, address: launch.liquidityLocker!, abi: feeSharingLockerAbi, functionName: "feeRevenue", args: [launch.positionId!] })),
     query: { enabled: Boolean(revenueLaunches.length) }
@@ -106,7 +128,8 @@ export function CreatorDashboard() {
   }), [balances.data, data.traded]);
   const pendingBond = sumReadResults(bondFees.data);
   const pendingLpNative = sumReadResults(lockerNativeFees.data);
-  const totalPending = pendingBond + pendingLpNative;
+  const pendingHookCreator = sumReadResults(hookCreatorFees.data);
+  const totalPending = pendingBond + pendingLpNative + pendingHookCreator;
   const totalVolume = data.created.reduce((sum, launch) => sum + parseDisplayEth(launch.volume), 0);
 
   const { switchChainAsync } = useSwitchChain();
@@ -121,6 +144,7 @@ export function CreatorDashboard() {
       window.setTimeout(() => {
         void bondFees.refetch();
         void lockerNativeFees.refetch();
+        void hookCreatorFees.refetch();
         void feeRevenue.refetch();
         void tokenPending.refetch();
       }, 5000);
@@ -188,6 +212,12 @@ export function CreatorDashboard() {
                   const key = `locker:${source.chainId}:${source.address}`;
                   return <FeeRow key={key} chainId={source.chainId} label="DEX LP fees" detail="Creator share · native currency" amount={`${formatNative(amount)} ETH`} pending={action.key === key} onClaim={() => submitAction(key, source.chainId, { chainId: source.chainId, address: source.address, abi: feeSharingLockerAbi, functionName: "claimFees", args: [zeroAddress] })} />;
                 })}
+                {hookSources.map((source, index) => {
+                  const amount = readBigInt(hookCreatorFees.data?.[index]);
+                  if (amount === 0n) return null;
+                  const key = `hook:${source.chainId}:${source.address}`;
+                  return <FeeRow key={key} chainId={source.chainId} label="Creator buy fees" detail="vNext · ETH" amount={`${formatNative(amount)} ETH`} pending={action.key === key} onClaim={() => submitAction(key, source.chainId, { chainId: source.chainId, address: source.address, abi: unifiedFeeHookAbi, functionName: "claimCreatorRevenue", args: [address] })} />;
+                })}
                 {totalPending === 0n ? <EmptyCompact icon={<LockKeyhole size={19} />} title="No fees ready yet" text="New creator fees will appear here as trades happen." /> : null}
               </div>
             </div> : null}
@@ -217,7 +247,8 @@ export function CreatorDashboard() {
               const pendingTokenAmount = revenueIndex >= 0 ? readBigInt(tokenPending.data?.[revenueIndex]) : 0n;
               const key = `collect:${launch.chainId}:${launch.positionId}`;
               const claimTokenKey = `claim-token:${launch.chainId}:${launch.token}`;
-              return <LaunchDashboardCard key={`${launch.chainId}:${launch.scope}:${launch.id}`} launch={launch} creatorNative={revenue?.[4] ?? 0n} creatorToken={revenue?.[5] ?? 0n} totalBurned={revenue?.[1] ?? 0n} pendingToken={pendingTokenAmount} collecting={action.key === key} claimingToken={action.key === claimTokenKey} onCollect={launch.positionId && launch.liquidityLocker ? () => submitAction(key, launch.chainId, { chainId: launch.chainId, address: launch.liquidityLocker!, abi: feeSharingLockerAbi, functionName: "collectFees", args: [launch.positionId!] }) : undefined} onClaimToken={pendingTokenAmount > 0n && launch.liquidityLocker ? () => submitAction(claimTokenKey, launch.chainId, { chainId: launch.chainId, address: launch.liquidityLocker!, abi: feeSharingLockerAbi, functionName: "claimFees", args: [launch.token] }) : undefined} />;
+              const vNext = isVNextLiquidityLocker(launch.chainId, launch.liquidityLocker);
+              return <LaunchDashboardCard key={`${launch.chainId}:${launch.scope}:${launch.id}`} launch={launch} creatorNative={revenue?.[4] ?? 0n} creatorToken={revenue?.[5] ?? 0n} totalBurned={revenue?.[1] ?? 0n} pendingToken={pendingTokenAmount} collecting={action.key === key} claimingToken={action.key === claimTokenKey} onCollect={!vNext && launch.positionId && launch.liquidityLocker ? () => submitAction(key, launch.chainId, { chainId: launch.chainId, address: launch.liquidityLocker!, abi: feeSharingLockerAbi, functionName: "collectFees", args: [launch.positionId!] }) : undefined} onClaimToken={!vNext && pendingTokenAmount > 0n && launch.liquidityLocker ? () => submitAction(claimTokenKey, launch.chainId, { chainId: launch.chainId, address: launch.liquidityLocker!, abi: feeSharingLockerAbi, functionName: "claimFees", args: [launch.token] }) : undefined} />;
             })}
           </div>
         </section>
@@ -259,7 +290,8 @@ function CompactLaunch({ launch }: { launch: DeployedLaunch }) {
 
 function LaunchDashboardCard({ claimingToken, collecting, creatorNative, creatorToken, launch, onClaimToken, onCollect, pendingToken, totalBurned }: { claimingToken: boolean; collecting: boolean; creatorNative: bigint; creatorToken: bigint; launch: DeployedLaunch; onClaimToken?: () => void; onCollect?: () => void; pendingToken: bigint; totalBurned: bigint }) {
   const feeBurnModel = launch.poolFee === 0x800000;
-  return <article className="launch-dashboard-card"><header><TokenAvatar launch={launch} /><div><Link href={tokenPath(launch)}>{launch.name} <ExternalLink size={12} /></Link><span>${launch.symbol}</span></div><NetworkIcon chainId={launch.chainId} size={24} /></header><div className="launch-card-badges"><span className="status">{launch.status}</span><span>{launch.launchMode === "direct" ? "Direct DEX" : "Bond curve"}</span>{launch.positionId ? <span className="locked"><LockKeyhole size={11} /> LP locked</span> : null}</div><div className="launch-card-metrics"><div><span>Volume</span><strong>{launch.volume}</strong></div><div><span>{launch.launchMode === "bond" ? "Bond progress" : "Trade fee"}</span><strong>{launch.launchMode === "bond" ? `${launch.progress}%` : feeBurnModel ? "1% directional" : `${(launch.poolFee ?? 10000) / 10000}%`}</strong></div></div>{launch.launchMode === "bond" && launch.status !== "Graduated" ? <div className="dashboard-progress"><span style={{ width: `${Math.min(100, launch.progress)}%` }} /></div> : null}{launch.positionId ? <div className="launch-fee-box"><span>{feeBurnModel ? "Creator earnings" : "Your collected LP earnings"}</span><strong>{formatNative(creatorNative)} ETH {!feeBurnModel ? <small>+ {formatTokenAmount(creatorToken)} ${launch.symbol}</small> : null}</strong>{feeBurnModel ? <div className="launch-burn-summary"><Flame size={13} /><span>Total burned</span><strong>{formatTokenAmount(totalBurned)} {launch.symbol}</strong></div> : null}{feeBurnModel ? <em>Collects new ETH earnings and burns accrued sell fees. Anyone can trigger it.</em> : null}{!feeBurnModel && pendingToken > 0n ? <em>{formatTokenAmount(pendingToken)} ${launch.symbol} ready to claim</em> : null}<div className="launch-fee-actions">{onCollect ? <button disabled={collecting} onClick={onCollect} title={feeBurnModel ? "Collects new creator ETH earnings and sends accrued sell-token fees to the burn address." : "Moves newly accrued Uniswap LP fees into your claimable dashboard balance."} type="button">{collecting ? <Loader2 className="spin" size={13} /> : feeBurnModel ? <Flame size={13} /> : <RefreshCw size={13} />} {feeBurnModel ? "Collect earnings & burn" : "Update earnings"}</button> : null}{!feeBurnModel && onClaimToken ? <button disabled={claimingToken} onClick={onClaimToken} type="button">{claimingToken ? <Loader2 className="spin" size={13} /> : <Coins size={13} />} Claim ${launch.symbol}</button> : null}</div></div> : <div className="launch-fee-box muted"><span>Creator fees</span><strong>Bond fees appear in Overview</strong></div>}<Link className="launch-card-link" href={tokenPath(launch)}>Open token page <ArrowUpRight size={14} /></Link></article>;
+  const vNext = isVNextLiquidityLocker(launch.chainId, launch.liquidityLocker);
+  return <article className="launch-dashboard-card"><header><TokenAvatar launch={launch} /><div><Link href={tokenPath(launch)}>{launch.name} <ExternalLink size={12} /></Link><span>${launch.symbol}</span></div><NetworkIcon chainId={launch.chainId} size={24} /></header><div className="launch-card-badges"><span className="status">{launch.status}</span><span>{launch.launchMode === "direct" ? "Direct DEX" : "Bond curve"}</span>{launch.positionId ? <span className="locked"><LockKeyhole size={11} /> LP locked</span> : null}</div><div className="launch-card-metrics"><div><span>Volume</span><strong>{launch.volume}</strong></div><div><span>{launch.launchMode === "bond" ? "Bond progress" : "Trade fee"}</span><strong>{launch.launchMode === "bond" ? `${launch.progress}%` : feeBurnModel ? "1% directional" : `${(launch.poolFee ?? 10000) / 10000}%`}</strong></div></div>{launch.launchMode === "bond" && launch.status !== "Graduated" ? <div className="dashboard-progress"><span style={{ width: `${Math.min(100, launch.progress)}%` }} /></div> : null}{launch.positionId ? <div className="launch-fee-box"><span>{vNext ? "Automatic fee routing" : feeBurnModel ? "Creator earnings" : "Your collected LP earnings"}</span><strong>{vNext ? "Buy fees appear in Overview" : <>{formatNative(creatorNative)} ETH {!feeBurnModel ? <small>+ {formatTokenAmount(creatorToken)} ${launch.symbol}</small> : null}</>}</strong>{feeBurnModel && !vNext ? <div className="launch-burn-summary"><Flame size={13} /><span>Total burned</span><strong>{formatTokenAmount(totalBurned)} {launch.symbol}</strong></div> : null}{vNext ? <em>Creator ETH and sell burns are recorded during each trade. No sync is required.</em> : feeBurnModel ? <em>Collects new ETH earnings and burns accrued sell fees. Anyone can trigger it.</em> : null}{!feeBurnModel && pendingToken > 0n ? <em>{formatTokenAmount(pendingToken)} ${launch.symbol} ready to claim</em> : null}<div className="launch-fee-actions">{onCollect ? <button disabled={collecting} onClick={onCollect} title={feeBurnModel ? "Collects new creator ETH earnings and sends accrued sell-token fees to the burn address." : "Moves newly accrued Uniswap LP fees into your claimable dashboard balance."} type="button">{collecting ? <Loader2 className="spin" size={13} /> : feeBurnModel ? <Flame size={13} /> : <RefreshCw size={13} />} {feeBurnModel ? "Collect earnings & burn" : "Update earnings"}</button> : null}{!feeBurnModel && onClaimToken ? <button disabled={claimingToken} onClick={onClaimToken} type="button">{claimingToken ? <Loader2 className="spin" size={13} /> : <Coins size={13} />} Claim ${launch.symbol}</button> : null}</div></div> : <div className="launch-fee-box muted"><span>Creator fees</span><strong>Bond fees appear in Overview</strong></div>}<Link className="launch-card-link" href={tokenPath(launch)}>Open token page <ArrowUpRight size={14} /></Link></article>;
 }
 
 function HoldingRow({ holding }: { holding: WalletTradeSummary & { balance: bigint } }) {

@@ -6,6 +6,7 @@ import {DirectDexLiquidityLocker, IPoolInitializationGuard} from "../src/DirectD
 import {DirectErc20LaunchFactory} from "../src/DirectErc20LaunchFactory.sol";
 import {DirectLaunchFactoryBase} from "../src/DirectLaunchFactoryBase.sol";
 import {DirectFeeBurnHook} from "../src/DirectFeeBurnHook.sol";
+import {MockVNextPolicyRouter} from "./mocks/MockVNextPolicyRouter.sol";
 import {
     IERC20Minimal,
     IPermit2AllowanceTransfer,
@@ -44,8 +45,10 @@ contract DirectFeeBurnV4ForkTest is Test {
             IPermit2AllowanceTransfer(PERMIT2),
             IPoolInitializationGuard(address(hook))
         );
+        MockVNextPolicyRouter vnext = new MockVNextPolicyRouter();
+        vnext.setLaunchFee(0.002 ether);
         DirectErc20LaunchFactory factory =
-            new DirectErc20LaunchFactory(address(this), locker, payable(platform), _config(), 0.002 ether);
+            new DirectErc20LaunchFactory(address(this), locker, vnext, vnext, _config());
         locker.setFactory(address(factory));
         factory.setLaunchRouter(router);
         address[] memory lockers = new address[](1);

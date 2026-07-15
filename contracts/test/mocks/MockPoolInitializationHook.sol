@@ -23,7 +23,7 @@ contract MockPoolInitializationHook {
         allowedLockers[locker] = true;
     }
 
-    function authorizePool(bytes32 poolId, uint160 sqrtPriceX96) external {
+    function authorizePool(bytes32 poolId, uint160 sqrtPriceX96, address, address) external {
         require(allowedLockers[msg.sender], "locker");
         expectedPrices[poolId] = sqrtPriceX96;
     }

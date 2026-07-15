@@ -5,6 +5,8 @@ import {DirectDexLiquidityLocker} from "./DirectDexLiquidityLocker.sol";
 import {IERC20Minimal, IUniswapV4PositionManager} from "./UniswapV4LiquidityLocker.sol";
 import {Ownable} from "./access/Ownable.sol";
 import {ReentrancyGuard} from "./security/ReentrancyGuard.sol";
+import {IFeePolicy} from "./interfaces/IFeePolicy.sol";
+import {IRevenueRouter} from "./interfaces/IRevenueRouter.sol";
 
 interface InitialBuyRouter {
     struct ExactInputSingleParams {
@@ -31,6 +33,8 @@ abstract contract DirectLaunchFactoryBase is Ownable, ReentrancyGuard {
     error InitialBuyFailed();
     error InitialBuyExceedsFivePercent();
     error TokenTransferFailed();
+    error LaunchesPaused();
+    error AlreadySeeded();
 
     uint256 public constant MAX_SUPPLY = 1_000_000_000 ether;
     uint256 public constant MAX_INITIAL_BUY_TOKENS = MAX_SUPPLY / 20; // 5%
@@ -46,10 +50,12 @@ abstract contract DirectLaunchFactoryBase is Ownable, ReentrancyGuard {
     }
 
     DirectDexLiquidityLocker public immutable liquidityLocker;
+    IFeePolicy public immutable feePolicy;
+    IRevenueRouter public immutable revenueRouter;
     address payable public immutable launchFeeRecipient;
     DirectDexLiquidityLocker.PoolConfig public launchConfig;
-    uint256 public launchFee;
     uint256 public launchCount;
+    bool public launchCountSeeded;
     uint256 public pendingLaunchFees;
     address public launchRouter;
     mapping(bytes32 salt => bool used) public usedSalts;
@@ -88,21 +94,37 @@ abstract contract DirectLaunchFactoryBase is Ownable, ReentrancyGuard {
         uint256 nativeAmount,
         uint256 tokenAmount
     );
+    event LaunchCountSeeded(uint256 initialLaunchCount);
 
     constructor(
         address initialOwner,
         DirectDexLiquidityLocker liquidityLocker_,
-        address payable launchFeeRecipient_,
-        DirectDexLiquidityLocker.PoolConfig memory initialConfig,
-        uint256 initialLaunchFee
+        IFeePolicy feePolicy_,
+        IRevenueRouter revenueRouter_,
+        DirectDexLiquidityLocker.PoolConfig memory initialConfig
     ) Ownable(initialOwner) {
-        if (address(liquidityLocker_) == address(0) || launchFeeRecipient_ == address(0)) {
+        if (
+            address(liquidityLocker_) == address(0) || address(feePolicy_) == address(0)
+                || address(revenueRouter_) == address(0)
+        ) {
             revert InvalidLaunchConfig();
         }
         liquidityLocker = liquidityLocker_;
-        launchFeeRecipient = launchFeeRecipient_;
+        feePolicy = feePolicy_;
+        revenueRouter = revenueRouter_;
+        launchFeeRecipient = payable(address(revenueRouter_));
         _setLaunchConfig(initialConfig);
-        _setLaunchFee(initialLaunchFee);
+    }
+
+    function launchFee() public view returns (uint256) {
+        return feePolicy.launchFee();
+    }
+
+    function seedLaunchCount(uint256 initialLaunchCount) external onlyOwner {
+        if (launchCountSeeded || launchCount != 0 || initialLaunchCount == 0) revert AlreadySeeded();
+        launchCountSeeded = true;
+        launchCount = initialLaunchCount;
+        emit LaunchCountSeeded(initialLaunchCount);
     }
 
     function createLaunch(TokenMetadata calldata metadata, bytes32 expectedConfigHash, uint256 deadline)
@@ -111,6 +133,7 @@ abstract contract DirectLaunchFactoryBase is Ownable, ReentrancyGuard {
         nonReentrant
         returns (uint256 launchId, address token, bytes32 poolId, bytes32 positionId)
     {
+        if (feePolicy.newLaunchesPaused()) revert LaunchesPaused();
         return _createLaunch(metadata, expectedConfigHash, deadline, 0, 0);
     }
 
@@ -120,8 +143,10 @@ abstract contract DirectLaunchFactoryBase is Ownable, ReentrancyGuard {
         uint256 deadline,
         uint256 minimumTokensOut
     ) external payable nonReentrant returns (uint256 launchId, address token, bytes32 poolId, bytes32 positionId) {
-        if (msg.value <= launchFee || launchRouter == address(0)) revert LaunchRouterNotConfigured();
-        return _createLaunch(metadata, expectedConfigHash, deadline, msg.value - launchFee, minimumTokensOut);
+        if (feePolicy.newLaunchesPaused()) revert LaunchesPaused();
+        uint256 currentLaunchFee = feePolicy.launchFee();
+        if (msg.value <= currentLaunchFee || launchRouter == address(0)) revert LaunchRouterNotConfigured();
+        return _createLaunch(metadata, expectedConfigHash, deadline, msg.value - currentLaunchFee, minimumTokensOut);
     }
 
     function setLaunchRouter(address router) external onlyOwner {
@@ -146,14 +171,15 @@ abstract contract DirectLaunchFactoryBase is Ownable, ReentrancyGuard {
         ) revert InvalidMetadata();
         bytes32 effectiveSalt = keccak256(abi.encode(msg.sender, block.chainid, metadata.salt));
         if (usedSalts[effectiveSalt]) revert SaltAlreadyUsed();
-        if (msg.value != launchFee + initialBuyAmount) revert InsufficientLaunchFee();
+        uint256 currentLaunchFee = feePolicy.launchFee();
+        if (msg.value != currentLaunchFee + initialBuyAmount) revert InsufficientLaunchFee();
 
         usedSalts[effectiveSalt] = true;
         launchId = ++launchCount;
         token = _deployToken(metadata, effectiveSalt, MAX_SUPPLY, address(liquidityLocker));
         DirectDexLiquidityLocker.PoolConfig memory config = launchConfig;
         (positionId, poolId) = liquidityLocker.lockTokenOnlyLiquidity(launchId, token, MAX_SUPPLY, msg.sender, config);
-        pendingLaunchFees += launchFee;
+        if (currentLaunchFee != 0) revenueRouter.depositLaunchRevenue{value: currentLaunchFee}();
 
         if (initialBuyAmount > 0) {
             uint256 bought = _executeInitialBuy(token, config, initialBuyAmount, minimumTokensOut);
@@ -162,7 +188,7 @@ abstract contract DirectLaunchFactoryBase is Ownable, ReentrancyGuard {
             emit CreatorInitialBuy(launchId, token, msg.sender, initialBuyAmount, bought);
         }
 
-        emit DirectLaunchFeePaid(launchId, msg.sender, launchFee);
+        emit DirectLaunchFeePaid(launchId, msg.sender, currentLaunchFee);
         emit DirectLaunchCreated(
             launchId,
             token,
@@ -216,10 +242,6 @@ abstract contract DirectLaunchFactoryBase is Ownable, ReentrancyGuard {
         _setLaunchConfig(newConfig);
     }
 
-    function setLaunchFee(uint256 newLaunchFee) external onlyOwner {
-        _setLaunchFee(newLaunchFee);
-    }
-
     function launchConfigHash() public view returns (bytes32) {
         return keccak256(abi.encode(launchConfig));
     }
@@ -251,12 +273,6 @@ abstract contract DirectLaunchFactoryBase is Ownable, ReentrancyGuard {
             config.platformShareBps,
             config.creatorShareBps
         );
-    }
-
-    function _setLaunchFee(uint256 newLaunchFee) internal {
-        if (newLaunchFee > MAX_LAUNCH_FEE) revert InvalidLaunchConfig();
-        launchFee = newLaunchFee;
-        emit DirectLaunchFeeUpdated(newLaunchFee);
     }
 
     function _deployToken(

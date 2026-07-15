@@ -14,6 +14,7 @@ import {MockPolicyRegistry} from "./mocks/MockPolicyRegistry.sol";
 import {MockB20Factory} from "./mocks/MockB20Factory.sol";
 import {MockLiquidityLocker} from "./mocks/MockLiquidityLocker.sol";
 import {ProtocolLiquidityLocker} from "../src/ProtocolLiquidityLocker.sol";
+import {MockVNextPolicyRouter} from "./mocks/MockVNextPolicyRouter.sol";
 
 contract FairCurveLaunchpadTest is Test {
     address creator = address(0xC0FFEE);
@@ -29,6 +30,7 @@ contract FairCurveLaunchpadTest is Test {
     BondingCurveMarket market;
     GraduationManager graduation;
     LaunchFactory factory;
+    MockVNextPolicyRouter vnext;
 
     receive() external payable {}
 
@@ -37,7 +39,9 @@ contract FairCurveLaunchpadTest is Test {
         policy = new MockPolicyRegistry();
         b20Factory = new MockB20Factory();
         locker = new MockLiquidityLocker();
-        market = new BondingCurveMarket(address(this), feeRecipient);
+        vnext = new MockVNextPolicyRouter();
+        vnext.setLaunchFee(launchFee);
+        market = new BondingCurveMarket(address(this), vnext, vnext);
         graduation = new GraduationManager(market, locker, IPolicyRegistry(address(policy)));
         factory = new LaunchFactory(
             address(this),
@@ -46,7 +50,8 @@ contract FairCurveLaunchpadTest is Test {
             IPolicyRegistry(address(policy)),
             market,
             address(graduation),
-            payable(feeRecipient)
+            vnext,
+            vnext
         );
         market.configure(address(factory), address(graduation), feeRecipient);
         activation.setActivated(B20Constants.B20_ASSET_FEATURE, true);
@@ -78,7 +83,7 @@ contract FairCurveLaunchpadTest is Test {
         market.buy{value: 1 ether}(launchId, quote - 1, block.timestamp + 1 hours);
 
         assertEq(IB20(token).balanceOf(buyer), quote);
-        assertGt(market.pendingFees(feeRecipient), 0);
+        assertGt(vnext.tradeRevenue(), 0);
         assertGt(market.pendingFees(creator), 0);
     }
 
@@ -184,7 +189,9 @@ contract FairCurveLaunchpadTest is Test {
         market.sell(launchId, sold, 0, block.timestamp + 1 hours);
 
         assertEq(IB20(token).totalSupply(), 1_000_000_000 ether);
-        assertEq(IB20(token).balanceOf(address(market)), marketBalanceAfterBuy + sold);
+        uint256 burned = (sold * 30) / 10_000;
+        assertEq(IB20(token).balanceOf(address(market)), marketBalanceAfterBuy + sold - burned);
+        assertEq(IB20(token).balanceOf(address(0x000000000000000000000000000000000000dEaD)), burned);
 
         vm.prank(buyer);
         market.buy{value: 10 ether}(launchId, 0, block.timestamp + 1 hours);
@@ -207,7 +214,7 @@ contract FairCurveLaunchpadTest is Test {
 
     function testFactoryRejectsUnsafeConfig() public {
         BondingCurveMarket.LaunchConfig memory config = _config();
-        config.creatorFeeBps = 900;
+        config.antiSnipingDuration = 61;
 
         vm.prank(creator);
         vm.expectRevert(LaunchFactory.UnsafeTradingConfig.selector);
@@ -239,7 +246,7 @@ contract FairCurveLaunchpadTest is Test {
     }
 
     function testLaunchCountCanBeSeededOnlyBeforeConfiguration() public {
-        BondingCurveMarket migratedMarket = new BondingCurveMarket(address(this), feeRecipient);
+        BondingCurveMarket migratedMarket = new BondingCurveMarket(address(this), vnext, vnext);
         migratedMarket.seedLaunchCount(21);
         assertEq(migratedMarket.launchCount(), 21);
 
@@ -259,21 +266,15 @@ contract FairCurveLaunchpadTest is Test {
         market.withdrawGraduationEth(launchId, payable(address(graduation)));
     }
 
-    function testLaunchFeeIsRequiredAndClaimable() public {
+    function testLaunchFeeIsRequiredAndRoutedImmediately() public {
         vm.prank(creator);
         vm.expectRevert(LaunchFactory.InsufficientLaunchFee.selector);
         factory.createLaunch(_metadata("NoFee", "NOF", "ipfs://nofee", "nofee"), _curve(10 ether), _config());
 
-        uint256 beforePending = factory.pendingLaunchFees();
+        uint256 beforeRouted = vnext.launchRevenue();
         _createLaunch("PaidFee", "PAID", 10 ether);
-        assertEq(factory.pendingLaunchFees(), beforePending + launchFee);
-
-        uint256 beforeTreasury = feeRecipient.balance;
-        uint256 claimable = factory.pendingLaunchFees();
-        factory.claimLaunchFees();
-
+        assertEq(vnext.launchRevenue(), beforeRouted + launchFee);
         assertEq(factory.pendingLaunchFees(), 0);
-        assertEq(feeRecipient.balance, beforeTreasury + claimable);
     }
 
     function testGraduationLocksLiquidityAndRenouncesRoles() public {
@@ -302,7 +303,7 @@ contract FairCurveLaunchpadTest is Test {
 
     function testGraduationRequiresDexBackedLocker() public {
         ProtocolLiquidityLocker escrowLocker = new ProtocolLiquidityLocker(address(this));
-        BondingCurveMarket unsafeMarket = new BondingCurveMarket(address(this), feeRecipient);
+        BondingCurveMarket unsafeMarket = new BondingCurveMarket(address(this), vnext, vnext);
         GraduationManager unsafeGraduation =
             new GraduationManager(unsafeMarket, escrowLocker, IPolicyRegistry(address(policy)));
         escrowLocker.setGraduationManager(address(unsafeGraduation));
@@ -314,7 +315,8 @@ contract FairCurveLaunchpadTest is Test {
             IPolicyRegistry(address(policy)),
             unsafeMarket,
             address(unsafeGraduation),
-            payable(feeRecipient)
+            vnext,
+            vnext
         );
         unsafeMarket.configure(address(unsafeFactory), address(unsafeGraduation), feeRecipient);
 

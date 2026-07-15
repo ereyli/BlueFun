@@ -5,6 +5,8 @@ import {IB20} from "./interfaces/IB20.sol";
 import {B20Constants} from "./libraries/B20Constants.sol";
 import {Ownable} from "./access/Ownable.sol";
 import {ReentrancyGuard} from "./security/ReentrancyGuard.sol";
+import {IFeePolicy} from "./interfaces/IFeePolicy.sol";
+import {IRevenueRouter} from "./interfaces/IRevenueRouter.sol";
 
 contract BondingCurveMarket is Ownable, ReentrancyGuard {
     error NotLaunchFactory();
@@ -22,6 +24,7 @@ contract BondingCurveMarket is Ownable, ReentrancyGuard {
     error RefundFailed();
     error AlreadyConfigured();
     error TokenTransferFailed();
+    error RevenueDepositFailed();
 
     struct CurveConfig {
         uint256 virtualTokenReserve;
@@ -62,6 +65,8 @@ contract BondingCurveMarket is Ownable, ReentrancyGuard {
     address public launchFactory;
     address public graduationManager;
     address public feeRecipient;
+    IFeePolicy public immutable feePolicy;
+    IRevenueRouter public immutable revenueRouter;
     uint256 public launchCount;
     bool public configured;
 
@@ -82,7 +87,7 @@ contract BondingCurveMarket is Ownable, ReentrancyGuard {
         uint256 ethIn,
         uint256 tokensOut,
         uint256 platformFee,
-        uint256 creatorFee
+        uint256 burnAmount
     );
     event TokensSold(
         uint256 indexed launchId,
@@ -107,9 +112,11 @@ contract BondingCurveMarket is Ownable, ReentrancyGuard {
         _;
     }
 
-    constructor(address initialOwner, address feeRecipient_) Ownable(initialOwner) {
-        if (feeRecipient_ == address(0)) revert InvalidLaunchConfig();
-        feeRecipient = feeRecipient_;
+    constructor(address initialOwner, IFeePolicy feePolicy_, IRevenueRouter revenueRouter_) Ownable(initialOwner) {
+        if (address(feePolicy_) == address(0) || address(revenueRouter_) == address(0)) revert InvalidLaunchConfig();
+        feePolicy = feePolicy_;
+        revenueRouter = revenueRouter_;
+        feeRecipient = address(revenueRouter_);
     }
 
     receive() external payable {}
@@ -176,7 +183,8 @@ contract BondingCurveMarket is Ownable, ReentrancyGuard {
         if (ethIn == 0) revert ZeroAmount();
         if (launch.graduated || launch.graduationReady) revert TradingClosed();
         uint256 grossEthIn = _cappedGrossEthIn(launch, ethIn);
-        (uint256 platformFee, uint256 creatorFee) = _fees(grossEthIn, launch.platformFeeBps, launch.creatorFeeBps);
+        (uint256 platformFee, uint256 creatorFee) =
+            _fees(grossEthIn, feePolicy.buyPlatformFeeBps(), feePolicy.buyCreatorFeeBps());
         netEthIn = grossEthIn - platformFee - creatorFee;
         uint256 k = launch.virtualTokenReserve * launch.virtualEthReserve;
         uint256 newEthReserve = launch.virtualEthReserve + netEthIn;
@@ -192,11 +200,13 @@ contract BondingCurveMarket is Ownable, ReentrancyGuard {
         if (launch.token == address(0)) revert LaunchNotFound();
         if (tokenAmount == 0) revert ZeroAmount();
         if (launch.graduated || launch.graduationReady) revert TradingClosed();
+        uint256 burnAmount = (tokenAmount * feePolicy.sellBurnFeeBps()) / B20Constants.BPS;
+        uint256 netTokenAmount = tokenAmount - burnAmount;
         uint256 k = launch.virtualTokenReserve * launch.virtualEthReserve;
-        uint256 newTokenReserve = launch.virtualTokenReserve + tokenAmount;
+        uint256 newTokenReserve = launch.virtualTokenReserve + netTokenAmount;
         grossEthOut = launch.virtualEthReserve - (k / newTokenReserve);
-        (uint256 platformFee, uint256 creatorFee) = _fees(grossEthOut, launch.platformFeeBps, launch.creatorFeeBps);
-        ethOut = grossEthOut - platformFee - creatorFee;
+        uint256 platformFee = (grossEthOut * feePolicy.sellPlatformFeeBps()) / B20Constants.BPS;
+        ethOut = grossEthOut - platformFee;
     }
 
     function buy(uint256 launchId, uint256 minTokensOut, uint256 deadline)
@@ -240,15 +250,25 @@ contract BondingCurveMarket is Ownable, ReentrancyGuard {
             if (purchased[launchId][buyer] + tokensOut > launch.perWalletCap) revert WalletCapExceeded();
         }
 
-        (uint256 platformFee, uint256 creatorFee) = _fees(grossEthIn, launch.platformFeeBps, launch.creatorFeeBps);
+        (uint256 platformFee, uint256 creatorFee) =
+            _fees(grossEthIn, feePolicy.buyPlatformFeeBps(), feePolicy.buyCreatorFeeBps());
         uint256 netEthIn = grossEthIn - platformFee - creatorFee;
         launch.virtualEthReserve += netEthIn;
         launch.virtualTokenReserve -= tokensOut;
         launch.realEthReserve += netEthIn;
         launch.grossEthRaised += grossEthIn;
         purchased[launchId][buyer] += tokensOut;
-        pendingFees[feeRecipient] += platformFee;
         pendingFees[launch.creator] += creatorFee;
+
+        bool graduationReached = launch.grossEthRaised >= launch.graduationEthTarget;
+        if (graduationReached) launch.graduationReady = true;
+
+        if (platformFee != 0) {
+            try revenueRouter.depositTradeRevenue{value: platformFee}() {}
+            catch {
+                revert RevenueDepositFailed();
+            }
+        }
 
         if (IB20(launch.token).balanceOf(address(this)) < tokensOut) revert InsufficientReserve();
         if (!IB20(launch.token).transfer(buyer, tokensOut)) revert TokenTransferFailed();
@@ -260,8 +280,7 @@ contract BondingCurveMarket is Ownable, ReentrancyGuard {
 
         emit TokensBought(launchId, buyer, grossEthIn, tokensOut, platformFee, creatorFee);
 
-        if (launch.grossEthRaised >= launch.graduationEthTarget) {
-            launch.graduationReady = true;
+        if (graduationReached) {
             emit GraduationReady(launchId, launch.grossEthRaised);
         }
     }
@@ -281,21 +300,30 @@ contract BondingCurveMarket is Ownable, ReentrancyGuard {
         if (ethOut < minEthOut) revert Slippage();
         if (grossEthOut > launch.realEthReserve) revert InsufficientReserve();
 
-        (uint256 platformFee, uint256 creatorFee) = _fees(grossEthOut, launch.platformFeeBps, launch.creatorFeeBps);
+        uint256 burnAmount = (tokenAmount * feePolicy.sellBurnFeeBps()) / B20Constants.BPS;
+        uint256 netTokenAmount = tokenAmount - burnAmount;
+        uint256 platformFee = (grossEthOut * feePolicy.sellPlatformFeeBps()) / B20Constants.BPS;
         launch.virtualEthReserve -= grossEthOut;
-        launch.virtualTokenReserve += tokenAmount;
+        launch.virtualTokenReserve += netTokenAmount;
         launch.realEthReserve -= grossEthOut;
         launch.grossEthRaised -= grossEthOut;
-        pendingFees[feeRecipient] += platformFee;
-        pendingFees[launch.creator] += creatorFee;
 
         if (!IB20(launch.token).transferFrom(msg.sender, address(this), tokenAmount)) {
             revert TokenTransferFailed();
         }
+        if (burnAmount != 0 && !IB20(launch.token).transfer(address(0x000000000000000000000000000000000000dEaD), burnAmount)) {
+            revert TokenTransferFailed();
+        }
+        if (platformFee != 0) {
+            try revenueRouter.depositTradeRevenue{value: platformFee}() {}
+            catch {
+                revert RevenueDepositFailed();
+            }
+        }
         (bool ok,) = msg.sender.call{value: ethOut}("");
         if (!ok) revert InsufficientReserve();
 
-        emit TokensSold(launchId, msg.sender, tokenAmount, ethOut, platformFee, creatorFee);
+        emit TokensSold(launchId, msg.sender, tokenAmount, ethOut, platformFee, burnAmount);
     }
 
     function graduationLiquidity(uint256 launchId)

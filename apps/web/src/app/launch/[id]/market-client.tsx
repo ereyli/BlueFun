@@ -21,6 +21,7 @@ import {
   graduationManagerAbi,
   feeSharingLockerAbi,
   indexerScopeForLaunch,
+  isVNextLiquidityLocker,
   liquidityLockerPoolAbi,
   permit2Abi,
   universalRouterAbi,
@@ -1238,7 +1239,7 @@ function RecentTrades({ trades, symbol, chainId: launchChainId }: { trades: Depl
 }
 
 function CommunityBurnCard({ launch }: { launch: DeployedLaunch }) {
-  const enabled = Boolean(launch.launchMode === "direct" && launch.poolFee === 0x800000 && launch.positionId && launch.liquidityLocker);
+  const enabled = Boolean(launch.launchMode === "direct" && launch.poolFee === 0x800000 && launch.positionId && launch.liquidityLocker && !isVNextLiquidityLocker(launch.chainId, launch.liquidityLocker));
   const { address, isConnected } = useAccount();
   const chainId = useChainId();
   const { switchChainAsync, isPending: isSwitching } = useSwitchChain();

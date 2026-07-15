@@ -12,7 +12,7 @@ import {TickMath} from "./libraries/TickMath.sol";
 import {ReentrancyGuard} from "./security/ReentrancyGuard.sol";
 
 interface IPoolInitializationGuard {
-    function authorizePool(bytes32 poolId, uint160 sqrtPriceX96) external;
+    function authorizePool(bytes32 poolId, uint160 sqrtPriceX96, address token, address creator) external;
 }
 
 /// @notice Creates token-only Uniswap v4 launch positions and permanently custody-locks the position NFT.
@@ -44,8 +44,9 @@ contract DirectDexLiquidityLocker is ReentrancyGuard {
     uint8 private constant ACTION_SWEEP = 0x14;
     uint16 public constant SHARE_BPS = 10_000;
     uint160 private constant ALL_HOOK_MASK = (1 << 14) - 1;
-    uint160 private constant BEFORE_INITIALIZE_FLAG = 1 << 13;
-    uint160 private constant FEE_BURN_HOOK_FLAGS = (1 << 13) | (1 << 7) | (1 << 6) | (1 << 2);
+    uint160 private constant UNIFIED_FEE_HOOK_FLAGS = (1 << 13) | (1 << 7) | (1 << 6) | (1 << 3) | (1 << 2);
+    uint160 private constant LEGACY_INITIALIZATION_FLAGS = 1 << 13;
+    uint160 private constant LEGACY_FEE_HOOK_FLAGS = (1 << 13) | (1 << 7) | (1 << 6) | (1 << 2);
     uint24 public constant DYNAMIC_FEE_FLAG = 0x800000;
     address public constant DEAD_WALLET = 0x000000000000000000000000000000000000dEaD;
 
@@ -134,7 +135,10 @@ contract DirectDexLiquidityLocker is ReentrancyGuard {
                 || address(initializationGuard_) == address(0)
         ) revert InvalidAddress();
         uint160 hookFlags = uint160(address(initializationGuard_)) & ALL_HOOK_MASK;
-        if (hookFlags != BEFORE_INITIALIZE_FLAG && hookFlags != FEE_BURN_HOOK_FLAGS) {
+        if (
+            hookFlags != UNIFIED_FEE_HOOK_FLAGS && hookFlags != LEGACY_INITIALIZATION_FLAGS
+                && hookFlags != LEGACY_FEE_HOOK_FLAGS
+        ) {
             revert InvalidAddress();
         }
         owner = owner_;
@@ -175,7 +179,7 @@ contract DirectDexLiquidityLocker is ReentrancyGuard {
             hooks: address(initializationGuard)
         });
         poolId = keccak256(abi.encode(pool));
-        _ensurePool(pool, poolId, config.initialSqrtPriceX96);
+        _ensurePool(pool, poolId, config.initialSqrtPriceX96, token, creator);
 
         uint160 rangeLowerSqrtPriceX96 = TickMath.getSqrtPriceAtTick(config.tickLower);
         uint160 rangeUpperSqrtPriceX96 = TickMath.getSqrtPriceAtTick(config.tickUpper);
@@ -298,7 +302,13 @@ contract DirectDexLiquidityLocker is ReentrancyGuard {
         emit FeesClaimed(msg.sender, currency, amount);
     }
 
-    function _ensurePool(IUniswapV4PositionManager.PoolKey memory pool, bytes32 poolId, uint160 expectedSqrtPriceX96)
+    function _ensurePool(
+        IUniswapV4PositionManager.PoolKey memory pool,
+        bytes32 poolId,
+        uint160 expectedSqrtPriceX96,
+        address token,
+        address creator
+    )
         private
     {
         try stateView.getSlot0(poolId) returns (uint160 current, int24, uint24, uint24) {
@@ -307,7 +317,7 @@ contract DirectDexLiquidityLocker is ReentrancyGuard {
                 return;
             }
         } catch {}
-        initializationGuard.authorizePool(poolId, expectedSqrtPriceX96);
+        initializationGuard.authorizePool(poolId, expectedSqrtPriceX96, token, creator);
         try positionManager.initializePool(pool, expectedSqrtPriceX96) returns (int24) {
             (uint160 current,,,) = stateView.getSlot0(poolId);
             if (current != expectedSqrtPriceX96) revert InvalidPoolState();

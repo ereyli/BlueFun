@@ -3,6 +3,7 @@ pragma solidity ^0.8.25;
 
 import {Test} from "./utils/Test.sol";
 import {BondingCurveMarket} from "../src/BondingCurveMarket.sol";
+import {MockVNextPolicyRouter} from "./mocks/MockVNextPolicyRouter.sol";
 
 contract PolicyBlockedTradingTest is Test {
     address buyer = address(0xB0B);
@@ -11,11 +12,13 @@ contract PolicyBlockedTradingTest is Test {
     uint256 launchId;
     PolicyAwareToken token;
     BondingCurveMarket market;
+    MockVNextPolicyRouter policyRouter;
 
     receive() external payable {}
 
     function setUp() public {
-        market = new BondingCurveMarket(address(this), feeRecipient);
+        policyRouter = new MockVNextPolicyRouter();
+        market = new BondingCurveMarket(address(this), policyRouter, policyRouter);
         market.configure(address(this), graduationManager, feeRecipient);
 
         token = new PolicyAwareToken();

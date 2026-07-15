@@ -54,7 +54,10 @@ const productionContracts = [
     bondLocker: addresses.liquidityLocker,
     directFactory: addresses.directLaunchFactory,
     directLocker: addresses.directLiquidityLocker,
-    directHook: "0xab781cf489098aacde6e647fe333b2b1da57a0c4"
+    directHook: "0xf0b8dde19510ee7d6d50be289c4257ecd14c60cc",
+    feePolicy: "0xe5c5585ab34f8e2ba55c30ef5e6b0254d87a4941",
+    revenueRouter: blueStakingAddresses.revenueRouter,
+    version: "vNext"
   },
   {
     name: "Robinhood Chain",
@@ -65,7 +68,10 @@ const productionContracts = [
     bondLocker: robinhoodAddresses.liquidityLocker,
     directFactory: robinhoodAddresses.directLaunchFactory,
     directLocker: robinhoodAddresses.directLiquidityLocker,
-    directHook: "0xebdabdc79bb91faee2c4142d4a4b95f4adfce0c4"
+    directHook: "0xebdabdc79bb91faee2c4142d4a4b95f4adfce0c4",
+    feePolicy: undefined,
+    revenueRouter: undefined,
+    version: "Legacy compatible"
   }
 ] as const;
 
@@ -87,9 +93,9 @@ export default async function DocsPage() {
         <span>Protocol snapshot</span>
         <strong>Two launch paths. One transparent interface.</strong>
         <dl>
-          <div><dt>Networks</dt><dd>2 live</dd></div>
+          <div><dt>Markets</dt><dd>2 networks</dd></div>
           <div><dt>Supply</dt><dd>1B fixed</dd></div>
-          <div><dt>Launch fee</dt><dd>0.002 ETH</dd></div>
+          <div><dt>Launch fee</dt><dd>0.001 ETH</dd></div>
           <div><dt>LP custody</dt><dd>Permanent</dd></div>
         </dl>
       </div>
@@ -112,7 +118,7 @@ export default async function DocsPage() {
             <Feature icon={<LayoutDashboard />} title="Dashboard" text="Track created tokens, held assets, trading activity and claimable creator revenue from one wallet view." />
             <Feature icon={<LockKeyhole />} title="Locked liquidity" text="Production LP positions remain in protocol custody without a principal-withdrawal or NFT-transfer path." />
             <Feature icon={<Boxes />} title="Historical continuity" text="Tokens created by legacy deployments remain indexed and continue to use the contracts they launched with." />
-            <Feature icon={<Coins />} title="BLUE staking" text="Stake BLUE on Base and receive a proportional share of WETH revenue deposited into the staking vault." />
+            <Feature icon={<Coins />} title="BLUE staking" text="Stake BLUE on Base and receive a proportional share of native ETH protocol revenue." />
           </div>
         </section>
 
@@ -152,12 +158,12 @@ export default async function DocsPage() {
         </section>
 
         <section className="docs-section" id="fees">
-          <SectionTitle eyebrow="Economics" title="Fees and revenue distribution" description="Launch fees, curve trading fees and Direct DEX fees are accounted for separately." />
+          <SectionTitle eyebrow="Economics" title="One fee policy across both launch routes" description="vNext Bond, Direct DEX and graduated pools use the same bounded onchain fee policy." />
           <div className="docs-fee-summary">
-            <article><span>Launch</span><strong>0.002 ETH</strong><p>Paid to the platform on either route. An optional first buy is added on top.</p></article>
-            <article><span>Bond trading</span><strong>1% total</strong><p>0.7% platform and 0.3% creator, charged in ETH on buys and sells.</p></article>
-            <article><span>Direct buy</span><strong>1% ETH</strong><p>0.7% platform and 0.3% creator through the locked LP fee accounting.</p></article>
-            <article><span>Direct sell</span><strong>0.7% + burn</strong><p>0.7% of native output to the platform; 0.3% token-input fee is burned.</p></article>
+            <article><span>Launch</span><strong>0.001 ETH</strong><p>Routed to treasury. An optional creator first buy is added on top.</p></article>
+            <article><span>Buy</span><strong>1% total</strong><p>0.7% platform and 0.3% creator, both accounted in ETH.</p></article>
+            <article><span>Sell</span><strong>1% total</strong><p>0.7% platform in ETH and 0.3% of token input sent to the dead address.</p></article>
+            <article><span>Base platform share</span><strong>50 / 50</strong><p>Trade platform revenue is split automatically between BLUE staking and treasury.</p></article>
           </div>
 
           <div className="docs-table-wrap">
@@ -165,25 +171,25 @@ export default async function DocsPage() {
               <thead><tr><th>Event</th><th>Platform</th><th>Creator</th><th>Token burn</th></tr></thead>
               <tbody>
                 <tr><td>Bond buy</td><td>0.7% ETH</td><td>0.3% ETH</td><td>—</td></tr>
-                <tr><td>Bond sell</td><td>0.7% ETH</td><td>0.3% ETH</td><td>—</td></tr>
-                <tr><td>Bond LP after graduation</td><td>70% of realized fees</td><td>30% of realized fees</td><td>—</td></tr>
+                <tr><td>Bond sell</td><td>0.7% ETH</td><td>—</td><td>0.3% token input</td></tr>
+                <tr><td>Bond after graduation</td><td>0.7% ETH</td><td>0.3% ETH on buys</td><td>0.3% token input on sells</td></tr>
                 <tr><td>Direct buy</td><td>0.7% ETH</td><td>0.3% ETH</td><td>—</td></tr>
                 <tr><td>Direct sell</td><td>0.7% native output</td><td>—</td><td>0.3% token input</td></tr>
               </tbody>
             </table>
           </div>
-          <Callout tone="success" title="Direct creators earn from buys only">Direct sell-token fees accrue in the locked position and move to the standard dead address when fees are realized. The platform does not accumulate or sell launch tokens.</Callout>
+          <Callout tone="success" title="Creators earn from buys only">On Base vNext, sell burns and ETH routing happen atomically with each trade. No fee sync or manual LP-fee collection is required. Robinhood vNext activation is pending.</Callout>
         </section>
 
         <section className="docs-section" id="liquidity">
-          <SectionTitle eyebrow="LP custody" title="Permanently locked principal" description="The protocol separates liquidity principal from collectible trading fees." />
+          <SectionTitle eyebrow="LP custody" title="Permanently locked principal" description="vNext uses a zero-LP-fee hook, so principal stays locked while trade fees route independently." />
           <div className="docs-check-grid">
             <Check text="No principal-withdrawal function is exposed by the production lockers." />
             <Check text="No LP NFT transfer function is exposed to the creator or platform." />
-            <Check text="Fee realization uses a zero-liquidity delta and verifies liquidity before and after collection." />
-            <Check text="Creator and platform balances are pull-based: each beneficiary can claim only its own recorded amount." />
+            <Check text="The unified hook overrides the LP fee to zero, preventing duplicate trade fees." />
+            <Check text="Creator ETH is pull-based; each creator can claim only its own recorded buy revenue." />
           </div>
-          <p className="docs-body-copy">Anyone may trigger fee realization for a position, which allows keepers to maintain accounting. Triggering collection does not grant the caller ownership of the funds; proceeds are credited only to the configured platform recipient and the launch creator.</p>
+          <p className="docs-body-copy">Pool-to-token-to-creator registration is one-time and restricted to the permanent Bond and Direct lockers. Exact-output swaps are rejected; the supported trading path is exact input.</p>
         </section>
 
         <section className="docs-section" id="creator-tools">
@@ -238,30 +244,31 @@ export default async function DocsPage() {
           <SectionTitle eyebrow="Base revenue vault" title="BLUE staking" description="A Base-only, non-custodial staking vault distributes deposited protocol revenue in proportion to each wallet's active BLUE stake." />
           <div className="docs-fee-summary">
             <article><span>Current staker share</span><strong>50%</strong><p>The router sends half of each deposited revenue batch to the staking vault and half to treasury.</p></article>
-            <article><span>Reward asset</span><strong>WETH</strong><p>Native ETH deposits are wrapped automatically. Rewards stream over seven days instead of arriving in one block.</p></article>
-            <article><span>Unstake delay</span><strong>30 days</strong><p>BLUE stops earning when unstaking begins and remains withdrawable after the countdown.</p></article>
+            <article><span>Reward asset</span><strong>ETH</strong><p>Native ETH rewards stream over seven days instead of arriving in one block.</p></article>
+            <article><span>Unstake delay</span><strong>30 days</strong><p>Additional requests aggregate and reset the timer; partial cancel and withdrawal are supported.</p></article>
             <article><span>Admin delay</span><strong>7 days</strong><p>Share, treasury, operator and duration changes require a public timelocked transaction.</p></article>
           </div>
           <div className="docs-check-grid">
-            <Check text="Administration cannot withdraw active or cooling user stakes and cannot seize accounted WETH rewards." />
+            <Check text="Administration cannot withdraw active or cooling user stakes and cannot seize accounted ETH rewards." />
             <Check text="Claims and matured withdrawals remain available while new deposits or reward funding are paused." />
             <Check text="An irreversible emergency mode removes cooldown waiting without transferring user funds to administration." />
             <Check text="Owner, guardian and delay configuration can migrate to future multisig governance through delayed, onchain actions." />
           </div>
-          <Callout tone="info" title="Revenue is deposited manually">Platform revenue from Base or other networks is not bridged automatically. The configured operator deposits realized Base ETH or WETH; only deposited amounts become staking rewards.</Callout>
+          <Callout tone="info" title="Automatic on Base, manual across networks">Half of Base vNext trade platform revenue reaches staking automatically. Revenue bridged manually from another network enters the Base router as 100% staker revenue and is not split twice.</Callout>
         </section>
 
         <section className="docs-section" id="contracts">
-          <SectionTitle eyebrow="Mainnet references" title="Current production contracts" description="New launches use the current deployment set. Historical launches remain connected to their original verified contracts." />
+          <SectionTitle eyebrow="Mainnet references" title="Current production contracts" description="Base new launches use vNext. Robinhood new launches remain paused until its vNext deployment is funded and verified; historical launches stay connected to their original contracts." />
           <div className="docs-contract-networks">
             {productionContracts.map((network) => <article key={network.name}>
-              <header><div><Network size={18} /><span><strong>{network.name}</strong><small>{network.standard}</small></span></div><span className="docs-live-pill">Live</span></header>
+              <header><div><Network size={18} /><span><strong>{network.name}</strong><small>{network.standard}</small></span></div><span className="docs-live-pill">{network.version}</span></header>
               <ContractRow label="Bond factory" value={network.bondFactory} explorer={network.explorer} />
               <ContractRow label="Bond market" value={network.bondMarket} explorer={network.explorer} />
               <ContractRow label="Bond LP locker" value={network.bondLocker} explorer={network.explorer} />
               <ContractRow label="Direct factory" value={network.directFactory} explorer={network.explorer} />
               <ContractRow label="Direct LP locker" value={network.directLocker} explorer={network.explorer} />
-              <ContractRow label="Direct fee hook" value={network.directHook} explorer={network.explorer} />
+              <ContractRow label="Unified fee hook" value={network.directHook} explorer={network.explorer} />
+              <ContractRow label="Fee policy" value={network.feePolicy} explorer={network.explorer} />
               {network.name === "Base" ? <>
                 <ContractRow label="BLUE staking vault" value={blueStakingAddresses.vault} explorer={network.explorer} />
                 <ContractRow label="Revenue router" value={blueStakingAddresses.revenueRouter} explorer={network.explorer} />
@@ -275,8 +282,8 @@ export default async function DocsPage() {
         <section className="docs-section" id="security">
           <SectionTitle eyebrow="Controls and disclosure" title="Security model and known constraints" description="Locked liquidity reduces one class of risk; it does not make a token valuable or eliminate smart-contract, market and infrastructure risk." />
           <div className="docs-security-grid">
-            <article><ShieldCheck /><h3>Bond administration</h3><p>Current Bond factory administration is behind a two-key 48-hour timelock. Reserve custody is isolated from routine factory configuration.</p></article>
-            <article><LockKeyhole /><h3>Direct configuration</h3><p>Current Direct factory parameters are controlled by the platform deployer. Fee constants live in the deployed hook; per-position shares are stored when liquidity is created.</p></article>
+            <article><ShieldCheck /><h3>Delayed governance</h3><p>vNext fee and future-launch settings are behind a seven-day, two-key timelock with rotatable owner and guardian roles.</p></article>
+            <article><LockKeyhole /><h3>Immutable pool identity</h3><p>The unified hook accepts pool registration only from its frozen locker allowlist and never permits a registered creator mapping to change.</p></article>
             <article><Flame /><h3>Burn accounting</h3><p>Direct sell-token fees are sent to <code>0x0000…dEaD</code>. Burn and platform revenue are emitted and readable onchain.</p></article>
             <article><Gauge /><h3>Market risk</h3><p>Low liquidity, volatility, price impact, failed routing, RPC outages and irreversible transactions remain possible.</p></article>
           </div>

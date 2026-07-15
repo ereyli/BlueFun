@@ -6,15 +6,16 @@ export const chain = baseChain;
 export const blueStakingAddresses = {
   token: "0xb200000000000000000000Af2d07754b927109bc" as `0x${string}`,
   governance: (process.env.NEXT_PUBLIC_BLUE_STAKING_GOVERNANCE
-    || "0x58eB258f651491CdE4fe7637F26AbC321ede6b35") as `0x${string}`,
+    || "0xA7DEa156cD6a0a8D5e0c25e94e20E670b426cF26") as `0x${string}`,
   revenueRouter: (process.env.NEXT_PUBLIC_BLUE_REVENUE_ROUTER
-    || "0xF0fDc20e10A58aa78e1264fADB49C9F0Acc01593") as `0x${string}`,
+    || "0x18EdA8de1aFd6B6329BaF742A9eb73F93ec6B741") as `0x${string}`,
   vault: (process.env.NEXT_PUBLIC_BLUE_STAKING_VAULT
-    || "0x41eE16C145ac64e45817ea9F394913E9AB8441c0") as `0x${string}`
+    || "0x221a86096a334BcaFd5E561564dC8E6A48F19584") as `0x${string}`,
+  deploymentBlock: BigInt(process.env.NEXT_PUBLIC_BLUE_STAKING_DEPLOYMENT_BLOCK || "48678791")
 };
 
 export type ContractDeployment = {
-  version: "legacy" | "fee-sharing-v1" | "current";
+  version: "legacy" | "fee-sharing-v1" | "current" | "vnext";
   launchFactory: `0x${string}`;
   bondingCurveMarket: `0x${string}`;
   graduationManager: `0x${string}`;
@@ -24,6 +25,7 @@ export type ContractDeployment = {
   directLaunchFactory?: `0x${string}`;
   directLiquidityLocker?: `0x${string}`;
   directDeploymentBlock?: bigint;
+  feeHook?: `0x${string}`;
 };
 
 const LEGACY_BASE_DEPLOYMENT: ContractDeployment = {
@@ -54,25 +56,39 @@ const MAINNET_DEPLOYMENT: ContractDeployment = {
   liquidityLocker: "0x48aa4cb0efb545bc9ccc07dcb380dfb4ab8ab4d5",
   deploymentBlock: 48642000n,
   firstLaunchId: 23n,
+  directLaunchFactory: "0x0246688cef66734c1cada909cfd202e1448ba275",
+  directLiquidityLocker: "0x2e83029d88d0af58ba55b31980dc709920fab941",
+  directDeploymentBlock: 48647525n
+};
+
+const VNEXT_BASE_DEPLOYMENT: ContractDeployment = {
+  version: "vnext",
+  launchFactory: "0x820344fb4c0a518d0caef5d3de96ff41cbe6b345",
+  bondingCurveMarket: "0x7d42dd1435e9567c1edfb513c45c8ea82fe03a38",
+  graduationManager: "0x989bd9259408f73bb17099d37df2ccdc57b271f3",
+  liquidityLocker: "0x484345c0fc777d1945a84adb6284d487dafb1de8",
+  deploymentBlock: 48678791n,
+  firstLaunchId: 23n,
   directLaunchFactory: (process.env.NEXT_PUBLIC_BASE_DIRECT_LAUNCH_FACTORY
-    || "0x0246688cef66734c1cada909cfd202e1448ba275") as `0x${string}`,
+    || "0x394c5d0244b49e1eed533cd3505583e504589157") as `0x${string}`,
   directLiquidityLocker: (process.env.NEXT_PUBLIC_BASE_DIRECT_LIQUIDITY_LOCKER
-    || "0x2e83029d88d0af58ba55b31980dc709920fab941") as `0x${string}`,
-  directDeploymentBlock: BigInt(process.env.NEXT_PUBLIC_BASE_DIRECT_DEPLOYMENT_BLOCK || "48647525")
+    || "0x857f7d11474235d8cafd79826d4d2e0d2b7dabd7") as `0x${string}`,
+  directDeploymentBlock: BigInt(process.env.NEXT_PUBLIC_BASE_DIRECT_DEPLOYMENT_BLOCK || "48678791"),
+  feeHook: "0xf0b8dde19510ee7d6d50be289c4257ecd14c60cc"
 };
 
 export const addresses = {
-  version: MAINNET_DEPLOYMENT.version,
-  launchFactory: MAINNET_DEPLOYMENT.launchFactory,
-  bondingCurveMarket: MAINNET_DEPLOYMENT.bondingCurveMarket,
-  graduationManager: MAINNET_DEPLOYMENT.graduationManager,
-  liquidityLocker: MAINNET_DEPLOYMENT.liquidityLocker,
-  directLaunchFactory: MAINNET_DEPLOYMENT.directLaunchFactory,
-  directLiquidityLocker: MAINNET_DEPLOYMENT.directLiquidityLocker,
-  directDeploymentBlock: MAINNET_DEPLOYMENT.directDeploymentBlock,
+  version: VNEXT_BASE_DEPLOYMENT.version,
+  launchFactory: VNEXT_BASE_DEPLOYMENT.launchFactory,
+  bondingCurveMarket: VNEXT_BASE_DEPLOYMENT.bondingCurveMarket,
+  graduationManager: VNEXT_BASE_DEPLOYMENT.graduationManager,
+  liquidityLocker: VNEXT_BASE_DEPLOYMENT.liquidityLocker,
+  directLaunchFactory: VNEXT_BASE_DEPLOYMENT.directLaunchFactory,
+  directLiquidityLocker: VNEXT_BASE_DEPLOYMENT.directLiquidityLocker,
+  directDeploymentBlock: VNEXT_BASE_DEPLOYMENT.directDeploymentBlock,
   activationRegistry: "0x8453000000000000000000000000000000000001" as `0x${string}`,
-  deploymentBlock: MAINNET_DEPLOYMENT.deploymentBlock,
-  firstLaunchId: MAINNET_DEPLOYMENT.firstLaunchId
+  deploymentBlock: VNEXT_BASE_DEPLOYMENT.deploymentBlock,
+  firstLaunchId: VNEXT_BASE_DEPLOYMENT.firstLaunchId
 };
 
 const LEGACY_ROBINHOOD_DEPLOYMENT: ContractDeployment = {
@@ -116,8 +132,14 @@ export const legacyRobinhoodAddresses = LEGACY_ROBINHOOD_DEPLOYMENT;
 export function deploymentsForChain(chainId: number | undefined): ContractDeployment[] {
   const catalog = chainId === robinhoodChain.id
     ? [LEGACY_ROBINHOOD_DEPLOYMENT, FEE_SHARING_ROBINHOOD_DEPLOYMENT, robinhoodAddresses]
-    : [LEGACY_BASE_DEPLOYMENT, FEE_SHARING_BASE_DEPLOYMENT, MAINNET_DEPLOYMENT];
+    : [LEGACY_BASE_DEPLOYMENT, FEE_SHARING_BASE_DEPLOYMENT, MAINNET_DEPLOYMENT, VNEXT_BASE_DEPLOYMENT];
   return Array.from(new Map(catalog.map((deployment) => [deployment.bondingCurveMarket, deployment])).values());
+}
+
+function directDeploymentsForChain(chainId: number): ContractDeployment[] {
+  return chainId === robinhoodChain.id
+    ? [robinhoodAddresses]
+    : [MAINNET_DEPLOYMENT, VNEXT_BASE_DEPLOYMENT];
 }
 
 export function deploymentForLaunch(chainId: number | undefined, launchId: string | bigint) {
@@ -126,7 +148,7 @@ export function deploymentForLaunch(chainId: number | undefined, launchId: strin
     .filter((deployment) => deployment.firstLaunchId <= id)
     .sort((a, b) => {
       if (a.firstLaunchId !== b.firstLaunchId) return a.firstLaunchId > b.firstLaunchId ? -1 : 1;
-      const rank = { legacy: 0, "fee-sharing-v1": 1, current: 2 } as const;
+      const rank = { legacy: 0, "fee-sharing-v1": 1, current: 2, vnext: 3 } as const;
       return rank[b.version] - rank[a.version];
     })[0];
 }
@@ -180,8 +202,8 @@ export function indexerScopesForChain(chainId: number | undefined) {
     scope: indexerScopeForDeployment(resolvedChainId, deployment),
     deployment
   }));
-  const current = contractsForChain(resolvedChainId).addresses;
-  if (current.directLaunchFactory && current.directDeploymentBlock && current.directDeploymentBlock > 0n) {
+  for (const current of directDeploymentsForChain(resolvedChainId)) {
+    if (!current.directLaunchFactory || !current.directDeploymentBlock || current.directDeploymentBlock === 0n) continue;
     contexts.push({
       scope: `${resolvedChainId}:direct:${current.directLaunchFactory.toLowerCase()}:${current.directDeploymentBlock.toString()}`,
       deployment: {
@@ -203,9 +225,16 @@ export function indexerScopeForLaunch(chainId: number | undefined, launchId: str
   return indexerScopeForDeployment(resolvedChainId, deploymentForLaunch(resolvedChainId, launchId));
 }
 
+export function isVNextLiquidityLocker(chainId: number, locker?: string) {
+  if (!locker || chainId !== baseChain.id) return false;
+  const value = locker.toLowerCase();
+  return value === VNEXT_BASE_DEPLOYMENT.liquidityLocker.toLowerCase()
+    || value === VNEXT_BASE_DEPLOYMENT.directLiquidityLocker?.toLowerCase();
+}
+
 export const FAIR_GRADUATION_TARGET_ETH = "5";
-export const FAIR_LAUNCH_FEE_ETH = "0.002";
-export const DIRECT_LAUNCH_FEE_FALLBACK_ETH = "0.002";
+export const FAIR_LAUNCH_FEE_ETH = "0.001";
+export const DIRECT_LAUNCH_FEE_FALLBACK_ETH = "0.001";
 
 export const uniswapV4Addresses = {
   poolManager: "0x498581ff718922c3f8e6a244956af099b2652b2b" as `0x${string}`,
@@ -216,7 +245,7 @@ export const uniswapV4Addresses = {
   permit2: "0x000000000022d473030f116ddee9f6b43ac78ba3" as `0x${string}`
 };
 
-export const BLUEFUN_V4_POOL_FEE = 3000;
+export const BLUEFUN_V4_POOL_FEE = 0x800000;
 export const BLUEFUN_V4_TICK_SPACING = 60;
 
 export const launchFactoryAbi = [
@@ -678,6 +707,23 @@ export const liquidityLockerPoolAbi = [
     stateMutability: "view",
     inputs: [],
     outputs: [{ name: "", type: "address" }]
+  }
+] as const;
+
+export const unifiedFeeHookAbi = [
+  {
+    type: "function",
+    name: "pendingCreatorRevenue",
+    stateMutability: "view",
+    inputs: [{ name: "creator", type: "address" }],
+    outputs: [{ name: "amount", type: "uint256" }]
+  },
+  {
+    type: "function",
+    name: "claimCreatorRevenue",
+    stateMutability: "nonpayable",
+    inputs: [{ name: "recipient", type: "address" }],
+    outputs: [{ name: "amount", type: "uint256" }]
   }
 ] as const;
 

@@ -10,6 +10,8 @@ import {PolicyGuard} from "./PolicyGuard.sol";
 import {B20Constants} from "./libraries/B20Constants.sol";
 import {Ownable} from "./access/Ownable.sol";
 import {ReentrancyGuard} from "./security/ReentrancyGuard.sol";
+import {IFeePolicy} from "./interfaces/IFeePolicy.sol";
+import {IRevenueRouter} from "./interfaces/IRevenueRouter.sol";
 
 contract LaunchFactory is Ownable, PolicyGuard, ReentrancyGuard {
     error B20AssetNotActivated();
@@ -20,6 +22,7 @@ contract LaunchFactory is Ownable, PolicyGuard, ReentrancyGuard {
     error InitialBuyTooLarge();
     error InsufficientLaunchFee();
     error LaunchFeeClaimFailed();
+    error LaunchesPaused();
 
     struct TokenMetadata {
         string name;
@@ -31,10 +34,11 @@ contract LaunchFactory is Ownable, PolicyGuard, ReentrancyGuard {
     IB20Factory public immutable b20Factory;
     IActivationRegistry public immutable activationRegistry;
     BondingCurveMarket public immutable market;
+    IFeePolicy public immutable feePolicy;
+    IRevenueRouter public immutable revenueRouter;
     address public immutable graduationManager;
     address payable public immutable launchFeeRecipient;
     uint256 public constant GRADUATION_ETH_TARGET = 5 ether;
-    uint256 public constant LAUNCH_FEE = 0.002 ether;
     uint256 public constant VIRTUAL_TOKEN_RESERVE = 1_000_000_000 ether;
     uint256 public constant VIRTUAL_ETH_RESERVE = 1.25 ether;
     uint256 public constant MAX_SUPPLY = 1_000_000_000 ether;
@@ -69,11 +73,12 @@ contract LaunchFactory is Ownable, PolicyGuard, ReentrancyGuard {
         IPolicyRegistry policyRegistry_,
         BondingCurveMarket market_,
         address graduationManager_,
-        address payable launchFeeRecipient_
+        IFeePolicy feePolicy_,
+        IRevenueRouter revenueRouter_
     ) Ownable(initialOwner) PolicyGuard(policyRegistry_) {
         if (
             address(b20Factory_) == address(0) || address(market_) == address(0) || graduationManager_ == address(0)
-                || launchFeeRecipient_ == address(0)
+                || address(feePolicy_) == address(0) || address(revenueRouter_) == address(0)
         ) {
             revert InvalidLaunchConfig();
         }
@@ -81,7 +86,13 @@ contract LaunchFactory is Ownable, PolicyGuard, ReentrancyGuard {
         activationRegistry = activationRegistry_;
         market = market_;
         graduationManager = graduationManager_;
-        launchFeeRecipient = launchFeeRecipient_;
+        feePolicy = feePolicy_;
+        revenueRouter = revenueRouter_;
+        launchFeeRecipient = payable(address(revenueRouter_));
+    }
+
+    function LAUNCH_FEE() external view returns (uint256) {
+        return feePolicy.launchFee();
     }
 
     function setActivationGateEnabled(bool enabled) external onlyOwner {
@@ -105,6 +116,7 @@ contract LaunchFactory is Ownable, PolicyGuard, ReentrancyGuard {
         BondingCurveMarket.CurveConfig calldata curve,
         BondingCurveMarket.LaunchConfig calldata config
     ) external payable nonReentrant returns (uint256 launchId, address token) {
+        if (feePolicy.newLaunchesPaused()) revert LaunchesPaused();
         if (activationGateEnabled && !activationRegistry.isActivated(B20Constants.B20_ASSET_FEATURE)) {
             revert B20AssetNotActivated();
         }
@@ -123,16 +135,16 @@ contract LaunchFactory is Ownable, PolicyGuard, ReentrancyGuard {
         }
         if (
             config.perWalletCap != PER_WALLET_CAP || config.creatorAllocation != CREATOR_ALLOCATION
-                || config.platformFeeBps != PLATFORM_FEE_BPS || config.creatorFeeBps != CREATOR_FEE_BPS
                 || config.antiSnipingDuration != ANTI_SNIPING_DURATION
                 || config.antiSnipingMaxBuy != ANTI_SNIPING_MAX_BUY
         ) {
             revert UnsafeTradingConfig();
         }
-        if (msg.value < LAUNCH_FEE) {
+        uint256 currentLaunchFee = feePolicy.launchFee();
+        if (msg.value < currentLaunchFee) {
             revert InsufficientLaunchFee();
         }
-        uint256 initialBuyValue = msg.value - LAUNCH_FEE;
+        uint256 initialBuyValue = msg.value - currentLaunchFee;
         if (initialBuyValue > MAX_INITIAL_BUY_ETH) {
             revert InitialBuyTooLarge();
         }
@@ -164,9 +176,12 @@ contract LaunchFactory is Ownable, PolicyGuard, ReentrancyGuard {
             graduationEthTarget: GRADUATION_ETH_TARGET,
             maxSupply: curve.maxSupply
         });
-        launchId = market.registerLaunch(token, msg.sender, fixedCurve, config);
-        pendingLaunchFees += LAUNCH_FEE;
-        emit LaunchFeePaid(launchId, msg.sender, LAUNCH_FEE);
+        BondingCurveMarket.LaunchConfig memory fixedConfig = config;
+        fixedConfig.platformFeeBps = feePolicy.buyPlatformFeeBps();
+        fixedConfig.creatorFeeBps = feePolicy.buyCreatorFeeBps();
+        launchId = market.registerLaunch(token, msg.sender, fixedCurve, fixedConfig);
+        if (currentLaunchFee != 0) revenueRouter.depositLaunchRevenue{value: currentLaunchFee}();
+        emit LaunchFeePaid(launchId, msg.sender, currentLaunchFee);
 
         if (initialBuyValue > 0) {
             market.initialBuyFor{value: initialBuyValue}(launchId, msg.sender, 0);
