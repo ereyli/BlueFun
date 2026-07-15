@@ -38,6 +38,10 @@ interface IUniswapV4StateView {
         returns (uint160 sqrtPriceX96, int24 tick, uint24 protocolFee, uint24 lpFee);
 }
 
+interface IBondPoolInitializationGuard {
+    function authorizePool(bytes32 poolId, uint160 sqrtPriceX96) external;
+}
+
 contract UniswapV4LiquidityLocker is ILiquidityLocker, ReentrancyGuard {
     using FullMath for uint256;
 
@@ -73,6 +77,8 @@ contract UniswapV4LiquidityLocker is ILiquidityLocker, ReentrancyGuard {
     uint256 public constant FEE_SPLIT_BPS = 10_000;
     uint256 public constant PLATFORM_SHARE_BPS = 7_000;
     uint256 public constant CREATOR_SHARE_BPS = 3_000;
+    uint160 private constant ALL_HOOK_MASK = (1 << 14) - 1;
+    uint160 private constant BEFORE_INITIALIZE_FLAG = 1 << 13;
 
     address public immutable owner;
     address public immutable platformFeeRecipient;
@@ -145,7 +151,10 @@ contract UniswapV4LiquidityLocker is ILiquidityLocker, ReentrancyGuard {
             owner_ == address(0) || platformFeeRecipient_ == address(0) || address(positionManager_) == address(0)
                 || address(stateView_) == address(0) || address(permit2_) == address(0)
         ) revert InvalidAddress();
-        if (poolFee_ == 0 || tickSpacing_ != 60 || hooks_ != address(0)) revert InvalidPoolConfig();
+        if (
+            poolFee_ == 0 || tickSpacing_ != 60
+                || (uint160(hooks_) & ALL_HOOK_MASK) != BEFORE_INITIALIZE_FLAG
+        ) revert InvalidPoolConfig();
         owner = owner_;
         platformFeeRecipient = platformFeeRecipient_;
         positionManager = positionManager_;
@@ -294,14 +303,17 @@ contract UniswapV4LiquidityLocker is ILiquidityLocker, ReentrancyGuard {
                 currency0: address(0), currency1: token, fee: _candidateFee(i), tickSpacing: tickSpacing, hooks: hooks
             });
 
+            bytes32 poolId = _poolId(pool);
             (bool initialized, uint160 currentSqrtPriceX96) = _poolSqrtPrice(pool);
             if (initialized) {
                 if (_priceWithinTolerance(currentSqrtPriceX96, expectedSqrtPriceX96)) return pool;
                 continue;
             }
 
+            IBondPoolInitializationGuard(hooks).authorizePool(poolId, expectedSqrtPriceX96);
             try positionManager.initializePool(pool, expectedSqrtPriceX96) returns (int24) {
-                return pool;
+                (initialized, currentSqrtPriceX96) = _poolSqrtPrice(pool);
+                if (initialized && _priceWithinTolerance(currentSqrtPriceX96, expectedSqrtPriceX96)) return pool;
             } catch {
                 (initialized, currentSqrtPriceX96) = _poolSqrtPrice(pool);
                 if (initialized && _priceWithinTolerance(currentSqrtPriceX96, expectedSqrtPriceX96)) return pool;

@@ -44,11 +44,17 @@ contract DirectB20LaunchFactory is DirectLaunchFactoryBase, PolicyGuard {
         emit ActivationGateUpdated(enabled);
     }
 
-    function predictTokenAddress(TokenMetadata calldata metadata) external view returns (address) {
-        return b20Factory.getB20Address(IB20Factory.B20Variant.ASSET, address(this), metadata.salt);
+    function predictTokenAddress(address creator, TokenMetadata calldata metadata) external view returns (address) {
+        bytes32 effectiveSalt = keccak256(abi.encode(creator, block.chainid, metadata.salt));
+        return b20Factory.getB20Address(IB20Factory.B20Variant.ASSET, address(this), effectiveSalt);
     }
 
-    function _deployToken(TokenMetadata calldata metadata, uint256 supply, address liquidityRecipient)
+    function _deployToken(
+        TokenMetadata calldata metadata,
+        bytes32 effectiveSalt,
+        uint256 supply,
+        address liquidityRecipient
+    )
         internal
         override
         returns (address token)
@@ -68,7 +74,7 @@ contract DirectB20LaunchFactory is DirectLaunchFactoryBase, PolicyGuard {
         initCalls[3] = abi.encodeCall(IB20.mint, (liquidityRecipient, supply));
         initCalls[4] = abi.encodeCall(IB20.revokeRole, (mintRole, address(b20Factory)));
 
-        token = b20Factory.createB20(IB20Factory.B20Variant.ASSET, metadata.salt, abi.encode(params), initCalls);
+        token = b20Factory.createB20(IB20Factory.B20Variant.ASSET, effectiveSalt, abi.encode(params), initCalls);
         _openTransferPolicies(token);
         IB20(token).renounceLastAdmin();
     }

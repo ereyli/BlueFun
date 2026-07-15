@@ -4,7 +4,7 @@ import { robinhoodChain } from "@/lib/robinhood-chain";
 export const chain = baseChain;
 
 export type ContractDeployment = {
-  version: "legacy" | "current";
+  version: "legacy" | "fee-sharing-v1" | "current";
   launchFactory: `0x${string}`;
   bondingCurveMarket: `0x${string}`;
   graduationManager: `0x${string}`;
@@ -26,19 +26,29 @@ const LEGACY_BASE_DEPLOYMENT: ContractDeployment = {
   firstLaunchId: 1n
 };
 
-const MAINNET_DEPLOYMENT: ContractDeployment = {
-  version: "current",
+const FEE_SHARING_BASE_DEPLOYMENT: ContractDeployment = {
+  version: "fee-sharing-v1",
   launchFactory: "0x29ce28c9cb3f584eb2548883824acd49881e780a",
   bondingCurveMarket: "0x94d056be6573bcaa4958cceeb242c3c08eff2b95",
   graduationManager: "0xa2b7626f6a92b366e6e787ac4db4840f57f253af",
   liquidityLocker: "0xe309983df86803f62e10d07d9522af005ec08ee4",
   deploymentBlock: 48451170n,
-  firstLaunchId: 22n,
+  firstLaunchId: 22n
+};
+
+const MAINNET_DEPLOYMENT: ContractDeployment = {
+  version: "current",
+  launchFactory: "0x830569db6364f22cfb5eaa8a0ce17b1382ed3436",
+  bondingCurveMarket: "0xb503b0ef06ec10554f4d960e08869877a41498dd",
+  graduationManager: "0x250aec1fdffbe663e1fe9bd292529745cabb68ab",
+  liquidityLocker: "0x48aa4cb0efb545bc9ccc07dcb380dfb4ab8ab4d5",
+  deploymentBlock: 48642000n,
+  firstLaunchId: 23n,
   directLaunchFactory: (process.env.NEXT_PUBLIC_BASE_DIRECT_LAUNCH_FACTORY
-    || "0xe4e8fd53d961566bd3a9c6f41e7f30af9952f1c5") as `0x${string}`,
+    || "0xa0dec41a566715288cd8536c78edeb7aa439a29f") as `0x${string}`,
   directLiquidityLocker: (process.env.NEXT_PUBLIC_BASE_DIRECT_LIQUIDITY_LOCKER
-    || "0x58ec23054353686f36667a6213539beb1bd8d11d") as `0x${string}`,
-  directDeploymentBlock: BigInt(process.env.NEXT_PUBLIC_BASE_DIRECT_DEPLOYMENT_BLOCK || "48640497")
+    || "0xf18590b60dc016ba25170e3aad066948d4285f87") as `0x${string}`,
+  directDeploymentBlock: BigInt(process.env.NEXT_PUBLIC_BASE_DIRECT_DEPLOYMENT_BLOCK || "48642007")
 };
 
 export const addresses = {
@@ -65,19 +75,29 @@ const LEGACY_ROBINHOOD_DEPLOYMENT: ContractDeployment = {
   firstLaunchId: 1n
 };
 
-export const robinhoodAddresses: ContractDeployment = {
-  version: "current",
+const FEE_SHARING_ROBINHOOD_DEPLOYMENT: ContractDeployment = {
+  version: "fee-sharing-v1",
   launchFactory: "0x128a32ed2af1787a3fab261bc6158400e2f649c9",
   bondingCurveMarket: "0x795fe5649a78496f51c1594a7b435941fb20adb8",
   graduationManager: "0x55d343fc936463c97b7e89dc0ac08c20a08bfb2a",
   liquidityLocker: "0x2176cbc6cb7e650289fe2ec4417b7a27fd0354d5",
   deploymentBlock: 6131828n,
-  firstLaunchId: 1n,
+  firstLaunchId: 1n
+};
+
+export const robinhoodAddresses: ContractDeployment = {
+  version: "current",
+  launchFactory: "0xb880ea1d3453968243722b9c1529870c796b060f",
+  bondingCurveMarket: "0x2d6d77652facbbcae05c0dc3aed792b94cd61fa8",
+  graduationManager: "0xeb3e83ab91bd44959ace28b5f1cccb79b4b4092d",
+  liquidityLocker: "0x6e77d6418b9065cc947dba95bd1cbba3ca881318",
+  deploymentBlock: 9943107n,
+  firstLaunchId: 2n,
   directLaunchFactory: (process.env.NEXT_PUBLIC_ROBINHOOD_DIRECT_LAUNCH_FACTORY
-    || "0xde6414a1140f97b4de63462608af79f7b1bbc393") as `0x${string}`,
+    || "0xc4b8ec8839d3141aa5f7816eb181076a34725734") as `0x${string}`,
   directLiquidityLocker: (process.env.NEXT_PUBLIC_ROBINHOOD_DIRECT_LIQUIDITY_LOCKER
-    || "0x237b48ca046c49ff59b99142334c3631ebacd757") as `0x${string}`,
-  directDeploymentBlock: BigInt(process.env.NEXT_PUBLIC_ROBINHOOD_DIRECT_DEPLOYMENT_BLOCK || "9900658")
+    || "0xb16edc36c64878d9884ae5e99f6212a6c227dd62") as `0x${string}`,
+  directDeploymentBlock: BigInt(process.env.NEXT_PUBLIC_ROBINHOOD_DIRECT_DEPLOYMENT_BLOCK || "9943294")
 };
 
 export const legacyBaseAddresses = LEGACY_BASE_DEPLOYMENT;
@@ -85,8 +105,8 @@ export const legacyRobinhoodAddresses = LEGACY_ROBINHOOD_DEPLOYMENT;
 
 export function deploymentsForChain(chainId: number | undefined): ContractDeployment[] {
   const catalog = chainId === robinhoodChain.id
-    ? [LEGACY_ROBINHOOD_DEPLOYMENT, robinhoodAddresses]
-    : [LEGACY_BASE_DEPLOYMENT, MAINNET_DEPLOYMENT];
+    ? [LEGACY_ROBINHOOD_DEPLOYMENT, FEE_SHARING_ROBINHOOD_DEPLOYMENT, robinhoodAddresses]
+    : [LEGACY_BASE_DEPLOYMENT, FEE_SHARING_BASE_DEPLOYMENT, MAINNET_DEPLOYMENT];
   return Array.from(new Map(catalog.map((deployment) => [deployment.bondingCurveMarket, deployment])).values());
 }
 
@@ -96,7 +116,8 @@ export function deploymentForLaunch(chainId: number | undefined, launchId: strin
     .filter((deployment) => deployment.firstLaunchId <= id)
     .sort((a, b) => {
       if (a.firstLaunchId !== b.firstLaunchId) return a.firstLaunchId > b.firstLaunchId ? -1 : 1;
-      return a.version === "current" ? -1 : 1;
+      const rank = { legacy: 0, "fee-sharing-v1": 1, current: 2 } as const;
+      return rank[b.version] - rank[a.version];
     })[0];
 }
 
@@ -278,7 +299,10 @@ export const launchFactoryAbi = [
     type: "function",
     name: "predictTokenAddress",
     stateMutability: "view",
-    inputs: [{ name: "salt", type: "bytes32" }],
+    inputs: [
+      { name: "creator", type: "address" },
+      { name: "salt", type: "bytes32" }
+    ],
     outputs: [{ name: "token", type: "address" }]
   }
 ] as const;
@@ -319,11 +343,17 @@ export const directLaunchFactoryAbi = [
       { name: "tickSpacing", type: "int24" },
       { name: "tickLower", type: "int24" },
       { name: "tickUpper", type: "int24" },
-      { name: "sqrtPriceLowerX96", type: "uint160" },
-      { name: "sqrtPriceUpperX96", type: "uint160" },
+      { name: "initialSqrtPriceX96", type: "uint160" },
       { name: "platformShareBps", type: "uint16" },
       { name: "creatorShareBps", type: "uint16" }
     ]
+  },
+  {
+    type: "function",
+    name: "launchConfigHash",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "bytes32" }]
   },
   {
     type: "function",
@@ -339,7 +369,9 @@ export const directLaunchFactoryAbi = [
           { name: "contractURI", type: "string" },
           { name: "salt", type: "bytes32" }
         ]
-      }
+      },
+      { name: "expectedConfigHash", type: "bytes32" },
+      { name: "deadline", type: "uint256" }
     ],
     outputs: [
       { name: "launchId", type: "uint256" },

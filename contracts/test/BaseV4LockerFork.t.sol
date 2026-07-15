@@ -8,9 +8,12 @@ import {
     IUniswapV4StateView,
     UniswapV4LiquidityLocker
 } from "../src/UniswapV4LiquidityLocker.sol";
+import {MockPoolInitializationHook} from "./mocks/MockPoolInitializationHook.sol";
 
 contract BaseV4LockerForkTest is Test {
+    address internal constant HOOK = address(0x2000);
     address internal constant POSITION_MANAGER = 0x7C5f5A4bBd8fD63184577525326123B519429bDc;
+    address internal constant POOL_MANAGER = 0x498581fF718922c3f8e6A244956aF099B2652b2b;
     address internal constant STATE_VIEW = 0xA3c0c9b65baD0b08107Aa264b0f3dB444b867A71;
     address internal constant PERMIT2 = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
     address internal constant UNIVERSAL_ROUTER = 0x6fF5693b99212Da76ad316178A184AB56D299b43;
@@ -19,6 +22,7 @@ contract BaseV4LockerForkTest is Test {
 
     function testForkLocksLiquidityThroughRealBaseV4PositionManager() public {
         if (block.chainid != 8453) return;
+        _installHook();
 
         ForkToken token = new ForkToken("Fork B20", "FB20");
         UniswapV4LiquidityLocker locker = new UniswapV4LiquidityLocker(
@@ -29,8 +33,9 @@ contract BaseV4LockerForkTest is Test {
             IPermit2AllowanceTransfer(PERMIT2),
             3_000,
             60,
-            address(0)
+            HOOK
         );
+        MockPoolInitializationHook(HOOK).allowLocker(address(locker));
         locker.setGraduationManager(graduationManager);
         token.mint(address(locker), 1_000_000_000 ether);
         vm.deal(graduationManager, 10 ether);
@@ -47,6 +52,7 @@ contract BaseV4LockerForkTest is Test {
 
     function testForkCollectsRealSwapFeesWithoutUnlockingPrincipal() public {
         if (block.chainid != 8453) return;
+        _installHook();
 
         ForkToken token = new ForkToken("Fee B20", "FB20F");
         UniswapV4LiquidityLocker locker = new UniswapV4LiquidityLocker(
@@ -57,8 +63,9 @@ contract BaseV4LockerForkTest is Test {
             IPermit2AllowanceTransfer(PERMIT2),
             3_000,
             60,
-            address(0)
+            HOOK
         );
+        MockPoolInitializationHook(HOOK).allowLocker(address(locker));
         locker.setGraduationManager(graduationManager);
         token.mint(address(locker), 1_000_000_000 ether);
         vm.deal(graduationManager, 10 ether);
@@ -70,7 +77,7 @@ contract BaseV4LockerForkTest is Test {
 
         V4SwapRouter.ExactInputSingleParams memory swap = V4SwapRouter.ExactInputSingleParams({
             poolKey: IUniswapV4PositionManager.PoolKey({
-                currency0: address(0), currency1: address(token), fee: 3_000, tickSpacing: 60, hooks: address(0)
+                currency0: address(0), currency1: address(token), fee: 3_000, tickSpacing: 60, hooks: HOOK
             }),
             zeroForOne: true,
             amountIn: uint128(0.1 ether),
@@ -90,6 +97,12 @@ contract BaseV4LockerForkTest is Test {
         assertGt(nativeCollected, 0);
         assertGt(locker.pendingFees(address(this), address(0)), 0);
         assertEq(IUniswapV4PositionManager(POSITION_MANAGER).getPositionLiquidity(tokenId), liquidityBefore);
+    }
+
+    function _installHook() private {
+        MockPoolInitializationHook template = new MockPoolInitializationHook();
+        vm.etch(HOOK, address(template).code);
+        MockPoolInitializationHook(HOOK).initialize(POOL_MANAGER);
     }
 }
 

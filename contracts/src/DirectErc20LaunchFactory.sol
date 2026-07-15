@@ -14,23 +14,29 @@ contract DirectErc20LaunchFactory is DirectLaunchFactoryBase {
         uint256 initialLaunchFee
     ) DirectLaunchFactoryBase(initialOwner, liquidityLocker_, launchFeeRecipient_, initialConfig, initialLaunchFee) {}
 
-    function predictTokenAddress(TokenMetadata calldata metadata) external view returns (address) {
+    function predictTokenAddress(address creator, TokenMetadata calldata metadata) external view returns (address) {
+        bytes32 effectiveSalt = keccak256(abi.encode(creator, block.chainid, metadata.salt));
         bytes memory init = abi.encodePacked(
             type(StandardLaunchToken).creationCode,
             abi.encode(metadata.name, metadata.symbol, metadata.contractURI, address(liquidityLocker), MAX_SUPPLY)
         );
         return address(
-            uint160(uint256(keccak256(abi.encodePacked(bytes1(0xff), address(this), metadata.salt, keccak256(init)))))
+            uint160(uint256(keccak256(abi.encodePacked(bytes1(0xff), address(this), effectiveSalt, keccak256(init)))))
         );
     }
 
-    function _deployToken(TokenMetadata calldata metadata, uint256 supply, address liquidityRecipient)
+    function _deployToken(
+        TokenMetadata calldata metadata,
+        bytes32 effectiveSalt,
+        uint256 supply,
+        address liquidityRecipient
+    )
         internal
         override
         returns (address token)
     {
         token = address(
-            new StandardLaunchToken{salt: metadata.salt}(
+            new StandardLaunchToken{salt: effectiveSalt}(
                 metadata.name, metadata.symbol, metadata.contractURI, liquidityRecipient, supply
             )
         );

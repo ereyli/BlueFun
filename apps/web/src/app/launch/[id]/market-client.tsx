@@ -91,7 +91,7 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
   const { data: hash, error, writeContract, isPending } = useWriteContract();
   const receipt = useWaitForTransactionReceipt({ hash });
   const parsedAmount = parsePositiveEther(amount);
-  const isGraduated = launch?.status === "Graduated";
+  const isGraduated = launch?.status === "Graduated" || launch?.launchMode === "direct";
   const v4PoolConfig = { fee: launch?.poolFee, tickSpacing: launch?.tickSpacing };
   const liquidityLockerAddress = launch?.liquidityLocker ?? addresses.liquidityLocker;
   const ethBalance = useBalance({
@@ -121,7 +121,7 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
     query: { enabled: Boolean(addresses.bondingCurveMarket && address) }
   });
   const feeSharingEnabled = Boolean(
-    launch?.positionId && (launch.launchMode === "direct" || addresses.version === "current")
+    launch?.positionId && (launch.launchMode === "direct" || addresses.version !== "legacy")
   );
   const lpFeeRevenue = useReadContract({
     address: liquidityLockerAddress,
@@ -292,7 +292,7 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
   useEffect(() => {
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
     const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-    const scope = indexerScopeForLaunch(activeChainId, id);
+    const scope = launch?.scope || indexerScopeForLaunch(activeChainId, id);
     if (!supabaseUrl || !supabaseAnonKey || !scope) {
       setRealtimeStatus("unavailable");
       return;
@@ -333,7 +333,7 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [activeChainId, id]);
+  }, [activeChainId, id, launch?.scope]);
 
   useEffect(() => {
     let active = true;
@@ -509,7 +509,7 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
   }
 
   function collectLpFees() {
-    if (!launch?.positionId || (launch.launchMode !== "direct" && addresses.version !== "current")) return;
+    if (!launch?.positionId || (launch.launchMode !== "direct" && addresses.version === "legacy")) return;
     writeContract({
       chainId: activeChainId,
       address: liquidityLockerAddress,
@@ -520,7 +520,7 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
   }
 
   function claimLpFees(currency: `0x${string}`) {
-    if (launch?.launchMode !== "direct" && addresses.version !== "current") return;
+    if (launch?.launchMode !== "direct" && addresses.version === "legacy") return;
     writeContract({
       chainId: activeChainId,
       address: liquidityLockerAddress,

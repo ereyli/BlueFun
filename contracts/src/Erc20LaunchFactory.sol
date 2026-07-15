@@ -5,8 +5,9 @@ import {BondingCurveMarket} from "./BondingCurveMarket.sol";
 import {StandardLaunchToken} from "./StandardLaunchToken.sol";
 import {Ownable} from "./access/Ownable.sol";
 import {B20Constants} from "./libraries/B20Constants.sol";
+import {ReentrancyGuard} from "./security/ReentrancyGuard.sol";
 
-contract Erc20LaunchFactory is Ownable {
+contract Erc20LaunchFactory is Ownable, ReentrancyGuard {
     error InvalidLaunchConfig();
     error UnsafeCreatorAllocation();
     error UnsafeCurveConfig();
@@ -62,13 +63,14 @@ contract Erc20LaunchFactory is Ownable {
         launchFeeRecipient = launchFeeRecipient_;
     }
 
-    function predictTokenAddress(TokenMetadata calldata metadata) external view returns (address) {
+    function predictTokenAddress(address creator, TokenMetadata calldata metadata) external view returns (address) {
+        bytes32 effectiveSalt = keccak256(abi.encode(creator, block.chainid, metadata.salt));
         bytes memory init = abi.encodePacked(
             type(StandardLaunchToken).creationCode,
             abi.encode(metadata.name, metadata.symbol, metadata.contractURI, address(market), MAX_SUPPLY)
         );
         return address(
-            uint160(uint256(keccak256(abi.encodePacked(bytes1(0xff), address(this), metadata.salt, keccak256(init)))))
+            uint160(uint256(keccak256(abi.encodePacked(bytes1(0xff), address(this), effectiveSalt, keccak256(init)))))
         );
     }
 
@@ -76,10 +78,11 @@ contract Erc20LaunchFactory is Ownable {
         TokenMetadata calldata metadata,
         BondingCurveMarket.CurveConfig calldata curve,
         BondingCurveMarket.LaunchConfig calldata config
-    ) external payable returns (uint256 launchId, address token) {
+    ) external payable nonReentrant returns (uint256 launchId, address token) {
         if (
-            bytes(metadata.name).length == 0 || bytes(metadata.symbol).length == 0
-                || bytes(metadata.contractURI).length == 0
+            bytes(metadata.name).length == 0 || bytes(metadata.name).length > 40 || bytes(metadata.symbol).length == 0
+                || bytes(metadata.symbol).length > 10 || bytes(metadata.contractURI).length == 0
+                || bytes(metadata.contractURI).length > 512
         ) revert InvalidLaunchConfig();
         if (
             curve.virtualTokenReserve != VIRTUAL_TOKEN_RESERVE || curve.virtualEthReserve != VIRTUAL_ETH_RESERVE
@@ -96,8 +99,9 @@ contract Erc20LaunchFactory is Ownable {
         if (initialBuyValue > MAX_INITIAL_BUY_ETH) revert InitialBuyTooLarge();
         if (curve.maxSupply == 0 || config.creatorAllocation != 0) revert UnsafeCreatorAllocation();
 
+        bytes32 effectiveSalt = keccak256(abi.encode(msg.sender, block.chainid, metadata.salt));
         token = address(
-            new StandardLaunchToken{salt: metadata.salt}(
+            new StandardLaunchToken{salt: effectiveSalt}(
                 metadata.name, metadata.symbol, metadata.contractURI, address(market), curve.maxSupply
             )
         );
@@ -111,7 +115,7 @@ contract Erc20LaunchFactory is Ownable {
         emit LaunchCreated(launchId, token, msg.sender, metadata.name, metadata.symbol, metadata.contractURI);
     }
 
-    function claimLaunchFees() external onlyOwner returns (uint256 amount) {
+    function claimLaunchFees() external returns (uint256 amount) {
         amount = pendingLaunchFees;
         if (amount == 0) revert InsufficientLaunchFee();
         pendingLaunchFees = 0;

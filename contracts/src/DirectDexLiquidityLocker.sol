@@ -8,7 +8,12 @@ import {
     IUniswapV4StateView
 } from "./UniswapV4LiquidityLocker.sol";
 import {FullMath} from "./libraries/FullMath.sol";
+import {TickMath} from "./libraries/TickMath.sol";
 import {ReentrancyGuard} from "./security/ReentrancyGuard.sol";
+
+interface IPoolInitializationGuard {
+    function authorizePool(bytes32 poolId, uint160 sqrtPriceX96) external;
+}
 
 /// @notice Creates token-only Uniswap v4 launch positions and permanently custody-locks the position NFT.
 /// @dev There is deliberately no principal withdrawal or NFT transfer function. Only zero-liquidity-delta fee
@@ -29,6 +34,7 @@ contract DirectDexLiquidityLocker is ReentrancyGuard {
     error NoFeesCollected();
     error LiquidityChanged();
     error FeeClaimFailed();
+    error ExcessTokenResidual();
 
     uint256 private constant Q96 = 0x1000000000000000000000000;
     uint8 private constant ACTION_DECREASE_LIQUIDITY = 0x01;
@@ -37,14 +43,15 @@ contract DirectDexLiquidityLocker is ReentrancyGuard {
     uint8 private constant ACTION_TAKE_PAIR = 0x11;
     uint8 private constant ACTION_SWEEP = 0x14;
     uint16 public constant SHARE_BPS = 10_000;
+    uint160 private constant ALL_HOOK_MASK = (1 << 14) - 1;
+    uint160 private constant BEFORE_INITIALIZE_FLAG = 1 << 13;
 
     struct PoolConfig {
         uint24 poolFee;
         int24 tickSpacing;
         int24 tickLower;
         int24 tickUpper;
-        uint160 sqrtPriceLowerX96;
-        uint160 sqrtPriceUpperX96;
+        uint160 initialSqrtPriceX96;
         uint16 platformShareBps;
         uint16 creatorShareBps;
     }
@@ -79,6 +86,7 @@ contract DirectDexLiquidityLocker is ReentrancyGuard {
     IUniswapV4PositionManager public immutable positionManager;
     IUniswapV4StateView public immutable stateView;
     IPermit2AllowanceTransfer public immutable permit2;
+    IPoolInitializationGuard public immutable initializationGuard;
     address public factory;
 
     mapping(bytes32 positionId => LockedPosition position) public lockedPositions;
@@ -113,17 +121,23 @@ contract DirectDexLiquidityLocker is ReentrancyGuard {
         address platformFeeRecipient_,
         IUniswapV4PositionManager positionManager_,
         IUniswapV4StateView stateView_,
-        IPermit2AllowanceTransfer permit2_
+        IPermit2AllowanceTransfer permit2_,
+        IPoolInitializationGuard initializationGuard_
     ) {
         if (
             owner_ == address(0) || platformFeeRecipient_ == address(0) || address(positionManager_) == address(0)
                 || address(stateView_) == address(0) || address(permit2_) == address(0)
+                || address(initializationGuard_) == address(0)
         ) revert InvalidAddress();
+        if ((uint160(address(initializationGuard_)) & ALL_HOOK_MASK) != BEFORE_INITIALIZE_FLAG) {
+            revert InvalidAddress();
+        }
         owner = owner_;
         platformFeeRecipient = platformFeeRecipient_;
         positionManager = positionManager_;
         stateView = stateView_;
         permit2 = permit2_;
+        initializationGuard = initializationGuard_;
     }
 
     receive() external payable {}
@@ -153,13 +167,20 @@ contract DirectDexLiquidityLocker is ReentrancyGuard {
             currency1: token,
             fee: config.poolFee,
             tickSpacing: config.tickSpacing,
-            hooks: address(0)
+            hooks: address(initializationGuard)
         });
         poolId = keccak256(abi.encode(pool));
-        _ensurePool(pool, poolId, config.sqrtPriceUpperX96);
+        _ensurePool(pool, poolId, config.initialSqrtPriceX96);
 
-        uint128 liquidity = _liquidityForAmount1(config.sqrtPriceLowerX96, config.sqrtPriceUpperX96, tokenAmount);
+        uint160 rangeLowerSqrtPriceX96 = TickMath.getSqrtPriceAtTick(config.tickLower);
+        uint160 rangeUpperSqrtPriceX96 = TickMath.getSqrtPriceAtTick(config.tickUpper);
+        uint128 liquidity = _liquidityForAmount1(rangeLowerSqrtPriceX96, rangeUpperSqrtPriceX96, tokenAmount);
         if (liquidity == 0) revert ZeroLiquidity();
+        uint256 rangeDelta = uint256(rangeUpperSqrtPriceX96) - rangeLowerSqrtPriceX96;
+        uint256 tokenRequired = FullMath.mulDiv(liquidity, rangeDelta, Q96);
+        if (mulmod(liquidity, rangeDelta, Q96) > 0) ++tokenRequired;
+        uint256 maximumRoundingResidual = rangeDelta / Q96 + 2;
+        if (tokenAmount - tokenRequired > maximumRoundingResidual) revert ExcessTokenResidual();
 
         uint256 tokenId = positionManager.nextTokenId();
         if (!IERC20Minimal(token).approve(address(permit2), tokenAmount)) revert TokenApprovalFailed();
@@ -272,7 +293,11 @@ contract DirectDexLiquidityLocker is ReentrancyGuard {
                 return;
             }
         } catch {}
-        try positionManager.initializePool(pool, expectedSqrtPriceX96) returns (int24) {}
+        initializationGuard.authorizePool(poolId, expectedSqrtPriceX96);
+        try positionManager.initializePool(pool, expectedSqrtPriceX96) returns (int24) {
+            (uint160 current,,,) = stateView.getSlot0(poolId);
+            if (current != expectedSqrtPriceX96) revert InvalidPoolState();
+        }
         catch {
             (uint160 current,,,) = stateView.getSlot0(poolId);
             if (current != expectedSqrtPriceX96) revert InvalidPoolState();
@@ -283,7 +308,9 @@ contract DirectDexLiquidityLocker is ReentrancyGuard {
         if (
             config.poolFee == 0 || config.tickSpacing <= 0 || config.tickLower >= config.tickUpper
                 || config.tickLower % config.tickSpacing != 0 || config.tickUpper % config.tickSpacing != 0
-                || config.sqrtPriceLowerX96 == 0 || config.sqrtPriceLowerX96 >= config.sqrtPriceUpperX96
+                || config.tickSpacing > TickMath.MAX_TICK_SPACING || config.tickLower < TickMath.MIN_TICK
+                || config.tickUpper > TickMath.MAX_TICK
+                || config.initialSqrtPriceX96 < TickMath.getSqrtPriceAtTick(config.tickUpper)
                 || config.platformShareBps + config.creatorShareBps != SHARE_BPS
         ) revert InvalidConfig();
     }

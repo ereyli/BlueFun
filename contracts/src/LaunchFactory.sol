@@ -9,8 +9,9 @@ import {BondingCurveMarket} from "./BondingCurveMarket.sol";
 import {PolicyGuard} from "./PolicyGuard.sol";
 import {B20Constants} from "./libraries/B20Constants.sol";
 import {Ownable} from "./access/Ownable.sol";
+import {ReentrancyGuard} from "./security/ReentrancyGuard.sol";
 
-contract LaunchFactory is Ownable, PolicyGuard {
+contract LaunchFactory is Ownable, PolicyGuard, ReentrancyGuard {
     error B20AssetNotActivated();
     error InvalidLaunchConfig();
     error UnsafeCreatorAllocation();
@@ -94,21 +95,23 @@ contract LaunchFactory is Ownable, PolicyGuard {
         emit MaxCreatorAllocationUpdated(value);
     }
 
-    function predictTokenAddress(bytes32 salt) external view returns (address) {
-        return b20Factory.getB20Address(IB20Factory.B20Variant.ASSET, address(this), salt);
+    function predictTokenAddress(address creator, bytes32 salt) external view returns (address) {
+        bytes32 effectiveSalt = keccak256(abi.encode(creator, block.chainid, salt));
+        return b20Factory.getB20Address(IB20Factory.B20Variant.ASSET, address(this), effectiveSalt);
     }
 
     function createLaunch(
         TokenMetadata calldata metadata,
         BondingCurveMarket.CurveConfig calldata curve,
         BondingCurveMarket.LaunchConfig calldata config
-    ) external payable returns (uint256 launchId, address token) {
+    ) external payable nonReentrant returns (uint256 launchId, address token) {
         if (activationGateEnabled && !activationRegistry.isActivated(B20Constants.B20_ASSET_FEATURE)) {
             revert B20AssetNotActivated();
         }
         if (
-            bytes(metadata.name).length == 0 || bytes(metadata.symbol).length == 0
-                || bytes(metadata.contractURI).length == 0
+            bytes(metadata.name).length == 0 || bytes(metadata.name).length > 40 || bytes(metadata.symbol).length == 0
+                || bytes(metadata.symbol).length > 10 || bytes(metadata.contractURI).length == 0
+                || bytes(metadata.contractURI).length > 512
         ) {
             revert InvalidLaunchConfig();
         }
@@ -153,7 +156,8 @@ contract LaunchFactory is Ownable, PolicyGuard {
         initCalls[3] = abi.encodeCall(IB20.mint, (address(market), curve.maxSupply));
         initCalls[4] = abi.encodeCall(IB20.revokeRole, (mintRole, address(b20Factory)));
 
-        token = b20Factory.createB20(IB20Factory.B20Variant.ASSET, metadata.salt, encodedParams, initCalls);
+        bytes32 effectiveSalt = keccak256(abi.encode(msg.sender, block.chainid, metadata.salt));
+        token = b20Factory.createB20(IB20Factory.B20Variant.ASSET, effectiveSalt, encodedParams, initCalls);
         BondingCurveMarket.CurveConfig memory fixedCurve = BondingCurveMarket.CurveConfig({
             virtualTokenReserve: curve.virtualTokenReserve,
             virtualEthReserve: curve.virtualEthReserve,
@@ -171,7 +175,7 @@ contract LaunchFactory is Ownable, PolicyGuard {
         emit LaunchCreated(launchId, token, msg.sender, metadata.name, metadata.symbol, metadata.contractURI);
     }
 
-    function claimLaunchFees() external onlyOwner returns (uint256 amount) {
+    function claimLaunchFees() external returns (uint256 amount) {
         amount = pendingLaunchFees;
         if (amount == 0) revert InsufficientLaunchFee();
         pendingLaunchFees = 0;

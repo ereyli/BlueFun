@@ -8,9 +8,12 @@ import {
     IUniswapV4StateView,
     UniswapV4LiquidityLocker
 } from "../src/UniswapV4LiquidityLocker.sol";
+import {MockPoolInitializationHook} from "./mocks/MockPoolInitializationHook.sol";
 
 contract RobinhoodV4LockerForkTest is Test {
+    address internal constant HOOK = address(0x2000);
     address internal constant POSITION_MANAGER = 0x58daec3116aae6D93017bAAea7749052E8a04fA7;
+    address internal constant POOL_MANAGER = 0x8366a39CC670B4001A1121B8F6A443A643e40951;
     address internal constant STATE_VIEW = 0xF3334192D15450CdD385c8B70e03f9A6bD9E673b;
     address internal constant PERMIT2 = 0x000000000022D473030F116dDEE9F6B43aC78BA3;
     address internal constant UNIVERSAL_ROUTER = 0x8876789976dEcBfCbBbe364623C63652db8C0904;
@@ -18,6 +21,9 @@ contract RobinhoodV4LockerForkTest is Test {
 
     function testRobinhoodForkCollectsFeesWithoutUnlockingPrincipal() public {
         if (block.chainid != 4663) return;
+        MockPoolInitializationHook template = new MockPoolInitializationHook();
+        vm.etch(HOOK, address(template).code);
+        MockPoolInitializationHook(HOOK).initialize(POOL_MANAGER);
 
         RobinhoodForkToken token = new RobinhoodForkToken();
         UniswapV4LiquidityLocker locker = new UniswapV4LiquidityLocker(
@@ -28,8 +34,9 @@ contract RobinhoodV4LockerForkTest is Test {
             IPermit2AllowanceTransfer(PERMIT2),
             3_000,
             60,
-            address(0)
+            HOOK
         );
+        MockPoolInitializationHook(HOOK).allowLocker(address(locker));
         locker.setGraduationManager(GRADUATION_MANAGER);
         token.mint(address(locker), 1_000_000_000 ether);
         vm.deal(GRADUATION_MANAGER, 10 ether);
@@ -41,7 +48,7 @@ contract RobinhoodV4LockerForkTest is Test {
 
         RobinhoodSwapRouter.ExactInputSingleParams memory swap = RobinhoodSwapRouter.ExactInputSingleParams({
             poolKey: IUniswapV4PositionManager.PoolKey({
-                currency0: address(0), currency1: address(token), fee: 3_000, tickSpacing: 60, hooks: address(0)
+                currency0: address(0), currency1: address(token), fee: 3_000, tickSpacing: 60, hooks: HOOK
             }),
             zeroForOne: true,
             amountIn: uint128(0.1 ether),

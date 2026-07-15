@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.25;
 
-import {DirectDexLiquidityLocker} from "../src/DirectDexLiquidityLocker.sol";
+import {DirectDexLiquidityLocker, IPoolInitializationGuard} from "../src/DirectDexLiquidityLocker.sol";
 import {DirectErc20LaunchFactory} from "../src/DirectErc20LaunchFactory.sol";
 import {
     IPermit2AllowanceTransfer,
@@ -30,6 +30,7 @@ contract DeployDirectRobinhoodMainnet {
         uint256 privateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
         address deployer = vm.addr(privateKey);
         address feeRecipient = vm.envAddress("FEE_RECIPIENT");
+        address initializationHook = vm.envAddress("INITIALIZATION_HOOK");
         vm.startBroadcast(privateKey);
 
         DirectDexLiquidityLocker locker = new DirectDexLiquidityLocker(
@@ -37,7 +38,8 @@ contract DeployDirectRobinhoodMainnet {
             feeRecipient,
             IUniswapV4PositionManager(POSITION_MANAGER),
             IUniswapV4StateView(STATE_VIEW),
-            IPermit2AllowanceTransfer(PERMIT2)
+            IPermit2AllowanceTransfer(PERMIT2),
+            IPoolInitializationGuard(initializationHook)
         );
         DirectErc20LaunchFactory factory = new DirectErc20LaunchFactory(
             deployer, locker, payable(feeRecipient), _defaultConfig(), 0.002 ether
@@ -53,8 +55,7 @@ contract DeployDirectRobinhoodMainnet {
             tickSpacing: 200,
             tickLower: -887_200,
             tickUpper: 199_200,
-            sqrtPriceLowerX96: 269_413_644,
-            sqrtPriceUpperX96: 26_813_675_048_711_538_913_286_350_543_688_030,
+            initialSqrtPriceX96: 26_813_675_048_711_538_913_286_350_543_688_030,
             platformShareBps: 7_000,
             creatorShareBps: 3_000
         });

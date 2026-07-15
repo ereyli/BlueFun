@@ -1,0 +1,32 @@
+{
+  "base": {
+    "chainId": 8453,
+    "feeRecipient": "0x9d5f55a644eF0eB9FF82dbd14Dd0471de3ff5bfb",
+    "timelockedAdmin": "0x40f72a122e96a9e5e87f3ef3263f2e9e092fd1de",
+    "emergencyGuardian": "0x8dc156376dd34f08970f5b3822bd2fdbc94283dc",
+    "initializationHook": "0xc57dc713341264e66b8137600f7b4feeb60a2000",
+    "bondingCurveMarket": "0xb503b0ef06ec10554f4d960e08869877a41498dd",
+    "graduationManager": "0x250aec1fdffbe663e1fe9bd292529745cabb68ab",
+    "liquidityLocker": "0x48aa4cb0efb545bc9ccc07dcb380dfb4ab8ab4d5",
+    "launchFactory": "0x830569db6364f22cfb5eaa8a0ce17b1382ed3436",
+    "directLiquidityLocker": "0xf18590b60dc016ba25170e3aad066948d4285f87",
+    "directLaunchFactory": "0xa0dec41a566715288cd8536c78edeb7aa439a29f",
+    "bondDeploymentBlock": 48642000,
+    "directDeploymentBlock": 48642007
+  },
+  "robinhood": {
+    "chainId": 4663,
+    "feeRecipient": "0xd5bc4D80797ddAEBd91282659Eb79ABaf659B47C",
+    "timelockedAdmin": "0xdb9fa15dfb05fb856f09fc309e9fd87ed5f874c8",
+    "emergencyGuardian": "0xe4456ceee5738c3c34baaffbab73783c767cfff9",
+    "initializationHook": "0x7d2fc38bd66ddd78dd9588393b87f9f9071d6000",
+    "bondingCurveMarket": "0x2d6d77652facbbcae05c0dc3aed792b94cd61fa8",
+    "graduationManager": "0xeb3e83ab91bd44959ace28b5f1cccb79b4b4092d",
+    "liquidityLocker": "0x6e77d6418b9065cc947dba95bd1cbba3ca881318",
+    "launchFactory": "0xb880ea1d3453968243722b9c1529870c796b060f",
+    "directLiquidityLocker": "0xb16edc36c64878d9884ae5e99f6212a6c227dd62",
+    "directLaunchFactory": "0xc4b8ec8839d3141aa5f7816eb181076a34725734",
+    "bondDeploymentBlock": 9943107,
+    "directDeploymentBlock": 9943294
+  }
+}

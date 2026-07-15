@@ -57,9 +57,17 @@ function LaunchPageContent() {
     functionName: "launchConfig",
     query: { enabled: launchMode === "direct" && Boolean(addresses.directLaunchFactory) }
   });
+  const directLaunchConfigHash = useReadContract({
+    chainId: activeChainId,
+    address: addresses.directLaunchFactory,
+    abi: directLaunchFactoryAbi,
+    functionName: "launchConfigHash",
+    query: { enabled: launchMode === "direct" && Boolean(addresses.directLaunchFactory) }
+  });
   const directPoolFee = Number(directLaunchConfig.data?.[0] ?? 10_000);
-  const directPlatformShare = Number(directLaunchConfig.data?.[6] ?? 7_000);
-  const directCreatorShare = Number(directLaunchConfig.data?.[7] ?? 3_000);
+  const directPlatformShare = Number(directLaunchConfig.data?.[5] ?? 7_000);
+  const directCreatorShare = Number(directLaunchConfig.data?.[6] ?? 3_000);
+  const directConfigReady = launchMode !== "direct" || Boolean(directLaunchConfigHash.data);
 
   const salt = useMemo(() => keccak256(toBytes(`${name}:${symbol}:${Date.now()}`)), [name, symbol]);
   const initialBuyEth = parsePositiveEther(initialBuy);
@@ -67,7 +75,7 @@ function LaunchPageContent() {
   const metadataKey = imageUri
     ? `${name.trim()}:${symbol.trim()}:${imageUri}:${description.trim()}:${website.trim()}:${twitter.trim()}:${telegram.trim()}:${discord.trim()}`
     : "";
-  const disabled = !selectedFactory || !name.trim() || !symbol.trim() || !imageUri || initialBuyTooLarge;
+  const disabled = !selectedFactory || !name.trim() || !symbol.trim() || !imageUri || initialBuyTooLarge || !directConfigReady;
   const disabledReason = getDisabledReason({
     hasFactory: Boolean(selectedFactory),
     hasName: Boolean(name.trim()),
@@ -144,12 +152,13 @@ function LaunchPageContent() {
 
     const metadata = { name: name.trim(), symbol: symbol.trim(), contractURI: launchMetadataUri, salt };
     if (launchMode === "direct") {
+      if (!directLaunchConfigHash.data) return;
       writeContract({
         chainId: activeChainId,
         address: selectedFactory,
         abi: directLaunchFactoryAbi,
         functionName: "createLaunch",
-        args: [metadata],
+        args: [metadata, directLaunchConfigHash.data, BigInt(Math.floor(Date.now() / 1000) + 20 * 60)],
         value: launchFeeEth
       });
       return;

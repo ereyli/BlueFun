@@ -8,7 +8,7 @@ export const defaultRpcUrls = robinhood
   : [defaultRpcUrl, "https://base-rpc.publicnode.com", "https://1rpc.io/base", "https://base.meowrpc.com"];
 
 export type IndexerDeployment = {
-  version: "legacy" | "current";
+  version: "legacy" | "fee-sharing-v1" | "current";
   launchFactory: `0x${string}`;
   bondingCurveMarket: `0x${string}`;
   graduationManager: `0x${string}`;
@@ -39,15 +39,15 @@ export const legacyDeployment: IndexerDeployment = robinhood ? {
   startBlock: 48379352n
 };
 
-export const mainnetDeployment: IndexerDeployment = robinhood ? {
-  version: "current",
+export const feeSharingDeployment: IndexerDeployment = robinhood ? {
+  version: "fee-sharing-v1",
   launchFactory: "0x128a32ed2af1787a3fab261bc6158400e2f649c9",
   bondingCurveMarket: "0x795fe5649a78496f51c1594a7b435941fb20adb8",
   graduationManager: "0x55d343fc936463c97b7e89dc0ac08c20a08bfb2a",
   liquidityLocker: "0x2176cbc6cb7e650289fe2ec4417b7a27fd0354d5",
   startBlock: 6131828n
 } : {
-  version: "current",
+  version: "fee-sharing-v1",
   launchFactory: "0x29ce28c9cb3f584eb2548883824acd49881e780a",
   bondingCurveMarket: "0x94d056be6573bcaa4958cceeb242c3c08eff2b95",
   graduationManager: "0xa2b7626f6a92b366e6e787ac4db4840f57f253af",
@@ -55,20 +55,36 @@ export const mainnetDeployment: IndexerDeployment = robinhood ? {
   startBlock: 48451170n
 };
 
+export const mainnetDeployment: IndexerDeployment = robinhood ? {
+  version: "current",
+  launchFactory: "0xb880ea1d3453968243722b9c1529870c796b060f",
+  bondingCurveMarket: "0x2d6d77652facbbcae05c0dc3aed792b94cd61fa8",
+  graduationManager: "0xeb3e83ab91bd44959ace28b5f1cccb79b4b4092d",
+  liquidityLocker: "0x6e77d6418b9065cc947dba95bd1cbba3ca881318",
+  startBlock: 9943107n
+} : {
+  version: "current",
+  launchFactory: "0x830569db6364f22cfb5eaa8a0ce17b1382ed3436",
+  bondingCurveMarket: "0xb503b0ef06ec10554f4d960e08869877a41498dd",
+  graduationManager: "0x250aec1fdffbe663e1fe9bd292529745cabb68ab",
+  liquidityLocker: "0x48aa4cb0efb545bc9ccc07dcb380dfb4ab8ab4d5",
+  startBlock: 48642000n
+};
+
 export const deployments = Array.from(
-  new Map([legacyDeployment, mainnetDeployment].map((deployment) => [deployment.bondingCurveMarket, deployment])).values()
+  new Map([legacyDeployment, feeSharingDeployment, mainnetDeployment].map((deployment) => [deployment.bondingCurveMarket, deployment])).values()
 );
 
 const configuredDirectFactory = (process.env.DIRECT_LAUNCH_FACTORY
   || (robinhood
-    ? "0xde6414a1140f97b4de63462608af79f7b1bbc393"
-    : "0xe4e8fd53d961566bd3a9c6f41e7f30af9952f1c5")) as `0x${string}`;
+    ? "0xc4b8ec8839d3141aa5f7816eb181076a34725734"
+    : "0xa0dec41a566715288cd8536c78edeb7aa439a29f")) as `0x${string}`;
 const configuredDirectLocker = (process.env.DIRECT_LIQUIDITY_LOCKER
   || (robinhood
-    ? "0x237b48ca046c49ff59b99142334c3631ebacd757"
-    : "0x58ec23054353686f36667a6213539beb1bd8d11d")) as `0x${string}`;
+    ? "0xb16edc36c64878d9884ae5e99f6212a6c227dd62"
+    : "0xf18590b60dc016ba25170e3aad066948d4285f87")) as `0x${string}`;
 const configuredDirectStartBlock = BigInt(
-  process.env.DIRECT_DEPLOYMENT_BLOCK || (robinhood ? "9900658" : "48640497")
+  process.env.DIRECT_DEPLOYMENT_BLOCK || (robinhood ? "9943294" : "48642007")
 );
 export const directDeployment: DirectIndexerDeployment | undefined =
   configuredDirectFactory && configuredDirectLocker && configuredDirectStartBlock > 0n

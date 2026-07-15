@@ -20,11 +20,6 @@ contract BondingCurveMarket is Ownable, ReentrancyGuard {
     error FeeTooHigh();
     error InvalidLaunchConfig();
     error RefundFailed();
-    error EmergencyDelayNotElapsed();
-    error EmergencyAlreadyScheduled();
-    error EmergencyNotScheduled();
-    error InvalidEmergencyRecipient();
-    error LaunchEmergencyClosed();
     error AlreadyConfigured();
     error TokenTransferFailed();
 
@@ -68,14 +63,11 @@ contract BondingCurveMarket is Ownable, ReentrancyGuard {
     address public graduationManager;
     address public feeRecipient;
     uint256 public launchCount;
-    uint256 public constant EMERGENCY_DELAY = 48 hours;
     bool public configured;
 
     mapping(uint256 launchId => LaunchState) public launches;
     mapping(uint256 launchId => mapping(address trader => uint256 amount)) public purchased;
     mapping(address account => uint256 amount) public pendingFees;
-    mapping(uint256 launchId => uint256 unlockTime) public emergencyUnlockAt;
-    mapping(uint256 launchId => bool closed) public emergencyClosed;
 
     event LaunchRegistered(
         uint256 indexed launchId,
@@ -103,9 +95,6 @@ contract BondingCurveMarket is Ownable, ReentrancyGuard {
     event GraduationReady(uint256 indexed launchId, uint256 realEthReserve);
     event TradingMarkedGraduated(uint256 indexed launchId);
     event FeesClaimed(address indexed account, uint256 amount);
-    event EmergencyCloseScheduled(uint256 indexed launchId, uint256 unlockTime);
-    event EmergencyCloseCancelled(uint256 indexed launchId);
-    event EmergencyClosed(uint256 indexed launchId, address indexed recipient, uint256 ethAmount);
     event LaunchCountSeeded(uint256 initialLaunchCount);
 
     modifier onlyFactory() {
@@ -202,7 +191,6 @@ contract BondingCurveMarket is Ownable, ReentrancyGuard {
         LaunchState storage launch = launches[launchId];
         if (launch.token == address(0)) revert LaunchNotFound();
         if (tokenAmount == 0) revert ZeroAmount();
-        if (emergencyClosed[launchId]) revert LaunchEmergencyClosed();
         if (launch.graduated || launch.graduationReady) revert TradingClosed();
         uint256 k = launch.virtualTokenReserve * launch.virtualEthReserve;
         uint256 newTokenReserve = launch.virtualTokenReserve + tokenAmount;
@@ -238,7 +226,6 @@ contract BondingCurveMarket is Ownable, ReentrancyGuard {
     {
         LaunchState storage launch = launches[launchId];
         if (launch.token == address(0)) revert LaunchNotFound();
-        if (emergencyClosed[launchId]) revert LaunchEmergencyClosed();
         if (launch.graduated || launch.graduationReady) revert TradingClosed();
 
         uint256 grossEthIn = _cappedGrossEthIn(launch, msg.value);
@@ -287,7 +274,6 @@ contract BondingCurveMarket is Ownable, ReentrancyGuard {
         if (block.timestamp > deadline) revert DeadlineExpired();
         LaunchState storage launch = launches[launchId];
         if (launch.token == address(0)) revert LaunchNotFound();
-        if (emergencyClosed[launchId]) revert LaunchEmergencyClosed();
         if (launch.graduated || launch.graduationReady) revert TradingClosed();
 
         uint256 grossEthOut;
@@ -365,53 +351,6 @@ contract BondingCurveMarket is Ownable, ReentrancyGuard {
         (bool ok,) = msg.sender.call{value: amount}("");
         if (!ok) revert InsufficientReserve();
         emit FeesClaimed(msg.sender, amount);
-    }
-
-    function scheduleEmergencyClose(uint256 launchId) external onlyOwner {
-        LaunchState storage launch = launches[launchId];
-        if (launch.token == address(0)) revert LaunchNotFound();
-        if (launch.graduated || launch.graduationReady) revert TradingClosed();
-        if (emergencyClosed[launchId]) revert LaunchEmergencyClosed();
-        if (emergencyUnlockAt[launchId] != 0) revert EmergencyAlreadyScheduled();
-
-        uint256 unlockTime = block.timestamp + EMERGENCY_DELAY;
-        emergencyUnlockAt[launchId] = unlockTime;
-        emit EmergencyCloseScheduled(launchId, unlockTime);
-    }
-
-    function cancelEmergencyClose(uint256 launchId) external onlyOwner {
-        if (emergencyUnlockAt[launchId] == 0) revert EmergencyNotScheduled();
-        delete emergencyUnlockAt[launchId];
-        emit EmergencyCloseCancelled(launchId);
-    }
-
-    function emergencyCloseUnbonded(uint256 launchId, address payable recipient)
-        external
-        onlyOwner
-        nonReentrant
-        returns (uint256 amount)
-    {
-        if (recipient == address(0)) revert InvalidEmergencyRecipient();
-        LaunchState storage launch = launches[launchId];
-        if (launch.token == address(0)) revert LaunchNotFound();
-        if (launch.graduated || launch.graduationReady) revert TradingClosed();
-        if (emergencyClosed[launchId]) revert LaunchEmergencyClosed();
-
-        uint256 unlockTime = emergencyUnlockAt[launchId];
-        if (unlockTime == 0) revert EmergencyNotScheduled();
-        if (block.timestamp < unlockTime) revert EmergencyDelayNotElapsed();
-
-        amount = launch.realEthReserve;
-        emergencyClosed[launchId] = true;
-        launch.realEthReserve = 0;
-        delete emergencyUnlockAt[launchId];
-
-        if (amount > 0) {
-            (bool ok,) = recipient.call{value: amount}("");
-            if (!ok) revert InsufficientReserve();
-        }
-
-        emit EmergencyClosed(launchId, recipient, amount);
     }
 
     function _fees(uint256 amount, uint16 platformFeeBps, uint16 creatorFeeBps)

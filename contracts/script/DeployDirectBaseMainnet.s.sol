@@ -6,7 +6,7 @@ import {IActivationRegistry} from "../src/interfaces/IActivationRegistry.sol";
 import {IPolicyRegistry} from "../src/interfaces/IPolicyRegistry.sol";
 import {B20Constants} from "../src/libraries/B20Constants.sol";
 import {DirectB20LaunchFactory} from "../src/DirectB20LaunchFactory.sol";
-import {DirectDexLiquidityLocker} from "../src/DirectDexLiquidityLocker.sol";
+import {DirectDexLiquidityLocker, IPoolInitializationGuard} from "../src/DirectDexLiquidityLocker.sol";
 import {
     IPermit2AllowanceTransfer,
     IUniswapV4PositionManager,
@@ -33,6 +33,7 @@ contract DeployDirectBaseMainnet {
         uint256 privateKey = vm.envUint("DEPLOYER_PRIVATE_KEY");
         address deployer = vm.addr(privateKey);
         address feeRecipient = vm.envAddress("FEE_RECIPIENT");
+        address initializationHook = vm.envAddress("INITIALIZATION_HOOK");
         vm.startBroadcast(privateKey);
 
         DirectDexLiquidityLocker locker = new DirectDexLiquidityLocker(
@@ -40,7 +41,8 @@ contract DeployDirectBaseMainnet {
             feeRecipient,
             IUniswapV4PositionManager(POSITION_MANAGER),
             IUniswapV4StateView(STATE_VIEW),
-            IPermit2AllowanceTransfer(PERMIT2)
+            IPermit2AllowanceTransfer(PERMIT2),
+            IPoolInitializationGuard(initializationHook)
         );
         DirectB20LaunchFactory factory = new DirectB20LaunchFactory(
             deployer,
@@ -63,8 +65,7 @@ contract DeployDirectBaseMainnet {
             tickSpacing: 200,
             tickLower: -887_200,
             tickUpper: 199_200,
-            sqrtPriceLowerX96: 269_413_644,
-            sqrtPriceUpperX96: 26_813_675_048_711_538_913_286_350_543_688_030,
+            initialSqrtPriceX96: 26_813_675_048_711_538_913_286_350_543_688_030,
             platformShareBps: 7_000,
             creatorShareBps: 3_000
         });

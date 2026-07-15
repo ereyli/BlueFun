@@ -276,36 +276,6 @@ contract FairCurveLaunchpadTest is Test {
         assertEq(feeRecipient.balance, beforeTreasury + claimable);
     }
 
-    function testEmergencyCloseRequiresTimelockAndOnlyUnbonded() public {
-        (uint256 launchId,) = _createLaunch("Emergency", "EMR", 10 ether);
-        vm.prank(buyer);
-        market.buy{value: 1 ether}(launchId, 0, block.timestamp + 1 hours);
-
-        market.scheduleEmergencyClose(launchId);
-        vm.expectRevert(BondingCurveMarket.EmergencyDelayNotElapsed.selector);
-        market.emergencyCloseUnbonded(launchId, payable(address(this)));
-
-        vm.warp(block.timestamp + market.EMERGENCY_DELAY());
-        uint256 beforeBalance = address(this).balance;
-        uint256 amount = market.emergencyCloseUnbonded(launchId, payable(address(this)));
-        assertGt(amount, 0);
-        assertEq(address(this).balance, beforeBalance + amount);
-
-        vm.prank(buyer);
-        vm.expectRevert(BondingCurveMarket.LaunchEmergencyClosed.selector);
-        market.buy{value: 0.1 ether}(launchId, 0, block.timestamp + 3 days);
-    }
-
-    function testEmergencyCloseCannotTouchBondedLaunch() public {
-        (uint256 launchId,) = _createLaunch("Bonded", "BOND", 1 ether);
-        vm.warp(block.timestamp + 61);
-        vm.prank(buyer);
-        market.buy{value: 5.2 ether}(launchId, 0, block.timestamp + 1 hours);
-
-        vm.expectRevert(BondingCurveMarket.TradingClosed.selector);
-        market.scheduleEmergencyClose(launchId);
-    }
-
     function testGraduationLocksLiquidityAndRenouncesRoles() public {
         (uint256 launchId, address token) = _createLaunch("Graduate", "GRAD", 1 ether);
 

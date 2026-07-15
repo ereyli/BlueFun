@@ -11,6 +11,8 @@ abstract contract DirectLaunchFactoryBase is Ownable, ReentrancyGuard {
     error InsufficientLaunchFee();
     error LaunchFeeClaimFailed();
     error SaltAlreadyUsed();
+    error DeadlineExpired();
+    error LaunchConfigChanged();
 
     uint256 public constant MAX_SUPPLY = 1_000_000_000 ether;
     uint24 public constant MAX_POOL_FEE = 50_000; // 5%
@@ -50,8 +52,7 @@ abstract contract DirectLaunchFactoryBase is Ownable, ReentrancyGuard {
         int24 tickSpacing,
         int24 tickLower,
         int24 tickUpper,
-        uint160 sqrtPriceLowerX96,
-        uint160 sqrtPriceUpperX96,
+        uint160 initialSqrtPriceX96,
         uint16 platformShareBps,
         uint16 creatorShareBps
     );
@@ -75,22 +76,25 @@ abstract contract DirectLaunchFactoryBase is Ownable, ReentrancyGuard {
         _setLaunchFee(initialLaunchFee);
     }
 
-    function createLaunch(TokenMetadata calldata metadata)
+    function createLaunch(TokenMetadata calldata metadata, bytes32 expectedConfigHash, uint256 deadline)
         external
         payable
         nonReentrant
         returns (uint256 launchId, address token, bytes32 poolId, bytes32 positionId)
     {
+        if (block.timestamp > deadline) revert DeadlineExpired();
+        if (expectedConfigHash != launchConfigHash()) revert LaunchConfigChanged();
         if (
             bytes(metadata.name).length == 0 || bytes(metadata.name).length > 40 || bytes(metadata.symbol).length == 0
                 || bytes(metadata.symbol).length > 10 || bytes(metadata.contractURI).length == 0
         ) revert InvalidMetadata();
-        if (usedSalts[metadata.salt]) revert SaltAlreadyUsed();
+        bytes32 effectiveSalt = keccak256(abi.encode(msg.sender, block.chainid, metadata.salt));
+        if (usedSalts[effectiveSalt]) revert SaltAlreadyUsed();
         if (msg.value != launchFee) revert InsufficientLaunchFee();
 
-        usedSalts[metadata.salt] = true;
+        usedSalts[effectiveSalt] = true;
         launchId = ++launchCount;
-        token = _deployToken(metadata, MAX_SUPPLY, address(liquidityLocker));
+        token = _deployToken(metadata, effectiveSalt, MAX_SUPPLY, address(liquidityLocker));
         DirectDexLiquidityLocker.PoolConfig memory config = launchConfig;
         (positionId, poolId) = liquidityLocker.lockTokenOnlyLiquidity(launchId, token, MAX_SUPPLY, msg.sender, config);
         pendingLaunchFees += msg.value;
@@ -120,7 +124,11 @@ abstract contract DirectLaunchFactoryBase is Ownable, ReentrancyGuard {
         _setLaunchFee(newLaunchFee);
     }
 
-    function claimLaunchFees() external onlyOwner returns (uint256 amount) {
+    function launchConfigHash() public view returns (bytes32) {
+        return keccak256(abi.encode(launchConfig));
+    }
+
+    function claimLaunchFees() external returns (uint256 amount) {
         amount = pendingLaunchFees;
         if (amount == 0) revert InsufficientLaunchFee();
         pendingLaunchFees = 0;
@@ -133,8 +141,7 @@ abstract contract DirectLaunchFactoryBase is Ownable, ReentrancyGuard {
         if (
             config.poolFee == 0 || config.poolFee > MAX_POOL_FEE || config.tickSpacing <= 0
                 || config.tickLower >= config.tickUpper || config.tickLower % config.tickSpacing != 0
-                || config.tickUpper % config.tickSpacing != 0 || config.sqrtPriceLowerX96 == 0
-                || config.sqrtPriceLowerX96 >= config.sqrtPriceUpperX96
+                || config.tickUpper % config.tickSpacing != 0 || config.initialSqrtPriceX96 == 0
                 || config.platformShareBps + config.creatorShareBps != 10_000
         ) revert InvalidLaunchConfig();
         launchConfig = config;
@@ -143,8 +150,7 @@ abstract contract DirectLaunchFactoryBase is Ownable, ReentrancyGuard {
             config.tickSpacing,
             config.tickLower,
             config.tickUpper,
-            config.sqrtPriceLowerX96,
-            config.sqrtPriceUpperX96,
+            config.initialSqrtPriceX96,
             config.platformShareBps,
             config.creatorShareBps
         );
@@ -156,7 +162,12 @@ abstract contract DirectLaunchFactoryBase is Ownable, ReentrancyGuard {
         emit DirectLaunchFeeUpdated(newLaunchFee);
     }
 
-    function _deployToken(TokenMetadata calldata metadata, uint256 supply, address liquidityRecipient)
+    function _deployToken(
+        TokenMetadata calldata metadata,
+        bytes32 effectiveSalt,
+        uint256 supply,
+        address liquidityRecipient
+    )
         internal
         virtual
         returns (address token);

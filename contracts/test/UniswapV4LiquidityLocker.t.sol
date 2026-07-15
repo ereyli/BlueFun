@@ -9,8 +9,10 @@ import {
     UniswapV4LiquidityLocker
 } from "../src/UniswapV4LiquidityLocker.sol";
 import {FullMath} from "../src/libraries/FullMath.sol";
+import {MockPoolInitializationHook} from "./mocks/MockPoolInitializationHook.sol";
 
 contract UniswapV4LiquidityLockerTest is Test {
+    address constant HOOK = address(0x2000);
     address owner = address(this);
     address graduationManager = address(0xDAD);
     address platform = address(0xFEE);
@@ -22,6 +24,9 @@ contract UniswapV4LiquidityLockerTest is Test {
 
     function setUp() public {
         v4 = new MockV4PositionManagerAndStateView();
+        MockPoolInitializationHook hookTemplate = new MockPoolInitializationHook();
+        vm.etch(HOOK, address(hookTemplate).code);
+        MockPoolInitializationHook(HOOK).initialize(address(v4));
         permit2 = new MockPermit2();
         token = new MockERC20();
         locker = new UniswapV4LiquidityLocker(
@@ -32,8 +37,9 @@ contract UniswapV4LiquidityLockerTest is Test {
             IPermit2AllowanceTransfer(address(permit2)),
             3_000,
             60,
-            address(0)
+            HOOK
         );
+        MockPoolInitializationHook(HOOK).allowLocker(address(locker));
         locker.setGraduationManager(graduationManager);
         token.mint(address(locker), 1_000_000_000 ether);
         vm.deal(graduationManager, 20 ether);
@@ -124,7 +130,7 @@ contract MockV4PositionManagerAndStateView is IUniswapV4PositionManager, IUniswa
 
     function setInitialized(address token, uint24 fee, uint160 sqrtPriceX96) external {
         PoolKey memory pool =
-            PoolKey({currency0: address(0), currency1: token, fee: fee, tickSpacing: 60, hooks: address(0)});
+            PoolKey({currency0: address(0), currency1: token, fee: fee, tickSpacing: 60, hooks: address(0x2000)});
         sqrtPrices[poolId(pool)] = sqrtPriceX96;
     }
 
@@ -143,6 +149,18 @@ contract MockV4PositionManagerAndStateView is IUniswapV4PositionManager, IUniswa
     function initializePool(PoolKey calldata key, uint160 sqrtPriceX96) external payable returns (int24) {
         bytes32 id = poolId(key);
         if (sqrtPrices[id] != 0) revert("initialized");
+        if (key.hooks != address(0)) {
+            (bool ok,) = key.hooks
+                .call(
+                    abi.encodeWithSignature(
+                        "beforeInitialize(address,(address,address,uint24,int24,address),uint160)",
+                        msg.sender,
+                        key,
+                        sqrtPriceX96
+                    )
+                );
+            require(ok, "hook");
+        }
         sqrtPrices[id] = sqrtPriceX96;
         return 0;
     }

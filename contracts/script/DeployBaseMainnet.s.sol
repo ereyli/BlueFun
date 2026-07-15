@@ -42,6 +42,7 @@ contract DeployBaseMainnet {
         uint256 initialLaunchCount = vm.envUint("INITIAL_LAUNCH_COUNT");
         address deployer = vm.addr(deployerPrivateKey);
         address feeRecipient = vm.envAddress("FEE_RECIPIENT");
+        address initializationHook = vm.envAddress("INITIALIZATION_HOOK");
 
         vm.startBroadcast(deployerPrivateKey);
 
@@ -55,7 +56,7 @@ contract DeployBaseMainnet {
             IPermit2AllowanceTransfer(PERMIT2),
             3_000,
             60,
-            address(0)
+            initializationHook
         );
         GraduationManager graduation = new GraduationManager(
             market,

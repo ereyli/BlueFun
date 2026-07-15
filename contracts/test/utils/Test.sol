@@ -9,6 +9,7 @@ interface Vm {
     function expectRevert(bytes4) external;
     function expectRevert() external;
     function warp(uint256) external;
+    function etch(address target, bytes calldata code) external;
 }
 
 contract Test {
@@ -34,4 +35,3 @@ contract Test {
         require(a > b, "assertGt failed");
     }
 }
-
