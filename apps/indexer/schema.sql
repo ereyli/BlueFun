@@ -74,6 +74,7 @@ create unique index if not exists trades_scope_tx_side_launch_idx on trades (sco
 create index if not exists trades_scope_launch_id_idx on trades (scope, launch_id);
 create index if not exists trades_scope_launch_block_idx on trades (scope, launch_id, block_number desc);
 create index if not exists trades_scope_block_idx on trades (scope, block_number);
+create index if not exists trades_scope_trader_block_idx on trades (scope, lower(trader), block_number desc);
 
 create table if not exists graduations (
   scope text not null default 'legacy',

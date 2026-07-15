@@ -2,13 +2,14 @@
 
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { Home, Rocket, ShieldCheck } from "lucide-react";
+import { Home, LayoutDashboard, Rocket, ShieldCheck } from "lucide-react";
 import { chainSlugFromPath, namedChainParam } from "@/lib/chain-slug";
 
 const items = [
   { href: "/", label: "Explore", icon: Home },
+  { href: "/launch", label: "Create", icon: Rocket },
   { href: "/transparency", label: "BLUE", icon: ShieldCheck },
-  { href: "/launch", label: "Create", icon: Rocket }
+  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard }
 ];
 
 export function SideNav({ mobile = false }: { mobile?: boolean }) {

@@ -4,6 +4,7 @@ import { formatEther, getAddress } from "viem";
 import WebSocket from "ws";
 import { contractsForChain, indexerScopeForLaunch, indexerScopesForChain } from "@/lib/contracts";
 import type { DeployedLaunch, DeployedTrade } from "@/lib/onchain-launches";
+import type { WalletDashboardData, WalletTradeSummary } from "@/lib/dashboard-types";
 import { readTokenMetadata } from "@/lib/token-metadata";
 
 let pool: pg.Pool | undefined;
@@ -27,6 +28,134 @@ export type DbLaunchPage = { launches: DeployedLaunch[]; total: number };
 
 const launchColumns = "scope, id, token, creator, name, symbol, contract_uri, image_url, description, website_url, twitter_url, telegram_url, discord_url, status, launch_mode, pool_fee, tick_spacing, liquidity_locker, raised_eth, graduation_target_eth, progress, volume_eth, token_created_at, created_block, position_id";
 const legacyLaunchColumns = "scope, id, token, creator, name, symbol, contract_uri, status, raised_eth, graduation_target_eth, progress, volume_eth, token_created_at, created_block";
+
+export async function getDbWalletDashboard(wallet: `0x${string}`): Promise<WalletDashboardData | undefined> {
+  if (process.env.POSTGRES_INDEXER_ENABLED !== "true") return undefined;
+
+  try {
+    const created: DeployedLaunch[] = [];
+    const traded: WalletTradeSummary[] = [];
+
+    for (const chainId of [8453, 4663]) {
+      const context = dbContext(chainId);
+      let creatorRows: Array<Record<string, unknown>> = [];
+      let tradeRows: Array<Record<string, unknown>> = [];
+
+      if (hasSupabaseConfig()) {
+        let creatorResponse: {
+          data: Array<Record<string, unknown>> | null;
+          error: { message?: string; details?: string } | null;
+        } = await getSupabase().from("launches")
+          .select(launchColumns)
+          .in("scope", context.scopes)
+          .gte("created_block", context.deploymentBlock)
+          .ilike("creator", wallet)
+          .order("created_block", { ascending: false })
+          .limit(500);
+        if (creatorResponse.error && isMissingSocialColumnError(creatorResponse.error)) {
+          creatorResponse = await getSupabase().from("launches")
+            .select(legacyLaunchColumns)
+            .in("scope", context.scopes)
+            .gte("created_block", context.deploymentBlock)
+            .ilike("creator", wallet)
+            .order("created_block", { ascending: false })
+            .limit(500);
+        }
+        if (creatorResponse.error) throw creatorResponse.error;
+        creatorRows = creatorResponse.data ?? [];
+
+        const tradeResponse = await getSupabase().from("trades")
+          .select("scope, launch_id, side, eth_amount, token_amount, block_number, created_at")
+          .in("scope", context.scopes)
+          .ilike("trader", wallet)
+          .order("block_number", { ascending: false })
+          .limit(5000);
+        if (tradeResponse.error) throw tradeResponse.error;
+        tradeRows = (tradeResponse.data ?? []) as Array<Record<string, unknown>>;
+      } else {
+        if (!process.env.DATABASE_URL) return undefined;
+        pool ??= new pg.Pool({ connectionString: process.env.DATABASE_URL, connectionTimeoutMillis: 750, idleTimeoutMillis: 5_000, max: 5 });
+        const [creatorResult, tradeResult] = await Promise.all([
+          withTimeout(pool.query(
+            `select ${launchColumns}
+             from launches
+             where scope = any($1::text[]) and created_block >= $2 and lower(creator) = lower($3)
+             order by created_block desc limit 500`,
+            [context.scopes, context.deploymentBlock, wallet]
+          ), 1_500),
+          withTimeout(pool.query(
+            `select scope, launch_id, side, eth_amount, token_amount, block_number, created_at
+             from trades
+             where scope = any($1::text[]) and lower(trader) = lower($2)
+             order by block_number desc limit 5000`,
+            [context.scopes, wallet]
+          ), 1_500)
+        ]);
+        creatorRows = creatorResult.rows;
+        tradeRows = tradeResult.rows;
+      }
+
+      created.push(...await mapRows(creatorRows, chainId));
+      if (!tradeRows.length) continue;
+
+      const launchIds = Array.from(new Set(tradeRows.map((row) => String(row.launch_id))));
+      let launchRows: Array<Record<string, unknown>> = [];
+      if (hasSupabaseConfig()) {
+        let launchResponse: {
+          data: Array<Record<string, unknown>> | null;
+          error: { message?: string; details?: string } | null;
+        } = await getSupabase().from("launches")
+          .select(launchColumns)
+          .in("scope", context.scopes)
+          .in("id", launchIds);
+        if (launchResponse.error && isMissingSocialColumnError(launchResponse.error)) {
+          launchResponse = await getSupabase().from("launches")
+            .select(legacyLaunchColumns)
+            .in("scope", context.scopes)
+            .in("id", launchIds);
+        }
+        if (launchResponse.error) throw launchResponse.error;
+        launchRows = launchResponse.data ?? [];
+      } else {
+        const result = await withTimeout(pool!.query(
+          `select ${launchColumns} from launches where scope = any($1::text[]) and id = any($2::numeric[])`,
+          [context.scopes, launchIds]
+        ), 1_500);
+        launchRows = result.rows;
+      }
+
+      const mappedLaunches = await mapRows(launchRows, chainId);
+      const launchMap = new Map(mappedLaunches.map((launch) => [`${launch.scope}:${launch.id}`, launch]));
+      const summaries = new Map<string, Omit<WalletTradeSummary, "launch">>();
+      for (const row of tradeRows) {
+        const key = `${String(row.scope)}:${String(row.launch_id)}`;
+        const current = summaries.get(key) ?? {
+          buyCount: 0,
+          sellCount: 0,
+          boughtTokens: "0",
+          soldTokens: "0",
+          spentNative: "0",
+          receivedNative: "0",
+          lastTradeAt: String(row.created_at || "") || undefined
+        };
+        const isSell = row.side === "sell";
+        current[isSell ? "sellCount" : "buyCount"] += 1;
+        current[isSell ? "soldTokens" : "boughtTokens"] = (BigInt(current[isSell ? "soldTokens" : "boughtTokens"]) + parseDbBigInt(row.token_amount)).toString();
+        current[isSell ? "receivedNative" : "spentNative"] = (BigInt(current[isSell ? "receivedNative" : "spentNative"]) + parseDbBigInt(row.eth_amount)).toString();
+        summaries.set(key, current);
+      }
+      for (const [key, summary] of summaries) {
+        const launch = launchMap.get(key);
+        if (launch) traded.push({ launch, ...summary });
+      }
+    }
+
+    return { created, traded, indexed: true };
+  } catch (error) {
+    console.error("Failed to read wallet dashboard from database", error);
+    return undefined;
+  }
+}
 
 export async function getDbLaunchPage(
   chainId = 8453,

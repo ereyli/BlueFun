@@ -3,6 +3,7 @@ import Image from "next/image";
 import Link from "next/link";
 import "./globals.css";
 import "./premium-system.css";
+import "./dashboard.css";
 import { Providers } from "@/components/providers";
 import { WalletButton } from "@/components/wallet-button";
 import { RouteFeedback } from "@/components/route-feedback";
