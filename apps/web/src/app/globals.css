@@ -3029,11 +3029,9 @@ button:disabled,
 
 .loading-hero,
 .loading-card {
-  animation: shimmer 1.25s ease-in-out infinite;
-  background:
-    linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.72), transparent),
-    linear-gradient(135deg, #edf2ff, #ffffff);
-  background-size: 220% 100%, 100% 100%;
+  animation: none;
+  background: var(--panel-2);
+  background-size: auto;
   border: 1px solid var(--line);
   border-radius: 18px;
 }

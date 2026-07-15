@@ -543,9 +543,7 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
                 <span>{launch.age} ago</span>
                 <span>{launch.creator.slice(0, 6)}...{launch.creator.slice(-4)}</span>
               </div>
-              <div className={trusted ? "market-route-pill trusted" : "market-route-pill"}>
-                <ShieldCheck size={12} />{trusted ? "Verified market" : isDirect ? "Direct market" : "Official curve"}
-              </div>
+              {launch.description ? <p className="market-description">{launch.description}</p> : null}
             </div>
             <div className="market-actions">
               <a className="market-icon-action x-share-button" aria-label="Share on X" title="Share on X" href={xShareUrl(launch)} target="_blank" rel="noreferrer">
@@ -559,24 +557,10 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
               </button>
             </div>
           </div>
-          {officialBlue ? (
-            <section className="official-blue-identity" aria-label="Official BLUE network identity">
-              <div className="official-blue-identity-title">
-                <span><Sparkles size={14} />Official BLUE</span>
-                <small>Canonical asset</small>
-              </div>
-              <div className="official-blue-identity-grid">
-                <div><span>Home network</span><strong><NetworkIcon chainId={8453} size={16} />Base</strong></div>
-                <div><span>Also available on</span><strong><NetworkIcon chainId={4663} size={16} />Robinhood Chain <em>Coming soon</em></strong></div>
-                <div><span>Supply model</span><strong><LockKeyhole size={15} />Unified global supply</strong></div>
-              </div>
-            </section>
-          ) : null}
           <div className="market-header-stats">
             <div><span>{isEstimatedCurveData ? "Estimated MC" : "Market cap"}</span><strong>{displayMarketCapText}</strong></div>
             <div><span>{isEstimatedCurveData ? "Estimated price" : "Price"}</span><strong>{displayPriceText}</strong></div>
             <div><span>{isDirect ? "Liquidity" : "Raised"}</span><strong>{isDirect ? "Permanently locked" : launch.raised}</strong></div>
-            <div><span>{isDirect ? "Route" : "Bonded"}</span><strong>{isDirect ? "Direct DEX" : `${launch.progress}%`}</strong></div>
           </div>
           {isGraduated && !latestMarketCapEth && marketDataState !== "ready" ? (
             <div className={`market-data-note ${marketDataState}`}>
@@ -584,7 +568,7 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
               {marketDataState === "loading" ? "Fetching live Uniswap market data…" : "Live USD pricing is temporarily unavailable. Onchain quoting and trading remain available."}
             </div>
           ) : null}
-          {!isDirect ? <div className="progress"><span style={{ width: `${launch.progress}%` }} /></div> : null}
+          {!isDirect ? <div className={launch.status === "Graduated" ? "progress graduated" : "progress bonding"}><span style={{ width: `${launch.progress}%` }} /></div> : null}
         </div>
 
       </section>
@@ -593,12 +577,7 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
         <div className="chart-panel">
           <div className="curve-state compact">
             <TradeChart trades={trades} status={launch.status} symbol={launch.symbol} ethUsd={ethUsd} />
-            <MarketStats
-              launch={launch}
-              trades={trades}
-            />
             <HolderDistribution launch={launch} trades={trades} />
-            <ProjectInfo launch={launch} />
             <RecentTrades trades={trades} symbol={launch.symbol} chainId={launch.chainId} />
             <CommunityBurnCard launch={launch} />
           </div>
@@ -1165,51 +1144,6 @@ function GraduatedTradeCard({
         Trade on Uniswap
       </a>
       {launch.launchMode === "direct" ? <span className="trade-helper external-route-note">New v4 hook pools may take time to appear in Uniswap Labs routing. BlueFun quotes this pool directly onchain.</span> : null}
-      <a className="button wide" href={`${chain.blockExplorers.default.url}/token/${launch.token}`} target="_blank" rel="noreferrer">
-        View token
-      </a>
-    </section>
-  );
-}
-
-function ProjectInfo({ launch }: { launch: DeployedLaunch }) {
-  const links = [
-    { label: "Website", href: launch.website },
-    { label: "X", href: launch.twitter },
-    { label: "Telegram", href: launch.telegram },
-    { label: "Discord", href: launch.discord }
-  ].filter((link): link is { label: string; href: string } => Boolean(link.href));
-
-  return (
-    <section className="project-info-panel market-overview-panel">
-      <div className="project-info-head">
-        <h2>Market overview</h2>
-        <span><NetworkIcon chainId={launch.chainId} size={15} />{launch.chainId === 4663 ? "Robinhood" : "Base"}</span>
-      </div>
-      {launch.description ? <p>{launch.description}</p> : null}
-      <dl className="market-overview-grid">
-        <div><dt>Standard</dt><dd>{launch.chainId === 4663 ? "ERC-20" : "B20"}</dd></div>
-        <div><dt>Trading fee</dt><dd>1% total</dd></div>
-        <div><dt>Liquidity</dt><dd>{launch.status === "Graduated" || launch.launchMode === "direct" ? "Uniswap v4 · locked" : "Bonding curve"}</dd></div>
-      </dl>
-      <details className="market-details-disclosure">
-        <summary><span>Contract details</span><small>Token, creator and supply</small></summary>
-        <dl className="market-facts-grid compact">
-          <div><dt>Token</dt><dd>{shortAddress(launch.token)}</dd></div>
-          <div><dt>Creator</dt><dd>{shortAddress(launch.creator)}</dd></div>
-          <div><dt>Supply</dt><dd>1,000,000,000</dd></div>
-        </dl>
-        {links.length ? (
-          <div className="project-link-row">
-            {links.map((link) => (
-              <a href={link.href} key={link.label} target="_blank" rel="noreferrer">
-                {link.label}<ExternalLink size={13} />
-              </a>
-            ))}
-          </div>
-        ) : null}
-      </details>
-      <p className="market-risk-note">Community tokens are volatile. Verify the contract and trade responsibly. <a href="/risk">Read risk disclosure</a></p>
     </section>
   );
 }
@@ -1381,55 +1315,6 @@ function CommunityBurnCard({ launch }: { launch: DeployedLaunch }) {
   );
 }
 
-function MarketStats({
-  launch,
-  trades
-}: {
-  launch: DeployedLaunch;
-  trades: DeployedTrade[];
-}) {
-  const stats = useMemo(() => {
-    const unique = new Set<string>();
-    let buys = 0;
-    let sells = 0;
-    let boughtTokens = 0;
-    let soldTokens = 0;
-
-    for (const trade of trades) {
-      if (trade.trader) unique.add(trade.trader.toLowerCase());
-      const tokens = parseDisplayAmount(trade.tokenAmount);
-      if (trade.side === "buy") {
-        buys += 1;
-        boughtTokens += tokens;
-      } else {
-        sells += 1;
-        soldTokens += tokens;
-      }
-    }
-
-    return {
-      buys,
-      sells,
-      uniqueTraders: unique.size,
-      netTokens: Math.max(boughtTokens - soldTokens, 0)
-    };
-  }, [trades]);
-
-  return (
-    <section className="market-stats-panel">
-      <div className="market-stats-head">
-        <h2>Recent activity</h2>
-        <span>{launch.launchMode === "direct" ? "Direct DEX" : `${launch.progress}% bonded`}</span>
-      </div>
-      <div className="market-stats-grid">
-        <div><span>Buys</span><strong>{stats.buys}</strong></div>
-        <div><span>Sells</span><strong>{stats.sells}</strong></div>
-        <div><span>Traders</span><strong>{stats.uniqueTraders}</strong></div>
-        <div><span>Net flow</span><strong>{compactTokenAmount(String(stats.netTokens))} {launch.symbol}</strong></div>
-      </div>
-    </section>
-  );
-}
 
 function HolderDistribution({ launch, trades }: { launch: DeployedLaunch; trades: DeployedTrade[] }) {
   const panelRef = useRef<HTMLDetailsElement | null>(null);
@@ -1532,7 +1417,7 @@ function HolderDistribution({ launch, trades }: { launch: DeployedLaunch; trades
               <strong>{row.label}</strong>
               <small>{formatHolderPercent(row.percent)}</small>
             </div>
-            <div className="holder-bar">
+            <div className={`holder-bar ${row.tone}`}>
               <span style={{ width: `${Math.min(row.percent, 100)}%` }} />
             </div>
             <div className="holder-row-bottom">
@@ -1678,13 +1563,24 @@ function TradeChart({ trades, status, symbol, ethUsd }: { trades: DeployedTrade[
   const [chartMode, setChartMode] = useState<"marketCap" | "price">("marketCap");
   const [intervalMinutes, setIntervalMinutes] = useState(1);
   const [darkChart, setDarkChart] = useState(false);
-  const { candles, volume, latestValue } = useMemo(
+  const { candles, volume } = useMemo(
     () => buildChartData(trades, chartMode, ethUsd, intervalMinutes, status === "Graduated"),
     [trades, chartMode, ethUsd, intervalMinutes, status]
   );
   const chartDataRef = useRef({ candles, volume });
   chartDataRef.current = { candles, volume };
   const chartTitle = chartMode === "marketCap" ? `${symbol} market cap` : `${symbol} price`;
+  const activity = useMemo(() => {
+    const traders = new Set<string>();
+    let buys = 0;
+    let sells = 0;
+    for (const trade of trades) {
+      if (trade.trader) traders.add(trade.trader.toLowerCase());
+      if (trade.side === "buy") buys += 1;
+      else sells += 1;
+    }
+    return { buys, sells, traders: traders.size };
+  }, [trades]);
 
   useEffect(() => {
     const syncTheme = () => setDarkChart(document.documentElement.dataset.theme === "dark");
@@ -1818,40 +1714,39 @@ function TradeChart({ trades, status, symbol, ethUsd }: { trades: DeployedTrade[
   return (
     <div className="tv-chart-wrap">
       <div className="tv-chart-header">
-        <div>
-          <span className="muted">{chartTitle}</span>
-          <strong>{latestValue ? chartMode === "marketCap" ? compactUsd(latestValue) : formatUsdPrice(latestValue) : "-"}</strong>
+        <div className="chart-activity-strip" aria-label="Market activity">
+          <span><small>Buys</small><strong>{activity.buys}</strong></span>
+          <span><small>Sells</small><strong>{activity.sells}</strong></span>
+          <span><small>Traders</small><strong>{activity.traders}</strong></span>
         </div>
-        <div className="chart-mode-tabs" role="tablist" aria-label="Chart view">
-          <button aria-selected={chartMode === "marketCap"} className={chartMode === "marketCap" ? "active" : ""} onClick={() => setChartMode("marketCap")} role="tab" type="button">
-            Market Cap
-          </button>
-          <button aria-selected={chartMode === "price"} className={chartMode === "price" ? "active" : ""} onClick={() => setChartMode("price")} role="tab" type="button">
-            Price
-          </button>
-        </div>
-        <div className="chart-interval-tabs" role="tablist" aria-label="Candle interval">
-          {[1, 5, 15].map((minutes) => (
-            <button
-              aria-selected={intervalMinutes === minutes}
-              className={intervalMinutes === minutes ? "active" : ""}
-              key={minutes}
-              onClick={() => {
-                shouldFitChartRef.current = true;
-                userTouchedChartRef.current = false;
-                setIntervalMinutes(minutes);
-              }}
-              role="tab"
-              type="button"
-            >
-              {minutes}m
+        <div className="chart-controls">
+          <div className="chart-mode-tabs" role="tablist" aria-label="Chart view">
+            <button aria-selected={chartMode === "marketCap"} className={chartMode === "marketCap" ? "active" : ""} onClick={() => setChartMode("marketCap")} role="tab" type="button">
+              Market Cap
             </button>
-          ))}
-          <button onClick={resetChart} type="button" aria-label="Reset chart view"><RotateCcw size={13} /></button>
-        </div>
-        <div className="tv-chart-legend">
-          <span><i className="legend-up" /> Buys</span>
-          <span><i className="legend-down" /> Sells</span>
+            <button aria-selected={chartMode === "price"} className={chartMode === "price" ? "active" : ""} onClick={() => setChartMode("price")} role="tab" type="button">
+              Price
+            </button>
+          </div>
+          <div className="chart-interval-tabs" role="tablist" aria-label="Candle interval">
+            {[1, 5, 15].map((minutes) => (
+              <button
+                aria-selected={intervalMinutes === minutes}
+                className={intervalMinutes === minutes ? "active" : ""}
+                key={minutes}
+                onClick={() => {
+                  shouldFitChartRef.current = true;
+                  userTouchedChartRef.current = false;
+                  setIntervalMinutes(minutes);
+                }}
+                role="tab"
+                type="button"
+              >
+                {minutes}m
+              </button>
+            ))}
+            <button onClick={resetChart} type="button" aria-label="Reset chart view"><RotateCcw size={13} /></button>
+          </div>
         </div>
       </div>
       <div ref={chartRef} className="tv-chart" aria-label={`${chartTitle} chart`} />

@@ -19,12 +19,13 @@ export function SideNav({ mobile = false }: { mobile?: boolean }) {
 
   return (
     <nav className={mobile ? "bottom-nav" : "side-nav"} aria-label={mobile ? "Mobile navigation" : "Main navigation"}>
-      {items.filter((item) => !mobile || !item.desktopOnly).map((item) => {
+      {items.filter((item) => !mobile || !item.desktopOnly).map((item, index) => {
         const Icon = item.icon;
         const active = item.href === "/" ? pathname === "/" : pathname.startsWith(item.href);
         return (
           <Link aria-current={active ? "page" : undefined} href={chain ? `${item.href}?chain=${chain}` : item.href} key={item.label}>
-            <Icon aria-hidden="true" size={mobile ? 22 : 20} />
+            <span className="nav-index" aria-hidden="true">{String(index + 1).padStart(2, "0")}</span>
+            <Icon className="nav-icon" aria-hidden="true" size={mobile ? 22 : 18} />
             <span>{item.label}</span>
           </Link>
         );

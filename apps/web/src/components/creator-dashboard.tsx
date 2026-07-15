@@ -135,9 +135,9 @@ export function CreatorDashboard() {
     <div className="creator-dashboard">
       <header className="dashboard-hero">
         <div>
-          <span className="dashboard-eyebrow"><Sparkles size={14} /> Creator workspace</span>
-          <h1>Your BlueFun activity,<br /><span>in one clear view.</span></h1>
-          <p>Launches, onchain fee revenue and tokens bought through BlueFun — across both supported networks.</p>
+          <span className="dashboard-eyebrow"><Sparkles size={14} /> Wallet command desk</span>
+          <h1>Your launch desk.<br /><span>No noise, just positions.</span></h1>
+          <p>Markets issued, fees earned and assets held across both networks.</p>
         </div>
         <div className="dashboard-wallet-card">
           <span>Connected wallet</span>
@@ -193,7 +193,7 @@ export function CreatorDashboard() {
             </div> : null}
 
             <div className="dashboard-panel recent-panel">
-              <PanelHeading icon={<Layers3 size={17} />} eyebrow="At a glance" title="Recent launches" detail="Your newest creator activity." />
+              <PanelHeading icon={<Layers3 size={17} />} eyebrow="Issue log" title="Recent launches" detail="Newest markets from this wallet." />
               <div className="compact-token-list">
                 {data.created.slice(0, 4).map((launch) => <CompactLaunch key={`${launch.chainId}:${launch.scope}:${launch.id}`} launch={launch} />)}
                 {!loading && !data.created.length ? <EmptyCompact icon={<Rocket size={19} />} title="No launches yet" text="Create your first token in a few steps." action={<Link href="/launch">Create token <ArrowUpRight size={13} /></Link>} /> : null}
@@ -207,7 +207,7 @@ export function CreatorDashboard() {
 
       {tab === "launches" ? (
         <section className="dashboard-panel dashboard-full-panel">
-          <PanelHeading icon={<Rocket size={17} />} eyebrow="Creator portfolio" title="My launches" detail="Performance and fee revenue for every token you created." />
+          <PanelHeading icon={<Rocket size={17} />} eyebrow="Issued markets" title="My launches" detail="Performance and fee revenue by token." />
           {loading && !data.created.length ? <LoadingRows /> : null}
           {!loading && !data.created.length ? <EmptyLarge icon={<Rocket />} title="Your first launch starts here" text="Choose a bonding curve or launch directly into a locked Uniswap v4 pool." action={<Link className="button primary" href="/launch">Create a token</Link>} /> : null}
           <div className="launch-dashboard-grid">
@@ -225,7 +225,7 @@ export function CreatorDashboard() {
 
       {tab === "holdings" ? (
         <section className="dashboard-panel dashboard-full-panel">
-          <PanelHeading icon={<WalletCards size={17} />} eyebrow="Personal portfolio" title="Tokens you hold" detail="Current wallet balances for tokens you traded through BlueFun." />
+          <PanelHeading icon={<WalletCards size={17} />} eyebrow="Wallet inventory" title="Tokens you hold" detail="Current balances from BlueFun markets." />
           {balances.isLoading && data.traded.length ? <LoadingRows /> : null}
           {!balances.isLoading && !holdings.length ? <EmptyLarge icon={<Wallet />} title="No BlueFun holdings found" text="Tokens you buy on the platform will be tracked here automatically." action={<Link className="button primary" href="/">Explore tokens</Link>} /> : null}
           <div className="holdings-list">
@@ -238,7 +238,7 @@ export function CreatorDashboard() {
 }
 
 function DisconnectedDashboard() {
-  return <div className="creator-dashboard disconnected-dashboard"><section><div className="dashboard-connect-icon"><WalletCards size={34} /></div><span className="dashboard-eyebrow">Your personal workspace</span><h1>Connect once.<br /><span>See everything.</span></h1><p>Your launches, creator fees and BlueFun token holdings are grouped into one private wallet view.</p><ConnectButton.Custom>{({ mounted, openConnectModal }) => <button className="button primary" disabled={!mounted} onClick={openConnectModal} type="button"><Wallet size={17} /> Connect wallet</button>}</ConnectButton.Custom><div className="dashboard-connect-proof"><span><LockKeyhole size={14} /> Read-only until you claim</span><span><Layers3 size={14} /> Base + Robinhood</span></div></section></div>;
+  return <div className="creator-dashboard disconnected-dashboard"><section><div className="dashboard-connect-icon"><WalletCards size={30} /></div><span className="dashboard-eyebrow">Wallet index / private view</span><h1>One wallet.<br /><span>Every position.</span></h1><p>Issued markets, creator revenue and held tokens — indexed across Base and Robinhood.</p><ConnectButton.Custom>{({ mounted, openConnectModal }) => <button className="button primary" disabled={!mounted} onClick={openConnectModal} type="button"><Wallet size={17} /> Connect wallet</button>}</ConnectButton.Custom><div className="dashboard-connect-proof"><span><LockKeyhole size={14} /> No custody</span><span><Layers3 size={14} /> Two networks</span></div></section></div>;
 }
 
 function StatCard({ accent, detail, icon, label, value }: { accent?: boolean; detail: string; icon: React.ReactNode; label: string; value: string }) {

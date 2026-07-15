@@ -13,8 +13,8 @@ export async function GET(request: Request) {
   const page = Number(params.get("page") || "1");
   const query = (params.get("q") || "").slice(0, 80);
   const requestedFilter = params.get("filter") || "All";
-  const normalizedFilter = ["New", "Activity", "Safe"].includes(requestedFilter) ? "All" : requestedFilter;
-  const filters: LaunchPageFilter[] = ["All", "Newest", "Direct", "Live", "Ready", "Graduated", "Progress"];
+  const normalizedFilter = ["Activity", "Safe"].includes(requestedFilter) ? "All" : requestedFilter;
+  const filters: LaunchPageFilter[] = ["All", "New", "Volume", "MarketCap", "Newest", "Direct", "Live", "Ready", "Graduated", "Progress"];
   if (!chainParam || !["base", "robinhood", "8453", "4663"].includes(chainParam.toLowerCase()) || !Number.isInteger(page) || page < 1 || page > 100_000 || !filters.includes(normalizedFilter as LaunchPageFilter)) {
     return NextResponse.json({ launches: [], total: 0, page: 1, totalPages: 0 }, { status: 400 });
   }
@@ -32,9 +32,19 @@ export async function GET(request: Request) {
     if (filter === "Graduated") return launch.launchMode !== "direct" && launch.status === "Graduated";
     if (filter === "Progress") return launch.launchMode !== "direct";
     return true;
-  }).sort((a, b) => filter === "Progress" ? b.progress - a.progress || compareCreated(b, a) : compareCreated(b, a));
+  }).sort((a, b) => {
+    if (filter === "Progress") return b.progress - a.progress || compareCreated(b, a);
+    if (filter === "Volume") return numericMarketValue(b.volume) - numericMarketValue(a.volume) || compareCreated(b, a);
+    if (filter === "MarketCap") return numericMarketValue(b.marketCap) - numericMarketValue(a.marketCap) || numericMarketValue(b.raised) - numericMarketValue(a.raised) || compareCreated(b, a);
+    return compareCreated(b, a);
+  });
   const start = (page - 1) * 21;
   return jsonLaunchPage({ launches: filtered.slice(start, start + 21), total: filtered.length, page, totalPages: Math.ceil(filtered.length / 21) }, query);
+}
+
+function numericMarketValue(value: string) {
+  const parsed = Number.parseFloat(value.replace(/[^0-9.eE+-]/g, ""));
+  return Number.isFinite(parsed) ? parsed : 0;
 }
 
 function compareCreated(left: { createdBlock?: string; id: string }, right: { createdBlock?: string; id: string }) {

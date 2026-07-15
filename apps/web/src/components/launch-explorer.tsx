@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, useTransition, type ReactNode } from "react";
 import Link from "next/link";
-import { Activity, BarChart3, Clock3, Coins, LockKeyhole, Radio, Rocket, Search, Sparkles, Trophy, Zap } from "lucide-react";
+import { Activity, BarChart3, Clock3, Coins, LayoutGrid, Layers3, List, LockKeyhole, Rocket, Search, Sparkles, Trophy, TrendingUp, Zap } from "lucide-react";
 import { isFeaturedLaunch, isOfficialBlue, isTrustedLaunch } from "@/lib/featured-launches";
 import { compactUsd, parseDisplayAmount } from "@/lib/market-math";
 import type { DbLaunchMetrics, LaunchBuyActivity } from "@/lib/db-launches";
@@ -12,7 +12,8 @@ import { NetworkIcon, networkMeta } from "@/components/network-icon";
 import { chainSlug } from "@/lib/chain-slug";
 import { tokenPath } from "@/lib/token-url";
 
-type Filter = "Activity" | "Newest" | "Direct" | "Live" | "Graduated" | "Progress";
+type Filter = "All" | "Volume" | "MarketCap" | "New";
+type ViewMode = "grid" | "list";
 type NetworkMetrics = Partial<Record<8453 | 4663, DbLaunchMetrics>>;
 
 export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metrics, networkMetrics, chainId = 8453 }: { launches: DeployedLaunch[]; totalLaunches: number; metrics?: DbLaunchMetrics; networkMetrics?: NetworkMetrics; chainId?: number }) {
@@ -23,7 +24,8 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metri
   const [loadError, setLoadError] = useState(false);
   const [refreshNonce, setRefreshNonce] = useState(0);
   const [query, setQuery] = useState("");
-  const [filter, setFilter] = useState<Filter>("Activity");
+  const [filter, setFilter] = useState<Filter>("All");
+  const [viewMode, setViewMode] = useState<ViewMode>("grid");
   const [ethUsd, setEthUsd] = useState<number | null>(null);
   const [dexMarketCaps, setDexMarketCaps] = useState<Map<string, number>>(new Map());
   const [activityByLaunch, setActivityByLaunch] = useState<Map<string, LaunchBuyActivity>>(new Map());
@@ -39,7 +41,7 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metri
     setTotal(totalLaunches);
     setPage(1);
     setQuery("");
-    setFilter("Activity");
+    setFilter("All");
     setActivityByLaunch(new Map());
     setHotLaunchId(undefined);
     activityBlocksRef.current = new Map();
@@ -52,8 +54,7 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metri
       setIsPageLoading(true);
       setLoadError(false);
       try {
-        const serverFilter = filter === "Activity" ? "All" : filter;
-        const params = new URLSearchParams({ chain: chainSlug(chainId), page: String(page), filter: serverFilter });
+        const params = new URLSearchParams({ chain: chainSlug(chainId), page: String(page), filter });
         if (query.trim()) params.set("q", query.trim());
         const response = await fetch(`/api/launches?${params.toString()}`, { signal: controller.signal });
         const payload = await response.json() as { launches?: DeployedLaunch[]; total?: number; totalPages?: number };
@@ -210,38 +211,39 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metri
   const pagination = paginationItems(page, totalPages);
   const displayedLaunches = useMemo(() => {
     const sorted = [...launches];
-    if (filter === "Newest") return sorted.sort((a, b) => compareLaunchCreated(b, a));
-    if (filter === "Progress") return sorted;
+    if (filter === "New") return sorted.sort((a, b) => compareLaunchCreated(b, a));
+    if (filter === "Volume") return sorted.sort((a, b) => parseDisplayAmount(b.volume) - parseDisplayAmount(a.volume) || compareLaunchCreated(b, a));
+    if (filter === "MarketCap") return sorted.sort((a, b) => marketCapSortValue(b, dexMarketCaps) - marketCapSortValue(a, dexMarketCaps) || compareLaunchCreated(b, a));
     return sorted.sort((a, b) => {
       const activityDelta = compareBlocks(activityByLaunch.get(b.id)?.blockNumber, activityByLaunch.get(a.id)?.blockNumber);
       return activityDelta || compareLaunchIds(b.id, a.id);
     });
-  }, [activityByLaunch, filter, launches]);
+  }, [activityByLaunch, dexMarketCaps, filter, launches]);
 
   return (
     <section className="explorer-shell">
       <section className="launchpad-intro launchpad-overview premium-hero">
         <div className="launchpad-intro-copy">
-          <div className="launchpad-eyebrow"><NetworkIcon chainId={chainId} size={20} /><span>{activeNetwork.name}</span><i>Markets live</i></div>
-          <h1>Launch fair.<span>Catch the signal.</span></h1>
-          <p>Live multichain markets with fixed rules, clear activity and locked liquidity.</p>
+          <div className="launchpad-eyebrow"><NetworkIcon chainId={chainId} size={20} /><span>{activeNetwork.name}</span><i>Live tape</i></div>
+          <h1>Launch it.<span>Lock it. Let it trade.</span></h1>
+          <p>One billion tokens, visible rules and liquidity that stays put.</p>
           <div className="launchpad-intro-actions">
-            <Link className="button primary hero-action" href={`/launch?chain=${chainSlug(chainId)}`}><Rocket size={17} />Create a token</Link>
+            <Link className="button primary hero-action" href={`/launch?chain=${chainSlug(chainId)}`}><Rocket size={17} />Open launch studio</Link>
             <button
               className="button hero-secondary"
               onClick={() => {
-                setFilter("Live");
+                setFilter("All");
                 setPage(1);
                 window.requestAnimationFrame(() => tokensRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
               }}
               type="button"
             >
-              <Activity size={16} />View live markets
+              <Activity size={16} />Browse markets
             </button>
           </div>
         </div>
         <div className="overview-metrics network-overview" aria-label="Network launch metrics">
-          <div className="network-overview-head"><span>Network overview</span><small>Live indexed data</small></div>
+          <div className="network-overview-head"><span>Network tape</span><small>Indexed onchain</small></div>
           {networkStats.map((network) => (
             <Link className={network.chainId === chainId ? "network-metric-row active" : "network-metric-row"} href={`/?chain=${chainSlug(network.chainId)}`} key={network.chainId}>
               <div className="network-metric-name"><NetworkIcon chainId={network.chainId} size={22} /><strong>{network.name}</strong>{network.chainId === chainId ? <i>Viewing</i> : null}</div>
@@ -256,8 +258,8 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metri
       <div className="trending-section market-pulse-section">
         <div className="section-row">
           <div>
-            <div className="section-title"><Zap size={17} />Market Pulse</div>
-            <p className="section-subtitle">Latest real buys across {activeNetwork.name}</p>
+            <div className="section-title"><Zap size={17} />Onchain tape</div>
+            <p className="section-subtitle">Latest confirmed buys · {activeNetwork.name}</p>
           </div>
           <span className="pulse-live-label"><i />Live</span>
         </div>
@@ -292,14 +294,14 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metri
         <div className="discovery-heading">
           <div>
             <span>Launches</span>
-            <h2>Explore markets</h2>
+            <h2>Market directory</h2>
           </div>
           <div className={isPending || isPageLoading ? "live-sync syncing" : "live-sync"}>
             <span className="dot green" />
             {isPending || isPageLoading ? "Updating" : "Live data"}
           </div>
         </div>
-        <div className="explore-toolbar">
+        <div className="explore-toolbar market-directory-toolbar">
           <div className="searchbar">
             <Search size={18} />
             <input
@@ -308,17 +310,17 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metri
               value={query}
             />
           </div>
-          <span className="explore-result-count">{total} {total === 1 ? "launch" : "launches"}</span>
-        </div>
-
-        <div className="explore-controls">
-          <div className="feed-tabs" role="tablist" aria-label="Launch filters">
-            <FilterButton active={filter === "Activity"} onClick={() => { setFilter("Activity"); setPage(1); }}><Radio size={14} />Active</FilterButton>
-            <FilterButton active={filter === "Newest"} onClick={() => { setFilter("Newest"); setPage(1); }}><Clock3 size={14} />Newest</FilterButton>
-            <FilterButton active={filter === "Direct"} onClick={() => { setFilter("Direct"); setPage(1); }}><Zap size={14} />Direct</FilterButton>
-            <FilterButton active={filter === "Live"} onClick={() => { setFilter("Live"); setPage(1); }}><Sparkles size={14} />Bonding</FilterButton>
-            <FilterButton active={filter === "Progress"} onClick={() => { setFilter("Progress"); setPage(1); }}><Trophy size={14} />Progress</FilterButton>
-            <FilterButton active={filter === "Graduated"} onClick={() => { setFilter("Graduated"); setPage(1); }}><Rocket size={14} />Graduated</FilterButton>
+          <div className="market-directory-actions">
+            <div className="feed-tabs market-sort-tabs" role="tablist" aria-label="Sort markets">
+              <FilterButton active={filter === "All"} onClick={() => { setFilter("All"); setPage(1); }}><Layers3 size={14} />All</FilterButton>
+              <FilterButton active={filter === "Volume"} onClick={() => { setFilter("Volume"); setPage(1); }}><BarChart3 size={14} />Top volume</FilterButton>
+              <FilterButton active={filter === "MarketCap"} onClick={() => { setFilter("MarketCap"); setPage(1); }}><TrendingUp size={14} />Market cap</FilterButton>
+              <FilterButton active={filter === "New"} onClick={() => { setFilter("New"); setPage(1); }}><Clock3 size={14} />New</FilterButton>
+            </div>
+            <div className="market-view-toggle" aria-label="Market view">
+              <button aria-label="Card view" aria-pressed={viewMode === "grid"} className={viewMode === "grid" ? "active" : ""} onClick={() => setViewMode("grid")} type="button"><LayoutGrid size={15} /></button>
+              <button aria-label="List view" aria-pressed={viewMode === "list"} className={viewMode === "list" ? "active" : ""} onClick={() => setViewMode("list")} type="button"><List size={16} /></button>
+            </div>
           </div>
         </div>
       </section>
@@ -338,7 +340,12 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metri
           {totalLaunches === 0 ? <Link className="button primary compact" href={`/launch?chain=${chainSlug(chainId)}`}>Launch a token</Link> : null}
         </div>
       ) : (
-        <div className={isPageLoading ? "token-grid page-loading" : "token-grid"} aria-busy={isPageLoading}>
+        <div className={`token-grid ${viewMode === "list" ? "list-view" : "grid-view"}${isPageLoading ? " page-loading" : ""}`} aria-busy={isPageLoading}>
+          {viewMode === "list" ? (
+            <div className="market-list-head" aria-hidden="true">
+              <span>Token</span><span>Market cap</span><span>Volume</span><span>Market</span><span>Creator</span>
+            </div>
+          ) : null}
           {displayedLaunches.map((launch, index) => {
             const direct = launch.launchMode === "direct";
             const featured = isFeaturedLaunch(launch);
@@ -370,17 +377,19 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metri
                   <div className="token-market-cap"><span>{marketCapLabel}</span><strong>{marketCap}</strong></div>
                   <div className="token-volume"><span>Volume</span><strong>{volume}</strong></div>
                 </div>
-                {direct ? (
-                  <div className="token-direct-state"><span><Zap size={12} />Direct DEX</span><strong><LockKeyhole size={12} />LP locked</strong></div>
-                ) : (
-                  <>
+                <div className="token-state-cell">
+                  {direct ? (
+                    <div className="token-direct-state"><span><Zap size={12} />Direct DEX</span><strong><LockKeyhole size={12} />LP locked</strong></div>
+                  ) : (
+                    <>
                     <div className="token-progress-label">
                       <span>{launch.status === "Graduated" ? "Liquidity locked" : "Bonding progress"}</span>
                       <strong>{launch.status === "Graduated" ? "100%" : `${launch.progress}%`}</strong>
                     </div>
                     <div className={launch.status === "Graduated" ? "progress token-card-progress graduated" : "progress token-card-progress"} aria-label={`Graduation progress ${launch.progress}%`}><span style={{ width: `${launch.status === "Graduated" ? 100 : launch.progress}%` }} /></div>
-                  </>
-                )}
+                    </>
+                  )}
+                </div>
                 <div className="token-foot">
                   <span>By {launch.creator.slice(0, 6)}...{launch.creator.slice(-4)} · {launch.age}</span>
                   <span>{direct || launch.status === "Graduated" ? "DEX live" : `Raised ${launch.raised}`}</span>
@@ -432,6 +441,14 @@ function estimateCurveMarketCapEth(raisedValue: string) {
   const virtualEth = initialVirtualEth + grossRaised * (1 - 0.01);
   const marketCapEth = (virtualEth * virtualEth) / initialVirtualEth;
   return `${marketCapEth.toLocaleString("en-US", { maximumFractionDigits: 4 })} ETH`;
+}
+
+function marketCapSortValue(launch: DeployedLaunch, dexMarketCaps: Map<string, number>) {
+  const dexValue = dexMarketCaps.get(launch.token.toLowerCase());
+  if (dexValue) return dexValue;
+  const explicitValue = parseDisplayAmount(launch.marketCap);
+  if (explicitValue > 0) return explicitValue;
+  return parseDisplayAmount(estimateCurveMarketCapEth(launch.raised));
 }
 
 function formatActivityAge(createdAt: string) {

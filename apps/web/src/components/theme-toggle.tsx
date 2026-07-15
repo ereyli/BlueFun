@@ -27,14 +27,19 @@ export function ThemeToggle() {
   return (
     <button
       aria-label={ready ? `Switch to ${theme === "dark" ? "light" : "dark"} mode` : "Toggle color theme"}
+      aria-pressed={theme === "dark"}
       className="theme-toggle"
       data-theme-ready={ready ? "true" : "false"}
       onClick={toggleTheme}
       title={theme === "dark" ? "Light mode" : "Dark mode"}
       type="button"
     >
-      <Sun className="theme-icon-light" size={17} />
-      <Moon className="theme-icon-dark" size={17} />
+      <span className={`theme-option light${theme === "light" ? " active" : ""}`}>
+        <Sun size={14} /><span>Light</span>
+      </span>
+      <span className={`theme-option dark${theme === "dark" ? " active" : ""}`}>
+        <Moon size={14} /><span>Dark</span>
+      </span>
     </button>
   );
 }

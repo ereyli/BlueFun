@@ -169,7 +169,7 @@ export default async function DocsPage() {
               </tbody>
             </table>
           </div>
-          <Callout tone="success" title="Direct creators earn from buys only">Direct sell-token fees are transferred to the standard dead address. The platform does not accumulate launch tokens and does not need to sell them to realize revenue.</Callout>
+          <Callout tone="success" title="Direct creators earn from buys only">Direct sell-token fees accrue in the locked position and move to the standard dead address when fees are realized. The platform does not accumulate or sell launch tokens.</Callout>
         </section>
 
         <section className="docs-section" id="liquidity">

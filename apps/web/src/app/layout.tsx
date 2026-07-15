@@ -5,6 +5,7 @@ import "./globals.css";
 import "./premium-system.css";
 import "./dashboard.css";
 import "./docs.css";
+import "./signal-system.css";
 import { Providers } from "@/components/providers";
 import { WalletButton } from "@/components/wallet-button";
 import { RouteFeedback } from "@/components/route-feedback";
@@ -52,7 +53,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 <span className="brand-mark">
                   <Image src="/brand/bluelogo.webp" alt="" width={32} height={32} priority />
                 </span>
-                <span>BlueFun</span>
+                <span className="brand-wordmark"><strong>BlueFun</strong><small>onchain launch desk</small></span>
               </ChainLink></Suspense>
               <Suspense fallback={null}><SideNav /></Suspense>
               <div className="sidebar-network-note">
@@ -70,7 +71,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   <Image src="/brand/bluelogo.webp" alt="" width={32} height={32} priority />
                 </Link>
                 <div className="topbar-actions">
-                  <Suspense fallback={<Link className="button primary" href="/launch">Create</Link>}><ChainLink className="button primary topbar-create" href="/launch">Create</ChainLink></Suspense>
+                  <span className="topbar-live"><i />Protocol live</span>
+                  <Suspense fallback={<Link className="button primary" href="/launch">New launch</Link>}><ChainLink className="button primary topbar-create" href="/launch">New launch</ChainLink></Suspense>
                   <Suspense fallback={null}><NetworkSelector /></Suspense>
                   <ThemeToggle />
                   <WalletButton />

@@ -517,16 +517,7 @@ summary:focus-visible {
 .chart-panel::before,
 .trade-card::before,
 .graduated-trade-card::before {
-  animation: bluefun-market-signal 5.5s linear infinite;
-  background: linear-gradient(90deg,transparent,#6c7cff 24%,#9d63ff 48%,#27d7b0 72%,transparent);
-  background-size: 210% 100%;
-  content: "";
-  height: 1px;
-  inset: 0 0 auto;
-  opacity: .78;
-  pointer-events: none;
-  position: absolute;
-  z-index: 2;
+  display: none;
 }
 
 .launch-page {
@@ -1108,12 +1099,12 @@ html[data-theme="dark"] .button:not(.primary):hover { background: #18181d; borde
 /* Animated energy bars and subtle magical accents */
 .progress span,
 .market-header-card > .progress span {
-  background: linear-gradient(90deg,#5b69ff 0%,#9d63ff 30%,#27d7b0 55%,#5b69ff 100%);
-  background-size: 220% 100%;
-  box-shadow: 0 0 12px rgba(108,124,255,.35);
-  animation: bluefun-energy-flow 3.2s linear infinite;
+  animation: none;
+  background: var(--blue);
+  background-size: auto;
+  box-shadow: none;
 }
-.route-progress { background: linear-gradient(90deg,transparent,#7c6dff,#28e0b7,#7c6dff,transparent); filter: drop-shadow(0 0 5px rgba(124,109,255,.75)); }
+.route-progress { background: var(--blue); filter: none; }
 html[data-theme="dark"] .theme-toggle:hover,
 html[data-theme="dark"] .button.primary:hover:not(:disabled) { box-shadow: 0 0 24px rgba(108,124,255,.22); }
 html[data-theme="dark"] .premium-hero { border-color: #30303a; box-shadow: 0 24px 70px rgba(0,0,0,.55), 0 0 45px rgba(108,124,255,.07); }
@@ -1122,7 +1113,7 @@ html[data-theme="dark"] .premium-hero::before {
   background:
     radial-gradient(circle at 82% 12%,rgba(108,124,255,.2),transparent 34%),
     radial-gradient(circle at 7% 100%,rgba(39,215,176,.09),transparent 30%);
-  animation: bluefun-aurora 10s ease-in-out infinite alternate;
+  animation: none;
 }
 html[data-theme="dark"] .network-metric-row { background: rgba(255,255,255,.035); border-color: rgba(255,255,255,.08); }
 html[data-theme="dark"] .network-metric-row.active { background: linear-gradient(135deg,rgba(108,124,255,.14),rgba(157,99,255,.07)); border-color: rgba(108,124,255,.34); }
@@ -1132,28 +1123,14 @@ html[data-theme="dark"] .network-metric-row.active { background: linear-gradient
 .discovery-panel { overflow: hidden; position: relative; }
 .trending-section::before,
 .discovery-panel::before {
-  background: linear-gradient(90deg,transparent,#6c7cff 24%,#9d63ff 48%,#27d7b0 72%,transparent);
-  background-size: 210% 100%;
-  content: "";
-  height: 1px;
-  inset: 0 0 auto;
-  opacity: .72;
-  pointer-events: none;
-  position: absolute;
-  animation: bluefun-market-signal 5.5s linear infinite;
+  display: none;
 }
 .trending-card.featured { animation: bluefun-featured-breathe 4.6s ease-in-out infinite; }
 .trending-card.featured:hover { animation-play-state: paused; }
 .live-sync .dot { animation: bluefun-live-dot 1.8s ease-in-out infinite; }
 .network-metric-row.active { overflow: hidden; position: relative; }
 .network-metric-row.active::after {
-  background: linear-gradient(100deg,transparent 30%,rgba(255,255,255,.09) 50%,transparent 70%);
-  content: "";
-  inset: 0;
-  pointer-events: none;
-  position: absolute;
-  transform: translateX(-110%);
-  animation: bluefun-row-scan 5s ease-in-out infinite;
+  display: none;
 }
 
 /* Activity-first home: compact overview, real market pulse, decisive cards */
@@ -1452,11 +1429,9 @@ html[data-theme="dark"] .token-activity-signal.active { color: #62e3ae; }
 
 html[data-theme="dark"] .loading-hero,
 html[data-theme="dark"] .loading-card {
-  animation: shimmer 1.25s ease-in-out infinite;
-  background:
-    linear-gradient(90deg,transparent,rgba(255,255,255,.045),transparent),
-    linear-gradient(135deg,#09090b,#111114);
-  background-size: 220% 100%,100% 100%;
+  animation: none;
+  background: #111114;
+  background-size: auto;
   border-color: #26262c;
 }
 

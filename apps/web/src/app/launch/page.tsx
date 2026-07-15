@@ -235,9 +235,9 @@ function LaunchPageContent() {
     <div className="launch-page">
       <section className="launch-intro">
         <div className="launch-hero-panel">
-          <div className="launch-signal-kicker"><i />BlueFun launch studio <span>Live</span></div>
+          <div className="launch-signal-kicker"><i />Issue desk / BlueFun <span>Live</span></div>
           <div className="launch-network-chip"><NetworkIcon chainId={activeChainId} size={22} /><span>Launching on <strong>{chain.name}</strong></span></div>
-          <h1>Create a fair launch.</h1>
+          <h1>Issue a market.<br />Not a promise.</h1>
           <p className="muted">
             {launchMode === "direct"
               ? "Create the token and its permanently locked Uniswap v4 market in one transaction."
@@ -248,7 +248,7 @@ function LaunchPageContent() {
               {imagePreview ? <img src={imagePreview} alt="Token preview" /> : <Rocket size={36} />}
             </div>
             <div>
-              <span className="muted">Preview</span>
+              <span className="muted">Launch manifest</span>
               <h2>{name.trim() || (isRobinhood ? "Your ERC-20 token" : "Your B20 token")}</h2>
               <p className="muted">${symbol.trim() || "SYMBOL"} · {launchMode === "direct" ? "DEX live immediately" : "fair curve"} · first buy {initialBuy || "0"} ETH · fee {formatEth(launchFeeEth)} ETH</p>
             </div>
@@ -267,8 +267,8 @@ function LaunchPageContent() {
       <section className="launch-form-card">
         <div className="launch-form-header">
           <div>
-            <span className="pill">Launch setup</span>
-            <h2>Create token</h2>
+            <span className="pill">Issue parameters</span>
+            <h2>Configure launch</h2>
           </div>
           <span className="launch-form-network"><NetworkIcon chainId={activeChainId} size={14} />{chain.name}</span>
         </div>

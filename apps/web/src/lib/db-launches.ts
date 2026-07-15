@@ -23,7 +23,7 @@ export type LaunchBuyActivity = {
   createdAt: string;
 };
 
-export type LaunchPageFilter = "All" | "Newest" | "Direct" | "Live" | "Ready" | "Graduated" | "Progress";
+export type LaunchPageFilter = "All" | "New" | "Volume" | "MarketCap" | "Newest" | "Direct" | "Live" | "Ready" | "Graduated" | "Progress";
 export type DbLaunchPage = { launches: DeployedLaunch[]; total: number };
 
 const launchColumns = "scope, id, token, creator, name, symbol, contract_uri, image_url, description, website_url, twitter_url, telegram_url, discord_url, status, launch_mode, pool_fee, tick_spacing, liquidity_locker, raised_eth, graduation_target_eth, progress, volume_eth, token_created_at, created_block, position_id";
@@ -182,7 +182,11 @@ export async function getDbLaunchPage(
       if (search) query = query.or(`name.ilike.%${search}%,symbol.ilike.%${search}%,token.ilike.%${search}%,creator.ilike.%${search}%`);
       query = filter === "Progress"
         ? query.order("progress", { ascending: false }).order("created_block", { ascending: false }).order("id", { ascending: false })
-        : query.order("created_block", { ascending: false }).order("id", { ascending: false });
+        : filter === "Volume"
+          ? query.order("volume_eth", { ascending: false }).order("created_block", { ascending: false })
+          : filter === "MarketCap"
+            ? query.order("raised_eth", { ascending: false }).order("created_block", { ascending: false })
+            : query.order("created_block", { ascending: false }).order("id", { ascending: false });
       let response: {
         data: Array<Record<string, unknown>> | null;
         error: { message?: string; details?: string } | null;
@@ -200,7 +204,11 @@ export async function getDbLaunchPage(
         if (search) legacyQuery = legacyQuery.or(`name.ilike.%${search}%,symbol.ilike.%${search}%,token.ilike.%${search}%,creator.ilike.%${search}%`);
         legacyQuery = filter === "Progress"
           ? legacyQuery.order("progress", { ascending: false }).order("created_block", { ascending: false }).order("id", { ascending: false })
-          : legacyQuery.order("created_block", { ascending: false }).order("id", { ascending: false });
+          : filter === "Volume"
+            ? legacyQuery.order("volume_eth", { ascending: false }).order("created_block", { ascending: false })
+            : filter === "MarketCap"
+              ? legacyQuery.order("raised_eth", { ascending: false }).order("created_block", { ascending: false })
+              : legacyQuery.order("created_block", { ascending: false }).order("id", { ascending: false });
         response = await legacyQuery.range(offset, offset + pageSize - 1);
       }
       if (response.error) throw response.error;
@@ -223,7 +231,10 @@ export async function getDbLaunchPage(
          and ($5 <> 'Direct' or launch_mode = 'direct')
          and ($5 <> 'Graduated' or launch_mode <> 'direct')
          and ($5 <> 'Progress' or launch_mode <> 'direct')
-       order by case when $5 = 'Progress' then progress end desc, created_block desc, id desc
+       order by case when $5 = 'Progress' then progress end desc,
+                case when $5 = 'Volume' then volume_eth end desc,
+                case when $5 = 'MarketCap' then raised_eth end desc,
+                created_block desc, id desc
        limit $6 offset $7`,
       [context.scopes, context.deploymentBlock, statusFilter, search, filter, pageSize, offset]
     ), 1_500);
