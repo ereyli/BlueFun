@@ -45,6 +45,9 @@ contract DirectDexLiquidityLocker is ReentrancyGuard {
     uint16 public constant SHARE_BPS = 10_000;
     uint160 private constant ALL_HOOK_MASK = (1 << 14) - 1;
     uint160 private constant BEFORE_INITIALIZE_FLAG = 1 << 13;
+    uint160 private constant FEE_BURN_HOOK_FLAGS = (1 << 13) | (1 << 7) | (1 << 6) | (1 << 2);
+    uint24 public constant DYNAMIC_FEE_FLAG = 0x800000;
+    address public constant DEAD_WALLET = 0x000000000000000000000000000000000000dEaD;
 
     struct PoolConfig {
         uint24 poolFee;
@@ -115,6 +118,7 @@ contract DirectDexLiquidityLocker is ReentrancyGuard {
         uint256 creatorToken
     );
     event FeesClaimed(address indexed account, address indexed currency, uint256 amount);
+    event SellTokenFeesBurned(bytes32 indexed positionId, address indexed token, uint256 amount);
 
     constructor(
         address owner_,
@@ -129,7 +133,8 @@ contract DirectDexLiquidityLocker is ReentrancyGuard {
                 || address(stateView_) == address(0) || address(permit2_) == address(0)
                 || address(initializationGuard_) == address(0)
         ) revert InvalidAddress();
-        if ((uint160(address(initializationGuard_)) & ALL_HOOK_MASK) != BEFORE_INITIALIZE_FLAG) {
+        uint160 hookFlags = uint160(address(initializationGuard_)) & ALL_HOOK_MASK;
+        if (hookFlags != BEFORE_INITIALIZE_FLAG && hookFlags != FEE_BURN_HOOK_FLAGS) {
             revert InvalidAddress();
         }
         owner = owner_;
@@ -241,14 +246,23 @@ contract DirectDexLiquidityLocker is ReentrancyGuard {
         if (nativeAmount == 0 && tokenAmount == 0) revert NoFeesCollected();
 
         uint256 platformNative = (nativeAmount * position.platformShareBps) / SHARE_BPS;
-        uint256 platformToken = (tokenAmount * position.platformShareBps) / SHARE_BPS;
+        uint256 platformToken;
         uint256 creatorNative = nativeAmount - platformNative;
-        uint256 creatorToken = tokenAmount - platformToken;
+        uint256 creatorToken;
 
         pendingFees[platformFeeRecipient][address(0)] += platformNative;
-        pendingFees[platformFeeRecipient][position.token] += platformToken;
         pendingFees[position.creator][address(0)] += creatorNative;
-        pendingFees[position.creator][position.token] += creatorToken;
+        if (position.poolFee == DYNAMIC_FEE_FLAG) {
+            if (tokenAmount > 0) {
+                if (!IERC20Minimal(position.token).transfer(DEAD_WALLET, tokenAmount)) revert TokenTransferFailed();
+                emit SellTokenFeesBurned(positionId, position.token, tokenAmount);
+            }
+        } else {
+            platformToken = (tokenAmount * position.platformShareBps) / SHARE_BPS;
+            creatorToken = tokenAmount - platformToken;
+            pendingFees[platformFeeRecipient][position.token] += platformToken;
+            pendingFees[position.creator][position.token] += creatorToken;
+        }
 
         FeeRevenue storage revenue = feeRevenue[positionId];
         revenue.nativeCollected += nativeAmount;
@@ -306,7 +320,8 @@ contract DirectDexLiquidityLocker is ReentrancyGuard {
 
     function _validateConfig(PoolConfig calldata config) private pure {
         if (
-            config.poolFee == 0 || config.tickSpacing <= 0 || config.tickLower >= config.tickUpper
+            config.poolFee == 0 || config.tickSpacing <= 0
+                || config.tickLower >= config.tickUpper
                 || config.tickLower % config.tickSpacing != 0 || config.tickUpper % config.tickSpacing != 0
                 || config.tickSpacing > TickMath.MAX_TICK_SPACING || config.tickLower < TickMath.MIN_TICK
                 || config.tickUpper > TickMath.MAX_TICK

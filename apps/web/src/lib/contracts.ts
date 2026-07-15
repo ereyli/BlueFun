@@ -45,10 +45,10 @@ const MAINNET_DEPLOYMENT: ContractDeployment = {
   deploymentBlock: 48642000n,
   firstLaunchId: 23n,
   directLaunchFactory: (process.env.NEXT_PUBLIC_BASE_DIRECT_LAUNCH_FACTORY
-    || "0xa0dec41a566715288cd8536c78edeb7aa439a29f") as `0x${string}`,
+    || "0x0246688cef66734c1cada909cfd202e1448ba275") as `0x${string}`,
   directLiquidityLocker: (process.env.NEXT_PUBLIC_BASE_DIRECT_LIQUIDITY_LOCKER
-    || "0xf18590b60dc016ba25170e3aad066948d4285f87") as `0x${string}`,
-  directDeploymentBlock: BigInt(process.env.NEXT_PUBLIC_BASE_DIRECT_DEPLOYMENT_BLOCK || "48642007")
+    || "0x2e83029d88d0af58ba55b31980dc709920fab941") as `0x${string}`,
+  directDeploymentBlock: BigInt(process.env.NEXT_PUBLIC_BASE_DIRECT_DEPLOYMENT_BLOCK || "48647525")
 };
 
 export const addresses = {
@@ -372,6 +372,32 @@ export const directLaunchFactoryAbi = [
       },
       { name: "expectedConfigHash", type: "bytes32" },
       { name: "deadline", type: "uint256" }
+    ],
+    outputs: [
+      { name: "launchId", type: "uint256" },
+      { name: "token", type: "address" },
+      { name: "poolId", type: "bytes32" },
+      { name: "positionId", type: "bytes32" }
+    ]
+  },
+  {
+    type: "function",
+    name: "createLaunchWithInitialBuy",
+    stateMutability: "payable",
+    inputs: [
+      {
+        name: "metadata",
+        type: "tuple",
+        components: [
+          { name: "name", type: "string" },
+          { name: "symbol", type: "string" },
+          { name: "contractURI", type: "string" },
+          { name: "salt", type: "bytes32" }
+        ]
+      },
+      { name: "expectedConfigHash", type: "bytes32" },
+      { name: "deadline", type: "uint256" },
+      { name: "minimumTokensOut", type: "uint256" }
     ],
     outputs: [
       { name: "launchId", type: "uint256" },

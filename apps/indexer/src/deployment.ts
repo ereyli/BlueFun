@@ -78,13 +78,13 @@ export const deployments = Array.from(
 const configuredDirectFactory = (process.env.DIRECT_LAUNCH_FACTORY
   || (robinhood
     ? "0xc4b8ec8839d3141aa5f7816eb181076a34725734"
-    : "0xa0dec41a566715288cd8536c78edeb7aa439a29f")) as `0x${string}`;
+    : "0x0246688cef66734c1cada909cfd202e1448ba275")) as `0x${string}`;
 const configuredDirectLocker = (process.env.DIRECT_LIQUIDITY_LOCKER
   || (robinhood
     ? "0xb16edc36c64878d9884ae5e99f6212a6c227dd62"
-    : "0xf18590b60dc016ba25170e3aad066948d4285f87")) as `0x${string}`;
+    : "0x2e83029d88d0af58ba55b31980dc709920fab941")) as `0x${string}`;
 const configuredDirectStartBlock = BigInt(
-  process.env.DIRECT_DEPLOYMENT_BLOCK || (robinhood ? "9943294" : "48642007")
+  process.env.DIRECT_DEPLOYMENT_BLOCK || (robinhood ? "9943294" : "48647525")
 );
 export const directDeployment: DirectIndexerDeployment | undefined =
   configuredDirectFactory && configuredDirectLocker && configuredDirectStartBlock > 0n

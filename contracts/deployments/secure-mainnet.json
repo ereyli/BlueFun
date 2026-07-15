@@ -9,10 +9,11 @@
     "graduationManager": "0x250aec1fdffbe663e1fe9bd292529745cabb68ab",
     "liquidityLocker": "0x48aa4cb0efb545bc9ccc07dcb380dfb4ab8ab4d5",
     "launchFactory": "0x830569db6364f22cfb5eaa8a0ce17b1382ed3436",
-    "directLiquidityLocker": "0xf18590b60dc016ba25170e3aad066948d4285f87",
-    "directLaunchFactory": "0xa0dec41a566715288cd8536c78edeb7aa439a29f",
+    "directFeeBurnHook": "0xab781cf489098aacde6e647fe333b2b1da57a0c4",
+    "directLiquidityLocker": "0x2e83029d88d0af58ba55b31980dc709920fab941",
+    "directLaunchFactory": "0x0246688cef66734c1cada909cfd202e1448ba275",
     "bondDeploymentBlock": 48642000,
-    "directDeploymentBlock": 48642007
+    "directDeploymentBlock": 48647525
   },
   "robinhood": {
     "chainId": 4663,
