@@ -1,6 +1,6 @@
 # B20Base vNext deployment status
 
-Last updated: 15 July 2026
+Last updated: 16 July 2026
 
 ## Base mainnet
 
@@ -23,9 +23,11 @@ Base vNext was deployed at block `48678791`. All contracts below are source veri
 
 The first vNext Bond id is `23`; the first vNext Direct id is `2`. Legacy deployments remain indexed for historical tokens and are not the Base create-flow defaults.
 
-### Remaining activation gate
+### Live smoke evidence
 
-The Base deployer currently has no ETH. A low-value live Bond and Direct launch cannot be executed until it is funded. The Base fork test covers creation, exact-input buy/sell, native revenue routing and the sell-token burn against the canonical Uniswap v4 PoolManager; production activation still requires the planned controlled live smoke transaction.
+The controlled Base mainnet smoke passed for both launch routes. Bond launch `23` created token `0xb2000000000000000000003e9c47db410ad246b1` in transaction `0x5e13f071c84e6a3fb41abca17b5f99b5b9603b4ca362b4454daac9fcb0734d39`; its sell transaction `0x5cea97f5499b7c9ed85c443830d78e42938a37c3caaacd6ed4d35ccfbcebfebd` sent the exact 30 bps token fee to the dead address. Direct launch `2` created token `0xB20000000000000000000006655b4DeB2144ED87` in transaction `0x91c74fc4d1c410851a959efc541ee95648efa0d9f1296009656d015c8898ba72`; its exact-input sell `0xed059b29976ef53ee2a63ef5ed234e5246bbd1edd984e91816e1d415ec4aa91e` also produced the exact 30 bps burn.
+
+The same live sequence confirmed creator buy revenue, treasury accrual and automatic native ETH staking funding. The deployment is active.
 
 ## Robinhood Chain
 
@@ -44,8 +46,10 @@ Robinhood vNext was deployed at block `10703400`. New Bond launches begin at id 
 | Locked Direct liquidity | `0x8550c8f626993Ffb58A884CB4E9B5b8A9Ee2bDF6` |
 | Direct launch factory | `0x7De3165634679353a36886DCfe35e3521beee4A4` |
 
-Source verification is complete on Robinhood Blockscout. Low-value Bond and Direct smoke launches remain the final activation check.
+Source verification is complete on Robinhood Blockscout. The live smoke created Bond launch `2` (`0xa5aaB3A2552f9D456141E1FdF2f0EF6FB5B48c0F`) and Direct launch `1` (`0x8d735a9003069480498e5c64ab237e7e98e421d2`). Both routes completed initial buys and sells, each sell transferred the exact 30 bps token fee to the dead address, and the remote router accrued both treasury and bridge-reserve revenue. The deployment is active.
+
+The Robinhood Bond creation transaction is `0xb8624ba3f3132d7cb66dac0d0ff74a15c7def487ac671ff92222a7c823844422`; its sell is `0x508e5ef7553b7ae4dd503344fa4a47370b1eeeac0832ca0865095b33865dba61`. The Direct creation transaction is `0x7e74d02effeafdb01c87f8a202c2145a598b49fbb2bac8d16c0670807c58d446`; its sell is `0xb75c18e7d3cc1c92818466a6a87ca077df30e750a0785a6d5dc34ad4da78f883`.
 
 ## Release rule
 
-Publish the web app and both indexer processes together only after the remaining network gates pass. Do not enable emergency exit on the legacy BLUE staking vault until the V2 interface is deployed to production and a user withdrawal test succeeds.
+Web and both indexer processes must be published together whenever contract catalogs change. Do not enable emergency exit on the legacy BLUE staking vault until the V2 interface is deployed to production and a user withdrawal test succeeds.

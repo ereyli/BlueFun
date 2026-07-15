@@ -37,7 +37,7 @@ BLUE staking exists only on Base. Native ETH rewards stream over seven days and 
 
 All twelve deployment contracts, including the vault created by the router, are source-verified on BaseScan.
 
-Robinhood vNext is deployed from block `10703400` and integrated into the web/indexer catalogs. Historical deployments remain indexed against their original contracts. New creation stays behind `NEXT_PUBLIC_ROBINHOOD_VNEXT_ENABLED` until the final live smoke succeeds.
+Robinhood vNext is deployed from block `10703400` and integrated into the active web/indexer catalogs. Controlled Bond and Direct live smoke launches passed on both networks. Historical deployments remain indexed against their original contracts while all new creation uses vNext.
 
 - Governance: `0xa64ed8d4C4cAcFF075A4D1d50EE2F7795B4B0039`
 - Fee policy: `0x4D0baaCfb8267C8f7ca39756Bb29f924dDd72a6a`
@@ -70,6 +70,8 @@ The vNext gate also includes Slither review, Base/Robinhood deployment simulatio
 
 Copy `apps/web/.env.example` and `apps/indexer/.env.example`. Never commit deployer keys, RPC secrets, `SUPABASE_SERVICE_ROLE_KEY`, `DATABASE_URL`, `PINATA_JWT` or other credentials. Public application variables contain contract addresses only.
 
+The server-only `SITE_MAINTENANCE_MODE` switch controls the complete web interface. Set it to `true` in the web deployment environment and redeploy to show the maintenance screen on every page; set it back to `false` and redeploy to restore the application. It is intentionally not a public browser variable or unauthenticated HTTP toggle.
+
 Production topology uses one web application plus independent Base and Robinhood indexer workers. Indexer workers expose `/health` on port `3000` and should not receive public domains.
 
-See [Direct DEX and fee architecture](docs/direct-dex-launch.md) for hook, burn, custody and migration details, and [vNext deployment status](docs/vnext-deployment.md) for addresses, public transactions and remaining activation gates.
+See [Direct DEX and fee architecture](docs/direct-dex-launch.md) for hook, burn, custody and migration details, and [vNext deployment status](docs/vnext-deployment.md) for addresses and public smoke-test evidence.

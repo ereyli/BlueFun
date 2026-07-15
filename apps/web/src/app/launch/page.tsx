@@ -41,7 +41,6 @@ function LaunchPageContent() {
   const activeChainId = requestedChain ? chainIdFromParam(requestedChain) : chainId === 4663 ? 4663 : 8453;
   const { addresses, chain } = contractsForChain(activeChainId);
   const isRobinhood = chain.id === 4663;
-  const networkLaunchReady = !isRobinhood || process.env.NEXT_PUBLIC_ROBINHOOD_VNEXT_ENABLED === "true";
   const selectedFactory = launchMode === "direct" ? addresses.directLaunchFactory : addresses.launchFactory;
   const { data: hash, error, writeContract, isPending } = useWriteContract();
   const receipt = useWaitForTransactionReceipt({ hash });
@@ -80,9 +79,8 @@ function LaunchPageContent() {
   const metadataKey = imageUri
     ? `${name.trim()}:${symbol.trim()}:${imageUri}:${description.trim()}:${website.trim()}:${twitter.trim()}:${telegram.trim()}:${discord.trim()}`
     : "";
-  const disabled = !networkLaunchReady || !selectedFactory || !name.trim() || !symbol.trim() || !imageUri || Boolean(initialBuyError) || !directConfigReady;
+  const disabled = !selectedFactory || !name.trim() || !symbol.trim() || !imageUri || Boolean(initialBuyError) || !directConfigReady;
   const disabledReason = getDisabledReason({
-    networkLaunchReady,
     hasFactory: Boolean(selectedFactory),
     hasName: Boolean(name.trim()),
     hasSymbol: Boolean(symbol.trim()),
@@ -281,7 +279,6 @@ function LaunchPageContent() {
               <div><strong>Connect wallet to launch</strong><small>Use the wallet button in the header. Transactions will be sent on {chain.name}.</small></div>
             </div>
           ) : null}
-          {!networkLaunchReady ? <LaunchNotice tone="info">New Robinhood launches are paused until the vNext contracts are funded, verified and activated. Existing Robinhood tokens remain available in the market.</LaunchNotice> : null}
           <div className="launch-mode-picker" role="radiogroup" aria-label="Launch route">
             <button aria-checked={launchMode === "bond"} className={launchMode === "bond" ? "active" : ""} disabled={isWorking} onClick={() => setLaunchMode("bond")} role="radio" type="button">
               <TimerReset size={19} /><span><strong>Bond launch</strong><small>Trade on the fair curve, then graduate at {FAIR_GRADUATION_TARGET_ETH} ETH.</small></span>{launchMode === "bond" ? <CheckCircle2 size={17} /> : null}
@@ -537,7 +534,6 @@ function getLaunchStatus(input: {
 }
 
 function getDisabledReason(input: {
-  networkLaunchReady: boolean;
   hasFactory: boolean;
   hasName: boolean;
   hasSymbol: boolean;
@@ -547,7 +543,6 @@ function getDisabledReason(input: {
   initialBuyError: string;
   isConnected: boolean;
 }) {
-  if (!input.networkLaunchReady) return "Robinhood vNext activation is pending.";
   if (!input.isConnected) return "Connect your wallet to launch.";
   if (!input.hasFactory) return "Launch factory address is missing.";
   if (!input.hasName) return "Enter a token name.";

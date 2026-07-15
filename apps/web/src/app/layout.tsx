@@ -38,6 +38,36 @@ export const viewport: Viewport = {
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
+  const maintenanceMode = process.env.SITE_MAINTENANCE_MODE === "true";
+
+  if (maintenanceMode) {
+    return (
+      <html lang="en" suppressHydrationWarning>
+        <body className="maintenance-body">
+          <main className="maintenance-page">
+            <section className="maintenance-card" aria-labelledby="maintenance-title">
+              <div className="maintenance-brand">
+                <span><Image src="/brand/bluelogo.webp" alt="" width={40} height={40} priority /></span>
+                <div><strong>BlueFun</strong><small>Base + Robinhood</small></div>
+              </div>
+              <div className="maintenance-status"><i /> Scheduled pause</div>
+              <h1 id="maintenance-title">The launch desk is taking a short break.</h1>
+              <p>We are completing platform maintenance. Your tokens and onchain positions remain safe and available on their networks.</p>
+              <div className="maintenance-network-row">
+                <span><NetworkIcon chainId={8453} size={22} /> Base</span>
+                <span><NetworkIcon chainId={4663} size={22} /> Robinhood</span>
+              </div>
+              <footer>
+                <span>Onchain contracts continue to operate independently.</span>
+                <a href="https://x.com/BluefunLaunch" target="_blank" rel="noreferrer">Status updates on X</a>
+              </footer>
+            </section>
+          </main>
+        </body>
+      </html>
+    );
+  }
+
   return (
     <html lang="en" suppressHydrationWarning>
       <head>

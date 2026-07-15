@@ -15,7 +15,7 @@
     "bondDeploymentBlock": 48642000,
     "directDeploymentBlock": 48647525,
     "vNext": {
-      "status": "deployed-verified-smoke-pending",
+      "status": "active-smoke-verified",
       "governance": "0xA7DEa156cD6a0a8D5e0c25e94e20E670b426cF26",
       "feePolicy": "0xe5c5585aB34F8e2ba55C30Ef5E6b0254d87a4941",
       "revenueRouter": "0x18EdA8de1aFd6B6329BaF742A9eb73F93ec6B741",
@@ -61,7 +61,7 @@
     "bondDeploymentBlock": 9943107,
     "directDeploymentBlock": 10283960,
     "vNext": {
-      "status": "deployed-verified-smoke-pending",
+      "status": "active-smoke-verified",
       "governance": "0xa64ed8d4C4cAcFF075A4D1d50EE2F7795B4B0039",
       "feePolicy": "0x4D0baaCfb8267C8f7ca39756Bb29f924dDd72a6a",
       "revenueRouter": "0xF42f51728ddffF6B4a556175DC5E5b68a1e5371B",
