@@ -37,7 +37,14 @@ BLUE staking exists only on Base. Native ETH rewards stream over seven days and 
 
 All twelve deployment contracts, including the vault created by the router, are source-verified on BaseScan.
 
-Robinhood vNext artifacts and dry-run are complete. Mainnet activation remains pending sufficient deployer gas funding; Robinhood creation is disabled while the existing deployment remains available only for historical compatibility.
+Robinhood vNext is deployed from block `10703400` and integrated into the web/indexer catalogs. Historical deployments remain indexed against their original contracts. New creation stays behind `NEXT_PUBLIC_ROBINHOOD_VNEXT_ENABLED` until the final live smoke succeeds.
+
+- Governance: `0xa64ed8d4C4cAcFF075A4D1d50EE2F7795B4B0039`
+- Fee policy: `0x4D0baaCfb8267C8f7ca39756Bb29f924dDd72a6a`
+- Revenue router: `0xF42f51728ddffF6B4a556175DC5E5b68a1e5371B`
+- Unified fee hook: `0x4C77A461669c0345960dD33d415747c8932F60cC`
+- Bond factory: `0x32af28dfE63ff9e84399f0af51d5B84b4f3B3c62`
+- Direct factory: `0x7De3165634679353a36886DCfe35e3521beee4A4`
 
 ## Applications
 

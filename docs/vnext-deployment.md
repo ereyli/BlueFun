@@ -29,7 +29,22 @@ The Base deployer currently has no ETH. A low-value live Bond and Direct launch 
 
 ## Robinhood Chain
 
-The Robinhood vNext script compiles and its deployment dry-run passes, but it has not been broadcast. The deployer currently has no native ETH. The web and indexer therefore keep the verified legacy-compatible Robinhood addresses active and must not advertise Robinhood vNext until deployment, verification and smoke tests finish.
+Robinhood vNext was deployed at block `10703400`. New Bond launches begin at id `2` and new Direct launches begin at id `1`; older contracts remain in the read-only deployment catalog.
+
+| Component | Address |
+| --- | --- |
+| 7-day governance timelock | `0xa64ed8d4C4cAcFF075A4D1d50EE2F7795B4B0039` |
+| Fee policy | `0x4D0baaCfb8267C8f7ca39756Bb29f924dDd72a6a` |
+| Remote revenue router | `0xF42f51728ddffF6B4a556175DC5E5b68a1e5371B` |
+| Unified fee hook | `0x4C77A461669c0345960dD33d415747c8932F60cC` |
+| Bonding curve market | `0x2F46a783C1314e160d673F927464d85B7364D807` |
+| Locked Bond liquidity | `0x1122c6caB7520278f82928Fef1e35448419523B2` |
+| Graduation manager | `0x781b14110cd3A9377896722Bd9844c26d338e251` |
+| Bond launch factory | `0x32af28dfE63ff9e84399f0af51d5B84b4f3B3c62` |
+| Locked Direct liquidity | `0x8550c8f626993Ffb58A884CB4E9B5b8A9Ee2bDF6` |
+| Direct launch factory | `0x7De3165634679353a36886DCfe35e3521beee4A4` |
+
+Source verification is complete on Robinhood Blockscout. Low-value Bond and Direct smoke launches remain the final activation check.
 
 ## Release rule
 

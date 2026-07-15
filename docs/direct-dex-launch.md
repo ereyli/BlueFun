@@ -51,7 +51,7 @@ The locker can mint and account for the position but cannot withdraw principal o
 - Direct locker: `0x857f7D11474235D8cAfd79826d4D2E0d2B7dabd7`
 - Deployment block: `48678791`
 
-Robinhood vNext has passed local tests and mainnet dry-run. Its broadcast remains pending deployer gas funding.
+Robinhood vNext is deployed from block `10703400`. Its Direct factory is `0x7De3165634679353a36886DCfe35e3521beee4A4`, locker is `0x8550c8f626993Ffb58A884CB4E9B5b8A9Ee2bDF6` and unified hook is `0x4C77A461669c0345960dD33d415747c8932F60cC`.
 
 ## Compatibility
 

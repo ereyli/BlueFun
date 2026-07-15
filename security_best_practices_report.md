@@ -7,7 +7,7 @@ Scope: vNext contracts, deployment scripts, Foundry tests, Base fork execution a
 
 No known high or critical finding remains in the reviewed vNext scope. This is a repository-grounded engineering review, not an independent third-party audit, and it cannot guarantee the absence of undiscovered defects.
 
-Base vNext was deployed at block `48678791`; all twelve deployment contracts are source-verified on BaseScan. Robinhood vNext passed compilation, unit/invariant tests and mainnet dry-run but remains unbroadcast because the deployer does not yet hold the estimated gas requirement.
+Base vNext was deployed at block `48678791`; all twelve deployment contracts are source-verified on BaseScan. Robinhood vNext was deployed at block `10703400`; all eleven deployment contracts are source-verified on Robinhood Blockscout. Robinhood creation remains gated until its low-value Bond and Direct live smoke succeeds.
 
 ## Security properties
 

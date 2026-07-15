@@ -111,7 +111,7 @@ const FEE_SHARING_ROBINHOOD_DEPLOYMENT: ContractDeployment = {
   firstLaunchId: 1n
 };
 
-export const robinhoodAddresses: ContractDeployment = {
+const MAINNET_ROBINHOOD_DEPLOYMENT: ContractDeployment = {
   version: "current",
   launchFactory: "0xb880ea1d3453968243722b9c1529870c796b060f",
   bondingCurveMarket: "0x2d6d77652facbbcae05c0dc3aed792b94cd61fa8",
@@ -119,11 +119,25 @@ export const robinhoodAddresses: ContractDeployment = {
   liquidityLocker: "0x6e77d6418b9065cc947dba95bd1cbba3ca881318",
   deploymentBlock: 9943107n,
   firstLaunchId: 2n,
+  directLaunchFactory: "0x9d0e5d76ca2d79ca6ab0c800763eb8e5c39a5079",
+  directLiquidityLocker: "0xe0158cb5c659e95e0ef461e1f7518c4f3b557e81",
+  directDeploymentBlock: 10283960n
+};
+
+export const robinhoodAddresses: ContractDeployment = {
+  version: "vnext",
+  launchFactory: "0x32af28dfe63ff9e84399f0af51d5b84b4f3b3c62",
+  bondingCurveMarket: "0x2f46a783c1314e160d673f927464d85b7364d807",
+  graduationManager: "0x781b14110cd3a9377896722bd9844c26d338e251",
+  liquidityLocker: "0x1122c6cab7520278f82928fef1e35448419523b2",
+  deploymentBlock: 10703400n,
+  firstLaunchId: 2n,
   directLaunchFactory: (process.env.NEXT_PUBLIC_ROBINHOOD_DIRECT_LAUNCH_FACTORY
-    || "0x9d0e5d76ca2d79ca6ab0c800763eb8e5c39a5079") as `0x${string}`,
+    || "0x7de3165634679353a36886dcfe35e3521beee4a4") as `0x${string}`,
   directLiquidityLocker: (process.env.NEXT_PUBLIC_ROBINHOOD_DIRECT_LIQUIDITY_LOCKER
-    || "0xe0158cb5c659e95e0ef461e1f7518c4f3b557e81") as `0x${string}`,
-  directDeploymentBlock: BigInt(process.env.NEXT_PUBLIC_ROBINHOOD_DIRECT_DEPLOYMENT_BLOCK || "10283960")
+    || "0x8550c8f626993ffb58a884cb4e9b5b8a9ee2bdf6") as `0x${string}`,
+  directDeploymentBlock: BigInt(process.env.NEXT_PUBLIC_ROBINHOOD_DIRECT_DEPLOYMENT_BLOCK || "10703400"),
+  feeHook: "0x4c77a461669c0345960dd33d415747c8932f60cc"
 };
 
 export const legacyBaseAddresses = LEGACY_BASE_DEPLOYMENT;
@@ -131,14 +145,14 @@ export const legacyRobinhoodAddresses = LEGACY_ROBINHOOD_DEPLOYMENT;
 
 export function deploymentsForChain(chainId: number | undefined): ContractDeployment[] {
   const catalog = chainId === robinhoodChain.id
-    ? [LEGACY_ROBINHOOD_DEPLOYMENT, FEE_SHARING_ROBINHOOD_DEPLOYMENT, robinhoodAddresses]
+    ? [LEGACY_ROBINHOOD_DEPLOYMENT, FEE_SHARING_ROBINHOOD_DEPLOYMENT, MAINNET_ROBINHOOD_DEPLOYMENT, robinhoodAddresses]
     : [LEGACY_BASE_DEPLOYMENT, FEE_SHARING_BASE_DEPLOYMENT, MAINNET_DEPLOYMENT, VNEXT_BASE_DEPLOYMENT];
   return Array.from(new Map(catalog.map((deployment) => [deployment.bondingCurveMarket, deployment])).values());
 }
 
 function directDeploymentsForChain(chainId: number): ContractDeployment[] {
   return chainId === robinhoodChain.id
-    ? [robinhoodAddresses]
+    ? [MAINNET_ROBINHOOD_DEPLOYMENT, robinhoodAddresses]
     : [MAINNET_DEPLOYMENT, VNEXT_BASE_DEPLOYMENT];
 }
 

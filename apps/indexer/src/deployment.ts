@@ -71,7 +71,14 @@ export const mainnetDeployment: IndexerDeployment = robinhood ? {
   startBlock: 48642000n
 };
 
-export const vNextDeployment: IndexerDeployment | undefined = robinhood ? undefined : {
+export const vNextDeployment: IndexerDeployment = robinhood ? {
+  version: "vnext",
+  launchFactory: "0x32af28dfe63ff9e84399f0af51d5b84b4f3b3c62",
+  bondingCurveMarket: "0x2f46a783c1314e160d673f927464d85b7364d807",
+  graduationManager: "0x781b14110cd3a9377896722bd9844c26d338e251",
+  liquidityLocker: "0x1122c6cab7520278f82928fef1e35448419523b2",
+  startBlock: 10703400n
+} : {
   version: "vnext",
   launchFactory: "0x820344fb4c0a518d0caef5d3de96ff41cbe6b345",
   bondingCurveMarket: "0x7d42dd1435e9567c1edfb513c45c8ea82fe03a38",
@@ -88,14 +95,14 @@ export const deployments = Array.from(
 
 const configuredDirectFactory = (process.env.DIRECT_LAUNCH_FACTORY
   || (robinhood
-    ? "0x9d0e5d76ca2d79ca6ab0c800763eb8e5c39a5079"
+    ? "0x7de3165634679353a36886dcfe35e3521beee4a4"
     : "0x0246688cef66734c1cada909cfd202e1448ba275")) as `0x${string}`;
 const configuredDirectLocker = (process.env.DIRECT_LIQUIDITY_LOCKER
   || (robinhood
-    ? "0xe0158cb5c659e95e0ef461e1f7518c4f3b557e81"
+    ? "0x8550c8f626993ffb58a884cb4e9b5b8a9ee2bdf6"
     : "0x2e83029d88d0af58ba55b31980dc709920fab941")) as `0x${string}`;
 const configuredDirectStartBlock = BigInt(
-  process.env.DIRECT_DEPLOYMENT_BLOCK || (robinhood ? "10283960" : "48647525")
+  process.env.DIRECT_DEPLOYMENT_BLOCK || (robinhood ? "10703400" : "48647525")
 );
 const configuredDirectDeployment: DirectIndexerDeployment | undefined =
   configuredDirectFactory && configuredDirectLocker && configuredDirectStartBlock > 0n
@@ -119,7 +126,12 @@ const legacyCurrentDirectDeployment: DirectIndexerDeployment = robinhood ? {
   scope: `${chainId}:direct:0x0246688cef66734c1cada909cfd202e1448ba275:48647525`
 };
 
-const vNextDirectDeployment: DirectIndexerDeployment | undefined = robinhood ? undefined : {
+const vNextDirectDeployment: DirectIndexerDeployment = robinhood ? {
+  launchFactory: "0x7de3165634679353a36886dcfe35e3521beee4a4",
+  liquidityLocker: "0x8550c8f626993ffb58a884cb4e9b5b8a9ee2bdf6",
+  startBlock: 10703400n,
+  scope: `${chainId}:direct:0x7de3165634679353a36886dcfe35e3521beee4a4:10703400`
+} : {
   launchFactory: "0x394c5d0244b49e1eed533cd3505583e504589157",
   liquidityLocker: "0x857f7d11474235d8cafd79826d4d2e0d2b7dabd7",
   startBlock: 48678791n,

@@ -68,10 +68,10 @@ const productionContracts = [
     bondLocker: robinhoodAddresses.liquidityLocker,
     directFactory: robinhoodAddresses.directLaunchFactory,
     directLocker: robinhoodAddresses.directLiquidityLocker,
-    directHook: "0xebdabdc79bb91faee2c4142d4a4b95f4adfce0c4",
-    feePolicy: undefined,
-    revenueRouter: undefined,
-    version: "Legacy compatible"
+    directHook: "0x4c77a461669c0345960dd33d415747c8932f60cc",
+    feePolicy: "0x4d0baacfb8267c8f7ca39756bb29f924ddd72a6a",
+    revenueRouter: "0xf42f51728ddfff6b4a556175dc5e5b68a1e5371b",
+    version: "vNext"
   }
 ] as const;
 
@@ -178,7 +178,7 @@ export default async function DocsPage() {
               </tbody>
             </table>
           </div>
-          <Callout tone="success" title="Creators earn from buys only">On Base vNext, sell burns and ETH routing happen atomically with each trade. No fee sync or manual LP-fee collection is required. Robinhood vNext activation is pending.</Callout>
+          <Callout tone="success" title="Creators earn from buys only">On both vNext networks, sell burns and ETH routing happen atomically with each trade. No fee sync or manual LP-fee collection is required.</Callout>
         </section>
 
         <section className="docs-section" id="liquidity">
@@ -258,7 +258,7 @@ export default async function DocsPage() {
         </section>
 
         <section className="docs-section" id="contracts">
-          <SectionTitle eyebrow="Mainnet references" title="Current production contracts" description="Base new launches use vNext. Robinhood new launches remain paused until its vNext deployment is funded and verified; historical launches stay connected to their original contracts." />
+          <SectionTitle eyebrow="Mainnet references" title="Current production contracts" description="Base uses vNext. Robinhood vNext is deployed and integrated but creation remains gated until its final live smoke; historical launches stay connected to their original contracts." />
           <div className="docs-contract-networks">
             {productionContracts.map((network) => <article key={network.name}>
               <header><div><Network size={18} /><span><strong>{network.name}</strong><small>{network.standard}</small></span></div><span className="docs-live-pill">{network.version}</span></header>
