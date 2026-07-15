@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 import { formatEther, maxUint256, parseEther, zeroAddress } from "viem";
-import { useAccount, useBalance, useChainId, useReadContract, useReadContracts, useSignMessage, useSwitchChain, useWaitForTransactionReceipt, useWriteContract } from "wagmi";
+import { useAccount, useBalance, useChainId, useReadContract, useReadContracts, useSignMessage, useSignTypedData, useSwitchChain, useWaitForTransactionReceipt, useWriteContract } from "wagmi";
 import { ArrowDownUp, Copy, ExternalLink, Loader2, LockKeyhole, RotateCcw, Settings, ShieldCheck, Sparkles } from "lucide-react";
 import type {
   CandlestickData,
@@ -18,7 +18,6 @@ import {
   bondingCurveAbi,
   contractsForChain,
   contractsForLaunch,
-  feeSharingLockerAbi,
   graduationManagerAbi,
   indexerScopeForLaunch,
   liquidityLockerPoolAbi,
@@ -49,7 +48,7 @@ import { NetworkIcon } from "@/components/network-icon";
 import { chatMessageToSign } from "@/lib/chat-auth";
 
 const MAX_UINT160 = (1n << 160n) - 1n;
-const MAX_UINT48 = 281_474_976_710_655;
+const PERMIT2_SESSION_SECONDS = 30 * 24 * 60 * 60;
 
 type DexPairSnapshot = {
   priceUsd: number;
@@ -71,6 +70,7 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
   const [marketDataState, setMarketDataState] = useState<MarketDataState>("idle");
   const [realtimeStatus, setRealtimeStatus] = useState<RealtimeStatus>("connecting");
   const [chainSwitchError, setChainSwitchError] = useState("");
+  const [tradeFlowError, setTradeFlowError] = useState("");
   const { address, isConnected } = useAccount();
   const chainId = useChainId();
   const { switchChainAsync, isPending: isSwitchingChain } = useSwitchChain();
@@ -90,6 +90,7 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
     }
   }
   const { data: hash, error, writeContract, isPending } = useWriteContract();
+  const { signTypedDataAsync, isPending: isSigningPermit } = useSignTypedData();
   const receipt = useWaitForTransactionReceipt({ hash });
   const parsedAmount = parsePositiveEther(amount);
   const isDirect = launch?.launchMode === "direct";
@@ -128,37 +129,6 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
     args: [BigInt(id), parsedAmount],
     query: { enabled: readEnabled && mode === "sell" }
   });
-  const accountFeeBalance = useReadContract({
-    address: addresses.bondingCurveMarket,
-    abi: bondingCurveAbi,
-    functionName: "pendingFees",
-    args: [address!],
-    query: { enabled: Boolean(!isDirect && addresses.bondingCurveMarket && address) }
-  });
-  const feeSharingEnabled = Boolean(
-    launch?.positionId && (launch.launchMode === "direct" || addresses.version !== "legacy")
-  );
-  const lpFeeRevenue = useReadContract({
-    address: liquidityLockerAddress,
-    abi: feeSharingLockerAbi,
-    functionName: "feeRevenue",
-    args: [launch?.positionId ?? `0x${"0".repeat(64)}`],
-    query: { enabled: feeSharingEnabled }
-  });
-  const lpNativePending = useReadContract({
-    address: liquidityLockerAddress,
-    abi: feeSharingLockerAbi,
-    functionName: "pendingFees",
-    args: [address ?? zeroAddress, zeroAddress],
-    query: { enabled: Boolean(feeSharingEnabled && address) }
-  });
-  const lpTokenPending = useReadContract({
-    address: liquidityLockerAddress,
-    abi: feeSharingLockerAbi,
-    functionName: "pendingFees",
-    args: [address ?? zeroAddress, launch?.token ?? zeroAddress],
-    query: { enabled: Boolean(feeSharingEnabled && address && launch?.token) }
-  });
   const tokenAllowance = useReadContract({
     address: launch?.token,
     abi: b20TokenAbi,
@@ -178,14 +148,22 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
     abi: b20TokenAbi,
     functionName: "allowance",
     args: [address ?? zeroAddress, uniswapV4Addresses.permit2],
-    query: { enabled: Boolean(isGraduated && mode === "sell" && launch?.token && address) }
+    query: {
+      enabled: Boolean(isGraduated && mode === "sell" && launch?.token && address),
+      refetchInterval: mode === "sell" ? 4_000 : false,
+      refetchOnWindowFocus: true
+    }
   });
   const graduatedPermit2RouterAllowance = useReadContract({
     address: uniswapV4Addresses.permit2,
     abi: permit2Abi,
     functionName: "allowance",
     args: [address ?? zeroAddress, launch?.token ?? zeroAddress, uniswapV4Addresses.universalRouter],
-    query: { enabled: Boolean(isGraduated && mode === "sell" && launch?.token && address) }
+    query: {
+      enabled: Boolean(isGraduated && mode === "sell" && launch?.token && address),
+      refetchInterval: mode === "sell" ? 4_000 : false,
+      refetchOnWindowFocus: true
+    }
   });
   const graduatedQuote = useReadContract({
     address: uniswapV4Addresses.quoter,
@@ -213,7 +191,7 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
   const quoteFromFallback = Boolean(!graduatedQuote.data?.[0] && graduatedQuote.error && fallbackGraduatedQuote);
   const graduatedQuotedOut = graduatedQuote.data?.[0] ?? (quoteFromFallback ? fallbackGraduatedQuote : undefined);
   const graduatedMinOut = graduatedQuotedOut ? applySlippage(graduatedQuotedOut, slippageBps) : 0n;
-  const isWorking = isPending || receipt.isLoading;
+  const isWorking = isPending || receipt.isLoading || isSigningPermit;
   const sellBalance = tokenBalance.data ?? 0n;
   const spotPriceEth = launch ? parseDisplayAmount(launch.price) : 0;
   const priceImpact = quotedOut
@@ -232,9 +210,10 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
   const permit2Amount = graduatedPermit2RouterAllowance.data?.[0] ?? 0n;
   const permit2Expiration = graduatedPermit2RouterAllowance.data?.[1] ?? 0;
   const needsGraduatedTokenApproval = Boolean(isGraduated && mode === "sell" && parsedAmount > 0n && (graduatedTokenPermit2Allowance.data ?? 0n) < parsedAmount);
-  const needsGraduatedPermit2Approval = Boolean(isGraduated && mode === "sell" && parsedAmount > 0n && !needsGraduatedTokenApproval && (permit2Amount < parsedAmount || BigInt(permit2Expiration) <= BigInt(Math.floor(Date.now() / 1000) + 900)));
+  const needsGraduatedPermit2Signature = Boolean(isGraduated && mode === "sell" && parsedAmount > 0n && !needsGraduatedTokenApproval && (permit2Amount < parsedAmount || BigInt(permit2Expiration) <= BigInt(Math.floor(Date.now() / 1000) + 900)));
+  const graduatedApprovalLoading = Boolean(mode === "sell" && (graduatedTokenPermit2Allowance.isLoading || graduatedPermit2RouterAllowance.isLoading));
   const graduatedBuyDisabled = !launch || !isConnected || wrongNetwork || isWorking || mode !== "buy" || parsedAmount === 0n || exceedsEthBalance || graduatedMinOut === 0n;
-  const graduatedSellDisabled = !launch || !isConnected || wrongNetwork || isWorking || mode !== "sell" || parsedAmount === 0n || exceedsSellBalance || (!needsGraduatedTokenApproval && !needsGraduatedPermit2Approval && graduatedMinOut === 0n);
+  const graduatedSellDisabled = !launch || !isConnected || wrongNetwork || isWorking || graduatedApprovalLoading || mode !== "sell" || parsedAmount === 0n || exceedsSellBalance || (!needsGraduatedTokenApproval && graduatedMinOut === 0n);
   const latestMarketCapEth = useMemo(() => {
     return trades
       .slice()
@@ -267,13 +246,6 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
     : isGraduated
       ? dexPair?.priceUsd ? formatUsdPrice(dexPair.priceUsd) : marketDataState === "loading" ? "Loading…" : "Unavailable"
       : formatUsdFromEthText(displayPrice, ethUsd, true);
-  const showCreatorEarnings = Boolean(address && (
-    address.toLowerCase() === launch?.creator.toLowerCase()
-    || (!isDirect && (accountFeeBalance.data ?? 0n) > 0n)
-    || (lpNativePending.data ?? 0n) > 0n
-    || (lpTokenPending.data ?? 0n) > 0n
-  ));
-
   useEffect(() => {
     if (!receipt.isSuccess) return;
     const timeout = window.setTimeout(() => router.refresh(), 1_200);
@@ -282,11 +254,8 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
     graduatedTokenPermit2Allowance.refetch();
     graduatedPermit2RouterAllowance.refetch();
     graduatedQuote.refetch();
-    lpFeeRevenue.refetch();
-    lpNativePending.refetch();
-    lpTokenPending.refetch();
     return () => window.clearTimeout(timeout);
-  }, [graduatedPermit2RouterAllowance, graduatedQuote, graduatedTokenPermit2Allowance, lpFeeRevenue, lpNativePending, lpTokenPending, receipt.isSuccess, router, tokenAllowance, tokenBalance]);
+  }, [graduatedPermit2RouterAllowance, graduatedQuote, graduatedTokenPermit2Allowance, receipt.isSuccess, router, tokenAllowance, tokenBalance]);
 
   useEffect(() => {
     const refreshWhenVisible = () => {
@@ -451,35 +420,43 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
     });
   }
 
-  function approveGraduatedPermit2Router() {
-    if (!launch || parsedAmount === 0n) return;
-    writeContract({
-      chainId: activeChainId,
-      address: uniswapV4Addresses.permit2,
-      abi: permit2Abi,
-      functionName: "approve",
-      args: [launch.token, uniswapV4Addresses.universalRouter, MAX_UINT160, MAX_UINT48]
-    });
-  }
+  async function sellGraduated() {
+    if (!launch || !address || parsedAmount === 0n || graduatedMinOut === 0n) return;
+    setTradeFlowError("");
+    try {
+      const now = Math.floor(Date.now() / 1000);
+      const permit = needsGraduatedPermit2Signature ? await createPermit2Signature({
+        account: address,
+        amount: MAX_UINT160,
+        chainId: activeChainId,
+        expiration: now + PERMIT2_SESSION_SECONDS,
+        nonce: Number(graduatedPermit2RouterAllowance.data?.[2] ?? 0),
+        permit2: uniswapV4Addresses.permit2,
+        sigDeadline: BigInt(now + 900),
+        spender: uniswapV4Addresses.universalRouter,
+        token: launch.token,
+        signTypedDataAsync
+      }) : undefined;
+      const swap = buildV4TokenToEthSwap({
+        amountIn: parsedAmount,
+        amountOutMinimum: graduatedMinOut,
+        token: launch.token,
+        poolFee: launch.poolFee,
+        tickSpacing: launch.tickSpacing,
+        hooks: poolHooks,
+        permit
+      });
 
-  function sellGraduated() {
-    if (!launch || parsedAmount === 0n || graduatedMinOut === 0n) return;
-    const swap = buildV4TokenToEthSwap({
-      amountIn: parsedAmount,
-      amountOutMinimum: graduatedMinOut,
-      token: launch.token,
-      poolFee: launch.poolFee,
-      tickSpacing: launch.tickSpacing,
-      hooks: poolHooks
-    });
-
-    writeContract({
-      chainId: activeChainId,
-      address: uniswapV4Addresses.universalRouter,
-      abi: universalRouterAbi,
-      functionName: "execute",
-      args: [swap.commands, swap.inputs, BigInt(Math.floor(Date.now() / 1000) + 900)]
-    });
+      writeContract({
+        chainId: activeChainId,
+        address: uniswapV4Addresses.universalRouter,
+        abi: universalRouterAbi,
+        functionName: "execute",
+        args: [swap.commands, swap.inputs, BigInt(now + 900)]
+      });
+    } catch (sellError) {
+      setTradeFlowError(sellError instanceof Error ? sellError.message : "Permit signature could not be completed.");
+    }
   }
 
   function approveSell() {
@@ -512,38 +489,6 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
       abi: graduationManagerAbi,
       functionName: "graduate",
       args: [BigInt(id)]
-    });
-  }
-
-  function claimFees() {
-    if (isDirect || !addresses.bondingCurveMarket) return;
-    writeContract({
-      chainId: activeChainId,
-      address: addresses.bondingCurveMarket,
-      abi: bondingCurveAbi,
-      functionName: "claimFees"
-    });
-  }
-
-  function collectLpFees() {
-    if (!launch?.positionId || (launch.launchMode !== "direct" && addresses.version === "legacy")) return;
-    writeContract({
-      chainId: activeChainId,
-      address: liquidityLockerAddress,
-      abi: feeSharingLockerAbi,
-      functionName: "collectFees",
-      args: [launch.positionId]
-    });
-  }
-
-  function claimLpFees(currency: `0x${string}`) {
-    if (launch?.launchMode !== "direct" && addresses.version === "legacy") return;
-    writeContract({
-      chainId: activeChainId,
-      address: liquidityLockerAddress,
-      abi: feeSharingLockerAbi,
-      functionName: "claimFees",
-      args: [currency]
     });
   }
 
@@ -643,20 +588,21 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
         {isGraduated ? (
           <GraduatedTradeCard
             amount={amount}
-            error={error?.message}
+            approvalLoading={graduatedApprovalLoading}
+            error={tradeFlowError || error?.message}
             exceedsEthBalance={exceedsEthBalance}
             exceedsSellBalance={exceedsSellBalance}
             isConnected={isConnected}
             isPending={isPending}
+            isSigningPermit={isSigningPermit}
             isSwitchingNetwork={isSwitchingChain}
             isWorking={isWorking}
             chainSwitchError={chainSwitchError}
             launch={launch}
             minOut={graduatedMinOut}
             mode={mode}
-            needsPermit2Approval={needsGraduatedPermit2Approval}
+            needsPermit2Signature={needsGraduatedPermit2Signature}
             needsTokenApproval={needsGraduatedTokenApproval}
-            onApprovePermit2={approveGraduatedPermit2Router}
             onApproveToken={approveGraduatedTokenPermit2}
             onBuy={buyGraduated}
             onSwitchNetwork={switchWalletNetwork}
@@ -803,61 +749,6 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
           </section>
         ) : null}
 
-        {feeSharingEnabled ? <section className="side-compact-card lp-revenue-card">
-          <div className="side-card-head">
-            <span>Locked LP revenue</span>
-            <strong>70% / 30%</strong>
-          </div>
-          <div className="lp-revenue-grid">
-            <div>
-              <span>Total ETH fees</span>
-              <strong>{formatQuote(lpFeeRevenue.data?.[0] ?? 0n, "ETH")}</strong>
-            </div>
-            <div>
-              <span>Total token fees</span>
-              <strong>{formatQuote(lpFeeRevenue.data?.[1] ?? 0n, launch.symbol)}</strong>
-            </div>
-          </div>
-          <p className="trade-helper">LP principal stays permanently locked. Collected fees split 70% to BlueFun and 30% to the creator.</p>
-          <button className="button secondary wide" disabled={!isConnected || isWorking} onClick={collectLpFees} type="button">
-            {isWorking ? <Loader2 className="spin" size={16} /> : <RotateCcw size={16} />}
-            Sync LP fees
-          </button>
-        </section> : null}
-
-        {showCreatorEarnings ? <section className="side-compact-card">
-          <div className="side-card-head">
-            <span>{isDirect ? "Your LP earnings" : "Your earnings"}</span>
-            <strong>{formatQuote(isDirect ? (lpNativePending.data ?? 0n) : (accountFeeBalance.data ?? 0n), "ETH")}</strong>
-          </div>
-          {!isDirect ? <button
-            className="button primary wide"
-            disabled={!isConnected || isWorking || !accountFeeBalance.data}
-            onClick={claimFees}
-            type="button"
-          >
-            {isWorking ? <Loader2 className="spin" size={16} /> : null}
-            {isPending ? "Confirm in wallet" : receipt.isLoading ? "Claiming" : "Claim curve fees"}
-          </button> : null}
-          {feeSharingEnabled ? <div className="lp-claim-actions">
-            <button
-              className="button secondary wide"
-              disabled={!isConnected || isWorking || !lpNativePending.data}
-              onClick={() => claimLpFees(zeroAddress)}
-              type="button"
-            >
-              Claim {formatQuote(lpNativePending.data ?? 0n, "ETH")}
-            </button>
-            <button
-              className="button secondary wide"
-              disabled={!isConnected || isWorking || !lpTokenPending.data}
-              onClick={() => claimLpFees(launch.token)}
-              type="button"
-            >
-              Claim {formatQuote(lpTokenPending.data ?? 0n, launch.symbol)}
-            </button>
-          </div> : null}
-        </section> : null}
       </aside>
     </div>
   );
@@ -1034,20 +925,21 @@ function xShareUrl(launch: DeployedLaunch) {
 
 function GraduatedTradeCard({
   amount,
+  approvalLoading,
   chainSwitchError,
   error,
   exceedsEthBalance,
   exceedsSellBalance,
   isConnected,
   isPending,
+  isSigningPermit,
   isSwitchingNetwork,
   isWorking,
   launch,
   minOut,
   mode,
-  needsPermit2Approval,
+  needsPermit2Signature,
   needsTokenApproval,
-  onApprovePermit2,
   onApproveToken,
   onBuy,
   onSwitchNetwork,
@@ -1068,24 +960,25 @@ function GraduatedTradeCard({
   wrongNetwork
 }: {
   amount: string;
+  approvalLoading: boolean;
   chainSwitchError: string;
   error?: string;
   exceedsEthBalance: boolean;
   exceedsSellBalance: boolean;
   isConnected: boolean;
   isPending: boolean;
+  isSigningPermit: boolean;
   isSwitchingNetwork: boolean;
   isWorking: boolean;
   launch: DeployedLaunch;
   minOut: bigint;
   mode: "buy" | "sell";
-  needsPermit2Approval: boolean;
+  needsPermit2Signature: boolean;
   needsTokenApproval: boolean;
-  onApprovePermit2: () => void;
   onApproveToken: () => void;
   onBuy: () => void;
   onSwitchNetwork: () => void;
-  onSell: () => void;
+  onSell: () => void | Promise<void>;
   quote?: bigint;
   quoteFromFallback: boolean;
   quoteLoading: boolean;
@@ -1212,27 +1105,31 @@ function GraduatedTradeCard({
             <button
               className="button primary wide trade-submit sell"
               disabled={tradeDisabled}
-              onClick={needsTokenApproval ? onApproveToken : needsPermit2Approval ? onApprovePermit2 : onSell}
+              onClick={needsTokenApproval ? onApproveToken : onSell}
               type="button"
             >
               {isWorking ? <Loader2 className="spin" size={16} /> : <ArrowDownUp size={16} />}
-              {isPending
+              {isSigningPermit
+                ? "Sign in wallet…"
+                : isPending
                 ? "Confirm in wallet"
                 : isWorking
-                  ? needsTokenApproval || needsPermit2Approval ? "Approving" : "Selling"
+                  ? needsTokenApproval ? "Approving" : "Selling"
+                  : approvalLoading
+                    ? "Checking approvals…"
                   : exceedsSellBalance
                     ? "Insufficient balance"
                     : needsTokenApproval
-                      ? "Approve Permit2"
-                      : needsPermit2Approval
-                        ? "Approve router"
+                      ? `Approve $${launch.symbol}`
+                      : needsPermit2Signature
+                        ? `Sign & sell $${launch.symbol}`
                         : `Sell $${launch.symbol}`}
             </button>
             <span className="trade-helper">
               {needsTokenApproval
-                ? "One-time token approval lets Permit2 access this token."
-                : needsPermit2Approval
-                  ? "One-time Permit2 approval lets the router execute sells."
+                ? "One-time approval lets Permit2 access this token. This is the only onchain approval."
+                : needsPermit2Signature
+                  ? "A gasless Permit2 signature enables selling for 30 days and is bundled into this sale. No second approval transaction."
                   : "Selling routes through the locked Uniswap v4 pool."}
             </span>
           </>
@@ -1246,6 +1143,7 @@ function GraduatedTradeCard({
         <ExternalLink size={16} />
         Trade on Uniswap
       </a>
+      {launch.launchMode === "direct" ? <span className="trade-helper external-route-note">New v4 hook pools may take time to appear in Uniswap Labs routing. BlueFun quotes this pool directly onchain.</span> : null}
       <a className="button wide" href={`${chain.blockExplorers.default.url}/token/${launch.token}`} target="_blank" rel="noreferrer">
         View token
       </a>
@@ -1299,6 +1197,52 @@ function uniswapSwapUrl(token: `0x${string}`, chainName: string, direction: "buy
   const inputCurrency = direction === "buy" ? "ETH" : token;
   const outputCurrency = direction === "buy" ? token : "ETH";
   return `https://app.uniswap.org/swap?chain=${chainName}&inputCurrency=${inputCurrency}&outputCurrency=${outputCurrency}`;
+}
+
+async function createPermit2Signature({
+  account,
+  amount,
+  chainId,
+  expiration,
+  nonce,
+  permit2,
+  sigDeadline,
+  signTypedDataAsync,
+  spender,
+  token
+}: {
+  account: `0x${string}`;
+  amount: bigint;
+  chainId: number;
+  expiration: number;
+  nonce: number;
+  permit2: `0x${string}`;
+  sigDeadline: bigint;
+  signTypedDataAsync: ReturnType<typeof useSignTypedData>["signTypedDataAsync"];
+  spender: `0x${string}`;
+  token: `0x${string}`;
+}) {
+  const details = { token, amount, expiration, nonce };
+  const signature = await signTypedDataAsync({
+    account,
+    domain: { name: "Permit2", chainId, verifyingContract: permit2 },
+    types: {
+      PermitDetails: [
+        { name: "token", type: "address" },
+        { name: "amount", type: "uint160" },
+        { name: "expiration", type: "uint48" },
+        { name: "nonce", type: "uint48" }
+      ],
+      PermitSingle: [
+        { name: "details", type: "PermitDetails" },
+        { name: "spender", type: "address" },
+        { name: "sigDeadline", type: "uint256" }
+      ]
+    },
+    primaryType: "PermitSingle",
+    message: { details, spender, sigDeadline }
+  });
+  return { details, spender, sigDeadline, signature };
 }
 
 function RecentTrades({ trades, symbol, chainId: launchChainId }: { trades: DeployedTrade[]; symbol: string; chainId: number }) {

@@ -66,7 +66,6 @@ function LaunchPageContent() {
     query: { enabled: launchMode === "direct" && Boolean(addresses.directLaunchFactory) }
   });
   const directPoolFee = Number(directLaunchConfig.data?.[0] ?? 10_000);
-  const directPlatformShare = Number(directLaunchConfig.data?.[5] ?? 7_000);
   const directCreatorShare = Number(directLaunchConfig.data?.[6] ?? 3_000);
   const directConfigReady = launchMode !== "direct" || Boolean(directLaunchConfigHash.data);
 
@@ -360,7 +359,7 @@ function LaunchPageContent() {
                 <dl>
                   <div><dt>Token standard</dt><dd>{isRobinhood ? "ERC-20" : "B20"}</dd></div>
                   <div><dt>Supply / creator allocation</dt><dd>1B / 0%</dd></div>
-                  <div><dt>Trading fee</dt><dd>{launchMode === "direct" ? `${formatPercent(directPoolFee, 1_000_000)} total · ${formatPercent(directPlatformShare, 10_000)} platform / ${formatPercent(directCreatorShare, 10_000)} creator` : "1% total · 70% platform / 30% creator"}</dd></div>
+                  <div><dt>Trading fee</dt><dd>{launchMode === "direct" ? `${formatPercent(directPoolFee, 1_000_000)} total · creator receives ${formatPercent(directCreatorShare, 10_000)}` : "1% total · creator receives 30%"}</dd></div>
                   <div><dt>Launch route</dt><dd>{launchMode === "direct" ? "Immediate locked Uniswap v4 pool" : `${FAIR_GRADUATION_TARGET_ETH} ETH bond → Uniswap v4`}</dd></div>
                   <div><dt>Launch fee</dt><dd>{formatEth(launchFeeEth)} ETH</dd></div>
                   {launchMode === "bond" ? <div><dt>Initial buy</dt><dd>{formatEth(initialBuyEth)} ETH</dd></div> : null}

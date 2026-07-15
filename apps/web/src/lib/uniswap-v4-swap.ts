@@ -9,6 +9,18 @@ export type BlueFunV4PoolKey = {
   hooks: `0x${string}`;
 };
 
+export type Permit2Single = {
+  details: {
+    token: `0x${string}`;
+    amount: bigint;
+    expiration: number;
+    nonce: number;
+  };
+  spender: `0x${string}`;
+  sigDeadline: bigint;
+  signature: `0x${string}`;
+};
+
 export function blueFunV4PoolKey(
   token: `0x${string}`,
   config: { fee?: number; tickSpacing?: number; hooks?: `0x${string}` } = {}
@@ -108,7 +120,8 @@ export function buildV4TokenToEthSwap({
   token,
   poolFee,
   tickSpacing,
-  hooks
+  hooks,
+  permit
 }: {
   amountIn: bigint;
   amountOutMinimum: bigint;
@@ -116,6 +129,7 @@ export function buildV4TokenToEthSwap({
   poolFee?: number;
   tickSpacing?: number;
   hooks?: `0x${string}`;
+  permit?: Permit2Single;
 }) {
   const poolKey = blueFunV4PoolKey(token, { fee: poolFee, tickSpacing, hooks });
   const actions = "0x060c0f" as const;
@@ -176,8 +190,35 @@ export function buildV4TokenToEthSwap({
     [actions, [swapExactInSingle, settleAll, takeAll]]
   );
 
+  if (!permit) return { commands: "0x10" as const, inputs: [input] };
+
+  const permitInput = encodeAbiParameters(
+    [
+      {
+        name: "permitSingle",
+        type: "tuple",
+        components: [
+          {
+            name: "details",
+            type: "tuple",
+            components: [
+              { name: "token", type: "address" },
+              { name: "amount", type: "uint160" },
+              { name: "expiration", type: "uint48" },
+              { name: "nonce", type: "uint48" }
+            ]
+          },
+          { name: "spender", type: "address" },
+          { name: "sigDeadline", type: "uint256" }
+        ]
+      },
+      { name: "signature", type: "bytes" }
+    ],
+    [{ details: permit.details, spender: permit.spender, sigDeadline: permit.sigDeadline }, permit.signature]
+  );
+
   return {
-    commands: "0x10" as const,
-    inputs: [input]
+    commands: "0x0a10" as const,
+    inputs: [permitInput, input]
   };
 }

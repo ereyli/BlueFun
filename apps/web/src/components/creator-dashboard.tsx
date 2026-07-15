@@ -7,7 +7,7 @@ import { formatEther, formatUnits, zeroAddress } from "viem";
 import { useAccount, useReadContracts, useSwitchChain, useWriteContract } from "wagmi";
 import { ArrowUpRight, BarChart3, Coins, ExternalLink, Layers3, Loader2, LockKeyhole, RefreshCw, Rocket, Sparkles, Wallet, WalletCards } from "lucide-react";
 import { NetworkIcon, networkMeta } from "@/components/network-icon";
-import { b20TokenAbi, bondingCurveAbi, deploymentsForChain, feeSharingLockerAbi } from "@/lib/contracts";
+import { b20TokenAbi, bondingCurveAbi, deploymentsForChain, feeSharingLockerAbi, indexerScopeForDeployment } from "@/lib/contracts";
 import type { WalletDashboardData, WalletTradeSummary } from "@/lib/dashboard-types";
 import type { DeployedLaunch } from "@/lib/onchain-launches";
 import { optimizedTokenImageUrl } from "@/lib/token-metadata";
@@ -15,8 +15,6 @@ import { tokenPath } from "@/lib/token-url";
 
 type DashboardTab = "overview" | "launches" | "holdings";
 type ActionState = { key: string; message?: string; error?: string };
-
-const supportedChains = [8453, 4663] as const;
 
 export function CreatorDashboard() {
   const { address, isConnected } = useAccount();
@@ -51,13 +49,23 @@ export function CreatorDashboard() {
     return () => controller.abort();
   }, [address]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const feeSources = useMemo(() => supportedChains.flatMap((chainId) =>
-    deploymentsForChain(chainId).map((deployment) => ({
-      chainId,
-      address: deployment.bondingCurveMarket,
-      label: `${networkMeta(chainId).name} · ${deployment.version}`
-    }))
-  ), []);
+  const feeSources = useMemo(() => {
+    const seen = new Set<string>();
+    return data.created.flatMap((launch) => {
+      if (launch.launchMode === "direct") return [];
+      const deployment = deploymentsForChain(launch.chainId)
+        .find((candidate) => launch.scope === indexerScopeForDeployment(launch.chainId, candidate));
+      if (!deployment) return [];
+      const key = `${launch.chainId}:${deployment.bondingCurveMarket.toLowerCase()}`;
+      if (seen.has(key)) return [];
+      seen.add(key);
+      return [{
+        chainId: launch.chainId,
+        address: deployment.bondingCurveMarket,
+        label: `${networkMeta(launch.chainId).name} · ${deployment.version}`
+      }];
+    });
+  }, [data.created]);
 
   const lockerSources = useMemo(() => {
     const seen = new Set<string>();
@@ -72,7 +80,7 @@ export function CreatorDashboard() {
 
   const bondFees = useReadContracts({
     contracts: feeSources.map((source) => ({ chainId: source.chainId, address: source.address, abi: bondingCurveAbi, functionName: "pendingFees", args: [address!] })),
-    query: { enabled: Boolean(address) }
+    query: { enabled: Boolean(address && feeSources.length) }
   });
   const lockerNativeFees = useReadContracts({
     contracts: lockerSources.map((source) => ({ chainId: source.chainId, address: source.address, abi: feeSharingLockerAbi, functionName: "pendingFees", args: [address!, zeroAddress] })),
@@ -163,8 +171,8 @@ export function CreatorDashboard() {
             <StatCard icon={<BarChart3 />} label="Creator volume" value={`${compactNumber(totalVolume)} ETH`} detail="Across your launches" />
           </section>
 
-          <section className="dashboard-overview-grid">
-            <div className="dashboard-panel earnings-panel">
+          <section className={`dashboard-overview-grid${data.created.length ? "" : " single"}`}>
+            {data.created.length ? <div className="dashboard-panel earnings-panel">
               <PanelHeading icon={<Coins size={17} />} eyebrow="Creator revenue" title="Fee earnings" detail="Balances are read directly from each contract." />
               <div className="earnings-total"><span>Ready to claim</span><strong>{formatNative(totalPending)} ETH</strong></div>
               <div className="earnings-list">
@@ -182,7 +190,7 @@ export function CreatorDashboard() {
                 })}
                 {totalPending === 0n ? <EmptyCompact icon={<LockKeyhole size={19} />} title="No fees ready yet" text="New creator fees will appear here as trades happen." /> : null}
               </div>
-            </div>
+            </div> : null}
 
             <div className="dashboard-panel recent-panel">
               <PanelHeading icon={<Layers3 size={17} />} eyebrow="At a glance" title="Recent launches" detail="Your newest creator activity." />
@@ -250,7 +258,7 @@ function CompactLaunch({ launch }: { launch: DeployedLaunch }) {
 }
 
 function LaunchDashboardCard({ claimingToken, collecting, creatorNative, creatorToken, launch, onClaimToken, onCollect, pendingToken }: { claimingToken: boolean; collecting: boolean; creatorNative: bigint; creatorToken: bigint; launch: DeployedLaunch; onClaimToken?: () => void; onCollect?: () => void; pendingToken: bigint }) {
-  return <article className="launch-dashboard-card"><header><TokenAvatar launch={launch} /><div><Link href={tokenPath(launch)}>{launch.name} <ExternalLink size={12} /></Link><span>${launch.symbol}</span></div><NetworkIcon chainId={launch.chainId} size={24} /></header><div className="launch-card-badges"><span className="status">{launch.status}</span><span>{launch.launchMode === "direct" ? "Direct DEX" : "Bond curve"}</span>{launch.positionId ? <span className="locked"><LockKeyhole size={11} /> LP locked</span> : null}</div><div className="launch-card-metrics"><div><span>Volume</span><strong>{launch.volume}</strong></div><div><span>{launch.launchMode === "bond" ? "Bond progress" : "Pool fee"}</span><strong>{launch.launchMode === "bond" ? `${launch.progress}%` : `${(launch.poolFee ?? 10000) / 10000}%`}</strong></div></div>{launch.launchMode === "bond" && launch.status !== "Graduated" ? <div className="dashboard-progress"><span style={{ width: `${Math.min(100, launch.progress)}%` }} /></div> : null}{launch.positionId ? <div className="launch-fee-box"><span>Creator LP revenue collected</span><strong>{formatNative(creatorNative)} ETH <small>+ {formatTokenAmount(creatorToken)} ${launch.symbol}</small></strong>{pendingToken > 0n ? <em>{formatTokenAmount(pendingToken)} ${launch.symbol} ready to claim</em> : null}<div className="launch-fee-actions">{onCollect ? <button disabled={collecting} onClick={onCollect} type="button">{collecting ? <Loader2 className="spin" size={13} /> : <RefreshCw size={13} />} Collect latest</button> : null}{onClaimToken ? <button disabled={claimingToken} onClick={onClaimToken} type="button">{claimingToken ? <Loader2 className="spin" size={13} /> : <Coins size={13} />} Claim ${launch.symbol}</button> : null}</div></div> : <div className="launch-fee-box muted"><span>Creator fees</span><strong>Bond fees appear in Overview</strong></div>}<Link className="launch-card-link" href={tokenPath(launch)}>Open token page <ArrowUpRight size={14} /></Link></article>;
+  return <article className="launch-dashboard-card"><header><TokenAvatar launch={launch} /><div><Link href={tokenPath(launch)}>{launch.name} <ExternalLink size={12} /></Link><span>${launch.symbol}</span></div><NetworkIcon chainId={launch.chainId} size={24} /></header><div className="launch-card-badges"><span className="status">{launch.status}</span><span>{launch.launchMode === "direct" ? "Direct DEX" : "Bond curve"}</span>{launch.positionId ? <span className="locked"><LockKeyhole size={11} /> LP locked</span> : null}</div><div className="launch-card-metrics"><div><span>Volume</span><strong>{launch.volume}</strong></div><div><span>{launch.launchMode === "bond" ? "Bond progress" : "Pool fee"}</span><strong>{launch.launchMode === "bond" ? `${launch.progress}%` : `${(launch.poolFee ?? 10000) / 10000}%`}</strong></div></div>{launch.launchMode === "bond" && launch.status !== "Graduated" ? <div className="dashboard-progress"><span style={{ width: `${Math.min(100, launch.progress)}%` }} /></div> : null}{launch.positionId ? <div className="launch-fee-box"><span>Your collected LP earnings</span><strong>{formatNative(creatorNative)} ETH <small>+ {formatTokenAmount(creatorToken)} ${launch.symbol}</small></strong>{pendingToken > 0n ? <em>{formatTokenAmount(pendingToken)} ${launch.symbol} ready to claim</em> : null}<div className="launch-fee-actions">{onCollect ? <button disabled={collecting} onClick={onCollect} title="Moves newly accrued Uniswap LP fees into your claimable dashboard balance." type="button">{collecting ? <Loader2 className="spin" size={13} /> : <RefreshCw size={13} />} Update earnings</button> : null}{onClaimToken ? <button disabled={claimingToken} onClick={onClaimToken} type="button">{claimingToken ? <Loader2 className="spin" size={13} /> : <Coins size={13} />} Claim ${launch.symbol}</button> : null}</div></div> : <div className="launch-fee-box muted"><span>Creator fees</span><strong>Bond fees appear in Overview</strong></div>}<Link className="launch-card-link" href={tokenPath(launch)}>Open token page <ArrowUpRight size={14} /></Link></article>;
 }
 
 function HoldingRow({ holding }: { holding: WalletTradeSummary & { balance: bigint } }) {
