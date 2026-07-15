@@ -1107,7 +1107,7 @@ button:disabled,
 
 .launch-preview-art img {
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
   width: 100%;
 }
 
@@ -1328,7 +1328,7 @@ button:disabled,
 .upload-box img {
   display: block;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
   width: 100%;
 }
 

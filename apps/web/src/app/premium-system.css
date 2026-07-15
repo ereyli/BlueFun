@@ -1679,11 +1679,11 @@ html[data-theme="dark"] .market-details-disclosure { background: #0e0e11; border
 }
 .token-card-visual > .token-art .token-image {
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
   transition: transform 240ms var(--ease-out);
   width: 100%;
 }
-.token-card:hover .token-card-visual > .token-art .token-image { transform: scale(1.025); }
+.token-card:hover .token-card-visual > .token-art .token-image { transform: none; }
 .token-card-visual > .token-art .token-symbol-art { font-size: clamp(25px,3vw,42px); }
 .token-card-visual-badges {
   align-items: flex-start;
