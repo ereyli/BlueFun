@@ -30,6 +30,7 @@ export async function POST(request: Request) {
   const name = cleanText(form.get("name"), 80);
   const symbol = cleanText(form.get("symbol"), 20).toUpperCase();
   const chainId = Number(cleanText(form.get("chainId"), 8));
+  const launchMode = cleanText(form.get("launchMode"), 10) === "direct" ? "direct" : "bond";
   const network = chainId === 4663 ? "Robinhood Chain" : chainId === 8453 ? "Base" : "";
   const standard = chainId === 4663 ? "ERC-20" : chainId === 8453 ? "B20" : "";
   const description = cleanText(form.get("description"), 500);
@@ -95,7 +96,10 @@ export async function POST(request: Request) {
         { trait_type: "Network", value: network },
         { trait_type: "Token Standard", value: standard },
         { trait_type: "Launchpad", value: "BlueFun" },
-        { trait_type: "Graduation Target", value: "5 ETH" }
+        { trait_type: "Launch Route", value: launchMode === "direct" ? "Direct DEX" : "Bonding Curve" },
+        launchMode === "direct"
+          ? { trait_type: "Liquidity", value: "Permanently locked Uniswap v4" }
+          : { trait_type: "Graduation Target", value: "5 ETH" }
       ]
     };
 

@@ -148,7 +148,7 @@ function LaunchPageContent() {
       if (!imageUri) return;
       try {
         setIsMetadataUploading(true);
-        launchMetadataUri = await uploadMetadata(name.trim(), symbol.trim(), imageUri, activeChainId, getProjectDetails());
+        launchMetadataUri = await uploadMetadata(name.trim(), symbol.trim(), imageUri, activeChainId, launchMode, getProjectDetails());
         setMetadataUri(launchMetadataUri);
         setMetadataUploadKey(metadataKey);
       } catch (metadataError) {
@@ -622,6 +622,7 @@ async function uploadMetadata(
   symbol: string,
   imageUri: string,
   chainId: number,
+  launchMode: "bond" | "direct",
   details?: { description: string; website: string; twitter: string; telegram: string; discord: string }
 ) {
   const form = new FormData();
@@ -629,6 +630,7 @@ async function uploadMetadata(
   form.append("name", name);
   form.append("symbol", symbol);
   form.append("chainId", String(chainId));
+  form.append("launchMode", launchMode);
   form.append("description", details?.description || "");
   form.append("website", details?.website || "");
   form.append("twitter", details?.twitter || "");
