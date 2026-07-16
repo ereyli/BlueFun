@@ -4,8 +4,11 @@ import { blueStakingAddresses } from "@/lib/contracts";
 import { baseRpcUrls } from "@/lib/rpc";
 
 const DEPLOYMENT_BLOCK = blueStakingAddresses.deploymentBlock;
-const LOG_CHUNK = 50_000n;
+// Base's public RPC accepts historical log scans in ranges of at most 10,000 blocks.
+// Keeping every request within that shared limit also makes per-provider fallback reliable.
+const LOG_CHUNK = 10_000n;
 
+const rpcUrls = baseRpcUrls();
 const client = createPublicClient({
   chain: {
     ...baseChain,
@@ -16,8 +19,14 @@ const client = createPublicClient({
       }
     }
   },
-  transport: fallback(baseRpcUrls().map((url) => http(url, { retryCount: 0, timeout: 8_000 })), { rank: true, retryCount: 0 })
+  transport: fallback(rpcUrls.map((url) => http(url, { retryCount: 0, timeout: 8_000 })), { rank: true, retryCount: 0 })
 });
+const logClients = rpcUrls.map((url) => createPublicClient({
+  chain: baseChain,
+  transport: http(url, { retryCount: 0, timeout: 8_000 })
+}));
+type StakingLogClient = (typeof logClients)[number];
+let preferredLogClientIndex = 0;
 
 const stakedEvent = parseAbiItem("event Staked(address indexed account, uint256 amount)");
 const rewardsFundedEvent = parseAbiItem("event RewardsFunded(address indexed distributor, uint256 amount, uint256 rewardRate, uint256 periodFinish)");
@@ -70,11 +79,29 @@ export type BlueStakingOverview = {
   }>;
 };
 
-async function getLogsInChunks<T>(latest: bigint, reader: (fromBlock: bigint, toBlock: bigint) => Promise<T[]>) {
+async function readLogsWithRpcFallback<T>(reader: (rpcClient: StakingLogClient) => Promise<T[]>) {
+  let lastError: unknown;
+  for (let offset = 0; offset < logClients.length; offset += 1) {
+    const clientIndex = (preferredLogClientIndex + offset) % logClients.length;
+    try {
+      const logs = await reader(logClients[clientIndex]);
+      preferredLogClientIndex = clientIndex;
+      return logs;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError instanceof Error ? lastError : new Error("Every Base RPC failed to return staking logs.");
+}
+
+async function getLogsInChunks<T>(
+  latest: bigint,
+  reader: (rpcClient: StakingLogClient, fromBlock: bigint, toBlock: bigint) => Promise<T[]>
+) {
   const logs: T[] = [];
   for (let fromBlock = DEPLOYMENT_BLOCK; fromBlock <= latest; fromBlock += LOG_CHUNK) {
     const toBlock = fromBlock + LOG_CHUNK - 1n > latest ? latest : fromBlock + LOG_CHUNK - 1n;
-    logs.push(...await reader(fromBlock, toBlock));
+    logs.push(...await readLogsWithRpcFallback((rpcClient) => reader(rpcClient, fromBlock, toBlock)));
   }
   return logs;
 }
@@ -82,9 +109,9 @@ async function getLogsInChunks<T>(latest: bigint, reader: (fromBlock: bigint, to
 export async function getBlueStakingOverview(): Promise<BlueStakingOverview> {
   const latest = await client.getBlockNumber();
   const [stakeLogs, fundedLogs, paidLogs, poolState, stakingShareBps] = await Promise.all([
-    getLogsInChunks(latest, (fromBlock, toBlock) => client.getLogs({ address: blueStakingAddresses.vault, event: stakedEvent, fromBlock, toBlock })),
-    getLogsInChunks(latest, (fromBlock, toBlock) => client.getLogs({ address: blueStakingAddresses.vault, event: rewardsFundedEvent, fromBlock, toBlock })),
-    getLogsInChunks(latest, (fromBlock, toBlock) => client.getLogs({ address: blueStakingAddresses.vault, event: rewardPaidEvent, fromBlock, toBlock })),
+    getLogsInChunks(latest, (rpcClient, fromBlock, toBlock) => rpcClient.getLogs({ address: blueStakingAddresses.vault, event: stakedEvent, fromBlock, toBlock })),
+    getLogsInChunks(latest, (rpcClient, fromBlock, toBlock) => rpcClient.getLogs({ address: blueStakingAddresses.vault, event: rewardsFundedEvent, fromBlock, toBlock })),
+    getLogsInChunks(latest, (rpcClient, fromBlock, toBlock) => rpcClient.getLogs({ address: blueStakingAddresses.vault, event: rewardPaidEvent, fromBlock, toBlock })),
     client.multicall({ contracts: [
       { address: blueStakingAddresses.vault, abi: vaultReadAbi, functionName: "totalActiveStake" },
       { address: blueStakingAddresses.vault, abi: vaultReadAbi, functionName: "totalCoolingStake" },
