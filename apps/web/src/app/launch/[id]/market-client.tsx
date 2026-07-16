@@ -39,7 +39,7 @@ import {
   parseDisplayAmount,
   shortAddress
 } from "@/lib/market-math";
-import { isOfficialBlue, isTrustedLaunch } from "@/lib/featured-launches";
+import { isOfficialBlue } from "@/lib/featured-launches";
 import type { DeployedLaunch, DeployedTrade } from "@/lib/onchain-launches";
 import { chainSlug } from "@/lib/chain-slug";
 import { tokenPath } from "@/lib/token-url";
@@ -522,7 +522,6 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
     return <div className="empty">Loading market...</div>;
   }
 
-  const trusted = isTrustedLaunch(launch);
   const officialBlue = isOfficialBlue(launch);
 
   return (
@@ -534,9 +533,7 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
             <div className="market-title-block">
               <div className="market-title-row">
                 <h1>{launch.name}</h1>
-                {officialBlue
-                  ? <span className="trusted-badge official-blue-badge"><ShieldCheck size={13} />Official BLUE</span>
-                  : trusted ? <span className="trusted-badge"><ShieldCheck size={13} />Trusted</span> : null}
+                {officialBlue ? <span className="trusted-badge official-blue-badge"><ShieldCheck size={13} />Official BLUE</span> : null}
                 <span className={launch.status === "Live" ? "token-status live" : "token-status"}>{isDirect ? "Direct DEX" : launch.status === "Live" ? "Bonding" : launch.status === "Ready" ? "Bonded" : launch.status}</span>
               </div>
               <div className="market-meta">

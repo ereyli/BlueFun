@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState, useTransition, type ReactNode } from "react";
 import Link from "next/link";
 import { Activity, BarChart3, Clock3, Coins, LayoutGrid, Layers3, List, LockKeyhole, Rocket, Search, Sparkles, Trophy, TrendingUp, Zap } from "lucide-react";
-import { isFeaturedLaunch, isOfficialBlue, isTrustedLaunch } from "@/lib/featured-launches";
+import { isFeaturedLaunch, isOfficialBlue } from "@/lib/featured-launches";
 import { compactUsd, parseDisplayAmount } from "@/lib/market-math";
 import type { DbLaunchMetrics, LaunchBuyActivity } from "@/lib/db-launches";
 import type { DeployedLaunch } from "@/lib/onchain-launches";
@@ -267,7 +267,6 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metri
         ) : (
           <div className="market-pulse-rail">
             {pulseLaunches.map((launch) => {
-              const trusted = isTrustedLaunch(launch);
               const officialBlue = isOfficialBlue(launch);
               const activity = activityByLaunch.get(launch.id);
               const isHot = hotLaunchId === launch.id;
@@ -275,7 +274,7 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metri
               <Link className={isHot ? "market-pulse-item hot" : "market-pulse-item"} href={tokenPath(launch)} key={`pulse-${launch.id}-${launch.token}`}>
                 <TokenAvatar launch={launch} hot={isHot} />
                 <div className="market-pulse-copy">
-                  <strong>${launch.symbol}{officialBlue ? <span>Official</span> : trusted ? <span>Trusted</span> : null}</strong>
+                  <strong>${launch.symbol}{officialBlue ? <span>Official</span> : null}</strong>
                   <small>{activity ? `Buy ${formatActivityAge(activity.createdAt)}` : `Launched ${launch.age}`}</small>
                 </div>
                 <div className="market-pulse-value">
@@ -348,7 +347,6 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metri
           {displayedLaunches.map((launch, index) => {
             const direct = launch.launchMode === "direct";
             const featured = isFeaturedLaunch(launch);
-            const trusted = isTrustedLaunch(launch);
             const officialBlue = isOfficialBlue(launch);
             const isHot = hotLaunchId === launch.id;
             const activity = activityByLaunch.get(launch.id);
@@ -369,7 +367,7 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metri
               </div>
               <div className="token-card-content">
                 <div className="token-card-identity">
-                  <div className="token-title">{launch.name}{officialBlue ? <span>Official BLUE</span> : trusted ? <span>Trusted</span> : null}</div>
+                  <div className="token-title">{launch.name}{officialBlue ? <span>Official BLUE</span> : null}</div>
                   <div className="token-symbol">${launch.symbol}<span className={activity ? "token-activity-signal active" : "token-activity-signal"}><i />{activity ? `Buy ${formatActivityAge(activity.createdAt)}` : launch.age}</span></div>
                 </div>
                 <div className="token-market-row">
