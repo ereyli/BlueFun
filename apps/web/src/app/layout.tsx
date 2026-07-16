@@ -21,6 +21,9 @@ export const metadata: Metadata = {
   metadataBase: new URL(siteUrl("/")),
   title: "BlueFun",
   description: "Fair multichain token launches on Base and Robinhood Chain.",
+  other: {
+    "base:app_id": "6a594e1358aaa84e3d06752c"
+  },
   icons: {
     icon: [{ url: "/brand/bluelogo.webp", type: "image/webp" }],
     apple: "/brand/bluelogo.webp"
