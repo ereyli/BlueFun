@@ -9,6 +9,7 @@ import { useEffect, useState } from "react";
 import { baseChain } from "@/lib/base-chain";
 import { robinhoodChain } from "@/lib/robinhood-chain";
 import { baseRpcUrls, robinhoodRpcUrls } from "@/lib/rpc";
+import { BLUEFUN_DATA_SUFFIX } from "@/lib/base-builder-code";
 
 const baseTransports = baseRpcUrls().map((url) => http(url));
 const robinhoodTransport = fallback(robinhoodRpcUrls().map((url) => http(url)), { rank: true, retryCount: 1 });
@@ -21,6 +22,7 @@ const config = getDefaultConfig({
     [baseChain.id]: fallback(baseTransports, { rank: true, retryCount: 1 }),
     [robinhoodChain.id]: robinhoodTransport
   },
+  dataSuffix: BLUEFUN_DATA_SUFFIX,
   ssr: true
 });
 
