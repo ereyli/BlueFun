@@ -29,7 +29,7 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metri
   const [ethUsd, setEthUsd] = useState<number | null>(null);
   const [dexMarketCaps, setDexMarketCaps] = useState<Map<string, number>>(new Map());
   const [activityByLaunch, setActivityByLaunch] = useState<Map<string, LaunchBuyActivity>>(new Map());
-  const [hotLaunchId, setHotLaunchId] = useState<string>();
+  const [hotLaunchKey, setHotLaunchKey] = useState<string>();
   const [isPending, startTransition] = useTransition();
   const tokensRef = useRef<HTMLDivElement>(null);
   const activityBlocksRef = useRef<Map<string, bigint>>(new Map());
@@ -43,7 +43,7 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metri
     setQuery("");
     setFilter("All");
     setActivityByLaunch(new Map());
-    setHotLaunchId(undefined);
+    setHotLaunchKey(undefined);
     activityBlocksRef.current = new Map();
     activityReadyRef.current = false;
   }, [chainId, initialLaunches, totalLaunches]);
@@ -88,22 +88,22 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metri
         const payload = await response.json() as { activity?: LaunchBuyActivity[] };
         if (!response.ok || !active) return;
         const items = payload.activity ?? [];
-        const nextBlocks = new Map(items.map((item) => [item.launchId, safeBlockNumber(item.blockNumber)]));
+        const nextBlocks = new Map(items.map((item) => [activityKey(item), safeBlockNumber(item.blockNumber)]));
 
         if (activityReadyRef.current) {
           const fresh = items
-            .filter((item) => safeBlockNumber(item.blockNumber) > (activityBlocksRef.current.get(item.launchId) ?? 0n))
+            .filter((item) => safeBlockNumber(item.blockNumber) > (activityBlocksRef.current.get(activityKey(item)) ?? 0n))
             .sort((a, b) => compareBlocks(b.blockNumber, a.blockNumber))[0];
           if (fresh) {
-            setHotLaunchId(fresh.launchId);
+            setHotLaunchKey(activityKey(fresh));
             window.clearTimeout(highlightTimer);
-            highlightTimer = window.setTimeout(() => setHotLaunchId(undefined), 4_000);
+            highlightTimer = window.setTimeout(() => setHotLaunchKey(undefined), 4_000);
           }
         }
 
         activityBlocksRef.current = nextBlocks;
         activityReadyRef.current = true;
-        setActivityByLaunch(new Map(items.map((item) => [item.launchId, item])));
+        setActivityByLaunch(new Map(items.map((item) => [activityKey(item), item])));
       } catch (error) {
         if (!(error instanceof DOMException && error.name === "AbortError")) {
           // The launch feed remains usable if the lightweight activity pulse is unavailable.
@@ -199,7 +199,10 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metri
   const pulseLaunches = useMemo(() => {
     return [...initialLaunches]
       .sort((a, b) => {
-        const activityDelta = compareBlocks(activityByLaunch.get(b.id)?.blockNumber, activityByLaunch.get(a.id)?.blockNumber);
+        const activityDelta = compareBlocks(
+          activityByLaunch.get(activityKey(b))?.blockNumber,
+          activityByLaunch.get(activityKey(a))?.blockNumber
+        );
         if (activityDelta !== 0) return activityDelta;
         const featuredDelta = Number(isFeaturedLaunch(b)) - Number(isFeaturedLaunch(a));
         if (featuredDelta !== 0) return featuredDelta;
@@ -268,8 +271,9 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metri
           <div className="market-pulse-rail">
             {pulseLaunches.map((launch) => {
               const officialBlue = isOfficialBlue(launch);
-              const activity = activityByLaunch.get(launch.id);
-              const isHot = hotLaunchId === launch.id;
+              const key = activityKey(launch);
+              const activity = activityByLaunch.get(key);
+              const isHot = hotLaunchKey === key;
               return (
               <Link className={isHot ? "market-pulse-item hot" : "market-pulse-item"} href={tokenPath(launch)} key={`pulse-${launch.id}-${launch.token}`}>
                 <TokenAvatar launch={launch} hot={isHot} />
@@ -348,8 +352,9 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metri
             const direct = launch.launchMode === "direct";
             const featured = isFeaturedLaunch(launch);
             const officialBlue = isOfficialBlue(launch);
-            const isHot = hotLaunchId === launch.id;
-            const activity = activityByLaunch.get(launch.id);
+            const key = activityKey(launch);
+            const isHot = hotLaunchKey === key;
+            const activity = activityByLaunch.get(key);
             const hasMarketCap = launch.marketCap.trim().toLowerCase() !== "live" && parseDisplayAmount(launch.marketCap) > 0;
             const dexMarketCap = dexMarketCaps.get(launch.token.toLowerCase());
             const marketCapEth = hasMarketCap ? launch.marketCap : direct ? "Live" : estimateCurveMarketCapEth(launch.raised);
@@ -497,6 +502,11 @@ function compareLaunchIds(left: string, right: string) {
 function compareLaunchCreated(left: DeployedLaunch, right: DeployedLaunch) {
   const blockDelta = compareBlocks(left.createdBlock, right.createdBlock);
   return blockDelta || compareLaunchIds(left.id, right.id);
+}
+
+function activityKey(item: Pick<LaunchBuyActivity, "scope" | "launchId"> | Pick<DeployedLaunch, "scope" | "id">) {
+  const launchId = "launchId" in item ? item.launchId : item.id;
+  return `${item.scope ?? ""}:${launchId}`;
 }
 
 function paginationItems(current: number, total: number): Array<number | "…"> {

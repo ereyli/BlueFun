@@ -18,6 +18,7 @@ export type DbLaunchMetrics = {
 };
 
 export type LaunchBuyActivity = {
+  scope: string;
   launchId: string;
   blockNumber: string;
   createdAt: string;
@@ -543,7 +544,7 @@ export async function getDbRecentBuyActivity(chainId = 8453, limit = 80): Promis
     if (hasSupabaseConfig()) {
       const response = await getSupabase()
         .from("trades")
-        .select("launch_id, block_number, created_at")
+        .select("scope, launch_id, block_number, created_at")
         .in("scope", context.scopes)
         .eq("side", "buy")
         .gte("block_number", context.deploymentBlock)
@@ -556,7 +557,7 @@ export async function getDbRecentBuyActivity(chainId = 8453, limit = 80): Promis
       if (!process.env.DATABASE_URL) return undefined;
       pool ??= new pg.Pool({ connectionString: process.env.DATABASE_URL, connectionTimeoutMillis: 500, idleTimeoutMillis: 1_000, max: 2 });
       const result = await withTimeout(pool.query(
-        `select launch_id, block_number, created_at
+        `select scope, launch_id, block_number, created_at
          from trades
          where scope = any($1::text[])
            and side = 'buy'
@@ -570,10 +571,12 @@ export async function getDbRecentBuyActivity(chainId = 8453, limit = 80): Promis
 
     const seen = new Set<string>();
     return rows.flatMap((row) => {
+      const scope = String(row.scope || "");
       const launchId = String(row.launch_id || "");
-      if (!launchId || seen.has(launchId)) return [];
-      seen.add(launchId);
-      return [{ launchId, blockNumber: String(row.block_number || "0"), createdAt: String(row.created_at || "") }];
+      const activityKey = `${scope}:${launchId}`;
+      if (!scope || !launchId || seen.has(activityKey)) return [];
+      seen.add(activityKey);
+      return [{ scope, launchId, blockNumber: String(row.block_number || "0"), createdAt: String(row.created_at || "") }];
     });
   } catch (error) {
     console.error("Failed to read recent buy activity", error);
