@@ -1,6 +1,6 @@
 import { createPublicClient, fallback, formatUnits, getAddress, http, zeroAddress } from "viem";
 import { baseChain } from "@/lib/base-chain";
-import { b20TokenAbi, bondingCurveAbi, legacyBaseAddresses } from "@/lib/contracts";
+import { b20TokenAbi, blueStakingAddresses, bondingCurveAbi, legacyBaseAddresses } from "@/lib/contracts";
 import { baseRpcUrls } from "@/lib/rpc";
 
 export const OFFICIAL_BLUE_TOKEN = "0xb200000000000000000000af2d07754b927109bc" as const;
@@ -29,7 +29,7 @@ export type BlueTransparencyData = {
     initialLiquidityAllocation: string;
   };
   allocations: Array<{
-    id: "creator" | "burn" | "holders";
+    id: "creator" | "staking" | "burn" | "holders";
     label: string;
     description: string;
     address?: string;
@@ -52,7 +52,7 @@ export async function getBlueTransparency(): Promise<BlueTransparencyData> {
   ]);
 
   const creator = getAddress(launch[1]);
-  const [creatorBalance, burnBalance] = await Promise.all([
+  const [creatorBalance, stakingBalance, burnBalance] = await Promise.all([
     client.readContract({
       address: OFFICIAL_BLUE_TOKEN,
       abi: b20TokenAbi,
@@ -63,10 +63,16 @@ export async function getBlueTransparency(): Promise<BlueTransparencyData> {
       address: OFFICIAL_BLUE_TOKEN,
       abi: b20TokenAbi,
       functionName: "balanceOf",
+      args: [blueStakingAddresses.vault]
+    }),
+    client.readContract({
+      address: OFFICIAL_BLUE_TOKEN,
+      abi: b20TokenAbi,
+      functionName: "balanceOf",
       args: [BLUE_BURN_WALLET]
     })
   ]);
-  const holderBalance = totalSupply - creatorBalance - burnBalance;
+  const holderBalance = totalSupply - creatorBalance - stakingBalance - burnBalance;
   const share = (amount: bigint) => totalSupply === 0n ? 0 : Number(((amount * 10_000n) / totalSupply)) / 100;
 
   return {
@@ -96,6 +102,16 @@ export async function getBlueTransparency(): Promise<BlueTransparencyData> {
         color: "#6f8fff"
       },
       {
+        id: "staking",
+        label: "Staked BLUE",
+        description: "BLUE currently held by the staking vault, read live onchain.",
+        address: blueStakingAddresses.vault,
+        balance: formatUnits(stakingBalance, 18),
+        rawBalance: stakingBalance.toString(),
+        percent: share(stakingBalance),
+        color: "#38c993"
+      },
+      {
         id: "burn",
         label: "Burn wallet",
         description: "BLUE sent to the standard dead address, read live onchain.",
@@ -108,7 +124,7 @@ export async function getBlueTransparency(): Promise<BlueTransparencyData> {
       {
         id: "holders",
         label: "Other wallets",
-        description: "Supply outside the disclosed creator and burn wallets. Includes LP custody and holders.",
+        description: "Supply outside the disclosed creator, staking and burn wallets. Includes LP custody and holders.",
         balance: formatUnits(holderBalance < 0n ? 0n : holderBalance, 18),
         rawBalance: (holderBalance < 0n ? 0n : holderBalance).toString(),
         percent: share(holderBalance < 0n ? 0n : holderBalance),

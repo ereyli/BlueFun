@@ -17,17 +17,21 @@ function quantity(value: string) {
 
 function DistributionChart({ data }: { data: BlueTransparencyData }) {
   const creator = data.allocations.find((item) => item.id === "creator");
+  const staking = data.allocations.find((item) => item.id === "staking");
   const burn = data.allocations.find((item) => item.id === "burn");
   const holders = data.allocations.find((item) => item.id === "holders");
   const creatorPercent = creator?.percent ?? 0;
+  const stakingPercent = staking?.percent ?? 0;
   const burnPercent = burn?.percent ?? 0;
   const holderPercent = holders?.percent ?? 0;
   const bubbleScale = 165;
   const holderRadius = Math.sqrt(holderPercent / 100) * bubbleScale;
   const creatorRadius = Math.sqrt(creatorPercent / 100) * bubbleScale;
+  const stakingRadius = Math.sqrt(stakingPercent / 100) * bubbleScale;
   const burnRadius = burnPercent > 0 ? Math.sqrt(burnPercent / 100) * bubbleScale : 0;
   const allocations = [
     { id: "public", label: "Other wallets", percent: holderPercent, balance: holders?.balance || "0" },
+    { id: "staking", label: "Staked BLUE", percent: stakingPercent, balance: staking?.balance || "0", address: staking?.address },
     { id: "creator", label: "Creator wallet", percent: creatorPercent, balance: creator?.balance || "0", address: data.launch.creator },
     { id: "burn", label: "Burned", percent: burnPercent, balance: burn?.balance || "0", address: burn?.address }
   ];
@@ -35,10 +39,11 @@ function DistributionChart({ data }: { data: BlueTransparencyData }) {
   return <div className="blue-bubble-chart" aria-label="Live BLUE token distribution">
     <div className="blue-bubble-stage">
       <div className="blue-bubble-total"><span>Total supply</span><strong>{quantity(data.totalSupply)}</strong><small>BLUE</small></div>
-      <svg viewBox="0 0 760 410" role="img" aria-label={`${creatorPercent.toFixed(2)} percent creator, ${burnPercent.toFixed(2)} percent burned, ${holderPercent.toFixed(2)} percent other wallets`}>
+      <svg viewBox="0 0 760 410" role="img" aria-label={`${stakingPercent.toFixed(2)} percent staked, ${creatorPercent.toFixed(2)} percent creator, ${burnPercent.toFixed(2)} percent burned, ${holderPercent.toFixed(2)} percent other wallets`}>
         <defs>
           <radialGradient id="blueHolderBubble" cx="31%" cy="22%" r="78%" fx="25%" fy="16%"><stop offset="0" stopColor="#d9ffff" /><stop offset=".1" stopColor="#68e8e0" /><stop offset=".4" stopColor="#2f9dff" /><stop offset=".74" stopColor="#285ee2" /><stop offset="1" stopColor="#112b89" /></radialGradient>
           <radialGradient id="blueCreatorBubble" cx="30%" cy="22%" r="78%" fx="24%" fy="15%"><stop offset="0" stopColor="#fff" /><stop offset=".15" stopColor="#cbd6ff" /><stop offset=".55" stopColor="#718cff" /><stop offset="1" stopColor="#3449b7" /></radialGradient>
+          <radialGradient id="blueStakingBubble" cx="30%" cy="22%" r="78%" fx="24%" fy="15%"><stop offset="0" stopColor="#effff8" /><stop offset=".16" stopColor="#a4f4d2" /><stop offset=".56" stopColor="#32c991" /><stop offset="1" stopColor="#08705e" /></radialGradient>
           <radialGradient id="blueBurnBubble" cx="30%" cy="22%" r="78%" fx="24%" fy="15%"><stop offset="0" stopColor="#fff7de" /><stop offset=".16" stopColor="#ffd194" /><stop offset=".58" stopColor="#ff8d66" /><stop offset="1" stopColor="#b9353d" /></radialGradient>
           <radialGradient id="blueSphereDepth" cx="38%" cy="30%" r="72%"><stop offset=".48" stopColor="#10275f" stopOpacity="0" /><stop offset=".82" stopColor="#071b58" stopOpacity=".13" /><stop offset="1" stopColor="#02091e" stopOpacity=".52" /></radialGradient>
           <linearGradient id="blueSphereGloss" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stopColor="#fff" stopOpacity=".72" /><stop offset=".45" stopColor="#fff" stopOpacity=".13" /><stop offset="1" stopColor="#fff" stopOpacity="0" /></linearGradient>
@@ -47,6 +52,7 @@ function DistributionChart({ data }: { data: BlueTransparencyData }) {
         <g className="blue-data-nodes"><circle cx="418" cy="78" r="3" /><circle cx="456" cy="101" r="2" /><circle cx="490" cy="88" r="1.8" /><circle cx="622" cy="104" r="2.4" /><circle cx="430" cy="326" r="2.5" /><circle cx="481" cy="337" r="1.7" /><circle className="burn" cx="620" cy="309" r="2.4" /><circle className="burn" cx="646" cy="283" r="1.7" /></g>
         <ellipse className="blue-bubble-ground public" cx="276" cy={210 + holderRadius + 10} rx={holderRadius * .58} ry={holderRadius * .075} />
         <ellipse className="blue-bubble-ground creator" cx="548" cy={119 + creatorRadius + 7} rx={creatorRadius * .68} ry={Math.max(3, creatorRadius * .12)} />
+        <ellipse className="blue-bubble-ground staking" cx="548" cy={205 + stakingRadius + 7} rx={stakingRadius * .68} ry={Math.max(3, stakingRadius * .12)} />
         <circle className="blue-bubble public" cx="276" cy="210" r={holderRadius} fill="url(#blueHolderBubble)" />
         <circle className="blue-bubble-depth" cx="276" cy="210" r={holderRadius - 1} fill="url(#blueSphereDepth)" />
         <ellipse className="blue-bubble-gloss" cx={276 - holderRadius * .24} cy={210 - holderRadius * .34} rx={holderRadius * .46} ry={holderRadius * .19} fill="url(#blueSphereGloss)" transform={`rotate(-24 ${276 - holderRadius * .24} ${210 - holderRadius * .34})`} />
@@ -54,9 +60,13 @@ function DistributionChart({ data }: { data: BlueTransparencyData }) {
         <circle className="blue-bubble creator" cx="548" cy="119" r={creatorRadius} fill="url(#blueCreatorBubble)" />
         <circle className="blue-bubble-depth creator" cx="548" cy="119" r={Math.max(0, creatorRadius - 1)} fill="url(#blueSphereDepth)" />
         <ellipse className="blue-bubble-gloss creator" cx={548 - creatorRadius * .22} cy={119 - creatorRadius * .32} rx={creatorRadius * .42} ry={creatorRadius * .18} fill="url(#blueSphereGloss)" transform={`rotate(-24 ${548 - creatorRadius * .22} ${119 - creatorRadius * .32})`} />
+        <circle className="blue-bubble staking" cx="548" cy="205" r={stakingRadius} fill="url(#blueStakingBubble)" />
+        <circle className="blue-bubble-depth staking" cx="548" cy="205" r={Math.max(0, stakingRadius - 1)} fill="url(#blueSphereDepth)" />
+        <ellipse className="blue-bubble-gloss staking" cx={548 - stakingRadius * .22} cy={205 - stakingRadius * .32} rx={stakingRadius * .42} ry={stakingRadius * .18} fill="url(#blueSphereGloss)" transform={`rotate(-24 ${548 - stakingRadius * .22} ${205 - stakingRadius * .32})`} />
         {burnRadius > 0 ? <g><ellipse className="blue-bubble-ground burn" cx="548" cy={297 + burnRadius + 7} rx={burnRadius * .68} ry={Math.max(3, burnRadius * .12)} /><circle className="blue-bubble burn" cx="548" cy="297" r={burnRadius} fill="url(#blueBurnBubble)" /><circle className="blue-bubble-depth burn" cx="548" cy="297" r={Math.max(0, burnRadius - 1)} fill="url(#blueSphereDepth)" /><ellipse className="blue-bubble-gloss burn" cx={548 - burnRadius * .22} cy={297 - burnRadius * .32} rx={burnRadius * .42} ry={burnRadius * .18} fill="url(#blueSphereGloss)" /></g> : <g className="blue-burn-reactor"><circle cx="548" cy="297" r="21" /><circle cx="548" cy="297" r="13" /><circle cx="548" cy="297" r="5" /></g>}
         <g className="blue-bubble-main-label"><text x="276" y="195" textAnchor="middle">OTHER WALLETS</text><text className="value" x="276" y="242" textAnchor="middle">{holderPercent.toFixed(2)}%</text><text className="amount" x="276" y="267" textAnchor="middle">{quantity(holders?.balance || "0")} BLUE</text></g>
         <g className="blue-bubble-callout creator"><line x1="580" y1="119" x2="650" y2="119" /><text x="664" y="112">CREATOR</text><text className="value" x="664" y="138">{creatorPercent.toFixed(2)}%</text></g>
+        <g className="blue-bubble-callout staking"><line x1={548 + stakingRadius} y1="205" x2="650" y2="205" /><text x="664" y="198">STAKED</text><text className="value" x="664" y="224">{stakingPercent.toFixed(2)}%</text></g>
         <g className="blue-bubble-callout burn"><line x1="570" y1="297" x2="650" y2="297" /><text x="664" y="290">BURNED</text><text className="value" x="664" y="316">{burnPercent.toFixed(2)}%</text></g>
       </svg>
       <p>Bubble area reflects each live onchain balance.</p>
