@@ -5,6 +5,7 @@ import WebSocket from "ws";
 import { contractsForChain, indexerScopeForLaunch, indexerScopesForChain } from "@/lib/contracts";
 import type { DeployedLaunch, DeployedTrade } from "@/lib/onchain-launches";
 import type { WalletDashboardData, WalletTradeSummary } from "@/lib/dashboard-types";
+import type { BlueStakingOverview } from "@/lib/blue-staking";
 import { readTokenMetadata } from "@/lib/token-metadata";
 
 let pool: pg.Pool | undefined;
@@ -26,6 +27,60 @@ export type LaunchBuyActivity = {
 
 export type LaunchPageFilter = "All" | "New" | "Volume" | "MarketCap" | "Newest" | "Direct" | "Live" | "Ready" | "Graduated" | "Progress";
 export type DbLaunchPage = { launches: DeployedLaunch[]; total: number };
+
+export async function getDbBlueStakingOverview(chainId: number, vault: string): Promise<BlueStakingOverview | undefined> {
+  if (process.env.POSTGRES_INDEXER_ENABLED !== "true") return undefined;
+  try {
+    let row: Record<string, unknown> | undefined;
+    if (hasSupabaseConfig()) {
+      const { data, error } = await getSupabase()
+        .from("staking_snapshots")
+        .select("*")
+        .eq("chain_id", chainId)
+        .eq("vault", vault.toLowerCase())
+        .maybeSingle();
+      if (error) throw error;
+      row = data as Record<string, unknown> | undefined;
+    } else {
+      if (!process.env.DATABASE_URL) return undefined;
+      pool ??= new pg.Pool({ connectionString: process.env.DATABASE_URL, connectionTimeoutMillis: 500, idleTimeoutMillis: 1_000, max: 2 });
+      const result = await withTimeout(pool.query(
+        "select * from staking_snapshots where chain_id = $1 and vault = $2 limit 1",
+        [chainId, vault.toLowerCase()]
+      ), 500);
+      row = result.rows[0] as Record<string, unknown> | undefined;
+    }
+    if (!row) return undefined;
+    const updatedAt = String(row.updated_at || "");
+    const updatedTimestamp = new Date(updatedAt).getTime();
+    const isStale = !Number.isFinite(updatedTimestamp) || Date.now() - updatedTimestamp > 90_000;
+    return {
+      updatedAt,
+      indexedBlock: String(row.indexed_block || "0"),
+      source: "indexer",
+      isStale,
+      totalActiveRaw: String(row.total_active || "0"),
+      totalCoolingRaw: String(row.total_cooling || "0"),
+      rewardBalanceRaw: String(row.reward_balance || "0"),
+      queuedRewardsRaw: String(row.queued_rewards || "0"),
+      remainingRewardsRaw: String(row.remaining_rewards || "0"),
+      rewardRateRaw: String(row.reward_rate || "0"),
+      rewardsDuration: Number(row.rewards_duration || 0),
+      periodFinish: Number(row.period_finish || 0),
+      stakingShareBps: Number(row.staking_share_bps || 0),
+      lifetimeFundedRaw: String(row.lifetime_funded || "0"),
+      lifetimeClaimedRaw: String(row.lifetime_claimed || "0"),
+      uniqueStakers: Number(row.unique_stakers || 0),
+      activeStakers: Number(row.active_stakers || 0),
+      paused: Boolean(row.paused),
+      emergency: Boolean(row.emergency),
+      stakers: (Array.isArray(row.stakers) ? row.stakers : []) as BlueStakingOverview["stakers"]
+    };
+  } catch (error) {
+    console.error("Failed to read staking snapshot from database", error);
+    return undefined;
+  }
+}
 
 const launchColumns = "scope, id, token, creator, name, symbol, contract_uri, image_url, description, website_url, twitter_url, telegram_url, discord_url, status, launch_mode, pool_fee, tick_spacing, liquidity_locker, raised_eth, graduation_target_eth, progress, volume_eth, token_created_at, created_block, position_id";
 const legacyLaunchColumns = "scope, id, token, creator, name, symbol, contract_uri, status, raised_eth, graduation_target_eth, progress, volume_eth, token_created_at, created_block";

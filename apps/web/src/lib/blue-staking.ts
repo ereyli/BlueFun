@@ -53,6 +53,9 @@ const routerReadAbi = parseAbi(["function stakingShareBps() view returns (uint16
 
 export type BlueStakingOverview = {
   updatedAt: string;
+  indexedBlock: string;
+  source: "indexer" | "rpc";
+  isStale: boolean;
   totalActiveRaw: string;
   totalCoolingRaw: string;
   rewardBalanceRaw: string;
@@ -162,6 +165,9 @@ export async function getBlueStakingOverview(): Promise<BlueStakingOverview> {
 
   return {
     updatedAt: new Date().toISOString(),
+    indexedBlock: latest.toString(),
+    source: "rpc",
+    isStale: false,
     totalActiveRaw: totalActive.toString(),
     totalCoolingRaw: totalCooling.toString(),
     rewardBalanceRaw: rewardBalance.toString(),

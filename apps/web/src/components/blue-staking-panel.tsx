@@ -296,6 +296,7 @@ export function BlueStakingPanel() {
 
     {paused && !emergency ? <p className="blue-staking-alert">New stakes are paused. Claims and withdrawals remain available.</p> : null}
     {emergency ? <p className="blue-staking-alert danger">Emergency exit is active. Every staker can withdraw without waiting.</p> : null}
+    {overview?.isStale ? <p className="blue-staking-alert">Staking index is catching up. Last confirmed snapshot: {new Date(overview.updatedAt).toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit" })}.</p> : null}
     {notice ? <p className="blue-staking-notice"><CheckCircle2 size={15} />{notice}</p> : null}
     {failure ? <p className="blue-staking-error">{failure}</p> : null}
   </section>;

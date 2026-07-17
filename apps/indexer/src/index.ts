@@ -153,6 +153,16 @@ async function backfillLoop() {
   if (head <= confirmations) return;
   const latest = head - confirmations;
   lastIndexedBlock = latest;
+  if (chainId === 8453) {
+    const { stakingStartBlock, updateStakingSnapshot } = await import("./staking-indexer.js");
+    if (latest >= stakingStartBlock) {
+      try {
+        await updateStakingSnapshot(latest);
+      } catch (error) {
+        console.error("Staking snapshot indexing failed; retaining last successful snapshot", error);
+      }
+    }
+  }
   for (const deployment of deploymentContexts) {
     if (latest < deployment.startBlock) continue;
     await backfillLaunchCreated(deployment, latest);
