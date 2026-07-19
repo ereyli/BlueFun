@@ -16,6 +16,7 @@ type CommerceDialogProps = {
   durationDays?: number;
   needsApproval?: boolean;
   pending?: boolean;
+  confirmLabel?: string;
   onClose: () => void;
   onConfirm: () => void;
 };
@@ -45,7 +46,7 @@ export function NFTCommerceDialog(props: CommerceDialogProps) {
         {props.kind === "list" && props.durationDays ? <div><dt><Clock3/> Duration</dt><dd>{props.durationDays} days</dd></div> : null}
       </dl>
       <p className="nft-dialog-proof"><ShieldCheck/>BlueFun never takes custody. Your wallet shows the final network transaction before signing.</p>
-      <footer><button className="button" disabled={props.pending} onClick={props.onClose}>Cancel</button><button className="button primary" disabled={props.pending} onClick={props.onConfirm}>{props.pending ? "Waiting for wallet…" : props.kind === "buy" ? "Confirm purchase" : props.needsApproval ? "Approve marketplace" : "Create listing"}</button></footer>
+      <footer><button className="button" disabled={props.pending} onClick={props.onClose}>Cancel</button><button className="button primary" disabled={props.pending} onClick={props.onConfirm}>{props.pending ? "Waiting for confirmation…" : props.confirmLabel || (props.kind === "buy" ? "Confirm purchase" : props.needsApproval ? "Approve marketplace" : "Create listing")}</button></footer>
     </section>
   </div>;
 }

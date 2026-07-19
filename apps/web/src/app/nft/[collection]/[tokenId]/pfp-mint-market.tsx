@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { formatEther, parseEther } from "viem";
-import { useAccount, useReadContract, useWriteContract } from "wagmi";
+import { useAccount, usePublicClient, useReadContract, useReadContracts, useWriteContract } from "wagmi";
 import { ChevronLeft, ChevronRight, ExternalLink, Eye, Grid2X2, List as ListIcon, Loader2, Search, ShieldCheck, ShoppingBag, Sparkles } from "lucide-react";
 import { bluePFPAbi, ipfsGateway, nftAddresses, nftControllerForDeployment, nftDropControllerAbi, nftFeePolicyAbi, nftMarketplaceForDeployment, nftPFPMarketplaceAbi, pfpLaunchpadEnabled, type NFTDeployment } from "@/lib/nft-contracts";
 import { NFTCollectionTabs } from "../../nft-collection-tabs";
@@ -13,9 +13,12 @@ import { NFTOffersPanel } from "../../nft-offers-panel";
 import { MintPhaseStatus } from "@/components/nft-mint-schedule";
 import { useNFTMintPhase } from "@/lib/use-nft-mint-phase";
 import { useNFTAllowlistProof } from "@/lib/use-nft-allowlist-proof";
+import { optimizedTokenImageUrl } from "@/lib/token-metadata";
+import { NFTQuickBuyDialog, type NFTQuickBuyItem } from "../../nft-quick-buy-dialog";
 
 export function PFPMintMarket({ collection, tokenId, view = "item", deployment = "current" }: { collection: `0x${string}`; tokenId: bigint; view?: "item" | "collection"; deployment?: NFTDeployment }) {
   const { address, isConnected } = useAccount(); const { writeContractAsync, isPending } = useWriteContract();
+  const publicClient = usePublicClient({ chainId: 8453 });
   const [quantity, setQuantity] = useState("1"); const [metadata, setMetadata] = useState<{ name?: string; description?: string; image?: string; attributes?: Array<{ trait_type?: string; value?: string | number }> }>({});
   const [collectionMetadata, setCollectionMetadata] = useState<CollectionMetadata>({});
   const controllerAddress = nftControllerForDeployment(deployment);
@@ -72,24 +75,31 @@ export function PFPMintMarket({ collection, tokenId, view = "item", deployment =
       if (!amount) throw new Error("Enter a valid mint quantity.");
       if (!phaseActive) throw new Error("The current mint phase is not active.");
       if (amount > mintLimit) throw new Error(`You can mint at most ${mintLimit} in this transaction.`);
-      if (phaseType === 0) await writeContractAsync({ chainId: 8453, address: controllerAddress, abi: nftDropControllerAbi, functionName: "mintPublic", value: unitPrice * amount, args: [collection, 1n, phaseId, amount, address, unitPrice, deadline] });
-      else { if (!allowlistProof.entry) throw new Error("This wallet is not eligible for the allowlist phase."); await writeContractAsync({ chainId: 8453, address: controllerAddress,abi:nftDropControllerAbi,functionName:"mintAllowlist",value:unitPrice*amount,args:[collection,1n,phaseId,amount,address,allowlistProof.entry.allowance,unitPrice,deadline,allowlistProof.entry.proof] }); }
-      setNotice("PFP mint transaction submitted.");
+      const hash = phaseType === 0
+        ? await writeContractAsync({ chainId: 8453, address: controllerAddress, abi: nftDropControllerAbi, functionName: "mintPublic", value: unitPrice * amount, args: [collection, 1n, phaseId, amount, address, unitPrice, deadline] })
+        : allowlistProof.entry
+          ? await writeContractAsync({ chainId: 8453, address: controllerAddress,abi:nftDropControllerAbi,functionName:"mintAllowlist",value:unitPrice*amount,args:[collection,1n,phaseId,amount,address,allowlistProof.entry.allowance,unitPrice,deadline,allowlistProof.entry.proof] })
+          : (() => { throw new Error("This wallet is not eligible for the allowlist phase."); })();
+      setNotice("Mint submitted. Waiting for Base confirmation…"); await publicClient?.waitForTransactionReceipt({ hash });
+      setNotice("Mint confirmed. Your collection is updating."); void minted.refetch(); void walletMintedInPhase.refetch(); void walletMintedTotal.refetch();
     } catch (error) { setNotice(shortError(error)); }
   }
 
   async function approveOrList() {
     try {
-      if (approval.data?.toLowerCase() !== marketAddress.toLowerCase()) await writeContractAsync({ chainId: 8453, address: collection, abi: bluePFPAbi, functionName: "approve", args: [marketAddress, tokenId] });
-      else { const now = BigInt(Math.floor(Date.now() / 1000)); const duration = BigInt(Number(listingDays) || 30) * 86400n; await writeContractAsync({ chainId: 8453, address: marketAddress, abi: nftPFPMarketplaceAbi, functionName: "createListing", args: [collection, tokenId, parseEther(salePrice), now, now + duration] }); }
-      setNotice(approval.data?.toLowerCase() === marketAddress.toLowerCase() ? "Listing submitted." : "Marketplace approval submitted. List after confirmation.");
-      if (approval.data?.toLowerCase() === marketAddress.toLowerCase()) setCommerceDialog(null);
-      approval.refetch();
+      if (approval.data?.toLowerCase() !== marketAddress.toLowerCase()) {
+        const approvalHash = await writeContractAsync({ chainId: 8453, address: collection, abi: bluePFPAbi, functionName: "approve", args: [marketAddress, tokenId] });
+        setNotice("Approval submitted. Waiting for confirmation…"); await publicClient?.waitForTransactionReceipt({ hash: approvalHash }); await approval.refetch();
+      }
+      const now = BigInt(Math.floor(Date.now() / 1000)); const duration = BigInt(Number(listingDays) || 30) * 86400n;
+      const listingHash = await writeContractAsync({ chainId: 8453, address: marketAddress, abi: nftPFPMarketplaceAbi, functionName: "createListing", args: [collection, tokenId, parseEther(salePrice), now, now + duration] });
+      setNotice("Listing submitted. Waiting for confirmation…"); await publicClient?.waitForTransactionReceipt({ hash: listingHash });
+      setNotice("Listing is live."); setCommerceDialog(null);
     } catch (error) { setNotice(shortError(error)); }
   }
 
-  async function buy() { if (!address || !listing.data || !listingMatches) return; try { await writeContractAsync({ chainId: 8453, address: listingMarketplace, abi: nftPFPMarketplaceAbi, functionName: "buy", value: listing.data[3], args: [parsedListingId, address] }); setNotice("Purchase submitted."); setCommerceDialog(null); } catch (error) { setNotice(shortError(error)); } }
-  async function cancelSale() { if (!parsedListingId) return; try { await writeContractAsync({ chainId: 8453, address: listingMarketplace, abi: nftPFPMarketplaceAbi, functionName: "cancelListing", args: [parsedListingId] }); setNotice("Listing cancellation submitted."); } catch (error) { setNotice(shortError(error)); } }
+  async function buy() { if (!address || !listing.data || !listingMatches) return; try { const hash = await writeContractAsync({ chainId: 8453, address: listingMarketplace, abi: nftPFPMarketplaceAbi, functionName: "buy", value: listing.data[3], args: [parsedListingId, address] }); setNotice("Purchase submitted. Waiting for confirmation…"); await publicClient?.waitForTransactionReceipt({ hash }); setNotice("Purchase confirmed."); setCommerceDialog(null); void listing.refetch(); void tokenOwner.refetch(); } catch (error) { setNotice(shortError(error)); } }
+  async function cancelSale() { if (!parsedListingId) return; try { const hash = await writeContractAsync({ chainId: 8453, address: listingMarketplace, abi: nftPFPMarketplaceAbi, functionName: "cancelListing", args: [parsedListingId] }); setNotice("Cancellation submitted. Waiting for confirmation…"); await publicClient?.waitForTransactionReceipt({ hash }); setNotice("Listing cancelled."); void listing.refetch(); } catch (error) { setNotice(shortError(error)); } }
   async function reveal() { try { await writeContractAsync({ chainId: 8453, address: collection, abi: bluePFPAbi, functionName: "reveal", args: [revealURI, freezeReveal] }); setNotice("Reveal transaction submitted. Marketplaces may need a metadata refresh."); } catch (error) { setNotice(shortError(error)); } }
   async function updateMetadata() { try { await writeContractAsync({ chainId: 8453, address: collection, abi: bluePFPAbi, functionName: "setBaseURI", args: [revealURI] }); setNotice("Metadata update submitted. Use OpenSea refresh after confirmation."); } catch (error) { setNotice(shortError(error)); } }
   async function freezeMetadataForever() { try { await writeContractAsync({ chainId: 8453, address: collection, abi: bluePFPAbi, functionName: "freezeMetadata" }); setNotice("Permanent metadata freeze submitted."); } catch (error) { setNotice(shortError(error)); } }
@@ -126,12 +136,17 @@ function minPositive(...values: bigint[]) { return values.reduce((smallest, valu
 type CollectionMetadata = { description?: string; image?: string; external_link?: string; external_url?: string; socials?: { website?: string; x?: string; twitter?: string; telegram?: string } };
 function socialsFromMetadata(metadata: CollectionMetadata) { return { ...metadata.socials, website: metadata.socials?.website || metadata.external_link || metadata.external_url }; }
 
-type MarketListing = { listingId: string; tokenId: string; priceEth: string; remaining: string; listedAt?: string };
+type MarketListing = { listingId: string; tokenId: string; unitPrice: string; priceEth: string; remaining: string; marketplace: `0x${string}`; listedAt?: string };
 
 function PFPTokenGrid({ collection, count }: { collection: `0x${string}`; count: number }) {
   const [listings, setListings] = useState<MarketListing[]>([]); const [status, setStatus] = useState<"all" | "listed" | "unlisted">("all");
-  const [sort, setSort] = useState("listed"); const [search, setSearch] = useState(""); const [page, setPage] = useState(1); const [view, setView] = useState<"grid" | "list">("grid"); const pageSize = view === "grid" ? 32 : 50;
-  useEffect(() => { fetch(`/api/nft/listing?collection=${collection}`).then((response) => response.ok ? response.json() : { listings: [] }).then((data: { listings?: MarketListing[] }) => setListings(data.listings || [])).catch(() => setListings([])); }, [collection]);
+  const [selected, setSelected] = useState<NFTQuickBuyItem>(); const [sort, setSort] = useState("listed"); const [search, setSearch] = useState(""); const [page, setPage] = useState(1); const [view, setView] = useState<"grid" | "list">("grid"); const pageSize = view === "grid" ? 24 : 50;
+  useEffect(() => {
+    let active = true;
+    const refresh = () => fetch(`/api/nft/listing?collection=${collection}&limit=2000`).then((response) => response.ok ? response.json() : { listings: [] }).then((data: { listings?: MarketListing[] }) => { if (active) setListings((data.listings || []).filter((item) => item.unitPrice && item.marketplace)); }).catch(() => undefined);
+    void refresh(); const timer = window.setInterval(refresh, 4_000);
+    return () => { active = false; window.clearInterval(timer); };
+  }, [collection]);
   const listingMap = useMemo(() => new Map(listings.map((listing) => [Number(listing.tokenId), listing])), [listings]);
   const tokens = useMemo(() => {
     const exact = /^#?\d+$/.test(search.trim()) ? Number(search.trim().replace("#", "")) : 0;
@@ -147,20 +162,25 @@ function PFPTokenGrid({ collection, count }: { collection: `0x${string}`; count:
     return values;
   }, [count, listingMap, search, sort, status]);
   const pages = Math.max(1, Math.ceil(tokens.length / pageSize)); const safePage = Math.min(page, pages); const visible = tokens.slice((safePage - 1) * pageSize, safePage * pageSize);
+  const tokenUris = useReadContracts({ contracts: visible.map((id) => ({ address: collection, abi: bluePFPAbi, functionName: "tokenURI" as const, args: [BigInt(id)] as const, chainId: 8453 })), query: { staleTime: 30_000 } });
   useEffect(() => setPage(1), [search, sort, status, view]);
-  return <section className="nft-directory-panel nft-items-panel nft-marketplace-panel"><header><div><span>COLLECTION MARKETPLACE</span><h2>Explore, list and trade</h2><p>Active listings appear first. Select any NFT to view traits, ownership and trading controls.</p></div><div className="nft-market-stats"><strong>{count.toLocaleString()} ITEMS</strong><strong>{listings.length.toLocaleString()} LISTED</strong></div></header>
+  return <section className="nft-directory-panel nft-items-panel nft-marketplace-panel" id="collection-marketplace"><header><div><span>COLLECTION MARKETPLACE</span><h2>Explore, list and trade</h2><p>Active listings appear first. Select any NFT to view traits, ownership and trading controls.</p></div><div className="nft-market-stats"><strong>{count.toLocaleString()} ITEMS</strong><strong>{listings.length.toLocaleString()} LISTED</strong></div></header>
     <div className="nft-market-toolbar"><label><Search/><input aria-label="Search token ID" placeholder="Search by token ID" value={search} onChange={(event) => setSearch(event.target.value)}/></label><div className="nft-market-status"><button className={status === "all" ? "active" : ""} onClick={() => setStatus("all")}>All</button><button className={status === "listed" ? "active" : ""} onClick={() => setStatus("listed")}>Listed <b>{listings.length}</b></button><button className={status === "unlisted" ? "active" : ""} onClick={() => setStatus("unlisted")}>Not listed</button></div><select aria-label="Sort NFTs" value={sort} onChange={(event) => setSort(event.target.value)}><option value="listed">Listed first</option><option value="price-low">Price: low to high</option><option value="price-high">Price: high to low</option><option value="listing-new">Newly listed</option><option value="newest">Recently minted</option><option value="oldest">Oldest</option></select><div className="nft-view-switch"><button aria-label="Grid view" className={view === "grid" ? "active" : ""} onClick={() => setView("grid")}><Grid2X2/></button><button aria-label="List view" className={view === "list" ? "active" : ""} onClick={() => setView("list")}><ListIcon/></button></div></div>
-    {visible.length ? <div className={`nft-market-items ${view}`}>{visible.map((id) => <PFPTokenCard collection={collection} key={id} listing={listingMap.get(id)} tokenId={BigInt(id)} view={view}/>)}</div> : <div className="nft-directory-empty"><h3>{count ? "No NFTs match this view" : "No NFTs minted yet"}</h3><p>{count ? "Try a different status filter or token ID." : "The first collector will receive token #1 automatically."}</p></div>}
+    {visible.length ? <div className={`nft-market-items ${view}`}>{visible.map((id, index) => <PFPTokenCard collection={collection} key={id} listing={listingMap.get(id)} tokenId={BigInt(id)} uri={String(tokenUris.data?.[index]?.result || "")} view={view} onBuy={setSelected}/>)}</div> : <div className="nft-directory-empty"><h3>{count ? "No NFTs match this view" : "No NFTs minted yet"}</h3><p>{count ? "Try a different status filter or token ID." : "The first collector will receive token #1 automatically."}</p></div>}
     {pages > 1 ? <footer className="nft-market-pagination"><span>Showing {(safePage - 1) * pageSize + 1}–{Math.min(safePage * pageSize, tokens.length)} of {tokens.length}</span><div><button disabled={safePage === 1} onClick={() => setPage((value) => Math.max(1, value - 1))}><ChevronLeft/>Previous</button><b>Page {safePage} of {pages}</b><button disabled={safePage === pages} onClick={() => setPage((value) => Math.min(pages, value + 1))}>Next<ChevronRight/></button></div></footer> : null}
+    <NFTQuickBuyDialog item={selected} onClose={() => setSelected(undefined)} onPurchased={(purchased) => setListings((rows) => rows.filter((row) => row.listingId !== purchased.listingId || row.marketplace.toLowerCase() !== purchased.marketplace.toLowerCase()))}/>
   </section>;
 }
 
-function PFPTokenCard({ collection, tokenId, listing, view }: { collection: `0x${string}`; tokenId: bigint; listing?: MarketListing; view: "grid" | "list" }) {
-  const { address } = useAccount();
-  const uri = useReadContract({ address: collection, abi: bluePFPAbi, functionName: "tokenURI", args: [tokenId], chainId: 8453 });
-  const tokenOwner = useReadContract({ address: collection, abi: bluePFPAbi, functionName: "ownerOf", args: [tokenId], chainId: 8453 });
+function PFPTokenCard({ collection, tokenId, listing, uri, view, onBuy }: { collection: `0x${string}`; tokenId: bigint; listing?: MarketListing; uri: string; view: "grid" | "list"; onBuy: (item: NFTQuickBuyItem) => void }) {
   const [item, setItem] = useState<{ name?: string; image?: string; attributes?: unknown[] }>({});
-  useEffect(() => { if (!uri.data) return; fetch(ipfsGateway(uri.data)).then((response) => response.ok ? response.json() : {}).then(setItem).catch(() => undefined); }, [uri.data]);
-  const isOwned = Boolean(address && tokenOwner.data?.toLowerCase() === address.toLowerCase());
-  return <Link className={`nft-collection-card nft-item-card ${listing ? "listed" : ""} ${view}`} href={`/nft/${collection}/${tokenId}`}><div className="nft-collection-cover">{item.image ? <img src={ipfsGateway(item.image)} alt={item.name || `Token #${tokenId}`}/> : <span><Sparkles/></span>}<b>#{String(tokenId)}</b></div><div className="nft-collection-body"><div><small>ERC-721 · #{String(tokenId)}</small><h3>{item.name || `Token #${tokenId}`}</h3></div><footer><span>{listing ? <><small>PRICE</small><strong>{listing.priceEth} ETH</strong></> : isOwned ? <strong>List for sale</strong> : "Not listed"}</span><code>{item.attributes?.length || 0} traits</code></footer>{listing ? <span className="nft-card-buy"><b>Buy now</b><strong>{listing.priceEth} ETH</strong></span> : null}</div></Link>;
+  useEffect(() => { if (!uri) return; const controller = new AbortController(); fetch(ipfsGateway(uri), { signal: controller.signal }).then((response) => response.ok ? response.json() : {}).then(setItem).catch(() => undefined); return () => controller.abort(); }, [uri]);
+  const image = optimizedTokenImageUrl(item.image);
+  return <article className={`nft-collection-card nft-item-card ${listing ? "listed" : ""} ${view}`}>
+    <Link className="nft-card-link" href={`/nft/${collection}/${tokenId}`} aria-label={`Open ${item.name || `Token #${tokenId}`}`}>
+      <div className="nft-collection-cover">{image ? <img src={image} loading="lazy" decoding="async" alt={item.name || `Token #${tokenId}`}/> : <span><Sparkles/></span>}<b>#{String(tokenId)}</b></div>
+      <div className="nft-collection-body"><div><small>ERC-721 · #{String(tokenId)}</small><h3>{item.name || `Token #${tokenId}`}</h3></div><footer><span>{listing ? <><small>PRICE</small><strong>{listing.priceEth} ETH</strong></> : "Not listed"}</span><code>{item.attributes?.length || 0} traits</code></footer></div>
+    </Link>
+    {listing ? <button className="nft-card-buy" type="button" onClick={() => onBuy({ collection, collectionName: "BlueFun collection", image, listingId: listing.listingId, marketplace: listing.marketplace, remaining: listing.remaining, standard: "ERC721", title: item.name || `Token #${tokenId}`, tokenId: String(tokenId), unitPrice: listing.unitPrice })}><span><b>Buy now</b><small>Instant checkout</small></span><strong>{listing.priceEth} ETH</strong></button> : null}
+  </article>;
 }

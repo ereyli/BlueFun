@@ -211,6 +211,12 @@ create table if not exists nft_listings (
   updated_at timestamptz not null default now(), primary key (chain_id, marketplace, listing_id)
 );
 create index if not exists nft_listings_item_idx on nft_listings (chain_id, collection, token_id, updated_at desc);
+create index if not exists nft_listings_active_collection_price_idx
+  on nft_listings (chain_id, collection, unit_price)
+  where cancelled = false and remaining_quantity > 0;
+create index if not exists nft_listings_active_item_updated_idx
+  on nft_listings (chain_id, collection, token_id, updated_at desc)
+  where cancelled = false and remaining_quantity > 0;
 
 create table if not exists nft_sales (
   chain_id integer not null, marketplace text not null, listing_id numeric not null, buyer text not null, recipient text not null,

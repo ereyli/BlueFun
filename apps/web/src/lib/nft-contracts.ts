@@ -41,6 +41,13 @@ export function nftMarketplaceForDeployment(deployment: NFTDeployment, standard:
   return standard === "ERC721" ? nftAddresses.pfpMarketplace : nftAddresses.marketplace;
 }
 
+export function isKnownNFTMarketplace(value: string, standard: "ERC721" | "ERC1155") {
+  const normalized = value.toLowerCase();
+  return (["current", "legacy"] as const).some((deployment) =>
+    nftMarketplaceForDeployment(deployment, standard).toLowerCase() === normalized
+  );
+}
+
 export const nftLaunchpadEnabled = nftAddresses.feePolicy !== zeroAddress
   && nftAddresses.dropController !== zeroAddress
   && nftAddresses.collectionFactory !== zeroAddress

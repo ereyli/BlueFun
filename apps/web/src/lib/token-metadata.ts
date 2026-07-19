@@ -91,7 +91,7 @@ export function ipfsToGatewayUrl(uri?: string) {
 }
 
 export function optimizedTokenImageUrl(uri?: string) {
-  if (isBlueFunCdnUrl(uri)) return uri;
+  if (uri?.startsWith("/api/token-image?") || isBlueFunCdnUrl(uri)) return uri;
   return uri ? `/api/token-image?uri=${encodeURIComponent(uri)}` : "";
 }
 

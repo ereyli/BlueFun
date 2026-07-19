@@ -75,3 +75,36 @@ Remaining operational hardening:
 - RPC/indexer outages can affect the interface without changing onchain custody.
 - Low liquidity, volatility, price impact and irreversible user transactions remain market risks.
 - A third-party audit and public bug bounty are recommended before describing the system as fully audited.
+
+---
+
+# BlueFun NFT Application Security Review
+
+Date: 2026-07-20
+Scope: NFT marketplace and launchpad web flows, public API routes, Pinata-backed uploads, allowlist proof storage, RPC reads, marketplace address selection, and NFT indexer.
+
+## NFT assessment
+
+No unresolved critical or high-severity issue was found in the reviewed NFT application scope.
+
+### Fixed in this change
+
+- Marketplace addresses returned by the indexer are accepted only when they match a configured current or legacy BlueFun ERC-721/ERC-1155 marketplace.
+- Direct checkout uses integer wei values, validates the marketplace again in the client, waits for the Base receipt, and only then updates the UI.
+- NFT listing and item endpoints enforce bounded result limits instead of returning up to 10,000 unbounded rows.
+- Public listing responses use short shared-cache windows while allowlist responses remain private.
+
+### Existing controls verified
+
+- Pinata upload routes enforce same-origin requests, size limits, rate limits, content signatures, supported formats, metadata bounds, and server-only credentials.
+- Allowlist manifests are rebuilt server-side and checked against the active onchain Merkle root before service-role writes.
+- Metadata fetches accept only IPFS or trusted HTTPS gateways, enforce timeouts and size limits, and never render metadata as HTML.
+- Global headers deny framing and object embedding and set content-type, referrer, and permissions policies.
+- Supabase writes use server-only service credentials; public NFT tables are read-only under row-level security.
+
+### NFT operational recommendations
+
+- Configure `RATE_LIMIT_SALT` and persistent rate limiting in every production replica.
+- Put the web app and image proxy behind a CDN/WAF with request and egress metrics.
+- Alert on indexer lag, RPC errors, failed receipts, upload rejection rates, and unexpected marketplace-address rows.
+- Keep contract-level audits and deployment-address verification as separate release gates.

@@ -12,8 +12,8 @@ import { robinhoodChain } from "@/lib/robinhood-chain";
 import { baseRpcUrls, robinhoodRpcUrls } from "@/lib/rpc";
 import { BLUEFUN_DATA_SUFFIX } from "@/lib/base-builder-code";
 
-const baseTransports = baseRpcUrls().map((url) => http(url));
-const robinhoodTransport = fallback(robinhoodRpcUrls().map((url) => http(url)), { rank: true, retryCount: 1 });
+const baseTransports = baseRpcUrls().map((url) => http(url, { timeout: 6_000, retryCount: 0 }));
+const robinhoodTransport = fallback(robinhoodRpcUrls().map((url) => http(url, { timeout: 6_000, retryCount: 0 })), { rank: true, retryCount: 1 });
 
 const walletConnectProjectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID;
 const sharedConfig = {
@@ -22,6 +22,7 @@ const sharedConfig = {
     [baseChain.id]: fallback(baseTransports, { rank: true, retryCount: 1 }),
     [robinhoodChain.id]: robinhoodTransport
   },
+  batch: { multicall: true },
   ssr: true
 };
 
@@ -39,7 +40,16 @@ const config = walletConnectProjectId ? getDefaultConfig({
 });
 
 export function Providers({ children }: { children: React.ReactNode }) {
-  const [queryClient] = useState(() => new QueryClient());
+  const [queryClient] = useState(() => new QueryClient({
+    defaultOptions: {
+      queries: {
+        staleTime: 4_000,
+        gcTime: 5 * 60_000,
+        retry: 1,
+        refetchOnWindowFocus: true
+      }
+    }
+  }));
   const [dark, setDark] = useState(false);
 
   useEffect(() => {

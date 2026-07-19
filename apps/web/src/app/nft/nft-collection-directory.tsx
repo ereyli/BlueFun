@@ -2,8 +2,9 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, Grid2X2, ImageOff, List as ListIcon, Search, Sparkles } from "lucide-react";
+import { ArrowRight, ChevronLeft, ChevronRight, Clock3, Grid2X2, ImageOff, List as ListIcon, Search, Sparkles } from "lucide-react";
 import type { NFTCollectionSummary } from "@/lib/nft-collections";
+import { optimizedTokenImageUrl } from "@/lib/token-metadata";
 
 type Filter = "All" | "Live" | "Free" | "Paid";
 type Sort = "all" | "trending" | "newest" | "price-low" | "price-high" | "minted";
@@ -46,7 +47,7 @@ export function NFTCollectionDirectory({ collections }: { collections: NFTCollec
   useEffect(() => setPage(1), [filter, query, sort, view]);
 
   return <section className="nft-directory-panel">
-    <header><div><span>ONCHAIN COLLECTIONS</span><h2>Launched on BlueFun</h2></div><strong>{collections.length} COLLECTION{collections.length === 1 ? "" : "S"}</strong></header>
+    <header><div><span>COLLECTION CATALOG</span><h2>Explore every collection</h2><p>Browse collection identity, supply and marketplace items. Live minting is organized separately above.</p></div><strong>{collections.length} COLLECTION{collections.length === 1 ? "" : "S"}</strong></header>
     <div className="nft-directory-toolbar nft-catalog-toolbar">
       <label><Search/><input aria-label="Search NFT collections" placeholder="Search collection, symbol or address" value={query} onChange={(event) => setQuery(event.target.value)}/></label>
       <div className="nft-catalog-filters">{(["All","Live","Free","Paid"] as Filter[]).map((value) => <button className={filter === value ? "active" : ""} key={value} onClick={() => setFilter(value)} type="button">{value}</button>)}</div>
@@ -58,11 +59,27 @@ export function NFTCollectionDirectory({ collections }: { collections: NFTCollec
   </section>;
 }
 
+export function NFTLiveMints({ collections }: { collections: NFTCollectionSummary[] }) {
+  const live = collections.filter((collection) => collection.status === "Live").slice(0, 8);
+  const upcoming = live.length ? [] : collections.filter((collection) => collection.status === "Upcoming").slice(0, 4);
+  const rows = live.length ? live : upcoming;
+  return <section className="nft-live-mints" id="live-mints">
+    <header><div><span><i/>LIVE MINTS</span><h2>{live.length ? "Minting now" : "Upcoming drops"}</h2><p>A dedicated primary sale desk. Open a drop to review its phase, limits and collection details.</p></div><strong>{live.length} LIVE</strong></header>
+    {rows.length ? <div className="nft-live-mint-grid">{rows.map((collection) => {
+      const supply = Number(collection.initialSupply); const minted = Number(collection.initialMinted); const progress = supply > 0 ? Math.min(100, minted / supply * 100) : 0;
+      return <article className="nft-live-mint-card" key={collection.address}>
+        <Link className="nft-live-mint-art" href={`/nft/${collection.address}`}>{collection.imageUrl ? <img src={optimizedTokenImageUrl(collection.imageUrl)} loading="lazy" decoding="async" alt={collection.name}/> : <span><Sparkles/></span>}<b>{collection.standard}</b></Link>
+        <div><small>{collection.symbol} · BLUEFUN DROP</small><h3>{collection.name}</h3><p>{collection.description || "Creator-owned mint on Base."}</p><dl><div><dt>MINT PRICE</dt><dd>{collection.isFree ? "Free" : collection.mintPriceEth ? `${trimEth(collection.mintPriceEth)} ETH` : "—"}</dd></div><div><dt>ACCESS</dt><dd>{collection.access}</dd></div></dl><div className="nft-live-progress"><span><i style={{width:`${progress}%`}}/></span><small>{collection.initialMinted} / {collection.initialSupply}</small></div><footer><Link href={`/nft/${collection.address}`} className="button primary">{live.length ? <><Sparkles/>Mint now</> : <><Clock3/>View schedule</>}</Link><Link href={`/nft/${collection.address}#collection-marketplace`}>Collection <ArrowRight/></Link></footer></div>
+      </article>;
+    })}</div> : <div className="nft-directory-empty"><span><Clock3/></span><h3>No active mint right now</h3><p>Explore launched collections below or create the next drop.</p></div>}
+  </section>;
+}
+
 function CollectionCard({ collection, view }: { collection: NFTCollectionSummary; view: View }) {
   const supply = Number(collection.initialSupply); const minted = Number(collection.initialMinted);
   const progress = supply > 0 ? Math.min(100, minted / supply * 100) : 0;
   return <Link className={`nft-collection-card nft-directory-collection-card ${view}`} href={`/nft/${collection.address}`}>
-    <div className="nft-collection-cover">{collection.imageUrl ? <img src={collection.imageUrl} alt={collection.name}/> : <span><Sparkles/></span>}<i className={collection.status.toLowerCase()}>{collection.status}</i><b>{collection.standard}</b></div>
+    <div className="nft-collection-cover">{collection.imageUrl ? <img src={optimizedTokenImageUrl(collection.imageUrl)} loading="lazy" decoding="async" alt={collection.name}/> : <span><Sparkles/></span>}<i className={collection.status.toLowerCase()}>{collection.status}</i><b>{collection.standard}</b></div>
     <div className="nft-collection-body"><div><small>{collection.symbol} · #{collection.id}</small><h3>{collection.name}</h3><p>{collection.description || "Creator-owned collection on Base."}</p></div>
       <dl><div><dt>MINT PRICE</dt><dd>{collection.access === "Allowlist" ? "Allowlist" : collection.mintPriceEth === undefined ? "—" : collection.isFree ? "Free" : `${trimEth(collection.mintPriceEth)} ETH`}</dd></div><div><dt>ITEMS</dt><dd>{collection.itemCount}</dd></div><div><dt>ROYALTY</dt><dd>{collection.royaltyPercent}%</dd></div></dl>
       <div className="nft-mint-progress"><span><i style={{ width: `${progress}%` }}/></span><small>{collection.initialMinted} / {collection.initialSupply} minted</small></div>
