@@ -4,21 +4,22 @@ import { useEffect, useMemo, useState } from "react";
 import { formatEther, getAddress, isAddress, parseEther, zeroAddress, type Address, type Hex } from "viem";
 import { usePublicClient, useReadContract, useWriteContract } from "wagmi";
 import { CalendarClock, CircleDollarSign, Gift, Loader2, Plus, RefreshCw, Trash2 } from "lucide-react";
-import { blueEditionAbi, bluePFPAbi, nftAddresses, nftDropControllerAbi } from "@/lib/nft-contracts";
+import { blueEditionAbi, bluePFPAbi, nftControllerForDeployment, nftDeploymentForFactory, nftDropControllerAbi } from "@/lib/nft-contracts";
 import { buildAllowlistTree, parseAllowlistCSV } from "@/lib/nft-allowlist";
 
-type Collection = { collection: string; name: string; symbol: string; standard: "ERC721" | "ERC1155" };
+type Collection = { collection: string; factory?: string; name: string; symbol: string; standard: "ERC721" | "ERC1155" };
 type Phase = { id: bigint; type: number; limitMode: number; price: bigint; start: bigint; end: bigint; cap: bigint; walletLimit: number; maxPerTx: number; root: Hex; minted: bigint; cancelled: boolean };
 const zeroHash = `0x${"0".repeat(64)}` as Hex;
 
 export function CreatorCollectionManager({ item, onClose }: { item: Collection; onClose: () => void }) {
   const collection = getAddress(item.collection); const tokenId = 1n; const client = usePublicClient({ chainId: 8453 }); const { writeContractAsync, isPending } = useWriteContract();
+  const controllerAddress = nftControllerForDeployment(nftDeploymentForFactory(item.factory));
   const [phases, setPhases] = useState<Phase[]>([]); const [loading, setLoading] = useState(true); const [notice, setNotice] = useState(""); const [editing, setEditing] = useState<bigint>();
   const [kind, setKind] = useState<"public" | "allowlist">("public"); const [price, setPrice] = useState("0"); const [start, setStart] = useState(toLocal(Date.now() + 10 * 60_000)); const [end, setEnd] = useState(toLocal(Date.now() + 7 * 86400_000));
   const [cap, setCap] = useState("0"); const [limit, setLimit] = useState("2"); const [maxPerTx, setMaxPerTx] = useState("2"); const [csv, setCsv] = useState("");
   const [airdrop, setAirdrop] = useState(""); const [releaseAmount, setReleaseAmount] = useState(""); const [revealURI, setRevealURI] = useState(""); const [revealAt, setRevealAt] = useState("");
   const [revealReminder, setRevealReminder] = useState(false); const [revealDue, setRevealDue] = useState(false);
-  const revenue = useReadContract({ address: nftAddresses.dropController, abi: nftDropControllerAbi, functionName: "pendingCreatorRevenue", args: [collection], chainId: 8453 });
+  const revenue = useReadContract({ address: controllerAddress, abi: nftDropControllerAbi, functionName: "pendingCreatorRevenue", args: [collection], chainId: 8453 });
   const reserve = useReadContract({ address: collection, abi: item.standard === "ERC721" ? bluePFPAbi : blueEditionAbi, functionName: "creatorReserveRemaining", args: item.standard === "ERC721" ? [] : [tokenId], chainId: 8453 });
   const scheduledReveal = useReadContract({ address: collection, abi: bluePFPAbi, functionName: "scheduledRevealTime", chainId: 8453, query: { enabled: item.standard === "ERC721" } });
   const csvResult = useMemo(() => { try { return { entries: parseAllowlistCSV(csv, { allowance: BigInt(limit || 0), unitPrice: safeParseEther(price) }), error: "" }; } catch (error) { return { entries: [], error: shortError(error) }; } }, [csv, limit, price]);
@@ -26,11 +27,11 @@ export function CreatorCollectionManager({ item, onClose }: { item: Collection; 
   async function refresh() {
     if (!client) return; setLoading(true);
     try {
-      const latest = await client.readContract({ address: nftAddresses.dropController, abi: nftDropControllerAbi, functionName: "latestPhaseId", args: [collection, tokenId] });
+      const latest = await client.readContract({ address: controllerAddress, abi: nftDropControllerAbi, functionName: "latestPhaseId", args: [collection, tokenId] });
       const rows = await Promise.all(Array.from({ length: Number(latest) }, async (_, index) => {
         const id = BigInt(index + 1); const [phase, minted] = await Promise.all([
-          client.readContract({ address: nftAddresses.dropController, abi: nftDropControllerAbi, functionName: "phases", args: [collection, tokenId, id] }),
-          client.readContract({ address: nftAddresses.dropController, abi: nftDropControllerAbi, functionName: "phaseMinted", args: [collection, tokenId, id] })
+          client.readContract({ address: controllerAddress, abi: nftDropControllerAbi, functionName: "phases", args: [collection, tokenId, id] }),
+          client.readContract({ address: controllerAddress, abi: nftDropControllerAbi, functionName: "phaseMinted", args: [collection, tokenId, id] })
         ]);
         return { id, type: Number(phase[0]), limitMode: Number(phase[1]), price: phase[3], start: phase[4], end: phase[5], cap: phase[6], walletLimit: phase[7], maxPerTx: phase[8], root: phase[9], minted, cancelled: phase[11] } satisfies Phase;
       })); setPhases(rows);
@@ -76,15 +77,15 @@ export function CreatorCollectionManager({ item, onClose }: { item: Collection; 
       }
       const config = { phaseType: kind === "allowlist" ? 1 : 0, limitMode: 0, currency: zeroAddress, mintPrice: kind === "public" ? parseEther(price || "0") : 0n, startTime, endTime, phaseSupplyCap: BigInt(cap || 0), defaultWalletLimit: kind === "public" ? Number(limit) : 0, maxPerTransaction: Number(maxPerTx), merkleRoot: root };
       const hash = editing
-        ? await writeContractAsync({ chainId: 8453, address: nftAddresses.dropController, abi: nftDropControllerAbi, functionName: "updatePhase", args: [collection, tokenId, editing, config] })
-        : await writeContractAsync({ chainId: 8453, address: nftAddresses.dropController, abi: nftDropControllerAbi, functionName: "createPhase", args: [collection, tokenId, config] });
+        ? await writeContractAsync({ chainId: 8453, address: controllerAddress, abi: nftDropControllerAbi, functionName: "updatePhase", args: [collection, tokenId, editing, config] })
+        : await writeContractAsync({ chainId: 8453, address: controllerAddress, abi: nftDropControllerAbi, functionName: "createPhase", args: [collection, tokenId, config] });
       await client.waitForTransactionReceipt({ hash });
       if (tree) await saveProofs(collection, tokenId, phaseId, tree);
       setNotice(editing ? "Phase updated." : "New mint phase created."); resetForm(); await refresh();
     } catch (error) { setNotice(shortError(error)); }
   }
-  async function cancelPhase(id: bigint) { try { const hash = await writeContractAsync({ chainId:8453,address:nftAddresses.dropController,abi:nftDropControllerAbi,functionName:"cancelPhase",args:[collection,tokenId,id] }); await client?.waitForTransactionReceipt({hash});setNotice("Phase cancelled.");await refresh();}catch(error){setNotice(shortError(error));} }
-  async function claim() { try { const hash=await writeContractAsync({chainId:8453,address:nftAddresses.dropController,abi:nftDropControllerAbi,functionName:"claimCreatorRevenue",args:[collection]});await client?.waitForTransactionReceipt({hash});await revenue.refetch();setNotice("Primary mint revenue claimed to the payout wallet.");}catch(error){setNotice(shortError(error));} }
+  async function cancelPhase(id: bigint) { try { const hash = await writeContractAsync({ chainId:8453,address:controllerAddress,abi:nftDropControllerAbi,functionName:"cancelPhase",args:[collection,tokenId,id] }); await client?.waitForTransactionReceipt({hash});setNotice("Phase cancelled.");await refresh();}catch(error){setNotice(shortError(error));} }
+  async function claim() { try { const hash=await writeContractAsync({chainId:8453,address:controllerAddress,abi:nftDropControllerAbi,functionName:"claimCreatorRevenue",args:[collection]});await client?.waitForTransactionReceipt({hash});await revenue.refetch();setNotice("Primary mint revenue claimed to the payout wallet.");}catch(error){setNotice(shortError(error));} }
   async function submitAirdrop() { try { const rows=airdrop.split(/\r?\n/).filter(Boolean).map((line)=>line.split(/[;,]/).map((value)=>value.trim()));if(!rows.length||rows.some(([wallet,qty])=>!isAddress(wallet)||!/^\d+$/.test(qty||"")||BigInt(qty)===0n))throw new Error("Use one wallet,quantity pair per line.");const recipients=rows.map(([wallet])=>getAddress(wallet));const quantities=rows.map(([,qty])=>BigInt(qty));const hash=item.standard==="ERC721"?await writeContractAsync({chainId:8453,address:collection,abi:bluePFPAbi,functionName:"airdrop",args:[recipients,quantities]}):await writeContractAsync({chainId:8453,address:collection,abi:blueEditionAbi,functionName:"airdrop",args:[tokenId,recipients,quantities]});await client?.waitForTransactionReceipt({hash});await reserve.refetch();setAirdrop("");setNotice("Reserve airdrop completed.");}catch(error){setNotice(shortError(error));} }
   async function releaseReserve(){try{const amount=BigInt(releaseAmount||0);if(amount<=0n)throw new Error("Enter a reserve amount.");const hash=item.standard==="ERC721"?await writeContractAsync({chainId:8453,address:collection,abi:bluePFPAbi,functionName:"releaseCreatorReserve",args:[amount]}):await writeContractAsync({chainId:8453,address:collection,abi:blueEditionAbi,functionName:"releaseCreatorReserve",args:[tokenId,amount]});await client?.waitForTransactionReceipt({hash});await reserve.refetch();setReleaseAmount("");setNotice("Reserve released to public mint supply.");}catch(error){setNotice(shortError(error));}}
   async function scheduleReveal(){try{const time=BigInt(Math.floor(new Date(revealAt).getTime()/1000));const hash=await writeContractAsync({chainId:8453,address:collection,abi:bluePFPAbi,functionName:"scheduleReveal",args:[revealURI,time,true]});await client?.waitForTransactionReceipt({hash});await scheduledReveal.refetch();setNotice("Reveal scheduled. Anyone can execute it after the deadline.");}catch(error){setNotice(shortError(error));}}

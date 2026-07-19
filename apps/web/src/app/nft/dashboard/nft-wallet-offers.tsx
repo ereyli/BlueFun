@@ -5,10 +5,10 @@ import Link from "next/link";
 import { formatEther, type Address, type Hex } from "viem";
 import { useAccount, useWriteContract } from "wagmi";
 import { ExternalLink, Gavel, Loader2, Tag } from "lucide-react";
-import { nftAddresses, nftOffersAbi, nftOffersEnabled } from "@/lib/nft-contracts";
+import { nftOffersAbi, nftOffersEnabled } from "@/lib/nft-contracts";
 
 type WalletOffer = {
-  offerHash: Hex; maker: Address; taker: Address; recipient: Address; collection: Address; tokenId: string;
+  offersContract: Address; offerHash: Hex; maker: Address; taker: Address; recipient: Address; collection: Address; tokenId: string;
   unitPrice: string; quantity: string; remainingQuantity: string; startTime: string; endTime: string; nonce: string;
   standard: number; offerType: number; signature: Hex; ownedTokenId?: string;
 };
@@ -37,7 +37,7 @@ export function NFTWalletOffers() {
 
   async function cancel(offer: WalletOffer) {
     try {
-      await writeContractAsync({ chainId: 8453, address: nftAddresses.offers, abi: nftOffersAbi, functionName: "cancelOffer", args: [{
+      await writeContractAsync({ chainId: 8453, address: offer.offersContract, abi: nftOffersAbi, functionName: "cancelOffer", args: [{
         maker: offer.maker, taker: offer.taker, recipient: offer.recipient, collection: offer.collection,
         tokenId: BigInt(offer.tokenId), unitPrice: BigInt(offer.unitPrice), quantity: BigInt(offer.quantity),
         startTime: BigInt(offer.startTime), endTime: BigInt(offer.endTime), nonce: BigInt(offer.nonce), standard: offer.standard, offerType: offer.offerType

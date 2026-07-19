@@ -3,13 +3,15 @@ import { unstable_cache } from "next/cache";
 import { createClient } from "@supabase/supabase-js";
 import { baseChain } from "@/lib/base-chain";
 import { baseRpcUrls } from "@/lib/rpc";
-import { blueEditionAbi, bluePFPAbi, nftAddresses, nftCollectionFactoryAbi, nftDropControllerAbi, nftLaunchpadEnabled, nftPFPFactoryAbi } from "@/lib/nft-contracts";
+import { blueEditionAbi, bluePFPAbi, nftAddresses, nftCollectionFactoryAbi, nftDeploymentForFactory, nftDropControllerAbi, nftLaunchpadEnabled, nftPFPFactoryAbi, type NFTDeployment } from "@/lib/nft-contracts";
 import { optimizedTokenImageUrl, readTokenMetadata } from "@/lib/token-metadata";
 
 export type NFTCollectionSummary = {
   id: string;
   address: `0x${string}`;
   creator: `0x${string}`;
+  factory: `0x${string}`;
+  deployment: NFTDeployment;
   name: string;
   symbol: string;
   imageUrl?: string;
@@ -91,7 +93,7 @@ async function loadIndexedCollections(limit: number): Promise<NFTCollectionSumma
   try {
     const supabase = createClient(url, key, { auth: { persistSession: false } });
     const collectionsResponse = await supabase.from("nft_collections")
-      .select("collection_id,collection,creator,name,symbol,standard,contract_uri,initial_max_supply,royalty_bps,created_block")
+      .select("collection_id,collection,creator,factory,name,symbol,standard,contract_uri,initial_max_supply,royalty_bps,created_block")
       .eq("chain_id", 8453)
       .order("created_block", { ascending: false })
       .limit(limit);
@@ -114,6 +116,7 @@ async function loadIndexedCollections(limit: number): Promise<NFTCollectionSumma
     const mapped = await Promise.all(rows.map(async (row): Promise<NFTCollectionSummary | undefined> => {
       try {
         const address = getAddress(String(row.collection));
+        const factory = getAddress(String(row.factory));
         const keyAddress = address.toLowerCase();
         const item = items.get(keyAddress);
         const phase = phases.get(keyAddress);
@@ -131,6 +134,8 @@ async function loadIndexedCollections(limit: number): Promise<NFTCollectionSumma
           id: standard === "ERC-721 PFP" ? `P${String(row.collection_id)}` : String(row.collection_id),
           address,
           creator: getAddress(String(row.creator)),
+          factory,
+          deployment: nftDeploymentForFactory(factory),
           name: String(row.name),
           symbol: String(row.symbol),
           imageUrl: metadata.imageURI ? optimizedTokenImageUrl(metadata.imageURI) : undefined,
@@ -157,7 +162,7 @@ async function loadIndexedCollections(limit: number): Promise<NFTCollectionSumma
   }
 }
 
-export const getNFTCollections = unstable_cache(loadNFTCollections, ["bluefun-nft-collections-v3"], {
+export const getNFTCollections = unstable_cache(loadNFTCollections, ["bluefun-nft-collections-v4"], {
   revalidate: 30,
   tags: ["nft-collections"]
 });
@@ -194,7 +199,7 @@ async function loadCollection(client: NFTClient, id: bigint, address: `0x${strin
       status = phase[11] ? "Ended" : now < Number(phase[4]) ? "Upcoming" : now < Number(phase[5]) ? "Live" : "Ended";
     }
     return {
-      id: id.toString(), address, creator: getAddress(creator), name, symbol,
+      id: id.toString(), address, creator: getAddress(creator), factory: nftAddresses.collectionFactory, deployment: "current", name, symbol,
       imageUrl: metadata.imageURI ? optimizedTokenImageUrl(metadata.imageURI) : undefined,
       description: metadata.description,
       itemCount: Math.max(0, Number(nextTokenId - 1n)),
@@ -227,7 +232,7 @@ async function loadPFPCollection(client: NFTClient, id: bigint, address: `0x${st
     const metadata = await readTokenMetadata(contractURI);
     const phaseState = await phaseSummary(client, address, latestPhaseId);
     return {
-      id: `P${id}`, address, creator: getAddress(creator), name, symbol,
+      id: `P${id}`, address, creator: getAddress(creator), factory: nftAddresses.pfpFactory, deployment: "current", name, symbol,
       imageUrl: metadata.imageURI ? optimizedTokenImageUrl(metadata.imageURI) : undefined,
       description: metadata.description, itemCount: Number(supply), initialSupply: supply.toString(), initialMinted: minted.toString(),
       royaltyPercent: (Number(royaltyBps) / 100).toFixed(Number(royaltyBps) % 100 ? 2 : 0),

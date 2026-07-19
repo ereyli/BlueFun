@@ -12,7 +12,7 @@ export async function GET(request: Request) {
   const wallet = getAddress(walletValue).toLowerCase();
   const db = createClient(supabaseUrl, supabaseKey, { auth: { persistSession: false } });
   const [createdResult, balancesResult, listingsResult, mintsResult, transfersResult] = await Promise.all([
-    db.from("nft_collections").select("collection,name,symbol,standard,initial_max_supply,created_at").eq("chain_id", 8453).eq("creator", wallet).order("created_at", { ascending: false }),
+    db.from("nft_collections").select("collection,factory,name,symbol,standard,initial_max_supply,created_at").eq("chain_id", 8453).eq("creator", wallet).order("created_at", { ascending: false }),
     db.from("nft_balances").select("collection,token_id,balance,updated_at").eq("chain_id", 8453).eq("owner", wallet).gt("balance", 0).order("updated_at", { ascending: false }),
     db.from("nft_listings").select("listing_id,collection,token_id,remaining_quantity,unit_price,end_time,cancelled,updated_at").eq("chain_id", 8453).eq("seller", wallet).order("updated_at", { ascending: false }).limit(100),
     db.from("nft_mints").select("collection,token_id,quantity,gross_amount,tx_hash,created_at").eq("chain_id", 8453).or(`payer.eq.${wallet},recipient.eq.${wallet}`).order("created_at", { ascending: false }).limit(50),
@@ -24,7 +24,7 @@ export async function GET(request: Request) {
   for (const row of balancesResult.data || []) collections.add(String(row.collection));
   for (const row of listingsResult.data || []) collections.add(String(row.collection));
   const collectionResult = collections.size
-    ? await db.from("nft_collections").select("collection,name,symbol,standard").eq("chain_id", 8453).in("collection", [...collections])
+    ? await db.from("nft_collections").select("collection,factory,name,symbol,standard").eq("chain_id", 8453).in("collection", [...collections])
     : { data: [], error: null };
   const itemResult = collections.size
     ? await db.from("nft_items").select("collection,token_id,metadata_uri").eq("chain_id", 8453).in("collection", [...collections]).limit(10000)

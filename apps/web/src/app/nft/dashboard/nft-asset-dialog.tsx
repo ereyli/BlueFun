@@ -5,7 +5,7 @@ import Link from "next/link";
 import { formatEther, parseEther, type Address } from "viem";
 import { useAccount, useReadContract, useWriteContract } from "wagmi";
 import { ExternalLink, ImageIcon, Loader2, ShieldCheck, ShoppingBag, Sparkles, Tag, X } from "lucide-react";
-import { blueEditionAbi, bluePFPAbi, ipfsGateway, nftAddresses, nftMarketplaceAbi, nftPFPMarketplaceAbi } from "@/lib/nft-contracts";
+import { blueEditionAbi, bluePFPAbi, ipfsGateway, nftDeploymentForFactory, nftMarketplaceForDeployment, nftMarketplaceAbi, nftPFPMarketplaceAbi } from "@/lib/nft-contracts";
 import { NFTOffersPanel } from "../nft-offers-panel";
 
 export type DashboardNFT = {
@@ -13,7 +13,7 @@ export type DashboardNFT = {
   token_id: string;
   balance: string;
   metadataUri?: string;
-  collectionInfo: { collection: string; name: string; symbol: string; standard: "ERC721" | "ERC1155" } | null;
+  collectionInfo: { collection: string; factory?: string; name: string; symbol: string; standard: "ERC721" | "ERC1155" } | null;
 };
 
 type Metadata = { name?: string; description?: string; image?: string; attributes?: Array<{ trait_type?: string; value?: string | number }> };
@@ -23,21 +23,23 @@ export function NFTAssetDialog({ item, onClose }: { item: DashboardNFT; onClose:
   const { writeContractAsync, isPending } = useWriteContract();
   const collection = item.collection as Address; const tokenId = BigInt(item.token_id);
   const standard = item.collectionInfo?.standard || "ERC1155";
+  const marketAddress = nftMarketplaceForDeployment(nftDeploymentForFactory(item.collectionInfo?.factory), standard);
   const [metadata, setMetadata] = useState<Metadata>({}); const [listingId, setListingId] = useState("");
+  const [listingMarketplace, setListingMarketplace] = useState<Address>(marketAddress);
   const [price, setPrice] = useState("0.1"); const [quantity, setQuantity] = useState("1"); const [days, setDays] = useState("30"); const [notice, setNotice] = useState("");
   const parsedListingId = /^\d+$/.test(listingId) ? BigInt(listingId) : 0n;
   const pfpApproval = useReadContract({ address: collection, abi: bluePFPAbi, functionName: "getApproved", args: [tokenId], chainId: 8453, query: { enabled: standard === "ERC721" } });
-  const editionApproval = useReadContract({ address: collection, abi: blueEditionAbi, functionName: "isApprovedForAll", args: [address!, nftAddresses.marketplace], chainId: 8453, query: { enabled: standard === "ERC1155" && Boolean(address) } });
+  const editionApproval = useReadContract({ address: collection, abi: blueEditionAbi, functionName: "isApprovedForAll", args: [address!, marketAddress], chainId: 8453, query: { enabled: standard === "ERC1155" && Boolean(address) } });
   const pfpUri = useReadContract({ address: collection, abi: bluePFPAbi, functionName: "tokenURI", args: [tokenId], chainId: 8453, query: { enabled: standard === "ERC721" } });
   const editionUri = useReadContract({ address: collection, abi: blueEditionAbi, functionName: "uri", args: [tokenId], chainId: 8453, query: { enabled: standard === "ERC1155" } });
-  const pfpListing = useReadContract({ address: nftAddresses.pfpMarketplace, abi: nftPFPMarketplaceAbi, functionName: "listings", args: [parsedListingId], chainId: 8453, query: { enabled: standard === "ERC721" && parsedListingId > 0n } });
-  const editionListing = useReadContract({ address: nftAddresses.marketplace, abi: nftMarketplaceAbi, functionName: "listings", args: [parsedListingId], chainId: 8453, query: { enabled: standard === "ERC1155" && parsedListingId > 0n } });
+  const pfpListing = useReadContract({ address: listingMarketplace, abi: nftPFPMarketplaceAbi, functionName: "listings", args: [parsedListingId], chainId: 8453, query: { enabled: standard === "ERC721" && parsedListingId > 0n } });
+  const editionListing = useReadContract({ address: listingMarketplace, abi: nftMarketplaceAbi, functionName: "listings", args: [parsedListingId], chainId: 8453, query: { enabled: standard === "ERC1155" && parsedListingId > 0n } });
   const now = BigInt(Math.floor(Date.now() / 1000));
   const pfpActive = Boolean(pfpListing.data && pfpListing.data[1].toLowerCase() === collection.toLowerCase() && pfpListing.data[2] === tokenId && !pfpListing.data[6] && !pfpListing.data[7] && pfpListing.data[5] > now);
   const editionActive = Boolean(editionListing.data && editionListing.data[1].toLowerCase() === collection.toLowerCase() && editionListing.data[2] === tokenId && editionListing.data[6] > 0n && !editionListing.data[7] && editionListing.data[5] > now);
   const active = standard === "ERC721" ? pfpActive : editionActive;
   const activePrice = standard === "ERC721" ? pfpListing.data?.[3] : editionListing.data?.[3];
-  const approvalReady = standard === "ERC721" ? pfpApproval.data?.toLowerCase() === nftAddresses.pfpMarketplace.toLowerCase() : Boolean(editionApproval.data);
+  const approvalReady = standard === "ERC721" ? pfpApproval.data?.toLowerCase() === marketAddress.toLowerCase() : Boolean(editionApproval.data);
   const itemTitle = metadata.name || `${item.collectionInfo?.name || "NFT"} #${item.token_id}`;
   const image = metadata.image ? ipfsGateway(metadata.image) : undefined;
   const attributes = useMemo(() => (metadata.attributes || []).slice(0, 8), [metadata.attributes]);
@@ -54,7 +56,7 @@ export function NFTAssetDialog({ item, onClose }: { item: DashboardNFT; onClose:
     fetch(ipfsGateway(metadataUri)).then((response) => response.ok ? response.json() : {}).then(setMetadata).catch(() => undefined);
   }, [metadataUri]);
   useEffect(() => {
-    fetch(`/api/nft/listing?collection=${collection}&tokenId=${tokenId}`, { cache: "no-store" }).then((response) => response.ok ? response.json() : {}).then((data: { listingId?: string }) => setListingId(data.listingId || "")).catch(() => undefined);
+    fetch(`/api/nft/listing?collection=${collection}&tokenId=${tokenId}`, { cache: "no-store" }).then((response) => response.ok ? response.json() : {}).then((data: { listingId?: string; marketplace?: Address }) => { setListingId(data.listingId || ""); if (data.marketplace) setListingMarketplace(data.marketplace); }).catch(() => undefined);
   }, [collection, tokenId]);
 
   async function approveOrList() {
@@ -63,13 +65,13 @@ export function NFTAssetDialog({ item, onClose }: { item: DashboardNFT; onClose:
       const salePrice = parseEther(price || "0"); const saleQuantity = /^\d+$/.test(quantity) ? BigInt(quantity) : 0n;
       if (salePrice <= 0n || (standard === "ERC1155" && (saleQuantity <= 0n || saleQuantity > BigInt(item.balance)))) throw new Error("Enter a valid price and quantity.");
       if (!approvalReady) {
-        if (standard === "ERC721") await writeContractAsync({ chainId: 8453, address: collection, abi: bluePFPAbi, functionName: "approve", args: [nftAddresses.pfpMarketplace, tokenId] });
-        else await writeContractAsync({ chainId: 8453, address: collection, abi: blueEditionAbi, functionName: "setApprovalForAll", args: [nftAddresses.marketplace, true] });
+        if (standard === "ERC721") await writeContractAsync({ chainId: 8453, address: collection, abi: bluePFPAbi, functionName: "approve", args: [marketAddress, tokenId] });
+        else await writeContractAsync({ chainId: 8453, address: collection, abi: blueEditionAbi, functionName: "setApprovalForAll", args: [marketAddress, true] });
         setNotice("Marketplace approval submitted. List after confirmation."); void pfpApproval.refetch(); void editionApproval.refetch(); return;
       }
       const start = BigInt(Math.floor(Date.now() / 1000)); const end = start + BigInt(Number(days) || 30) * 86400n;
-      if (standard === "ERC721") await writeContractAsync({ chainId: 8453, address: nftAddresses.pfpMarketplace, abi: nftPFPMarketplaceAbi, functionName: "createListing", args: [collection, tokenId, salePrice, start, end] });
-      else await writeContractAsync({ chainId: 8453, address: nftAddresses.marketplace, abi: nftMarketplaceAbi, functionName: "createListing", args: [collection, tokenId, saleQuantity, salePrice, start, end] });
+      if (standard === "ERC721") await writeContractAsync({ chainId: 8453, address: marketAddress, abi: nftPFPMarketplaceAbi, functionName: "createListing", args: [collection, tokenId, salePrice, start, end] });
+      else await writeContractAsync({ chainId: 8453, address: marketAddress, abi: nftMarketplaceAbi, functionName: "createListing", args: [collection, tokenId, saleQuantity, salePrice, start, end] });
       setNotice("Listing submitted. It will appear after confirmation.");
     } catch (error) { setNotice(shortError(error)); }
   }
@@ -77,8 +79,8 @@ export function NFTAssetDialog({ item, onClose }: { item: DashboardNFT; onClose:
   async function cancelListing() {
     try {
       if (!parsedListingId) return;
-      if (standard === "ERC721") await writeContractAsync({ chainId: 8453, address: nftAddresses.pfpMarketplace, abi: nftPFPMarketplaceAbi, functionName: "cancelListing", args: [parsedListingId] });
-      else await writeContractAsync({ chainId: 8453, address: nftAddresses.marketplace, abi: nftMarketplaceAbi, functionName: "cancelListing", args: [parsedListingId] });
+      if (standard === "ERC721") await writeContractAsync({ chainId: 8453, address: listingMarketplace, abi: nftPFPMarketplaceAbi, functionName: "cancelListing", args: [parsedListingId] });
+      else await writeContractAsync({ chainId: 8453, address: listingMarketplace, abi: nftMarketplaceAbi, functionName: "cancelListing", args: [parsedListingId] });
       setNotice("Listing cancellation submitted.");
     } catch (error) { setNotice(shortError(error)); }
   }

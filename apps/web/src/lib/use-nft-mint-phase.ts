@@ -2,20 +2,20 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { useReadContract, useReadContracts } from "wagmi";
-import { nftAddresses, nftDropControllerAbi } from "@/lib/nft-contracts";
+import { nftDropControllerAbi } from "@/lib/nft-contracts";
 
 export type MintPhaseData = readonly [number, number, `0x${string}`, bigint, bigint, bigint, bigint, number, number, `0x${string}`, bigint, boolean];
 
-export function useNFTMintPhase(collection: `0x${string}`, tokenId: bigint, enabled: boolean) {
+export function useNFTMintPhase(collection: `0x${string}`, tokenId: bigint, controller: `0x${string}`, enabled: boolean) {
   const [nowSeconds, setNowSeconds] = useState(() => BigInt(Math.floor(Date.now() / 1000)));
-  const latest = useReadContract({ address: nftAddresses.dropController, abi: nftDropControllerAbi, functionName: "latestPhaseId", args: [collection, tokenId], chainId: 8453, query: { enabled } });
+  const latest = useReadContract({ address: controller, abi: nftDropControllerAbi, functionName: "latestPhaseId", args: [collection, tokenId], chainId: 8453, query: { enabled } });
   const phaseIds = useMemo(() => {
     const last = latest.data ?? 0n;
     if (last === 0n) return [];
     const first = last > 31n ? last - 31n : 1n;
     return Array.from({ length: Number(last - first + 1n) }, (_, index) => first + BigInt(index));
   }, [latest.data]);
-  const phaseReads = useReadContracts({ contracts: phaseIds.map((phaseId) => ({ address: nftAddresses.dropController, abi: nftDropControllerAbi, functionName: "phases" as const, args: [collection, tokenId, phaseId] as const, chainId: 8453 })), query: { enabled: enabled && phaseIds.length > 0 } });
+  const phaseReads = useReadContracts({ contracts: phaseIds.map((phaseId) => ({ address: controller, abi: nftDropControllerAbi, functionName: "phases" as const, args: [collection, tokenId, phaseId] as const, chainId: 8453 })), query: { enabled: enabled && phaseIds.length > 0 } });
 
   useEffect(() => {
     const timer = window.setInterval(() => setNowSeconds(BigInt(Math.floor(Date.now() / 1000))), 15_000);

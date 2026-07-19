@@ -13,7 +13,33 @@ export const nftAddresses = {
   weth: address(process.env.NEXT_PUBLIC_BASE_WETH || "0x4200000000000000000000000000000000000006"),
   deploymentBlock: BigInt(process.env.NEXT_PUBLIC_NFT_DEPLOYMENT_BLOCK || "48813200")
 };
-export const legacyNftAddresses = { collectionFactory: "0x342F90f22fBd5f7D680d3d84Ce121BDA995F6F4D", marketplace: "0xf08f44AC84632c7E3dF2E63804fB8eECb4B346bb", pfpFactory: "0x7A43a7e57481816cdCF534b2A0ee56940Bb8F416", pfpMarketplace: "0xd16eF0dcf1e7b430d38Fe2E26eCFc73f099f25d0", offers: "0x5BDb354b162dF83392cf852A86B31194C1d3906f" } as const;
+export const legacyNftAddresses = {
+  dropController: "0xb129417fFc25b5A8e918Cb63E6f45a605905C0aC",
+  collectionFactory: "0x342F90f22fBd5f7D680d3d84Ce121BDA995F6F4D",
+  marketplace: "0xf08f44AC84632c7E3dF2E63804fB8eECb4B346bb",
+  pfpFactory: "0x7A43a7e57481816cdCF534b2A0ee56940Bb8F416",
+  pfpMarketplace: "0xd16eF0dcf1e7b430d38Fe2E26eCFc73f099f25d0",
+  offers: "0x5BDb354b162dF83392cf852A86B31194C1d3906f"
+} as const;
+
+export type NFTDeployment = "legacy" | "current";
+
+export function nftDeploymentForFactory(factory?: string): NFTDeployment {
+  const normalized = factory?.toLowerCase();
+  return normalized === legacyNftAddresses.collectionFactory.toLowerCase()
+    || normalized === legacyNftAddresses.pfpFactory.toLowerCase()
+    ? "legacy"
+    : "current";
+}
+
+export function nftControllerForDeployment(deployment: NFTDeployment) {
+  return deployment === "legacy" ? legacyNftAddresses.dropController : nftAddresses.dropController;
+}
+
+export function nftMarketplaceForDeployment(deployment: NFTDeployment, standard: "ERC721" | "ERC1155") {
+  if (deployment === "legacy") return standard === "ERC721" ? legacyNftAddresses.pfpMarketplace : legacyNftAddresses.marketplace;
+  return standard === "ERC721" ? nftAddresses.pfpMarketplace : nftAddresses.marketplace;
+}
 
 export const nftLaunchpadEnabled = nftAddresses.feePolicy !== zeroAddress
   && nftAddresses.dropController !== zeroAddress

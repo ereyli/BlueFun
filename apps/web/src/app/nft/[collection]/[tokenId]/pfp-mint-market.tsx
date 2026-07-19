@@ -5,7 +5,7 @@ import Link from "next/link";
 import { formatEther, parseEther } from "viem";
 import { useAccount, useReadContract, useWriteContract } from "wagmi";
 import { ChevronLeft, ChevronRight, ExternalLink, Eye, Grid2X2, List as ListIcon, Loader2, Search, ShieldCheck, ShoppingBag, Sparkles } from "lucide-react";
-import { bluePFPAbi, ipfsGateway, legacyNftAddresses, nftAddresses, nftDropControllerAbi, nftFeePolicyAbi, nftPFPFactoryAbi, nftPFPMarketplaceAbi, pfpLaunchpadEnabled } from "@/lib/nft-contracts";
+import { bluePFPAbi, ipfsGateway, nftAddresses, nftControllerForDeployment, nftDropControllerAbi, nftFeePolicyAbi, nftMarketplaceForDeployment, nftPFPMarketplaceAbi, pfpLaunchpadEnabled, type NFTDeployment } from "@/lib/nft-contracts";
 import { NFTCollectionTabs } from "../../nft-collection-tabs";
 import { NFTCollectionProfile } from "../../nft-collection-profile";
 import { NFTCommerceDialog } from "../../nft-commerce-dialog";
@@ -14,17 +14,18 @@ import { MintPhaseStatus } from "@/components/nft-mint-schedule";
 import { useNFTMintPhase } from "@/lib/use-nft-mint-phase";
 import { useNFTAllowlistProof } from "@/lib/use-nft-allowlist-proof";
 
-export function PFPMintMarket({ collection, tokenId, view = "item" }: { collection: `0x${string}`; tokenId: bigint; view?: "item" | "collection" }) {
+export function PFPMintMarket({ collection, tokenId, view = "item", deployment = "current" }: { collection: `0x${string}`; tokenId: bigint; view?: "item" | "collection"; deployment?: NFTDeployment }) {
   const { address, isConnected } = useAccount(); const { writeContractAsync, isPending } = useWriteContract();
   const [quantity, setQuantity] = useState("1"); const [metadata, setMetadata] = useState<{ name?: string; description?: string; image?: string; attributes?: Array<{ trait_type?: string; value?: string | number }> }>({});
   const [collectionMetadata, setCollectionMetadata] = useState<CollectionMetadata>({});
-  const [notice, setNotice] = useState(""); const [listingId, setListingId] = useState(""); const [listingMarketplace,setListingMarketplace]=useState<`0x${string}`>(nftAddresses.pfpMarketplace); const [salePrice, setSalePrice] = useState("0.1");
+  const controllerAddress = nftControllerForDeployment(deployment);
+  const marketAddress = nftMarketplaceForDeployment(deployment, "ERC721");
+  const [notice, setNotice] = useState(""); const [listingId, setListingId] = useState(""); const [listingMarketplace,setListingMarketplace]=useState<`0x${string}`>(marketAddress); const [salePrice, setSalePrice] = useState("0.1");
   const [commerceDialog, setCommerceDialog] = useState<"buy" | "list" | null>(null); const [listingDays, setListingDays] = useState("30");
   const [revealURI, setRevealURI] = useState(""); const [freezeReveal, setFreezeReveal] = useState(true);
   const name = useReadContract({ address: collection, abi: bluePFPAbi, functionName: "name", chainId: 8453 });
   const symbol = useReadContract({ address: collection, abi: bluePFPAbi, functionName: "symbol", chainId: 8453 });
   const owner = useReadContract({ address: collection, abi: bluePFPAbi, functionName: "owner", chainId: 8453 });
-  const registeredV2=useReadContract({address:nftAddresses.pfpFactory,abi:nftPFPFactoryAbi,functionName:"isBlueFunCollection",args:[collection],chainId:8453});const marketAddress=registeredV2.data===false?legacyNftAddresses.pfpMarketplace:nftAddresses.pfpMarketplace;
   const uri = useReadContract({ address: collection, abi: bluePFPAbi, functionName: "tokenURI", args: [tokenId], chainId: 8453 });
   const contractURI = useReadContract({ address: collection, abi: bluePFPAbi, functionName: "contractURI", chainId: 8453 });
   const max = useReadContract({ address: collection, abi: bluePFPAbi, functionName: "collectionMaxSupply", chainId: 8453 });
@@ -33,11 +34,11 @@ export function PFPMintMarket({ collection, tokenId, view = "item" }: { collecti
   const metadataFrozen = useReadContract({ address: collection, abi: bluePFPAbi, functionName: "metadataFrozen", chainId: 8453 });
   const royaltyBps = useReadContract({ address: collection, abi: bluePFPAbi, functionName: "royaltyBps", chainId: 8453 });
   const marketplaceFeeBps = useReadContract({ address: nftAddresses.feePolicy, abi: nftFeePolicyAbi, functionName: "marketplaceFeeBps", chainId: 8453, query: { enabled: pfpLaunchpadEnabled } });
-  const { phaseId, phaseData, nowSeconds, isLoading: phaseLoading } = useNFTMintPhase(collection, 1n, pfpLaunchpadEnabled);
+  const { phaseId, phaseData, nowSeconds, isLoading: phaseLoading } = useNFTMintPhase(collection, 1n, controllerAddress, pfpLaunchpadEnabled);
   const phaseType = Number(phaseData?.[0] ?? 0); const allowlistProof = useNFTAllowlistProof(collection, 1n, phaseId, address, phaseType === 1);
-  const mintedInPhase = useReadContract({ address: nftAddresses.dropController, abi: nftDropControllerAbi, functionName: "phaseMinted", args: [collection, 1n, phaseId], chainId: 8453, query: { enabled: pfpLaunchpadEnabled && phaseId > 0n } });
-  const walletMintedInPhase = useReadContract({ address: nftAddresses.dropController, abi: nftDropControllerAbi, functionName: "mintedByWalletInPhase", args: [collection, 1n, phaseId, address!], chainId: 8453, query: { enabled: pfpLaunchpadEnabled && phaseId > 0n && Boolean(address) } });
-  const walletMintedTotal = useReadContract({ address: nftAddresses.dropController, abi: nftDropControllerAbi, functionName: "mintedByWalletTotal", args: [collection, 1n, address!], chainId: 8453, query: { enabled: pfpLaunchpadEnabled && Boolean(address) } });
+  const mintedInPhase = useReadContract({ address: controllerAddress, abi: nftDropControllerAbi, functionName: "phaseMinted", args: [collection, 1n, phaseId], chainId: 8453, query: { enabled: pfpLaunchpadEnabled && phaseId > 0n } });
+  const walletMintedInPhase = useReadContract({ address: controllerAddress, abi: nftDropControllerAbi, functionName: "mintedByWalletInPhase", args: [collection, 1n, phaseId, address!], chainId: 8453, query: { enabled: pfpLaunchpadEnabled && phaseId > 0n && Boolean(address) } });
+  const walletMintedTotal = useReadContract({ address: controllerAddress, abi: nftDropControllerAbi, functionName: "mintedByWalletTotal", args: [collection, 1n, address!], chainId: 8453, query: { enabled: pfpLaunchpadEnabled && Boolean(address) } });
   const tokenOwner = useReadContract({ address: collection, abi: bluePFPAbi, functionName: "ownerOf", args: [tokenId], chainId: 8453, query: { enabled: tokenId <= (minted.data ?? 0n) } });
   const approval = useReadContract({ address: collection, abi: bluePFPAbi, functionName: "getApproved", args: [tokenId], chainId: 8453, query: { enabled: Boolean(tokenOwner.data) } });
   const parsedListingId = safePositiveBigInt(listingId) ?? 0n;
@@ -71,8 +72,8 @@ export function PFPMintMarket({ collection, tokenId, view = "item" }: { collecti
       if (!amount) throw new Error("Enter a valid mint quantity.");
       if (!phaseActive) throw new Error("The current mint phase is not active.");
       if (amount > mintLimit) throw new Error(`You can mint at most ${mintLimit} in this transaction.`);
-      if (phaseType === 0) await writeContractAsync({ chainId: 8453, address: nftAddresses.dropController, abi: nftDropControllerAbi, functionName: "mintPublic", value: unitPrice * amount, args: [collection, 1n, phaseId, amount, address, unitPrice, deadline] });
-      else { if (!allowlistProof.entry) throw new Error("This wallet is not eligible for the allowlist phase."); await writeContractAsync({ chainId: 8453, address: nftAddresses.dropController,abi:nftDropControllerAbi,functionName:"mintAllowlist",value:unitPrice*amount,args:[collection,1n,phaseId,amount,address,allowlistProof.entry.allowance,unitPrice,deadline,allowlistProof.entry.proof] }); }
+      if (phaseType === 0) await writeContractAsync({ chainId: 8453, address: controllerAddress, abi: nftDropControllerAbi, functionName: "mintPublic", value: unitPrice * amount, args: [collection, 1n, phaseId, amount, address, unitPrice, deadline] });
+      else { if (!allowlistProof.entry) throw new Error("This wallet is not eligible for the allowlist phase."); await writeContractAsync({ chainId: 8453, address: controllerAddress,abi:nftDropControllerAbi,functionName:"mintAllowlist",value:unitPrice*amount,args:[collection,1n,phaseId,amount,address,allowlistProof.entry.allowance,unitPrice,deadline,allowlistProof.entry.proof] }); }
       setNotice("PFP mint transaction submitted.");
     } catch (error) { setNotice(shortError(error)); }
   }

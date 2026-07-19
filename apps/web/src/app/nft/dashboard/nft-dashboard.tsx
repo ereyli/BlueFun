@@ -11,7 +11,7 @@ import { NFTWalletOffers } from "./nft-wallet-offers";
 import { NFTAssetDialog, type DashboardNFT } from "./nft-asset-dialog";
 import { CreatorCollectionManager } from "./creator-collection-manager";
 
-type Collection = { collection: string; name: string; symbol: string; standard: "ERC721" | "ERC1155"; initial_max_supply?: string };
+type Collection = { collection: string; factory?: string; name: string; symbol: string; standard: "ERC721" | "ERC1155"; initial_max_supply?: string };
 type Owned = DashboardNFT;
 type Listing = { listing_id: string; collection: string; token_id: string; remaining_quantity: string; unit_price: string; end_time: string; cancelled: boolean; collectionInfo: Collection | null };
 type WalletActivity = { type: "mint" | "received" | "sent"; collection: string; token_id: string; quantity: string; gross_amount?: string; counterparty?: string | null; tx_hash: string; created_at: string };

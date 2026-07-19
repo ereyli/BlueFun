@@ -11,5 +11,5 @@ export default async function NFTCollectionPage({ params }: { params: Promise<{ 
   const address = getAddress(collection);
   const summary = (await getNFTCollections()).find((item) => item.address.toLowerCase() === address.toLowerCase());
   if (!summary) notFound();
-  return <NFTMintMarket collection={address} tokenId={1n} view="collection" standard={summary.standard === "ERC-721 PFP" ? "ERC721" : "ERC1155"}/>;
+  return <NFTMintMarket collection={address} tokenId={1n} view="collection" standard={summary.standard === "ERC-721 PFP" ? "ERC721" : "ERC1155"} deployment={summary.deployment}/>;
 }
