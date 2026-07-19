@@ -7,15 +7,16 @@ export async function GET(request: Request) {
   if (!isAddress(value)) return NextResponse.json({ error: "Invalid collection address." }, { status: 400 });
   const supabaseUrl = process.env.SUPABASE_URL || process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseKey = process.env.SUPABASE_ANON_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  const empty = { activity: [], summary: { floorPrice: null, totalVolume: "0", sales: 0, mints: 0, listed: 0 } };
+  const empty = { activity: [], summary: { floorPrice: null, totalVolume: "0", sales: 0, mints: 0, listed: 0, owners: 0 } };
   if (!supabaseUrl || !supabaseKey) return NextResponse.json(empty);
   const collection = getAddress(value).toLowerCase();
   const db = createClient(supabaseUrl, supabaseKey, { auth: { persistSession: false } });
   const now = Math.floor(Date.now() / 1000);
-  const [mints, listings, transfers] = await Promise.all([
+  const [mints, listings, transfers, ownerCount] = await Promise.all([
     db.from("nft_mints").select("token_id,recipient,quantity,gross_amount,tx_hash,log_index,created_at").eq("chain_id", 8453).eq("collection", collection).order("created_at", { ascending: false }).limit(50),
     db.from("nft_listings").select("listing_id,seller,token_id,original_quantity,remaining_quantity,unit_price,end_time,cancelled,created_tx,updated_at").eq("chain_id", 8453).eq("collection", collection).order("updated_at", { ascending: false }).limit(1000),
-    db.from("nft_transfers").select("token_id,from_wallet,to_wallet,quantity,tx_hash,log_index,batch_index,created_at").eq("chain_id", 8453).eq("collection", collection).order("created_at", { ascending: false }).limit(50)
+    db.from("nft_transfers").select("token_id,from_wallet,to_wallet,quantity,tx_hash,log_index,batch_index,created_at").eq("chain_id", 8453).eq("collection", collection).order("created_at", { ascending: false }).limit(50),
+    db.rpc("nft_collection_owner_count", { p_chain_id: 8453, p_collection: collection })
   ]);
   const listingRows = listings.data || [];
   const listingIds = listingRows.map((row) => row.listing_id);
@@ -30,5 +31,10 @@ export async function GET(request: Request) {
   const activeListings = listingRows.filter((row) => !row.cancelled && BigInt(String(row.remaining_quantity)) > 0n && Number(row.end_time) > now);
   const floorPrice = activeListings.reduce<bigint | null>((floor, row) => { const price = BigInt(String(row.unit_price)); return floor === null || price < floor ? price : floor; }, null);
   const totalVolume = (sales.data || []).reduce((sum, row) => sum + BigInt(String(row.gross_amount)), 0n);
-  return NextResponse.json({ activity, summary: { floorPrice: floorPrice?.toString() || null, totalVolume: totalVolume.toString(), sales: sales.data?.length || 0, mints: mints.data?.length || 0, listed: activeListings.length } }, { headers: { "cache-control": "public, max-age=10, stale-while-revalidate=30" } });
+  let owners = ownerCount.error ? 0 : Number(ownerCount.data || 0);
+  if (ownerCount.error) {
+    const fallback = await db.from("nft_balances").select("owner").eq("chain_id", 8453).eq("collection", collection).gt("balance", 0).limit(5000);
+    owners = new Set((fallback.data || []).map((row) => String(row.owner).toLowerCase())).size;
+  }
+  return NextResponse.json({ activity, summary: { floorPrice: floorPrice?.toString() || null, totalVolume: totalVolume.toString(), sales: sales.data?.length || 0, mints: mints.data?.length || 0, listed: activeListings.length, owners } }, { headers: { "cache-control": "public, max-age=10, s-maxage=15, stale-while-revalidate=30" } });
 }

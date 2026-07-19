@@ -5,7 +5,7 @@ import { Activity, ArrowDownToLine, BarChart3, ExternalLink, Gavel, Images, Load
 import { formatEther } from "viem";
 
 type ActivityRow = { id: string; type: "mint" | "listing" | "sale" | "transfer"; tokenId: string; quantity: string; amount?: string; wallet?: string; counterparty?: string; txHash?: string; createdAt: string };
-type ActivityPayload = { activity: ActivityRow[]; summary: { floorPrice: string | null; totalVolume: string; sales: number; mints: number; listed: number } };
+type ActivityPayload = { activity: ActivityRow[]; summary: { floorPrice: string | null; totalVolume: string; sales: number; mints: number; listed: number; owners: number } };
 
 export function NFTCollectionTabs({ collection, children, offers }: { collection: string; children: React.ReactNode; offers?: React.ReactNode }) {
   const [tab, setTab] = useState<"items" | "offers" | "activity" | "analytics">("items");
@@ -15,7 +15,7 @@ export function NFTCollectionTabs({ collection, children, offers }: { collection
   useEffect(() => {
     if (tab === "items" || tab === "offers" || payload) return;
     setLoading(true);
-    fetch(`/api/nft/activity?collection=${collection}`, { cache: "no-store" }).then((response) => response.ok ? response.json() : Promise.reject(new Error("Activity unavailable"))).then(setPayload).catch(() => setPayload({ activity: [], summary: { floorPrice: null, totalVolume: "0", sales: 0, mints: 0, listed: 0 } })).finally(() => setLoading(false));
+    fetch(`/api/nft/activity?collection=${collection}`, { cache: "no-store" }).then((response) => response.ok ? response.json() : Promise.reject(new Error("Activity unavailable"))).then(setPayload).catch(() => setPayload({ activity: [], summary: { floorPrice: null, totalVolume: "0", sales: 0, mints: 0, listed: 0, owners: 0 } })).finally(() => setLoading(false));
   }, [collection, payload, tab]);
 
   return <section className="nft-collection-workspace">
@@ -35,7 +35,8 @@ function AnalyticsView({ summary }: { summary?: ActivityPayload["summary"] }) {
     ["Total volume", `${formatWei(summary?.totalVolume || "0")} ETH`],
     ["Sales", String(summary?.sales || 0)],
     ["Primary mints", String(summary?.mints || 0)],
-    ["Active listings", String(summary?.listed || 0)]
+    ["Active listings", String(summary?.listed || 0)],
+    ["Unique owners", String(summary?.owners || 0)]
   ], [summary]);
   return <section className="nft-directory-panel nft-analytics-panel"><header><div><span>INDEXED MARKET DATA</span><h2>Collection analytics</h2><p>Live BlueFun primary mint and secondary marketplace data on Base.</p></div></header><div>{stats.map(([label, value]) => <article key={label}><small>{label}</small><strong>{value}</strong></article>)}</div><p><BarChart3/>Historical charts will activate as the collection accumulates enough confirmed sales.</p></section>;
 }

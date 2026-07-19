@@ -1,10 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { BadgeCheck, ExternalLink, Globe2, Layers3, Radio, Send, ShieldCheck } from "lucide-react";
+import { BadgeCheck, ExternalLink, Globe2, Layers3, Radio, Send, Share2, ShieldCheck } from "lucide-react";
 import { formatEther } from "viem";
+import { NFTCollectionShareDialog } from "./nft-collection-share-dialog";
 
-type MarketSummary = { floorPrice: string | null; totalVolume: string; sales: number; mints: number; listed: number };
+type MarketSummary = { floorPrice: string | null; totalVolume: string; sales: number; mints: number; listed: number; owners: number };
 type Offer = { priceWeth?: string };
 
 export function NFTCollectionProfile({
@@ -14,8 +15,9 @@ export function NFTCollectionProfile({
   standard: "ERC-721" | "ERC-1155"; supply: bigint; minted: bigint; royaltyBps: bigint; status: string;
   socials?: { website?: string; x?: string; twitter?: string; telegram?: string }; mintPanel: ReactNode;
 }) {
-  const [summary, setSummary] = useState<MarketSummary>({ floorPrice: null, totalVolume: "0", sales: 0, mints: 0, listed: 0 });
+  const [summary, setSummary] = useState<MarketSummary>({ floorPrice: null, totalVolume: "0", sales: 0, mints: 0, listed: 0, owners: 0 });
   const [offers, setOffers] = useState<Offer[]>([]);
+  const [shareOpen, setShareOpen] = useState(false);
 
   useEffect(() => {
     Promise.all([
@@ -43,6 +45,7 @@ export function NFTCollectionProfile({
     <div className="nft-profile-banner">
       {image ? <img src={image} alt="" aria-hidden="true"/> : null}
       <div className="nft-profile-banner-shade"/>
+      <button className="nft-profile-share" aria-label="Share collection" onClick={() => setShareOpen(true)}><Share2/>Share</button>
       <div className="nft-profile-identity">
         <div className="nft-profile-avatar">{image ? <img src={image} alt={`${name} collection`}/> : <Layers3/>}</div>
         <div className="nft-profile-title"><span>{standard} · BASE</span><h1>{name}</h1><div><b>By {shortCreator}</b><BadgeCheck/><em>{symbol}</em></div></div>
@@ -62,6 +65,7 @@ export function NFTCollectionProfile({
       </div>
       <div className="nft-profile-mint">{mintPanel}</div>
     </div>
+    <NFTCollectionShareDialog collection={collection} name={name} symbol={symbol} status={status} minted={minted} supply={supply} floor={floor === "—" ? floor : `${floor} ETH`} volume={`${volume} ETH`} owners={summary.owners} open={shareOpen} onClose={() => setShareOpen(false)}/>
   </section>;
 }
 
