@@ -107,12 +107,20 @@ export const bluePFPAbi = [
   { type: "function", name: "name", stateMutability: "view", inputs: [], outputs: [{ type: "string" }] },
   { type: "function", name: "symbol", stateMutability: "view", inputs: [], outputs: [{ type: "string" }] },
   { type: "function", name: "owner", stateMutability: "view", inputs: [], outputs: [{ type: "address" }] },
+  { type: "function", name: "pendingOwner", stateMutability: "view", inputs: [], outputs: [{ type: "address" }] },
+  { type: "function", name: "payoutRecipient", stateMutability: "view", inputs: [], outputs: [{ type: "address" }] },
   { type: "function", name: "contractURI", stateMutability: "view", inputs: [], outputs: [{ type: "string" }] },
+  { type: "function", name: "contractMetadataFrozen", stateMutability: "view", inputs: [], outputs: [{ type: "bool" }] },
+  { type: "function", name: "royaltyRecipient", stateMutability: "view", inputs: [], outputs: [{ type: "address" }] },
   { type: "function", name: "royaltyBps", stateMutability: "view", inputs: [], outputs: [{ type: "uint16" }] },
+  { type: "function", name: "royaltyFrozen", stateMutability: "view", inputs: [], outputs: [{ type: "bool" }] },
   { type: "function", name: "collectionMaxSupply", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
   { type: "function", name: "totalLifetimeMinted", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
   { type: "function", name: "revealed", stateMutability: "view", inputs: [], outputs: [{ type: "bool" }] },
   { type: "function", name: "metadataFrozen", stateMutability: "view", inputs: [], outputs: [{ type: "bool" }] },
+  { type: "function", name: "placeholderURI", stateMutability: "view", inputs: [], outputs: [{ type: "string" }] },
+  { type: "function", name: "baseURI", stateMutability: "view", inputs: [], outputs: [{ type: "string" }] },
+  { type: "function", name: "provenanceHash", stateMutability: "view", inputs: [], outputs: [{ type: "bytes32" }] },
   { type: "function", name: "creatorReserveRemaining", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
   { type: "function", name: "scheduledRevealTime", stateMutability: "view", inputs: [], outputs: [{ type: "uint64" }] },
   { type: "function", name: "tokenURI", stateMutability: "view", inputs: [{ type: "uint256" }], outputs: [{ type: "string" }] },
@@ -124,7 +132,18 @@ export const bluePFPAbi = [
   { type: "function", name: "executeScheduledReveal", stateMutability: "nonpayable", inputs: [], outputs: [] },
   { type: "function", name: "airdrop", stateMutability: "nonpayable", inputs: [{ type: "address[]" }, { type: "uint256[]" }], outputs: [] },
   { type: "function", name: "releaseCreatorReserve", stateMutability: "nonpayable", inputs: [{ type: "uint256" }], outputs: [] },
+  { type: "function", name: "proposeOwner", stateMutability: "nonpayable", inputs: [{ type: "address" }], outputs: [] },
+  { type: "function", name: "acceptOwner", stateMutability: "nonpayable", inputs: [], outputs: [] },
+  { type: "function", name: "setPayoutRecipient", stateMutability: "nonpayable", inputs: [{ type: "address" }], outputs: [] },
+  { type: "function", name: "setMintController", stateMutability: "nonpayable", inputs: [{ type: "address" }, { type: "bool" }], outputs: [] },
+  { type: "function", name: "setPlaceholderURI", stateMutability: "nonpayable", inputs: [{ type: "string" }], outputs: [] },
   { type: "function", name: "setBaseURI", stateMutability: "nonpayable", inputs: [{ type: "string" }], outputs: [] },
+  { type: "function", name: "setProvenanceHash", stateMutability: "nonpayable", inputs: [{ type: "bytes32" }], outputs: [] },
+  { type: "function", name: "setContractURI", stateMutability: "nonpayable", inputs: [{ type: "string" }], outputs: [] },
+  { type: "function", name: "freezeContractMetadata", stateMutability: "nonpayable", inputs: [], outputs: [] },
+  { type: "function", name: "setRoyalty", stateMutability: "nonpayable", inputs: [{ type: "address" }, { type: "uint16" }], outputs: [] },
+  { type: "function", name: "freezeRoyalty", stateMutability: "nonpayable", inputs: [], outputs: [] },
+  { type: "function", name: "setTransferValidator", stateMutability: "nonpayable", inputs: [{ type: "address" }], outputs: [] },
   { type: "function", name: "freezeMetadata", stateMutability: "nonpayable", inputs: [], outputs: [] },
   { type: "function", name: "approve", stateMutability: "nonpayable", inputs: [{ type: "address" }, { type: "uint256" }], outputs: [] }
 ] as const;
@@ -139,7 +158,9 @@ export const nftPFPMarketplaceAbi = [
     { name: "cancelled", type: "bool" }, { name: "sold", type: "bool" }
   ] },
   { type: "function", name: "cancelListing", stateMutability: "nonpayable", inputs: [{ type: "uint256" }], outputs: [] },
-  { type: "function", name: "buy", stateMutability: "payable", inputs: [{ type: "uint256" }, { type: "address" }], outputs: [] }
+  { type: "function", name: "buy", stateMutability: "payable", inputs: [{ type: "uint256" }, { type: "address" }], outputs: [] },
+  { type: "function", name: "pendingRevenue", stateMutability: "view", inputs: [{ type: "address" }], outputs: [{ type: "uint256" }] },
+  { type: "function", name: "claimRevenue", stateMutability: "nonpayable", inputs: [], outputs: [{ type: "uint256" }] }
 ] as const;
 
 const phaseComponents = [
@@ -186,15 +207,33 @@ export const blueEditionAbi = [
   { type: "function", name: "name", stateMutability: "view", inputs: [], outputs: [{ type: "string" }] },
   { type: "function", name: "symbol", stateMutability: "view", inputs: [], outputs: [{ type: "string" }] },
   { type: "function", name: "owner", stateMutability: "view", inputs: [], outputs: [{ type: "address" }] },
+  { type: "function", name: "pendingOwner", stateMutability: "view", inputs: [], outputs: [{ type: "address" }] },
+  { type: "function", name: "payoutRecipient", stateMutability: "view", inputs: [], outputs: [{ type: "address" }] },
   { type: "function", name: "contractURI", stateMutability: "view", inputs: [], outputs: [{ type: "string" }] },
+  { type: "function", name: "contractMetadataFrozen", stateMutability: "view", inputs: [], outputs: [{ type: "bool" }] },
+  { type: "function", name: "royaltyRecipient", stateMutability: "view", inputs: [], outputs: [{ type: "address" }] },
   { type: "function", name: "royaltyBps", stateMutability: "view", inputs: [], outputs: [{ type: "uint16" }] },
+  { type: "function", name: "royaltyFrozen", stateMutability: "view", inputs: [], outputs: [{ type: "bool" }] },
   { type: "function", name: "totalLifetimeMinted", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
   { type: "function", name: "nextTokenId", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
   { type: "function", name: "createItem", stateMutability: "nonpayable", inputs: [{ type: "string" }, { type: "uint256" }], outputs: [{ type: "uint256" }] },
   { type: "function", name: "createItemWithReserve", stateMutability: "nonpayable", inputs: [{ type: "string" }, { type: "uint256" }, { type: "uint256" }], outputs: [{ type: "uint256" }] },
   { type: "function", name: "creatorReserveRemaining", stateMutability: "view", inputs: [{ type: "uint256" }], outputs: [{ type: "uint256" }] },
+  { type: "function", name: "tokenMetadataFrozen", stateMutability: "view", inputs: [{ type: "uint256" }], outputs: [{ type: "bool" }] },
   { type: "function", name: "airdrop", stateMutability: "nonpayable", inputs: [{ type: "uint256" }, { type: "address[]" }, { type: "uint256[]" }], outputs: [] },
   { type: "function", name: "releaseCreatorReserve", stateMutability: "nonpayable", inputs: [{ type: "uint256" }, { type: "uint256" }], outputs: [] },
+  { type: "function", name: "proposeOwner", stateMutability: "nonpayable", inputs: [{ type: "address" }], outputs: [] },
+  { type: "function", name: "acceptOwner", stateMutability: "nonpayable", inputs: [], outputs: [] },
+  { type: "function", name: "setPayoutRecipient", stateMutability: "nonpayable", inputs: [{ type: "address" }], outputs: [] },
+  { type: "function", name: "setMintController", stateMutability: "nonpayable", inputs: [{ type: "address" }, { type: "bool" }], outputs: [] },
+  { type: "function", name: "setMaxSupply", stateMutability: "nonpayable", inputs: [{ type: "uint256" }, { type: "uint256" }], outputs: [] },
+  { type: "function", name: "setTokenURI", stateMutability: "nonpayable", inputs: [{ type: "uint256" }, { type: "string" }], outputs: [] },
+  { type: "function", name: "freezeTokenMetadata", stateMutability: "nonpayable", inputs: [{ type: "uint256" }], outputs: [] },
+  { type: "function", name: "setContractURI", stateMutability: "nonpayable", inputs: [{ type: "string" }], outputs: [] },
+  { type: "function", name: "freezeContractMetadata", stateMutability: "nonpayable", inputs: [], outputs: [] },
+  { type: "function", name: "setRoyalty", stateMutability: "nonpayable", inputs: [{ type: "address" }, { type: "uint16" }], outputs: [] },
+  { type: "function", name: "freezeRoyalty", stateMutability: "nonpayable", inputs: [], outputs: [] },
+  { type: "function", name: "setTransferValidator", stateMutability: "nonpayable", inputs: [{ type: "address" }], outputs: [] },
   { type: "function", name: "uri", stateMutability: "view", inputs: [{ type: "uint256" }], outputs: [{ type: "string" }] },
   { type: "function", name: "maxSupply", stateMutability: "view", inputs: [{ type: "uint256" }], outputs: [{ type: "uint256" }] },
   { type: "function", name: "lifetimeMinted", stateMutability: "view", inputs: [{ type: "uint256" }], outputs: [{ type: "uint256" }] },
@@ -213,7 +252,9 @@ export const nftMarketplaceAbi = [
     { name: "remainingQuantity", type: "uint64" }, { name: "cancelled", type: "bool" }
   ] },
   { type: "function", name: "cancelListing", stateMutability: "nonpayable", inputs: [{ type: "uint256" }], outputs: [] },
-  { type: "function", name: "buy", stateMutability: "payable", inputs: [{ type: "uint256" }, { type: "uint64" }, { type: "address" }], outputs: [] }
+  { type: "function", name: "buy", stateMutability: "payable", inputs: [{ type: "uint256" }, { type: "uint64" }, { type: "address" }], outputs: [] },
+  { type: "function", name: "pendingRevenue", stateMutability: "view", inputs: [{ type: "address" }], outputs: [{ type: "uint256" }] },
+  { type: "function", name: "claimRevenue", stateMutability: "nonpayable", inputs: [], outputs: [{ type: "uint256" }] }
 ] as const;
 
 export const nftOfferComponents = [

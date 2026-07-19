@@ -3,8 +3,9 @@
 import "@rainbow-me/rainbowkit/styles.css";
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { darkTheme, getDefaultConfig, lightTheme, RainbowKitProvider } from "@rainbow-me/rainbowkit";
-import { WagmiProvider, fallback, http } from "wagmi";
+import { connectorsForWallets, darkTheme, getDefaultConfig, lightTheme, RainbowKitProvider } from "@rainbow-me/rainbowkit";
+import { coinbaseWallet, injectedWallet } from "@rainbow-me/rainbowkit/wallets";
+import { WagmiProvider, createConfig, fallback, http } from "wagmi";
 import { useEffect, useState } from "react";
 import { baseChain } from "@/lib/base-chain";
 import { robinhoodChain } from "@/lib/robinhood-chain";
@@ -14,16 +15,27 @@ import { BLUEFUN_DATA_SUFFIX } from "@/lib/base-builder-code";
 const baseTransports = baseRpcUrls().map((url) => http(url));
 const robinhoodTransport = fallback(robinhoodRpcUrls().map((url) => http(url)), { rank: true, retryCount: 1 });
 
-const config = getDefaultConfig({
-  appName: "BlueFun",
-  projectId: process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID || "missing-project-id",
-  chains: [baseChain, robinhoodChain],
+const walletConnectProjectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID;
+const sharedConfig = {
+  chains: [baseChain, robinhoodChain] as const,
   transports: {
     [baseChain.id]: fallback(baseTransports, { rank: true, retryCount: 1 }),
     [robinhoodChain.id]: robinhoodTransport
   },
-  dataSuffix: BLUEFUN_DATA_SUFFIX,
   ssr: true
+};
+
+const config = walletConnectProjectId ? getDefaultConfig({
+  appName: "BlueFun",
+  projectId: walletConnectProjectId,
+  ...sharedConfig,
+  dataSuffix: BLUEFUN_DATA_SUFFIX,
+}) : createConfig({
+  ...sharedConfig,
+  connectors: connectorsForWallets([{
+    groupName: "Installed wallets",
+    wallets: [injectedWallet, coinbaseWallet]
+  }], { appName: "BlueFun", projectId: "injected-wallets-only" })
 });
 
 export function Providers({ children }: { children: React.ReactNode }) {

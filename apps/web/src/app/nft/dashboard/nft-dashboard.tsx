@@ -10,6 +10,7 @@ import { blueEditionAbi, bluePFPAbi, ipfsGateway } from "@/lib/nft-contracts";
 import { NFTWalletOffers } from "./nft-wallet-offers";
 import { NFTAssetDialog, type DashboardNFT } from "./nft-asset-dialog";
 import { CreatorCollectionManager } from "./creator-collection-manager";
+import { NFTMarketplaceRevenue } from "./nft-marketplace-revenue";
 
 type Collection = { collection: string; factory?: string; name: string; symbol: string; standard: "ERC721" | "ERC1155"; initial_max_supply?: string };
 type Owned = DashboardNFT;
@@ -24,6 +25,8 @@ export function NFTDashboard() {
   const [tab, setTab] = useState<"owned" | "created" | "listings" | "offers" | "activity">("owned");
   const [selectedNFT, setSelectedNFT] = useState<Owned>();
   const [managedCollection, setManagedCollection] = useState<Collection>();
+  const [contractInput, setContractInput] = useState("");
+  const [contractNotice, setContractNotice] = useState("");
   useEffect(() => {
     if (!address) { setData(undefined); return; }
     const controller = new AbortController(); setLoading(true);
@@ -34,6 +37,16 @@ export function NFTDashboard() {
     return () => controller.abort();
   }, [address]);
 
+  async function openCollectionContract() {
+    setContractNotice("");
+    try {
+      const response = await fetch(`/api/nft/collection?address=${encodeURIComponent(contractInput)}`);
+      const result = await response.json() as { collection?: Collection; error?: string };
+      if (!response.ok || !result.collection) throw new Error(result.error || "Collection could not be loaded.");
+      setManagedCollection(result.collection); setTab("created");
+    } catch (error) { setContractNotice(error instanceof Error ? error.message : "Collection could not be loaded."); }
+  }
+
   if (!isConnected) return <div className="nft-dashboard-empty"><section><Wallet/><span>PRIVATE WALLET VIEW</span><h1>Your NFT desk.</h1><p>See collections you created, NFTs you own and every active listing in one place.</p><ConnectButton.Custom>{({ mounted, openConnectModal }) => <button className="button primary" disabled={!mounted} onClick={openConnectModal}><Wallet/>Connect wallet</button>}</ConnectButton.Custom></section></div>;
 
   const activeListings = data?.listings.filter((listing) => !listing.cancelled && BigInt(listing.remaining_quantity) > 0n && BigInt(listing.end_time) > BigInt(Math.floor(Date.now() / 1000))) || [];
@@ -43,6 +56,7 @@ export function NFTDashboard() {
     <section className="nft-dashboard-stats"><article><small>OWNED ITEMS</small><strong>{data?.owned.length ?? "—"}</strong></article><article><small>COLLECTIONS CREATED</small><strong>{data?.created.length ?? "—"}</strong></article><article><small>ACTIVE LISTINGS</small><strong>{activeListings.length}</strong></article><article><small>LISTED VALUE</small><strong>{formatEther(listedValue)} ETH</strong></article></section>
     {loading ? <div className="nft-dashboard-loading"><Loader2 className="spin"/>Syncing onchain ownership…</div> : null}
     {data && !data.indexingReady ? <p className="nft-dashboard-warning">Ownership indexing is not enabled yet. Created collections and listings remain available.</p> : null}
+    <NFTMarketplaceRevenue/>
     <nav className="nft-dashboard-tabs" aria-label="Wallet views"><button className={tab === "owned" ? "active" : ""} onClick={() => setTab("owned")}><Images/>Collected <b>{data?.owned.length || 0}</b></button><button className={tab === "created" ? "active" : ""} onClick={() => setTab("created")}><Sparkles/>Created <b>{data?.created.length || 0}</b></button><button className={tab === "listings" ? "active" : ""} onClick={() => setTab("listings")}><ShoppingBag/>Listings <b>{activeListings.length}</b></button><button className={tab === "offers" ? "active" : ""} onClick={() => setTab("offers")}><Gavel/>Offers</button><button className={tab === "activity" ? "active" : ""} onClick={() => setTab("activity")}><Activity/>Activity</button></nav>
     {tab === "owned" ? <DashboardSection icon={<Images/>} title="Collected NFTs" count={data?.owned.length || 0} empty="NFTs held by this wallet will appear here." grid>
       {data?.owned.map((item) => <OwnedNFTCard item={item} key={`${item.collection}-${item.token_id}`} onOpen={() => setSelectedNFT(item)}/>)}
@@ -50,6 +64,7 @@ export function NFTDashboard() {
     {tab === "created" ? <DashboardSection icon={<Sparkles/>} title="Created collections" count={data?.created.length || 0} empty="Collections launched by this wallet will appear here.">
       {data?.created.map((item) => <button className="nft-dashboard-row" onClick={()=>setManagedCollection(item)} key={item.collection}><span className="nft-dashboard-thumb"><Images/></span><span><strong>{item.name}</strong><small>{item.standard === "ERC721" ? "Generative PFP · ERC-721" : "Editions · ERC-1155"} · {item.symbol}</small></span><em>Manage</em></button>)}
     </DashboardSection> : null}
+    {tab === "created" ? <section className="nft-dashboard-import"><div><strong>Manage by contract</strong><small>Use this after an ownership transfer or to accept a collection that was nominated to this wallet.</small></div><input aria-label="Collection contract address" placeholder="0x collection address" value={contractInput} onChange={(event) => setContractInput(event.target.value)}/><button className="button" onClick={() => void openCollectionContract()}>Open controls</button>{contractNotice ? <p>{contractNotice}</p> : null}</section> : null}
     {tab==="created"&&managedCollection?<CreatorCollectionManager item={managedCollection} onClose={()=>setManagedCollection(undefined)}/>:null}
     {tab === "listings" ? <DashboardSection icon={<ShoppingBag/>} title="My listings" count={data?.listings.length || 0} empty="NFTs listed from this wallet will appear here.">
       {data?.listings.map((item) => { const active = !item.cancelled && BigInt(item.remaining_quantity) > 0n && BigInt(item.end_time) > BigInt(Math.floor(Date.now() / 1000)); return <Link className="nft-dashboard-row" href={`/nft/${item.collection}/${item.token_id}`} key={item.listing_id}><span className="nft-dashboard-thumb"><ShoppingBag/></span><span><strong>{item.collectionInfo?.name || shortAddress(item.collection)} #{item.token_id}</strong><small>{formatEther(BigInt(item.unit_price))} ETH · {active ? "Active" : item.cancelled ? "Cancelled" : "Ended"}</small></span><em className={active ? "live" : ""}>{active ? "Live" : "Closed"}</em></Link>; })}

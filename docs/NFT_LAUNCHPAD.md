@@ -78,6 +78,23 @@ BlueFun's marketplace and OpenSea are separate liquidity venues. A BlueFun listi
 
 Canonical Base WETH is `0x4200000000000000000000000000000000000006`. The offers module is independent of collection bytecode, so adding or replacing the orderbook never requires creators to redeploy their NFTs.
 
+## Creator self-service
+
+The connected-wallet dashboard at `/nft/dashboard` is the operational control surface for both legacy and V2 collections:
+
+- claim primary mint revenue from the collection's deployment-specific drop controller;
+- claim seller proceeds and ERC-2981 royalties from all four Base fixed-price marketplaces;
+- create, edit queued, or cancel queued/active public and allowlist mint phases;
+- airdrop creator reserve and release unused reserve into public supply;
+- update the primary payout wallet, royalty recipient/rate, contract metadata and two-step collection ownership;
+- reveal PFP collections, update placeholders/base URI/provenance, schedule/cancel/execute reveal and permanently freeze metadata;
+- add ERC-1155 editions, update item metadata, reduce lifetime supply after minting and freeze item metadata;
+- explicitly authorize replacement mint controllers and transfer validators behind a warning and confirmation.
+
+Transferred or pending owners can open an indexed BlueFun collection by contract address from the Created tab. This avoids depending on the immutable original `creator` index field when completing or operating a two-step ownership transfer. Irreversible freeze, ownership, validator, controller and phase-cancellation actions require an explicit in-app confirmation in addition to the wallet transaction confirmation.
+
+WalletConnect is enabled only when `NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID` is configured. Without it, the application deliberately falls back to installed browser wallets and Coinbase Wallet instead of initializing an invalid WalletConnect project.
+
 ## Deployment and activation checklist
 
 1. Run `forge test`, `forge build --sizes`, the complete repository test suite, Slither, and a Base fork deployment simulation.
