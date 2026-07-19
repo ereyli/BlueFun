@@ -1,0 +1,26 @@
+{
+  "chainId": 8453,
+  "network": "Base Mainnet",
+  "deploymentBlock": 48813200,
+  "platformWallet": "0x6d5C7C444d130554Ab195F1D64c3b6D054BF19F8",
+  "feePolicy": "0x453d7086FAe834B573bf129C2D64Fb50ad0c4c2D",
+  "weth": "0x4200000000000000000000000000000000000006",
+  "dropController": "0xa799002045291b4c88db11d35f476f532ea012cb",
+  "editionFactory": "0x38d3a8ee94f49ddeb7ba5c0f202e1aaf4b07c63a",
+  "pfpFactory": "0x5c1796111e6e57d0d13555da1cdb2b1a98005732",
+  "editionMarketplace": "0x79509ab5348ecc30616ce7a8460d014cfee5737b",
+  "pfpMarketplace": "0x22c0b3344af12de3a5f6315663af2c9b9042e9f8",
+  "offers": "0x58b7e9f6c980800754cde5c9458e2ec42ebeb0ca",
+  "transactions": {
+    "dropController": "0x98017f4c38530d2cd9014f5b59b44dff5ed015343861c2d44dc8bf3c8b18de84",
+    "editionFactory": "0x718319939f5ba8c6d8c26675f7e8f03bc3771b0e3a8593be83d23378a5fe8406",
+    "pfpFactory": "0x5775d38e956acba50dafe5316867517a80c2353c3d69bb456305cb7ecfe67b16",
+    "editionMarketplace": "0x5cbfb6140e994f5d9eeab5d967eec899f19ac310e107501c8aba958acf9a4a7e",
+    "pfpMarketplace": "0x38074feae0d6cab83da64bef6f0fcc62904e3fbb8765e1b92a1e2bc0e3d558e4",
+    "offers": "0x709b6dccd49c26a0f56d5a57a21f06e7b0bd635933fd1ab797f2aacdc4bb9200"
+  },
+  "verification": {
+    "explorer": "https://base.blockscout.com",
+    "status": "verified"
+  }
+}

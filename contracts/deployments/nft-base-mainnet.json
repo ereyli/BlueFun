@@ -1,0 +1,20 @@
+{
+  "chainId": 8453,
+  "network": "Base Mainnet",
+  "deploymentBlock": 48766938,
+  "platformWallet": "0x6d5C7C444d130554Ab195F1D64c3b6D054BF19F8",
+  "feePolicy": "0x453d7086FAe834B573bf129C2D64Fb50ad0c4c2D",
+  "dropController": "0xb129417fFc25b5A8e918Cb63E6f45a605905C0aC",
+  "collectionFactory": "0x342F90f22fBd5f7D680d3d84Ce121BDA995F6F4D",
+  "marketplace": "0xf08f44AC84632c7E3dF2E63804fB8eECb4B346bb",
+  "transactions": {
+    "feePolicy": "0xd9b656ff44ad852b4f355e09d9075a8573d78a282b804c41bf98cb3422209906",
+    "dropController": "0xcf7861bdaba29d3466e6953be91c9c292de3baf644f06070375a444568f6c8c2",
+    "collectionFactory": "0x99ba775b529d6eb88eef6878a1d5a6ccac2142dca5e94d197d99a83d54521f16",
+    "marketplace": "0x23474f1d8af145be4c283005914ae44d46b2ce3d0794b3602a808f9c53b8111c"
+  },
+  "verification": {
+    "explorer": "https://base.blockscout.com",
+    "status": "verified"
+  }
+}

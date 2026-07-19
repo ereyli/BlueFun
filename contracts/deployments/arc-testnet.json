@@ -1,0 +1,106 @@
+{
+  "network": "Arc Testnet",
+  "chainId": 5042002,
+  "rpcUrl": "https://rpc.testnet.arc.network",
+  "explorerUrl": "https://testnet.arcscan.app",
+  "deployedAt": "2026-07-18",
+  "deployer": "0x35E57f3EBB17ADA1B354344b5ACB94420889aa72",
+  "nativeCurrency": {
+    "name": "USDC",
+    "symbol": "USDC",
+    "decimals": 18,
+    "erc20Representation": "0x3600000000000000000000000000000000000000",
+    "erc20RepresentationDecimals": 6
+  },
+  "parameters": {
+    "launchFeeUsdc": "2",
+    "maximumLaunchFeeUsdc": "25",
+    "bondGraduationTargetUsdc": "5000",
+    "bondVirtualUsdcReserve": "1250",
+    "directVirtualUsdcReserve": "1250",
+    "buyPlatformFeeBps": 70,
+    "buyCreatorFeeBps": 30,
+    "sellPlatformFeeBps": 70,
+    "sellBurnFeeBps": 30
+  },
+  "contracts": {
+    "feePolicy": {
+      "address": "0x0c1e47c41c7310cc6974203235f6492b2c04e1da",
+      "txHash": "0xf33535ecb38fa6b2f3f54b08427641a91dc9674b01f53d43e89d8147bd09b68c"
+    },
+    "adapterRegistry": {
+      "address": "0x630a921fb4237afe5397f1a596346bb4aec91ea7",
+      "txHash": "0x8f7cffd52f80102eecb35f642bf174a9a26ad4df33215a9238fd2260a57c7736"
+    },
+    "revenueRouter": {
+      "address": "0xbe021c1552eaa99fc3358121f069cb006e119d5f",
+      "txHash": "0x4fec03ee3b12daada83829333dd6aa5496c4d407a114301ba048140c18cae3b8"
+    },
+    "emergencyGuardianSink": {
+      "address": "0x22d29e51157e4b26b379145fc7f711f3bc37124e",
+      "txHash": "0x507136d7ecff62e9349ffec708dc40bc0726358e67f803b03e0339ec8974b011"
+    },
+    "bondMarket": {
+      "address": "0xdc786e239ded3a196195761493903f9ef37acb0e",
+      "txHash": "0xbb922aeb82722448f6195011a29d6ff87ea4fba342e158225b885e136b8ffcc1"
+    },
+    "graduationCoordinator": {
+      "address": "0xc902a2f1af49922ce299115227c649e496039ecd",
+      "txHash": "0xc3a2e228474b78b37e47b864a79df5fd53af773f1137563c34683da15dfb294d"
+    },
+    "bondFactory": {
+      "address": "0x9b251d14e063580c30b1afa56d80746230f397e1",
+      "txHash": "0x9c47d0025ffcfd9ea341bef18c173d74ccdc6814714d89c87c012c9dbe16ee88"
+    },
+    "directFactory": {
+      "address": "0x71b8c8529da4c6b01a2ecd30d456316206f1aba1",
+      "txHash": "0x9f5cab0d3aae1ba0b6fb9a50f509485effea4286f900b83ecfd36cc56dcbe3a8"
+    },
+    "testnetDexAdapter": {
+      "address": "0x0457e2887dc6410c3d29c0833a8dfe003f44de68",
+      "txHash": "0x4b7658e6256834053f2a3903d3626a00c0794f6cdf4391f78d4782ca664d339c",
+      "kind": "isolated-testnet-constant-product-adapter",
+      "isUniswap": false,
+      "callersFrozen": true,
+      "ownerRenounced": true
+    }
+  },
+  "smokeTest": {
+    "status": "passed",
+    "bond": {
+      "launchId": 1,
+      "token": "0x0e0cbc9c4528d4bd16c0bbf7201fdd6908eb61ca",
+      "symbol": "ABOND",
+      "launchAndBuyTxHash": "0xec28cf7a16d5c031385e542269a638389beaf1502abbeaa43516940e1bde2bdb",
+      "approveTxHash": "0xf7d88fb17b33b5e9794b08c7241af5eac86b6b1b3559f70ebd64d3dd0da63f15",
+      "sellTxHash": "0xeff20bcfa14eca3a33224e5d658f5debda6cca0444708e730d8bbf63af62fe9f"
+    },
+    "direct": {
+      "launchId": 1,
+      "token": "0x9cdb1b0d46a9c9d8e3c73e44ddfdcba0df758442",
+      "symbol": "ADIRECT",
+      "launchAndBuyTxHash": "0x054b13a575decf3e2305daea0c8f6081694c7b8ce3ab4cf5ff161bf1bd2736b4",
+      "approveTxHash": "0x309ef5f627251744826b9dcf1772127fef984ad457d8af2cc6f87c9a96514c85",
+      "sellTxHash": "0xbda63a3eeba4a1b93c37c84e2dfe86013045240ec5825385092e1907dc04b74c"
+    },
+    "revenueAndControls": {
+      "bondCreatorClaimTxHash": "0x21279ed98a3ffa58bfbd0a81e8cdab39ef34aca0db7315831885cc17fc9c461a",
+      "directCreatorClaimTxHash": "0xaacc5217a69c71be50f7f335222c0210b9723826fc766672c48730b750806f53",
+      "treasuryClaimTxHash": "0x46de26584b149f46c8a3547b75205b3cd2ef93c6c1019f4c14ab7a0dbdb4c5e7",
+      "bridgeReleaseTxHash": "0x894ba581db5e4a82ed7df3e02a9c9d2583c30e2bf5c79773f55461c285124fd4",
+      "guardianFundingTxHash": "0x092c0efe4a1c5f63919be02982ff45071f6522134cbbff3c6968fe227d706f15",
+      "guardianPauseTxHash": "0xc41aa8f64f85acda1593113b9bea6dc309f8878a22176c126e698061221df36d",
+      "adminUnpauseTxHash": "0x2dfb1b01b5ca9ad14af40c110d9140d8a35664b32a627dc1daac3309cf04615b",
+      "finalLaunchesPaused": false,
+      "finalPendingBondCreatorUsdc": "0",
+      "finalPendingDirectCreatorUsdc": "0",
+      "finalPendingTreasuryUsdc": "0",
+      "finalPendingBridgeUsdc": "0"
+    }
+  },
+  "warnings": [
+    "The deployed DEX adapter is for isolated Arc Testnet validation only and is not Uniswap.",
+    "Do not reuse the testnet adapter or its direct-admin deployment procedure on Arc Mainnet.",
+    "The 5000 USDC onchain graduation path was covered by automated tests, not by the funded live smoke test."
+  ]
+}

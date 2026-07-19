@@ -1,0 +1,2402 @@
+[
+  {
+    "token_id": 1,
+    "name": "Signal Pioneers #1",
+    "description": "A BlueFun Base mainnet PFP canary used to verify shared-art metadata, ERC-721 supply, mint phases and marketplace compatibility.",
+    "image": "celestial-bird.png",
+    "attributes": [
+      {
+        "trait_type": "Family",
+        "value": "Celestial Bird"
+      },
+      {
+        "trait_type": "Role",
+        "value": "Explorer"
+      },
+      {
+        "trait_type": "Canary",
+        "value": "Base Mainnet"
+      },
+      {
+        "trait_type": "Serial",
+        "value": 1
+      }
+    ]
+  },
+  {
+    "token_id": 2,
+    "name": "Signal Pioneers #2",
+    "description": "A BlueFun Base mainnet PFP canary used to verify shared-art metadata, ERC-721 supply, mint phases and marketplace compatibility.",
+    "image": "tide-technomancer.png",
+    "attributes": [
+      {
+        "trait_type": "Family",
+        "value": "Tide Technomancer"
+      },
+      {
+        "trait_type": "Role",
+        "value": "Technomancer"
+      },
+      {
+        "trait_type": "Canary",
+        "value": "Base Mainnet"
+      },
+      {
+        "trait_type": "Serial",
+        "value": 2
+      }
+    ]
+  },
+  {
+    "token_id": 3,
+    "name": "Signal Pioneers #3",
+    "description": "A BlueFun Base mainnet PFP canary used to verify shared-art metadata, ERC-721 supply, mint phases and marketplace compatibility.",
+    "image": "orbital-fox.png",
+    "attributes": [
+      {
+        "trait_type": "Family",
+        "value": "Orbital Fox"
+      },
+      {
+        "trait_type": "Role",
+        "value": "Engineer"
+      },
+      {
+        "trait_type": "Canary",
+        "value": "Base Mainnet"
+      },
+      {
+        "trait_type": "Serial",
+        "value": 3
+      }
+    ]
+  },
+  {
+    "token_id": 4,
+    "name": "Signal Pioneers #4",
+    "description": "A BlueFun Base mainnet PFP canary used to verify shared-art metadata, ERC-721 supply, mint phases and marketplace compatibility.",
+    "image": "celestial-bird.png",
+    "attributes": [
+      {
+        "trait_type": "Family",
+        "value": "Celestial Bird"
+      },
+      {
+        "trait_type": "Role",
+        "value": "Explorer"
+      },
+      {
+        "trait_type": "Canary",
+        "value": "Base Mainnet"
+      },
+      {
+        "trait_type": "Serial",
+        "value": 4
+      }
+    ]
+  },
+  {
+    "token_id": 5,
+    "name": "Signal Pioneers #5",
+    "description": "A BlueFun Base mainnet PFP canary used to verify shared-art metadata, ERC-721 supply, mint phases and marketplace compatibility.",
+    "image": "tide-technomancer.png",
+    "attributes": [
+      {
+        "trait_type": "Family",
+        "value": "Tide Technomancer"
+      },
+      {
+        "trait_type": "Role",
+        "value": "Technomancer"
+      },
+      {
+        "trait_type": "Canary",
+        "value": "Base Mainnet"
+      },
+      {
+        "trait_type": "Serial",
+        "value": 5
+      }
+    ]
+  },
+  {
+    "token_id": 6,
+    "name": "Signal Pioneers #6",
+    "description": "A BlueFun Base mainnet PFP canary used to verify shared-art metadata, ERC-721 supply, mint phases and marketplace compatibility.",
+    "image": "orbital-fox.png",
+    "attributes": [
+      {
+        "trait_type": "Family",
+        "value": "Orbital Fox"
+      },
+      {
+        "trait_type": "Role",
+        "value": "Engineer"
+      },
+      {
+        "trait_type": "Canary",
+        "value": "Base Mainnet"
+      },
+      {
+        "trait_type": "Serial",
+        "value": 6
+      }
+    ]
+  },
+  {
+    "token_id": 7,
+    "name": "Signal Pioneers #7",
+    "description": "A BlueFun Base mainnet PFP canary used to verify shared-art metadata, ERC-721 supply, mint phases and marketplace compatibility.",
+    "image": "celestial-bird.png",
+    "attributes": [
+      {
+        "trait_type": "Family",
+        "value": "Celestial Bird"
+      },
+      {
+        "trait_type": "Role",
+        "value": "Explorer"
+      },
+      {
+        "trait_type": "Canary",
+        "value": "Base Mainnet"
+      },
+      {
+        "trait_type": "Serial",
+        "value": 7
+      }
+    ]
+  },
+  {
+    "token_id": 8,
+    "name": "Signal Pioneers #8",
+    "description": "A BlueFun Base mainnet PFP canary used to verify shared-art metadata, ERC-721 supply, mint phases and marketplace compatibility.",
+    "image": "tide-technomancer.png",
+    "attributes": [
+      {
+        "trait_type": "Family",
+        "value": "Tide Technomancer"
+      },
+      {
+        "trait_type": "Role",
+        "value": "Technomancer"
+      },
+      {
+        "trait_type": "Canary",
+        "value": "Base Mainnet"
+      },
+      {
+        "trait_type": "Serial",
+        "value": 8
+      }
+    ]
+  },
+  {
+    "token_id": 9,
+    "name": "Signal Pioneers #9",
+    "description": "A BlueFun Base mainnet PFP canary used to verify shared-art metadata, ERC-721 supply, mint phases and marketplace compatibility.",
+    "image": "orbital-fox.png",
+    "attributes": [
+      {
+        "trait_type": "Family",
+        "value": "Orbital Fox"
+      },
+      {
+        "trait_type": "Role",
+        "value": "Engineer"
+      },
+      {
+        "trait_type": "Canary",
+        "value": "Base Mainnet"
+      },
+      {
+        "trait_type": "Serial",
+        "value": 9
+      }
+    ]
+  },
+  {
+    "token_id": 10,
+    "name": "Signal Pioneers #10",
+    "description": "A BlueFun Base mainnet PFP canary used to verify shared-art metadata, ERC-721 supply, mint phases and marketplace compatibility.",
+    "image": "celestial-bird.png",
+    "attributes": [
+      {
+        "trait_type": "Family",
+        "value": "Celestial Bird"
+      },
+      {
+        "trait_type": "Role",
+        "value": "Explorer"
+      },
+      {
+        "trait_type": "Canary",
+        "value": "Base Mainnet"
+      },
+      {
+        "trait_type": "Serial",
+        "value": 10
+      }
+    ]
+  },
+  {
+    "token_id": 11,
+    "name": "Signal Pioneers #11",
+    "description": "A BlueFun Base mainnet PFP canary used to verify shared-art metadata, ERC-721 supply, mint phases and marketplace compatibility.",
+    "image": "tide-technomancer.png",
+    "attributes": [
+      {
+        "trait_type": "Family",
+        "value": "Tide Technomancer"
+      },
+      {
+        "trait_type": "Role",
+        "value": "Technomancer"
+      },
+      {
+        "trait_type": "Canary",
+        "value": "Base Mainnet"
+      },
+      {
+        "trait_type": "Serial",
+        "value": 11
+      }
+    ]
+  },
+  {
+    "token_id": 12,
+    "name": "Signal Pioneers #12",
+    "description": "A BlueFun Base mainnet PFP canary used to verify shared-art metadata, ERC-721 supply, mint phases and marketplace compatibility.",
+    "image": "orbital-fox.png",
+    "attributes": [
+      {
+        "trait_type": "Family",
+        "value": "Orbital Fox"
+      },
+      {
+        "trait_type": "Role",
+        "value": "Engineer"
+      },
+      {
+        "trait_type": "Canary",
+        "value": "Base Mainnet"
+      },
+      {
+        "trait_type": "Serial",
+        "value": 12
+      }
+    ]
+  },
+  {
+    "token_id": 13,
+    "name": "Signal Pioneers #13",
+    "description": "A BlueFun Base mainnet PFP canary used to verify shared-art metadata, ERC-721 supply, mint phases and marketplace compatibility.",
+    "image": "celestial-bird.png",
+    "attributes": [
+      {
+        "trait_type": "Family",
+        "value": "Celestial Bird"
+      },
+      {
+        "trait_type": "Role",
+        "value": "Explorer"
+      },
+      {
+        "trait_type": "Canary",
+        "value": "Base Mainnet"
+      },
+      {
+        "trait_type": "Serial",
+        "value": 13
+      }
+    ]
+  },
+  {
+    "token_id": 14,
+    "name": "Signal Pioneers #14",
+    "description": "A BlueFun Base mainnet PFP canary used to verify shared-art metadata, ERC-721 supply, mint phases and marketplace compatibility.",
+    "image": "tide-technomancer.png",
+    "attributes": [
+      {
+        "trait_type": "Family",
+        "value": "Tide Technomancer"
+      },
+      {
+        "trait_type": "Role",
+        "value": "Technomancer"
+      },
+      {
+        "trait_type": "Canary",
+        "value": "Base Mainnet"
+      },
+      {
+        "trait_type": "Serial",
+        "value": 14
+      }
+    ]
+  },
+  {
+    "token_id": 15,
+    "name": "Signal Pioneers #15",
+    "description": "A BlueFun Base mainnet PFP canary used to verify shared-art metadata, ERC-721 supply, mint phases and marketplace compatibility.",
+    "image": "orbital-fox.png",
+    "attributes": [
+      {
+        "trait_type": "Family",
+        "value": "Orbital Fox"
+      },
+      {
+        "trait_type": "Role",
+        "value": "Engineer"
+      },
+      {
+        "trait_type": "Canary",
+        "value": "Base Mainnet"
+      },
+      {
+        "trait_type": "Serial",
+        "value": 15
+      }
+    ]
+  },
+  {
+    "token_id": 16,
+    "name": "Signal Pioneers #16",
+    "description": "A BlueFun Base mainnet PFP canary used to verify shared-art metadata, ERC-721 supply, mint phases and marketplace compatibility.",
+    "image": "celestial-bird.png",
+    "attributes": [
+      {
+        "trait_type": "Family",
+        "value": "Celestial Bird"
+      },
+      {
+        "trait_type": "Role",
+        "value": "Explorer"
+      },
+      {
+        "trait_type": "Canary",
+        "value": "Base Mainnet"
+      },
+      {
+        "trait_type": "Serial",
+        "value": 16
+      }
+    ]
+  },
+  {
+    "token_id": 17,
+    "name": "Signal Pioneers #17",
+    "description": "A BlueFun Base mainnet PFP canary used to verify shared-art metadata, ERC-721 supply, mint phases and marketplace compatibility.",
+    "image": "tide-technomancer.png",
+    "attributes": [
+      {
+        "trait_type": "Family",
+        "value": "Tide Technomancer"
+      },
+      {
+        "trait_type": "Role",
+        "value": "Technomancer"
+      },
+      {
+        "trait_type": "Canary",
+        "value": "Base Mainnet"
+      },
+      {
+        "trait_type": "Serial",
+        "value": 17
+      }
+    ]
+  },
+  {
+    "token_id": 18,
+    "name": "Signal Pioneers #18",
+    "description": "A BlueFun Base mainnet PFP canary used to verify shared-art metadata, ERC-721 supply, mint phases and marketplace compatibility.",
+    "image": "orbital-fox.png",
+    "attributes": [
+      {
+        "trait_type": "Family",
+        "value": "Orbital Fox"
+      },
+      {
+        "trait_type": "Role",
+        "value": "Engineer"
+      },
+      {
+        "trait_type": "Canary",
+        "value": "Base Mainnet"
+      },
+      {
+        "trait_type": "Serial",
+        "value": 18
+      }
+    ]
+  },
+  {
+    "token_id": 19,
+    "name": "Signal Pioneers #19",
+    "description": "A BlueFun Base mainnet PFP canary used to verify shared-art metadata, ERC-721 supply, mint phases and marketplace compatibility.",
+    "image": "celestial-bird.png",
+    "attributes": [
+      {
+        "trait_type": "Family",
+        "value": "Celestial Bird"
+      },
+      {
+        "trait_type": "Role",
+        "value": "Explorer"
+      },
+      {
+        "trait_type": "Canary",
+        "value": "Base Mainnet"
+      },
+      {
+        "trait_type": "Serial",
+        "value": 19
+      }
+    ]
+  },
+  {
+    "token_id": 20,
+    "name": "Signal Pioneers #20",
+    "description": "A BlueFun Base mainnet PFP canary used to verify shared-art metadata, ERC-721 supply, mint phases and marketplace compatibility.",
+    "image": "tide-technomancer.png",
+    "attributes": [
+      {
+        "trait_type": "Family",
+        "value": "Tide Technomancer"
+      },
+      {
+        "trait_type": "Role",
+        "value": "Technomancer"
+      },
+      {
+        "trait_type": "Canary",
+        "value": "Base Mainnet"
+      },
+      {
+        "trait_type": "Serial",
+        "value": 20
+      }
+    ]
+  },
+  {
+    "token_id": 21,
+    "name": "Signal Pioneers #21",
+    "description": "A BlueFun Base mainnet PFP canary used to verify shared-art metadata, ERC-721 supply, mint phases and marketplace compatibility.",
+    "image": "orbital-fox.png",
+    "attributes": [
+      {
+        "trait_type": "Family",
+        "value": "Orbital Fox"
+      },
+      {
+        "trait_type": "Role",
+        "value": "Engineer"
+      },
+      {
+        "trait_type": "Canary",
+        "value": "Base Mainnet"
+      },
+      {
+        "trait_type": "Serial",
+        "value": 21
+      }
+    ]
+  },
+  {
+    "token_id": 22,
+    "name": "Signal Pioneers #22",
+    "description": "A BlueFun Base mainnet PFP canary used to verify shared-art metadata, ERC-721 supply, mint phases and marketplace compatibility.",
+    "image": "celestial-bird.png",
+    "attributes": [
+      {
+        "trait_type": "Family",
+        "value": "Celestial Bird"
+      },
+      {
+        "trait_type": "Role",
+        "value": "Explorer"
+      },
+      {
+        "trait_type": "Canary",
+        "value": "Base Mainnet"
+      },
+      {
+        "trait_type": "Serial",
+        "value": 22
+      }
+    ]
+  },
+  {
+    "token_id": 23,
+    "name": "Signal Pioneers #23",
+    "description": "A BlueFun Base mainnet PFP canary used to verify shared-art metadata, ERC-721 supply, mint phases and marketplace compatibility.",
+    "image": "tide-technomancer.png",
+    "attributes": [
+      {
+        "trait_type": "Family",
+        "value": "Tide Technomancer"
+      },
+      {
+        "trait_type": "Role",
+        "value": "Technomancer"
+      },
+      {
+        "trait_type": "Canary",
+        "value": "Base Mainnet"
+      },
+      {
+        "trait_type": "Serial",
+        "value": 23
+      }
+    ]
+  },
+  {
+    "token_id": 24,
+    "name": "Signal Pioneers #24",
+    "description": "A BlueFun Base mainnet PFP canary used to verify shared-art metadata, ERC-721 supply, mint phases and marketplace compatibility.",
+    "image": "orbital-fox.png",
+    "attributes": [
+      {
+        "trait_type": "Family",
+        "value": "Orbital Fox"
+      },
+      {
+        "trait_type": "Role",
+        "value": "Engineer"
+      },
+      {
+        "trait_type": "Canary",
+        "value": "Base Mainnet"
+      },
+      {
+        "trait_type": "Serial",
+        "value": 24
+      }
+    ]
+  },
+  {
+    "token_id": 25,
+    "name": "Signal Pioneers #25",
+    "description": "A BlueFun Base mainnet PFP canary used to verify shared-art metadata, ERC-721 supply, mint phases and marketplace compatibility.",
+    "image": "celestial-bird.png",
+    "attributes": [
+      {
+        "trait_type": "Family",
+        "value": "Celestial Bird"
+      },
+      {
+        "trait_type": "Role",
+        "value": "Explorer"
+      },
+      {
+        "trait_type": "Canary",
+        "value": "Base Mainnet"
+      },
+      {
+        "trait_type": "Serial",
+        "value": 25
+      }
+    ]
+  },
+  {
+    "token_id": 26,
+    "name": "Signal Pioneers #26",
+    "description": "A BlueFun Base mainnet PFP canary used to verify shared-art metadata, ERC-721 supply, mint phases and marketplace compatibility.",
+    "image": "tide-technomancer.png",
+    "attributes": [
+      {
+        "trait_type": "Family",
+        "value": "Tide Technomancer"
+      },
+      {
+        "trait_type": "Role",
+        "value": "Technomancer"
+      },
+      {
+        "trait_type": "Canary",
+        "value": "Base Mainnet"
+      },
+      {
+        "trait_type": "Serial",
+        "value": 26
+      }
+    ]
+  },
+  {
+    "token_id": 27,
+    "name": "Signal Pioneers #27",
+    "description": "A BlueFun Base mainnet PFP canary used to verify shared-art metadata, ERC-721 supply, mint phases and marketplace compatibility.",
+    "image": "orbital-fox.png",
+    "attributes": [
+      {
+        "trait_type": "Family",
+        "value": "Orbital Fox"
+      },
+      {
+        "trait_type": "Role",
+        "value": "Engineer"
+      },
+      {
+        "trait_type": "Canary",
+        "value": "Base Mainnet"
+      },
+      {
+        "trait_type": "Serial",
+        "value": 27
+      }
+    ]
+  },
+  {
+    "token_id": 28,
+    "name": "Signal Pioneers #28",
+    "description": "A BlueFun Base mainnet PFP canary used to verify shared-art metadata, ERC-721 supply, mint phases and marketplace compatibility.",
+    "image": "celestial-bird.png",
+    "attributes": [
+      {
+        "trait_type": "Family",
+        "value": "Celestial Bird"
+      },
+      {
+        "trait_type": "Role",
+        "value": "Explorer"
+      },
+      {
+        "trait_type": "Canary",
+        "value": "Base Mainnet"
+      },
+      {
+        "trait_type": "Serial",
+        "value": 28
+      }
+    ]
+  },
+  {
+    "token_id": 29,
+    "name": "Signal Pioneers #29",
+    "description": "A BlueFun Base mainnet PFP canary used to verify shared-art metadata, ERC-721 supply, mint phases and marketplace compatibility.",
+    "image": "tide-technomancer.png",
+    "attributes": [
+      {
+        "trait_type": "Family",
+        "value": "Tide Technomancer"
+      },
+      {
+        "trait_type": "Role",
+        "value": "Technomancer"
+      },
+      {
+        "trait_type": "Canary",
+        "value": "Base Mainnet"
+      },
+      {
+        "trait_type": "Serial",
+        "value": 29
+      }
+    ]
+  },
+  {
+    "token_id": 30,
+    "name": "Signal Pioneers #30",
+    "description": "A BlueFun Base mainnet PFP canary used to verify shared-art metadata, ERC-721 supply, mint phases and marketplace compatibility.",
+    "image": "orbital-fox.png",
+    "attributes": [
+      {
+        "trait_type": "Family",
+        "value": "Orbital Fox"
+      },
+      {
+        "trait_type": "Role",
+        "value": "Engineer"
+      },
+      {
+        "trait_type": "Canary",
+        "value": "Base Mainnet"
+      },
+      {
+        "trait_type": "Serial",
+        "value": 30
+      }
+    ]
+  },
+  {
+    "token_id": 31,
+    "name": "Signal Pioneers #31",
+    "description": "A BlueFun Base mainnet PFP canary used to verify shared-art metadata, ERC-721 supply, mint phases and marketplace compatibility.",
+    "image": "celestial-bird.png",
+    "attributes": [
+      {
+        "trait_type": "Family",
+        "value": "Celestial Bird"
+      },
+      {
+        "trait_type": "Role",
+        "value": "Explorer"
+      },
+      {
+        "trait_type": "Canary",
+        "value": "Base Mainnet"
+      },
+      {
+        "trait_type": "Serial",
+        "value": 31
+      }
+    ]
+  },
+  {
+    "token_id": 32,
+    "name": "Signal Pioneers #32",
+    "description": "A BlueFun Base mainnet PFP canary used to verify shared-art metadata, ERC-721 supply, mint phases and marketplace compatibility.",
+    "image": "tide-technomancer.png",
+    "attributes": [
+      {
+        "trait_type": "Family",
+        "value": "Tide Technomancer"
+      },
+      {
+        "trait_type": "Role",
+        "value": "Technomancer"
+      },
+      {
+        "trait_type": "Canary",
+        "value": "Base Mainnet"
+      },
+      {
+        "trait_type": "Serial",
+        "value": 32
+      }
+    ]
+  },
+  {
+    "token_id": 33,
+    "name": "Signal Pioneers #33",
+    "description": "A BlueFun Base mainnet PFP canary used to verify shared-art metadata, ERC-721 supply, mint phases and marketplace compatibility.",
+    "image": "orbital-fox.png",
+    "attributes": [
+      {
+        "trait_type": "Family",
+        "value": "Orbital Fox"
+      },
+      {
+        "trait_type": "Role",
+        "value": "Engineer"
+      },
+      {
+        "trait_type": "Canary",
+        "value": "Base Mainnet"
+      },
+      {
+        "trait_type": "Serial",
+        "value": 33
+      }
+    ]
+  },
+  {
+    "token_id": 34,
+    "name": "Signal Pioneers #34",
+    "description": "A BlueFun Base mainnet PFP canary used to verify shared-art metadata, ERC-721 supply, mint phases and marketplace compatibility.",
+    "image": "celestial-bird.png",
+    "attributes": [
+      {
+        "trait_type": "Family",
+        "value": "Celestial Bird"
+      },
+      {
+        "trait_type": "Role",
+        "value": "Explorer"
+      },
+      {
+        "trait_type": "Canary",
+        "value": "Base Mainnet"
+      },
+      {
+        "trait_type": "Serial",
+        "value": 34
+      }
+    ]
+  },
+  {
+    "token_id": 35,
+    "name": "Signal Pioneers #35",
+    "description": "A BlueFun Base mainnet PFP canary used to verify shared-art metadata, ERC-721 supply, mint phases and marketplace compatibility.",
+    "image": "tide-technomancer.png",
+    "attributes": [
+      {
+        "trait_type": "Family",
+        "value": "Tide Technomancer"
+      },
+      {
+        "trait_type": "Role",
+        "value": "Technomancer"
+      },
+      {
+        "trait_type": "Canary",
+        "value": "Base Mainnet"
+      },
+      {
+        "trait_type": "Serial",
+        "value": 35
+      }
+    ]
+  },
+  {
+    "token_id": 36,
+    "name": "Signal Pioneers #36",
+    "description": "A BlueFun Base mainnet PFP canary used to verify shared-art metadata, ERC-721 supply, mint phases and marketplace compatibility.",
+    "image": "orbital-fox.png",
+    "attributes": [
+      {
+        "trait_type": "Family",
+        "value": "Orbital Fox"
+      },
+      {
+        "trait_type": "Role",
+        "value": "Engineer"
+      },
+      {
+        "trait_type": "Canary",
+        "value": "Base Mainnet"
+      },
+      {
+        "trait_type": "Serial",
+        "value": 36
+      }
+    ]
+  },
+  {
+    "token_id": 37,
+    "name": "Signal Pioneers #37",
+    "description": "A BlueFun Base mainnet PFP canary used to verify shared-art metadata, ERC-721 supply, mint phases and marketplace compatibility.",
+    "image": "celestial-bird.png",
+    "attributes": [
+      {
+        "trait_type": "Family",
+        "value": "Celestial Bird"
+      },
+      {
+        "trait_type": "Role",
+        "value": "Explorer"
+      },
+      {
+        "trait_type": "Canary",
+        "value": "Base Mainnet"
+      },
+      {
+        "trait_type": "Serial",
+        "value": 37
+      }
+    ]
+  },
+  {
+    "token_id": 38,
+    "name": "Signal Pioneers #38",
+    "description": "A BlueFun Base mainnet PFP canary used to verify shared-art metadata, ERC-721 supply, mint phases and marketplace compatibility.",
+    "image": "tide-technomancer.png",
+    "attributes": [
+      {
+        "trait_type": "Family",
+        "value": "Tide Technomancer"
+      },
+      {
+        "trait_type": "Role",
+        "value": "Technomancer"
+      },
+      {
+        "trait_type": "Canary",
+        "value": "Base Mainnet"
+      },
+      {
+        "trait_type": "Serial",
+        "value": 38
+      }
+    ]
+  },
+  {
+    "token_id": 39,
+    "name": "Signal Pioneers #39",
+    "description": "A BlueFun Base mainnet PFP canary used to verify shared-art metadata, ERC-721 supply, mint phases and marketplace compatibility.",
+    "image": "orbital-fox.png",
+    "attributes": [
+      {
+        "trait_type": "Family",
+        "value": "Orbital Fox"
+      },
+      {
+        "trait_type": "Role",
+        "value": "Engineer"
+      },
+      {
+        "trait_type": "Canary",
+        "value": "Base Mainnet"
+      },
+      {
+        "trait_type": "Serial",
+        "value": 39
+      }
+    ]
+  },
+  {
+    "token_id": 40,
+    "name": "Signal Pioneers #40",
+    "description": "A BlueFun Base mainnet PFP canary used to verify shared-art metadata, ERC-721 supply, mint phases and marketplace compatibility.",
+    "image": "celestial-bird.png",
+    "attributes": [
+      {
+        "trait_type": "Family",
+        "value": "Celestial Bird"
+      },
+      {
+        "trait_type": "Role",
+        "value": "Explorer"
+      },
+      {
+        "trait_type": "Canary",
+        "value": "Base Mainnet"
+      },
+      {
+        "trait_type": "Serial",
+        "value": 40
+      }
+    ]
+  },
+  {
+    "token_id": 41,
+    "name": "Signal Pioneers #41",
+    "description": "A BlueFun Base mainnet PFP canary used to verify shared-art metadata, ERC-721 supply, mint phases and marketplace compatibility.",
+    "image": "tide-technomancer.png",
+    "attributes": [
+      {
+        "trait_type": "Family",
+        "value": "Tide Technomancer"
+      },
+      {
+        "trait_type": "Role",
+        "value": "Technomancer"
+      },
+      {
+        "trait_type": "Canary",
+        "value": "Base Mainnet"
+      },
+      {
+        "trait_type": "Serial",
+        "value": 41
+      }
+    ]
+  },
+  {
+    "token_id": 42,
+    "name": "Signal Pioneers #42",
+    "description": "A BlueFun Base mainnet PFP canary used to verify shared-art metadata, ERC-721 supply, mint phases and marketplace compatibility.",
+    "image": "orbital-fox.png",
+    "attributes": [
+      {
+        "trait_type": "Family",
+        "value": "Orbital Fox"
+      },
+      {
+        "trait_type": "Role",
+        "value": "Engineer"
+      },
+      {
+        "trait_type": "Canary",
+        "value": "Base Mainnet"
+      },
+      {
+        "trait_type": "Serial",
+        "value": 42
+      }
+    ]
+  },
+  {
+    "token_id": 43,
+    "name": "Signal Pioneers #43",
+    "description": "A BlueFun Base mainnet PFP canary used to verify shared-art metadata, ERC-721 supply, mint phases and marketplace compatibility.",
+    "image": "celestial-bird.png",
+    "attributes": [
+      {
+        "trait_type": "Family",
+        "value": "Celestial Bird"
+      },
+      {
+        "trait_type": "Role",
+        "value": "Explorer"
+      },
+      {
+        "trait_type": "Canary",
+        "value": "Base Mainnet"
+      },
+      {
+        "trait_type": "Serial",
+        "value": 43
+      }
+    ]
+  },
+  {
+    "token_id": 44,
+    "name": "Signal Pioneers #44",
+    "description": "A BlueFun Base mainnet PFP canary used to verify shared-art metadata, ERC-721 supply, mint phases and marketplace compatibility.",
+    "image": "tide-technomancer.png",
+    "attributes": [
+      {
+        "trait_type": "Family",
+        "value": "Tide Technomancer"
+      },
+      {
+        "trait_type": "Role",
+        "value": "Technomancer"
+      },
+      {
+        "trait_type": "Canary",
+        "value": "Base Mainnet"
+      },
+      {
+        "trait_type": "Serial",
+        "value": 44
+      }
+    ]
+  },
+  {
+    "token_id": 45,
+    "name": "Signal Pioneers #45",
+    "description": "A BlueFun Base mainnet PFP canary used to verify shared-art metadata, ERC-721 supply, mint phases and marketplace compatibility.",
+    "image": "orbital-fox.png",
+    "attributes": [
+      {
+        "trait_type": "Family",
+        "value": "Orbital Fox"
+      },
+      {
+        "trait_type": "Role",
+        "value": "Engineer"
+      },
+      {
+        "trait_type": "Canary",
+        "value": "Base Mainnet"
+      },
+      {
+        "trait_type": "Serial",
+        "value": 45
+      }
+    ]
+  },
+  {
+    "token_id": 46,
+    "name": "Signal Pioneers #46",
+    "description": "A BlueFun Base mainnet PFP canary used to verify shared-art metadata, ERC-721 supply, mint phases and marketplace compatibility.",
+    "image": "celestial-bird.png",
+    "attributes": [
+      {
+        "trait_type": "Family",
+        "value": "Celestial Bird"
+      },
+      {
+        "trait_type": "Role",
+        "value": "Explorer"
+      },
+      {
+        "trait_type": "Canary",
+        "value": "Base Mainnet"
+      },
+      {
+        "trait_type": "Serial",
+        "value": 46
+      }
+    ]
+  },
+  {
+    "token_id": 47,
+    "name": "Signal Pioneers #47",
+    "description": "A BlueFun Base mainnet PFP canary used to verify shared-art metadata, ERC-721 supply, mint phases and marketplace compatibility.",
+    "image": "tide-technomancer.png",
+    "attributes": [
+      {
+        "trait_type": "Family",
+        "value": "Tide Technomancer"
+      },
+      {
+        "trait_type": "Role",
+        "value": "Technomancer"
+      },
+      {
+        "trait_type": "Canary",
+        "value": "Base Mainnet"
+      },
+      {
+        "trait_type": "Serial",
+        "value": 47
+      }
+    ]
+  },
+  {
+    "token_id": 48,
+    "name": "Signal Pioneers #48",
+    "description": "A BlueFun Base mainnet PFP canary used to verify shared-art metadata, ERC-721 supply, mint phases and marketplace compatibility.",
+    "image": "orbital-fox.png",
+    "attributes": [
+      {
+        "trait_type": "Family",
+        "value": "Orbital Fox"
+      },
+      {
+        "trait_type": "Role",
+        "value": "Engineer"
+      },
+      {
+        "trait_type": "Canary",
+        "value": "Base Mainnet"
+      },
+      {
+        "trait_type": "Serial",
+        "value": 48
+      }
+    ]
+  },
+  {
+    "token_id": 49,
+    "name": "Signal Pioneers #49",
+    "description": "A BlueFun Base mainnet PFP canary used to verify shared-art metadata, ERC-721 supply, mint phases and marketplace compatibility.",
+    "image": "celestial-bird.png",
+    "attributes": [
+      {
+        "trait_type": "Family",
+        "value": "Celestial Bird"
+      },
+      {
+        "trait_type": "Role",
+        "value": "Explorer"
+      },
+      {
+        "trait_type": "Canary",
+        "value": "Base Mainnet"
+      },
+      {
+        "trait_type": "Serial",
+        "value": 49
+      }
+    ]
+  },
+  {
+    "token_id": 50,
+    "name": "Signal Pioneers #50",
+    "description": "A BlueFun Base mainnet PFP canary used to verify shared-art metadata, ERC-721 supply, mint phases and marketplace compatibility.",
+    "image": "tide-technomancer.png",
+    "attributes": [
+      {
+        "trait_type": "Family",
+        "value": "Tide Technomancer"
+      },
+      {
+        "trait_type": "Role",
+        "value": "Technomancer"
+      },
+      {
+        "trait_type": "Canary",
+        "value": "Base Mainnet"
+      },
+      {
+        "trait_type": "Serial",
+        "value": 50
+      }
+    ]
+  },
+  {
+    "token_id": 51,
+    "name": "Signal Pioneers #51",
+    "description": "A BlueFun Base mainnet PFP canary used to verify shared-art metadata, ERC-721 supply, mint phases and marketplace compatibility.",
+    "image": "orbital-fox.png",
+    "attributes": [
+      {
+        "trait_type": "Family",
+        "value": "Orbital Fox"
+      },
+      {
+        "trait_type": "Role",
+        "value": "Engineer"
+      },
+      {
+        "trait_type": "Canary",
+        "value": "Base Mainnet"
+      },
+      {
+        "trait_type": "Serial",
+        "value": 51
+      }
+    ]
+  },
+  {
+    "token_id": 52,
+    "name": "Signal Pioneers #52",
+    "description": "A BlueFun Base mainnet PFP canary used to verify shared-art metadata, ERC-721 supply, mint phases and marketplace compatibility.",
+    "image": "celestial-bird.png",
+    "attributes": [
+      {
+        "trait_type": "Family",
+        "value": "Celestial Bird"
+      },
+      {
+        "trait_type": "Role",
+        "value": "Explorer"
+      },
+      {
+        "trait_type": "Canary",
+        "value": "Base Mainnet"
+      },
+      {
+        "trait_type": "Serial",
+        "value": 52
+      }
+    ]
+  },
+  {
+    "token_id": 53,
+    "name": "Signal Pioneers #53",
+    "description": "A BlueFun Base mainnet PFP canary used to verify shared-art metadata, ERC-721 supply, mint phases and marketplace compatibility.",
+    "image": "tide-technomancer.png",
+    "attributes": [
+      {
+        "trait_type": "Family",
+        "value": "Tide Technomancer"
+      },
+      {
+        "trait_type": "Role",
+        "value": "Technomancer"
+      },
+      {
+        "trait_type": "Canary",
+        "value": "Base Mainnet"
+      },
+      {
+        "trait_type": "Serial",
+        "value": 53
+      }
+    ]
+  },
+  {
+    "token_id": 54,
+    "name": "Signal Pioneers #54",
+    "description": "A BlueFun Base mainnet PFP canary used to verify shared-art metadata, ERC-721 supply, mint phases and marketplace compatibility.",
+    "image": "orbital-fox.png",
+    "attributes": [
+      {
+        "trait_type": "Family",
+        "value": "Orbital Fox"
+      },
+      {
+        "trait_type": "Role",
+        "value": "Engineer"
+      },
+      {
+        "trait_type": "Canary",
+        "value": "Base Mainnet"
+      },
+      {
+        "trait_type": "Serial",
+        "value": 54
+      }
+    ]
+  },
+  {
+    "token_id": 55,
+    "name": "Signal Pioneers #55",
+    "description": "A BlueFun Base mainnet PFP canary used to verify shared-art metadata, ERC-721 supply, mint phases and marketplace compatibility.",
+    "image": "celestial-bird.png",
+    "attributes": [
+      {
+        "trait_type": "Family",
+        "value": "Celestial Bird"
+      },
+      {
+        "trait_type": "Role",
+        "value": "Explorer"
+      },
+      {
+        "trait_type": "Canary",
+        "value": "Base Mainnet"
+      },
+      {
+        "trait_type": "Serial",
+        "value": 55
+      }
+    ]
+  },
+  {
+    "token_id": 56,
+    "name": "Signal Pioneers #56",
+    "description": "A BlueFun Base mainnet PFP canary used to verify shared-art metadata, ERC-721 supply, mint phases and marketplace compatibility.",
+    "image": "tide-technomancer.png",
+    "attributes": [
+      {
+        "trait_type": "Family",
+        "value": "Tide Technomancer"
+      },
+      {
+        "trait_type": "Role",
+        "value": "Technomancer"
+      },
+      {
+        "trait_type": "Canary",
+        "value": "Base Mainnet"
+      },
+      {
+        "trait_type": "Serial",
+        "value": 56
+      }
+    ]
+  },
+  {
+    "token_id": 57,
+    "name": "Signal Pioneers #57",
+    "description": "A BlueFun Base mainnet PFP canary used to verify shared-art metadata, ERC-721 supply, mint phases and marketplace compatibility.",
+    "image": "orbital-fox.png",
+    "attributes": [
+      {
+        "trait_type": "Family",
+        "value": "Orbital Fox"
+      },
+      {
+        "trait_type": "Role",
+        "value": "Engineer"
+      },
+      {
+        "trait_type": "Canary",
+        "value": "Base Mainnet"
+      },
+      {
+        "trait_type": "Serial",
+        "value": 57
+      }
+    ]
+  },
+  {
+    "token_id": 58,
+    "name": "Signal Pioneers #58",
+    "description": "A BlueFun Base mainnet PFP canary used to verify shared-art metadata, ERC-721 supply, mint phases and marketplace compatibility.",
+    "image": "celestial-bird.png",
+    "attributes": [
+      {
+        "trait_type": "Family",
+        "value": "Celestial Bird"
+      },
+      {
+        "trait_type": "Role",
+        "value": "Explorer"
+      },
+      {
+        "trait_type": "Canary",
+        "value": "Base Mainnet"
+      },
+      {
+        "trait_type": "Serial",
+        "value": 58
+      }
+    ]
+  },
+  {
+    "token_id": 59,
+    "name": "Signal Pioneers #59",
+    "description": "A BlueFun Base mainnet PFP canary used to verify shared-art metadata, ERC-721 supply, mint phases and marketplace compatibility.",
+    "image": "tide-technomancer.png",
+    "attributes": [
+      {
+        "trait_type": "Family",
+        "value": "Tide Technomancer"
+      },
+      {
+        "trait_type": "Role",
+        "value": "Technomancer"
+      },
+      {
+        "trait_type": "Canary",
+        "value": "Base Mainnet"
+      },
+      {
+        "trait_type": "Serial",
+        "value": 59
+      }
+    ]
+  },
+  {
+    "token_id": 60,
+    "name": "Signal Pioneers #60",
+    "description": "A BlueFun Base mainnet PFP canary used to verify shared-art metadata, ERC-721 supply, mint phases and marketplace compatibility.",
+    "image": "orbital-fox.png",
+    "attributes": [
+      {
+        "trait_type": "Family",
+        "value": "Orbital Fox"
+      },
+      {
+        "trait_type": "Role",
+        "value": "Engineer"
+      },
+      {
+        "trait_type": "Canary",
+        "value": "Base Mainnet"
+      },
+      {
+        "trait_type": "Serial",
+        "value": 60
+      }
+    ]
+  },
+  {
+    "token_id": 61,
+    "name": "Signal Pioneers #61",
+    "description": "A BlueFun Base mainnet PFP canary used to verify shared-art metadata, ERC-721 supply, mint phases and marketplace compatibility.",
+    "image": "celestial-bird.png",
+    "attributes": [
+      {
+        "trait_type": "Family",
+        "value": "Celestial Bird"
+      },
+      {
+        "trait_type": "Role",
+        "value": "Explorer"
+      },
+      {
+        "trait_type": "Canary",
+        "value": "Base Mainnet"
+      },
+      {
+        "trait_type": "Serial",
+        "value": 61
+      }
+    ]
+  },
+  {
+    "token_id": 62,
+    "name": "Signal Pioneers #62",
+    "description": "A BlueFun Base mainnet PFP canary used to verify shared-art metadata, ERC-721 supply, mint phases and marketplace compatibility.",
+    "image": "tide-technomancer.png",
+    "attributes": [
+      {
+        "trait_type": "Family",
+        "value": "Tide Technomancer"
+      },
+      {
+        "trait_type": "Role",
+        "value": "Technomancer"
+      },
+      {
+        "trait_type": "Canary",
+        "value": "Base Mainnet"
+      },
+      {
+        "trait_type": "Serial",
+        "value": 62
+      }
+    ]
+  },
+  {
+    "token_id": 63,
+    "name": "Signal Pioneers #63",
+    "description": "A BlueFun Base mainnet PFP canary used to verify shared-art metadata, ERC-721 supply, mint phases and marketplace compatibility.",
+    "image": "orbital-fox.png",
+    "attributes": [
+      {
+        "trait_type": "Family",
+        "value": "Orbital Fox"
+      },
+      {
+        "trait_type": "Role",
+        "value": "Engineer"
+      },
+      {
+        "trait_type": "Canary",
+        "value": "Base Mainnet"
+      },
+      {
+        "trait_type": "Serial",
+        "value": 63
+      }
+    ]
+  },
+  {
+    "token_id": 64,
+    "name": "Signal Pioneers #64",
+    "description": "A BlueFun Base mainnet PFP canary used to verify shared-art metadata, ERC-721 supply, mint phases and marketplace compatibility.",
+    "image": "celestial-bird.png",
+    "attributes": [
+      {
+        "trait_type": "Family",
+        "value": "Celestial Bird"
+      },
+      {
+        "trait_type": "Role",
+        "value": "Explorer"
+      },
+      {
+        "trait_type": "Canary",
+        "value": "Base Mainnet"
+      },
+      {
+        "trait_type": "Serial",
+        "value": 64
+      }
+    ]
+  },
+  {
+    "token_id": 65,
+    "name": "Signal Pioneers #65",
+    "description": "A BlueFun Base mainnet PFP canary used to verify shared-art metadata, ERC-721 supply, mint phases and marketplace compatibility.",
+    "image": "tide-technomancer.png",
+    "attributes": [
+      {
+        "trait_type": "Family",
+        "value": "Tide Technomancer"
+      },
+      {
+        "trait_type": "Role",
+        "value": "Technomancer"
+      },
+      {
+        "trait_type": "Canary",
+        "value": "Base Mainnet"
+      },
+      {
+        "trait_type": "Serial",
+        "value": 65
+      }
+    ]
+  },
+  {
+    "token_id": 66,
+    "name": "Signal Pioneers #66",
+    "description": "A BlueFun Base mainnet PFP canary used to verify shared-art metadata, ERC-721 supply, mint phases and marketplace compatibility.",
+    "image": "orbital-fox.png",
+    "attributes": [
+      {
+        "trait_type": "Family",
+        "value": "Orbital Fox"
+      },
+      {
+        "trait_type": "Role",
+        "value": "Engineer"
+      },
+      {
+        "trait_type": "Canary",
+        "value": "Base Mainnet"
+      },
+      {
+        "trait_type": "Serial",
+        "value": 66
+      }
+    ]
+  },
+  {
+    "token_id": 67,
+    "name": "Signal Pioneers #67",
+    "description": "A BlueFun Base mainnet PFP canary used to verify shared-art metadata, ERC-721 supply, mint phases and marketplace compatibility.",
+    "image": "celestial-bird.png",
+    "attributes": [
+      {
+        "trait_type": "Family",
+        "value": "Celestial Bird"
+      },
+      {
+        "trait_type": "Role",
+        "value": "Explorer"
+      },
+      {
+        "trait_type": "Canary",
+        "value": "Base Mainnet"
+      },
+      {
+        "trait_type": "Serial",
+        "value": 67
+      }
+    ]
+  },
+  {
+    "token_id": 68,
+    "name": "Signal Pioneers #68",
+    "description": "A BlueFun Base mainnet PFP canary used to verify shared-art metadata, ERC-721 supply, mint phases and marketplace compatibility.",
+    "image": "tide-technomancer.png",
+    "attributes": [
+      {
+        "trait_type": "Family",
+        "value": "Tide Technomancer"
+      },
+      {
+        "trait_type": "Role",
+        "value": "Technomancer"
+      },
+      {
+        "trait_type": "Canary",
+        "value": "Base Mainnet"
+      },
+      {
+        "trait_type": "Serial",
+        "value": 68
+      }
+    ]
+  },
+  {
+    "token_id": 69,
+    "name": "Signal Pioneers #69",
+    "description": "A BlueFun Base mainnet PFP canary used to verify shared-art metadata, ERC-721 supply, mint phases and marketplace compatibility.",
+    "image": "orbital-fox.png",
+    "attributes": [
+      {
+        "trait_type": "Family",
+        "value": "Orbital Fox"
+      },
+      {
+        "trait_type": "Role",
+        "value": "Engineer"
+      },
+      {
+        "trait_type": "Canary",
+        "value": "Base Mainnet"
+      },
+      {
+        "trait_type": "Serial",
+        "value": 69
+      }
+    ]
+  },
+  {
+    "token_id": 70,
+    "name": "Signal Pioneers #70",
+    "description": "A BlueFun Base mainnet PFP canary used to verify shared-art metadata, ERC-721 supply, mint phases and marketplace compatibility.",
+    "image": "celestial-bird.png",
+    "attributes": [
+      {
+        "trait_type": "Family",
+        "value": "Celestial Bird"
+      },
+      {
+        "trait_type": "Role",
+        "value": "Explorer"
+      },
+      {
+        "trait_type": "Canary",
+        "value": "Base Mainnet"
+      },
+      {
+        "trait_type": "Serial",
+        "value": 70
+      }
+    ]
+  },
+  {
+    "token_id": 71,
+    "name": "Signal Pioneers #71",
+    "description": "A BlueFun Base mainnet PFP canary used to verify shared-art metadata, ERC-721 supply, mint phases and marketplace compatibility.",
+    "image": "tide-technomancer.png",
+    "attributes": [
+      {
+        "trait_type": "Family",
+        "value": "Tide Technomancer"
+      },
+      {
+        "trait_type": "Role",
+        "value": "Technomancer"
+      },
+      {
+        "trait_type": "Canary",
+        "value": "Base Mainnet"
+      },
+      {
+        "trait_type": "Serial",
+        "value": 71
+      }
+    ]
+  },
+  {
+    "token_id": 72,
+    "name": "Signal Pioneers #72",
+    "description": "A BlueFun Base mainnet PFP canary used to verify shared-art metadata, ERC-721 supply, mint phases and marketplace compatibility.",
+    "image": "orbital-fox.png",
+    "attributes": [
+      {
+        "trait_type": "Family",
+        "value": "Orbital Fox"
+      },
+      {
+        "trait_type": "Role",
+        "value": "Engineer"
+      },
+      {
+        "trait_type": "Canary",
+        "value": "Base Mainnet"
+      },
+      {
+        "trait_type": "Serial",
+        "value": 72
+      }
+    ]
+  },
+  {
+    "token_id": 73,
+    "name": "Signal Pioneers #73",
+    "description": "A BlueFun Base mainnet PFP canary used to verify shared-art metadata, ERC-721 supply, mint phases and marketplace compatibility.",
+    "image": "celestial-bird.png",
+    "attributes": [
+      {
+        "trait_type": "Family",
+        "value": "Celestial Bird"
+      },
+      {
+        "trait_type": "Role",
+        "value": "Explorer"
+      },
+      {
+        "trait_type": "Canary",
+        "value": "Base Mainnet"
+      },
+      {
+        "trait_type": "Serial",
+        "value": 73
+      }
+    ]
+  },
+  {
+    "token_id": 74,
+    "name": "Signal Pioneers #74",
+    "description": "A BlueFun Base mainnet PFP canary used to verify shared-art metadata, ERC-721 supply, mint phases and marketplace compatibility.",
+    "image": "tide-technomancer.png",
+    "attributes": [
+      {
+        "trait_type": "Family",
+        "value": "Tide Technomancer"
+      },
+      {
+        "trait_type": "Role",
+        "value": "Technomancer"
+      },
+      {
+        "trait_type": "Canary",
+        "value": "Base Mainnet"
+      },
+      {
+        "trait_type": "Serial",
+        "value": 74
+      }
+    ]
+  },
+  {
+    "token_id": 75,
+    "name": "Signal Pioneers #75",
+    "description": "A BlueFun Base mainnet PFP canary used to verify shared-art metadata, ERC-721 supply, mint phases and marketplace compatibility.",
+    "image": "orbital-fox.png",
+    "attributes": [
+      {
+        "trait_type": "Family",
+        "value": "Orbital Fox"
+      },
+      {
+        "trait_type": "Role",
+        "value": "Engineer"
+      },
+      {
+        "trait_type": "Canary",
+        "value": "Base Mainnet"
+      },
+      {
+        "trait_type": "Serial",
+        "value": 75
+      }
+    ]
+  },
+  {
+    "token_id": 76,
+    "name": "Signal Pioneers #76",
+    "description": "A BlueFun Base mainnet PFP canary used to verify shared-art metadata, ERC-721 supply, mint phases and marketplace compatibility.",
+    "image": "celestial-bird.png",
+    "attributes": [
+      {
+        "trait_type": "Family",
+        "value": "Celestial Bird"
+      },
+      {
+        "trait_type": "Role",
+        "value": "Explorer"
+      },
+      {
+        "trait_type": "Canary",
+        "value": "Base Mainnet"
+      },
+      {
+        "trait_type": "Serial",
+        "value": 76
+      }
+    ]
+  },
+  {
+    "token_id": 77,
+    "name": "Signal Pioneers #77",
+    "description": "A BlueFun Base mainnet PFP canary used to verify shared-art metadata, ERC-721 supply, mint phases and marketplace compatibility.",
+    "image": "tide-technomancer.png",
+    "attributes": [
+      {
+        "trait_type": "Family",
+        "value": "Tide Technomancer"
+      },
+      {
+        "trait_type": "Role",
+        "value": "Technomancer"
+      },
+      {
+        "trait_type": "Canary",
+        "value": "Base Mainnet"
+      },
+      {
+        "trait_type": "Serial",
+        "value": 77
+      }
+    ]
+  },
+  {
+    "token_id": 78,
+    "name": "Signal Pioneers #78",
+    "description": "A BlueFun Base mainnet PFP canary used to verify shared-art metadata, ERC-721 supply, mint phases and marketplace compatibility.",
+    "image": "orbital-fox.png",
+    "attributes": [
+      {
+        "trait_type": "Family",
+        "value": "Orbital Fox"
+      },
+      {
+        "trait_type": "Role",
+        "value": "Engineer"
+      },
+      {
+        "trait_type": "Canary",
+        "value": "Base Mainnet"
+      },
+      {
+        "trait_type": "Serial",
+        "value": 78
+      }
+    ]
+  },
+  {
+    "token_id": 79,
+    "name": "Signal Pioneers #79",
+    "description": "A BlueFun Base mainnet PFP canary used to verify shared-art metadata, ERC-721 supply, mint phases and marketplace compatibility.",
+    "image": "celestial-bird.png",
+    "attributes": [
+      {
+        "trait_type": "Family",
+        "value": "Celestial Bird"
+      },
+      {
+        "trait_type": "Role",
+        "value": "Explorer"
+      },
+      {
+        "trait_type": "Canary",
+        "value": "Base Mainnet"
+      },
+      {
+        "trait_type": "Serial",
+        "value": 79
+      }
+    ]
+  },
+  {
+    "token_id": 80,
+    "name": "Signal Pioneers #80",
+    "description": "A BlueFun Base mainnet PFP canary used to verify shared-art metadata, ERC-721 supply, mint phases and marketplace compatibility.",
+    "image": "tide-technomancer.png",
+    "attributes": [
+      {
+        "trait_type": "Family",
+        "value": "Tide Technomancer"
+      },
+      {
+        "trait_type": "Role",
+        "value": "Technomancer"
+      },
+      {
+        "trait_type": "Canary",
+        "value": "Base Mainnet"
+      },
+      {
+        "trait_type": "Serial",
+        "value": 80
+      }
+    ]
+  },
+  {
+    "token_id": 81,
+    "name": "Signal Pioneers #81",
+    "description": "A BlueFun Base mainnet PFP canary used to verify shared-art metadata, ERC-721 supply, mint phases and marketplace compatibility.",
+    "image": "orbital-fox.png",
+    "attributes": [
+      {
+        "trait_type": "Family",
+        "value": "Orbital Fox"
+      },
+      {
+        "trait_type": "Role",
+        "value": "Engineer"
+      },
+      {
+        "trait_type": "Canary",
+        "value": "Base Mainnet"
+      },
+      {
+        "trait_type": "Serial",
+        "value": 81
+      }
+    ]
+  },
+  {
+    "token_id": 82,
+    "name": "Signal Pioneers #82",
+    "description": "A BlueFun Base mainnet PFP canary used to verify shared-art metadata, ERC-721 supply, mint phases and marketplace compatibility.",
+    "image": "celestial-bird.png",
+    "attributes": [
+      {
+        "trait_type": "Family",
+        "value": "Celestial Bird"
+      },
+      {
+        "trait_type": "Role",
+        "value": "Explorer"
+      },
+      {
+        "trait_type": "Canary",
+        "value": "Base Mainnet"
+      },
+      {
+        "trait_type": "Serial",
+        "value": 82
+      }
+    ]
+  },
+  {
+    "token_id": 83,
+    "name": "Signal Pioneers #83",
+    "description": "A BlueFun Base mainnet PFP canary used to verify shared-art metadata, ERC-721 supply, mint phases and marketplace compatibility.",
+    "image": "tide-technomancer.png",
+    "attributes": [
+      {
+        "trait_type": "Family",
+        "value": "Tide Technomancer"
+      },
+      {
+        "trait_type": "Role",
+        "value": "Technomancer"
+      },
+      {
+        "trait_type": "Canary",
+        "value": "Base Mainnet"
+      },
+      {
+        "trait_type": "Serial",
+        "value": 83
+      }
+    ]
+  },
+  {
+    "token_id": 84,
+    "name": "Signal Pioneers #84",
+    "description": "A BlueFun Base mainnet PFP canary used to verify shared-art metadata, ERC-721 supply, mint phases and marketplace compatibility.",
+    "image": "orbital-fox.png",
+    "attributes": [
+      {
+        "trait_type": "Family",
+        "value": "Orbital Fox"
+      },
+      {
+        "trait_type": "Role",
+        "value": "Engineer"
+      },
+      {
+        "trait_type": "Canary",
+        "value": "Base Mainnet"
+      },
+      {
+        "trait_type": "Serial",
+        "value": 84
+      }
+    ]
+  },
+  {
+    "token_id": 85,
+    "name": "Signal Pioneers #85",
+    "description": "A BlueFun Base mainnet PFP canary used to verify shared-art metadata, ERC-721 supply, mint phases and marketplace compatibility.",
+    "image": "celestial-bird.png",
+    "attributes": [
+      {
+        "trait_type": "Family",
+        "value": "Celestial Bird"
+      },
+      {
+        "trait_type": "Role",
+        "value": "Explorer"
+      },
+      {
+        "trait_type": "Canary",
+        "value": "Base Mainnet"
+      },
+      {
+        "trait_type": "Serial",
+        "value": 85
+      }
+    ]
+  },
+  {
+    "token_id": 86,
+    "name": "Signal Pioneers #86",
+    "description": "A BlueFun Base mainnet PFP canary used to verify shared-art metadata, ERC-721 supply, mint phases and marketplace compatibility.",
+    "image": "tide-technomancer.png",
+    "attributes": [
+      {
+        "trait_type": "Family",
+        "value": "Tide Technomancer"
+      },
+      {
+        "trait_type": "Role",
+        "value": "Technomancer"
+      },
+      {
+        "trait_type": "Canary",
+        "value": "Base Mainnet"
+      },
+      {
+        "trait_type": "Serial",
+        "value": 86
+      }
+    ]
+  },
+  {
+    "token_id": 87,
+    "name": "Signal Pioneers #87",
+    "description": "A BlueFun Base mainnet PFP canary used to verify shared-art metadata, ERC-721 supply, mint phases and marketplace compatibility.",
+    "image": "orbital-fox.png",
+    "attributes": [
+      {
+        "trait_type": "Family",
+        "value": "Orbital Fox"
+      },
+      {
+        "trait_type": "Role",
+        "value": "Engineer"
+      },
+      {
+        "trait_type": "Canary",
+        "value": "Base Mainnet"
+      },
+      {
+        "trait_type": "Serial",
+        "value": 87
+      }
+    ]
+  },
+  {
+    "token_id": 88,
+    "name": "Signal Pioneers #88",
+    "description": "A BlueFun Base mainnet PFP canary used to verify shared-art metadata, ERC-721 supply, mint phases and marketplace compatibility.",
+    "image": "celestial-bird.png",
+    "attributes": [
+      {
+        "trait_type": "Family",
+        "value": "Celestial Bird"
+      },
+      {
+        "trait_type": "Role",
+        "value": "Explorer"
+      },
+      {
+        "trait_type": "Canary",
+        "value": "Base Mainnet"
+      },
+      {
+        "trait_type": "Serial",
+        "value": 88
+      }
+    ]
+  },
+  {
+    "token_id": 89,
+    "name": "Signal Pioneers #89",
+    "description": "A BlueFun Base mainnet PFP canary used to verify shared-art metadata, ERC-721 supply, mint phases and marketplace compatibility.",
+    "image": "tide-technomancer.png",
+    "attributes": [
+      {
+        "trait_type": "Family",
+        "value": "Tide Technomancer"
+      },
+      {
+        "trait_type": "Role",
+        "value": "Technomancer"
+      },
+      {
+        "trait_type": "Canary",
+        "value": "Base Mainnet"
+      },
+      {
+        "trait_type": "Serial",
+        "value": 89
+      }
+    ]
+  },
+  {
+    "token_id": 90,
+    "name": "Signal Pioneers #90",
+    "description": "A BlueFun Base mainnet PFP canary used to verify shared-art metadata, ERC-721 supply, mint phases and marketplace compatibility.",
+    "image": "orbital-fox.png",
+    "attributes": [
+      {
+        "trait_type": "Family",
+        "value": "Orbital Fox"
+      },
+      {
+        "trait_type": "Role",
+        "value": "Engineer"
+      },
+      {
+        "trait_type": "Canary",
+        "value": "Base Mainnet"
+      },
+      {
+        "trait_type": "Serial",
+        "value": 90
+      }
+    ]
+  },
+  {
+    "token_id": 91,
+    "name": "Signal Pioneers #91",
+    "description": "A BlueFun Base mainnet PFP canary used to verify shared-art metadata, ERC-721 supply, mint phases and marketplace compatibility.",
+    "image": "celestial-bird.png",
+    "attributes": [
+      {
+        "trait_type": "Family",
+        "value": "Celestial Bird"
+      },
+      {
+        "trait_type": "Role",
+        "value": "Explorer"
+      },
+      {
+        "trait_type": "Canary",
+        "value": "Base Mainnet"
+      },
+      {
+        "trait_type": "Serial",
+        "value": 91
+      }
+    ]
+  },
+  {
+    "token_id": 92,
+    "name": "Signal Pioneers #92",
+    "description": "A BlueFun Base mainnet PFP canary used to verify shared-art metadata, ERC-721 supply, mint phases and marketplace compatibility.",
+    "image": "tide-technomancer.png",
+    "attributes": [
+      {
+        "trait_type": "Family",
+        "value": "Tide Technomancer"
+      },
+      {
+        "trait_type": "Role",
+        "value": "Technomancer"
+      },
+      {
+        "trait_type": "Canary",
+        "value": "Base Mainnet"
+      },
+      {
+        "trait_type": "Serial",
+        "value": 92
+      }
+    ]
+  },
+  {
+    "token_id": 93,
+    "name": "Signal Pioneers #93",
+    "description": "A BlueFun Base mainnet PFP canary used to verify shared-art metadata, ERC-721 supply, mint phases and marketplace compatibility.",
+    "image": "orbital-fox.png",
+    "attributes": [
+      {
+        "trait_type": "Family",
+        "value": "Orbital Fox"
+      },
+      {
+        "trait_type": "Role",
+        "value": "Engineer"
+      },
+      {
+        "trait_type": "Canary",
+        "value": "Base Mainnet"
+      },
+      {
+        "trait_type": "Serial",
+        "value": 93
+      }
+    ]
+  },
+  {
+    "token_id": 94,
+    "name": "Signal Pioneers #94",
+    "description": "A BlueFun Base mainnet PFP canary used to verify shared-art metadata, ERC-721 supply, mint phases and marketplace compatibility.",
+    "image": "celestial-bird.png",
+    "attributes": [
+      {
+        "trait_type": "Family",
+        "value": "Celestial Bird"
+      },
+      {
+        "trait_type": "Role",
+        "value": "Explorer"
+      },
+      {
+        "trait_type": "Canary",
+        "value": "Base Mainnet"
+      },
+      {
+        "trait_type": "Serial",
+        "value": 94
+      }
+    ]
+  },
+  {
+    "token_id": 95,
+    "name": "Signal Pioneers #95",
+    "description": "A BlueFun Base mainnet PFP canary used to verify shared-art metadata, ERC-721 supply, mint phases and marketplace compatibility.",
+    "image": "tide-technomancer.png",
+    "attributes": [
+      {
+        "trait_type": "Family",
+        "value": "Tide Technomancer"
+      },
+      {
+        "trait_type": "Role",
+        "value": "Technomancer"
+      },
+      {
+        "trait_type": "Canary",
+        "value": "Base Mainnet"
+      },
+      {
+        "trait_type": "Serial",
+        "value": 95
+      }
+    ]
+  },
+  {
+    "token_id": 96,
+    "name": "Signal Pioneers #96",
+    "description": "A BlueFun Base mainnet PFP canary used to verify shared-art metadata, ERC-721 supply, mint phases and marketplace compatibility.",
+    "image": "orbital-fox.png",
+    "attributes": [
+      {
+        "trait_type": "Family",
+        "value": "Orbital Fox"
+      },
+      {
+        "trait_type": "Role",
+        "value": "Engineer"
+      },
+      {
+        "trait_type": "Canary",
+        "value": "Base Mainnet"
+      },
+      {
+        "trait_type": "Serial",
+        "value": 96
+      }
+    ]
+  },
+  {
+    "token_id": 97,
+    "name": "Signal Pioneers #97",
+    "description": "A BlueFun Base mainnet PFP canary used to verify shared-art metadata, ERC-721 supply, mint phases and marketplace compatibility.",
+    "image": "celestial-bird.png",
+    "attributes": [
+      {
+        "trait_type": "Family",
+        "value": "Celestial Bird"
+      },
+      {
+        "trait_type": "Role",
+        "value": "Explorer"
+      },
+      {
+        "trait_type": "Canary",
+        "value": "Base Mainnet"
+      },
+      {
+        "trait_type": "Serial",
+        "value": 97
+      }
+    ]
+  },
+  {
+    "token_id": 98,
+    "name": "Signal Pioneers #98",
+    "description": "A BlueFun Base mainnet PFP canary used to verify shared-art metadata, ERC-721 supply, mint phases and marketplace compatibility.",
+    "image": "tide-technomancer.png",
+    "attributes": [
+      {
+        "trait_type": "Family",
+        "value": "Tide Technomancer"
+      },
+      {
+        "trait_type": "Role",
+        "value": "Technomancer"
+      },
+      {
+        "trait_type": "Canary",
+        "value": "Base Mainnet"
+      },
+      {
+        "trait_type": "Serial",
+        "value": 98
+      }
+    ]
+  },
+  {
+    "token_id": 99,
+    "name": "Signal Pioneers #99",
+    "description": "A BlueFun Base mainnet PFP canary used to verify shared-art metadata, ERC-721 supply, mint phases and marketplace compatibility.",
+    "image": "orbital-fox.png",
+    "attributes": [
+      {
+        "trait_type": "Family",
+        "value": "Orbital Fox"
+      },
+      {
+        "trait_type": "Role",
+        "value": "Engineer"
+      },
+      {
+        "trait_type": "Canary",
+        "value": "Base Mainnet"
+      },
+      {
+        "trait_type": "Serial",
+        "value": 99
+      }
+    ]
+  },
+  {
+    "token_id": 100,
+    "name": "Signal Pioneers #100",
+    "description": "A BlueFun Base mainnet PFP canary used to verify shared-art metadata, ERC-721 supply, mint phases and marketplace compatibility.",
+    "image": "celestial-bird.png",
+    "attributes": [
+      {
+        "trait_type": "Family",
+        "value": "Celestial Bird"
+      },
+      {
+        "trait_type": "Role",
+        "value": "Explorer"
+      },
+      {
+        "trait_type": "Canary",
+        "value": "Base Mainnet"
+      },
+      {
+        "trait_type": "Serial",
+        "value": 100
+      }
+    ]
+  }
+]

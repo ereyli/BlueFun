@@ -6,6 +6,9 @@ import "./premium-system.css";
 import "./dashboard.css";
 import "./docs.css";
 import "./signal-system.css";
+import "./nft-launchpad.css";
+import "./nft-catalog.css";
+import "./create-launch-menu.css";
 import { Providers } from "@/components/providers";
 import { WalletButton } from "@/components/wallet-button";
 import { RouteFeedback } from "@/components/route-feedback";
@@ -16,6 +19,8 @@ import { Suspense } from "react";
 import { ChainLink } from "@/components/chain-link";
 import { NetworkIcon } from "@/components/network-icon";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { CreateLaunchMenu } from "@/components/create-launch-menu";
+import { BrandLaunchpadMenu } from "@/components/brand-launchpad-menu";
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl("/")),
@@ -82,12 +87,15 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <RouteFeedback />
           <div className="shell">
             <aside className="sidebar">
-              <Suspense fallback={<Link className="brand" href="/">BlueFun</Link>}><ChainLink className="brand" href="/">
-                <span className="brand-mark">
-                  <Image src="/brand/bluelogo.webp" alt="" width={32} height={32} priority />
-                </span>
-                <span className="brand-wordmark"><strong>BlueFun</strong><small>onchain launch desk</small></span>
-              </ChainLink></Suspense>
+              <div className="brand-launchpad-row">
+                <Suspense fallback={<Link className="brand" href="/">BlueFun</Link>}><ChainLink className="brand" href="/">
+                  <span className="brand-mark">
+                    <Image src="/brand/bluelogo.webp" alt="" width={32} height={32} priority />
+                  </span>
+                  <span className="brand-wordmark"><strong>BlueFun</strong><small>onchain launch desk</small></span>
+                </ChainLink></Suspense>
+                <BrandLaunchpadMenu />
+              </div>
               <Suspense fallback={null}><SideNav /></Suspense>
               <div className="sidebar-network-note">
                 <span className="sidebar-network-icons"><NetworkIcon chainId={8453} size={25} /><NetworkIcon chainId={4663} size={25} /></span>
@@ -105,7 +113,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 </Link>
                 <div className="topbar-actions">
                   <span className="topbar-live"><i />Protocol live</span>
-                  <Suspense fallback={<Link className="button primary" href="/launch">New launch</Link>}><ChainLink className="button primary topbar-create" href="/launch">New launch</ChainLink></Suspense>
+                  <CreateLaunchMenu />
                   <Suspense fallback={null}><NetworkSelector /></Suspense>
                   <ThemeToggle />
                   <WalletButton />

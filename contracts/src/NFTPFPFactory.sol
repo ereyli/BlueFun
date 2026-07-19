@@ -1,0 +1,112 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.25;
+
+import {ReentrancyGuard} from "./security/ReentrancyGuard.sol";
+import {BluePFP721} from "./BluePFP721.sol";
+import {INFTFeePolicy} from "./interfaces/INFTFeePolicy.sol";
+import {INFTCollectionRegistry} from "./interfaces/INFTCollectionRegistry.sol";
+
+/// @notice Permissionless creator-owned ERC-721 PFP drop factory.
+contract NFTPFPFactory is ReentrancyGuard, INFTCollectionRegistry {
+    error InvalidConfig();
+    error IncorrectLaunchFee(uint256 supplied, uint256 required);
+    error CollectionsPaused();
+    error PlatformTransferFailed();
+
+    struct CreatePFPParams {
+        string name;
+        string symbol;
+        string contractURI;
+        string baseURI;
+        string placeholderURI;
+        uint256 maxSupply;
+        bytes32 provenanceHash;
+        bool revealed;
+        uint256 creatorReserve;
+        uint64 revealTime;
+        bool freezeOnReveal;
+        address royaltyRecipient;
+        uint16 royaltyBps;
+        bytes32 salt;
+    }
+
+    INFTFeePolicy public immutable feePolicy;
+    address public immutable dropController;
+    uint256 public collectionCount;
+    mapping(uint256 collectionId => address collection) public collections;
+    mapping(address collection => bool registered) public override isBlueFunCollection;
+
+    event PFPCollectionCreated(
+        uint256 indexed collectionId,
+        address indexed collection,
+        address indexed creator,
+        string name,
+        string symbol,
+        string contractURI,
+        uint256 maxSupply,
+        bytes32 provenanceHash,
+        bool revealed,
+        uint16 royaltyBps
+    );
+    event PFPCollectionLaunchFeePaid(uint256 indexed collectionId, address indexed creator, uint256 amount);
+
+    constructor(INFTFeePolicy feePolicy_, address dropController_) {
+        if (address(feePolicy_) == address(0) || dropController_ == address(0)) revert InvalidConfig();
+        feePolicy = feePolicy_;
+        dropController = dropController_;
+    }
+
+    function createPFPCollection(CreatePFPParams calldata params)
+        external payable nonReentrant returns (uint256 collectionId, address collection)
+    {
+        if (feePolicy.newCollectionsPaused()) revert CollectionsPaused();
+        _validate(params);
+        uint256 requiredFee = feePolicy.collectionLaunchFee();
+        if (msg.value != requiredFee) revert IncorrectLaunchFee(msg.value, requiredFee);
+
+        bytes32 effectiveSalt = keccak256(abi.encode(msg.sender, block.chainid, params.salt));
+        collection = address(new BluePFP721{salt: effectiveSalt}(
+            msg.sender,
+            dropController,
+            params.name,
+            params.symbol,
+            params.contractURI,
+            params.baseURI,
+            params.placeholderURI,
+            params.maxSupply,
+            params.provenanceHash,
+            params.revealed,
+            params.creatorReserve,
+            params.revealTime,
+            params.freezeOnReveal,
+            params.royaltyRecipient,
+            params.royaltyBps
+        ));
+        collectionId = ++collectionCount;
+        collections[collectionId] = collection;
+        isBlueFunCollection[collection] = true;
+        if (requiredFee != 0) {
+            (bool ok,) = payable(feePolicy.platformWallet()).call{value: requiredFee}("");
+            if (!ok) revert PlatformTransferFailed();
+        }
+        emit PFPCollectionLaunchFeePaid(collectionId, msg.sender, requiredFee);
+        emit PFPCollectionCreated(
+            collectionId, collection, msg.sender, params.name, params.symbol, params.contractURI,
+            params.maxSupply, params.provenanceHash, params.revealed, params.royaltyBps
+        );
+    }
+
+    function _validate(CreatePFPParams calldata params) private pure {
+        if (
+            bytes(params.name).length == 0 || bytes(params.name).length > 64
+                || bytes(params.symbol).length == 0 || bytes(params.symbol).length > 16
+                || bytes(params.contractURI).length == 0 || bytes(params.contractURI).length > 512
+                || bytes(params.placeholderURI).length == 0 || bytes(params.placeholderURI).length > 512
+                || bytes(params.baseURI).length > 512 || (params.revealed && bytes(params.baseURI).length == 0)
+                || params.maxSupply == 0 || params.maxSupply > type(uint64).max
+                || params.creatorReserve > params.maxSupply || (params.revealed && params.revealTime != 0)
+                || (params.revealTime != 0 && bytes(params.baseURI).length == 0)
+                || params.royaltyRecipient == address(0) || params.royaltyBps > 1_000
+        ) revert InvalidConfig();
+    }
+}

@@ -1,0 +1,35 @@
+{
+  "version": "1.0",
+  "chainId": "8453",
+  "createdAt": 1784463447000,
+  "meta": {
+    "name": "BlueFun NFT Safe activation",
+    "description": "Accept NFTFeePolicy administration and move the NFT guardian and platform revenue wallet to the 2-of-3 Safe.",
+    "txBuilderVersion": "1.18.0",
+    "createdFromSafeAddress": "0x144A3f70C0bf33124852E3891011e033b909F46d",
+    "createdFromOwnerAddress": ""
+  },
+  "transactions": [
+    {
+      "to": "0x453d7086FAe834B573bf129C2D64Fb50ad0c4c2D",
+      "value": "0",
+      "data": "0x0e18b681",
+      "contractMethod": null,
+      "contractInputsValues": null
+    },
+    {
+      "to": "0x453d7086FAe834B573bf129C2D64Fb50ad0c4c2D",
+      "value": "0",
+      "data": "0x8831e9cf000000000000000000000000144a3f70c0bf33124852e3891011e033b909f46d",
+      "contractMethod": null,
+      "contractInputsValues": null
+    },
+    {
+      "to": "0x453d7086FAe834B573bf129C2D64Fb50ad0c4c2D",
+      "value": "0",
+      "data": "0x8a0dac4a000000000000000000000000144a3f70c0bf33124852e3891011e033b909f46d",
+      "contractMethod": null,
+      "contractInputsValues": null
+    }
+  ]
+}

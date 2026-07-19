@@ -5,7 +5,7 @@ const robinhood = chainId === 4663;
 export const defaultRpcUrl = robinhood ? "https://rpc.mainnet.chain.robinhood.com" : "https://mainnet.base.org";
 export const defaultRpcUrls = robinhood
   ? [defaultRpcUrl, ...splitRpcUrls(process.env.ROBINHOOD_RPC_FALLBACK_URLS)]
-  : [defaultRpcUrl, "https://base-rpc.publicnode.com", "https://1rpc.io/base", "https://base.meowrpc.com"];
+  : [defaultRpcUrl, "https://base-rpc.publicnode.com", "https://1rpc.io/base"];
 
 export type IndexerDeployment = {
   version: "legacy" | "fee-sharing-v1" | "current" | "vnext";
@@ -19,6 +19,19 @@ export type IndexerDeployment = {
 export type DirectIndexerDeployment = {
   launchFactory: `0x${string}`;
   liquidityLocker: `0x${string}`;
+  startBlock: bigint;
+  scope: string;
+};
+
+export type NFTIndexerDeployment = {
+  collectionFactory: `0x${string}`;
+  dropController: `0x${string}`;
+  marketplace: `0x${string}`;
+  pfpFactory?: `0x${string}`;
+  pfpMarketplace?: `0x${string}`;
+  pfpStartBlock?: bigint;
+  offers?: `0x${string}`;
+  offersStartBlock?: bigint;
   startBlock: bigint;
   scope: string;
 };
@@ -144,12 +157,61 @@ export const directDeployments = Array.from(new Map(
     .map((deployment) => [deployment.scope, deployment])
 ).values());
 
+const nftFactory = (process.env.NFT_COLLECTION_FACTORY
+  || (!robinhood ? "0x342F90f22fBd5f7D680d3d84Ce121BDA995F6F4D" : undefined)) as `0x${string}` | undefined;
+const nftController = (process.env.NFT_DROP_CONTROLLER
+  || (!robinhood ? "0xb129417fFc25b5A8e918Cb63E6f45a605905C0aC" : undefined)) as `0x${string}` | undefined;
+const nftMarketplace = (process.env.NFT_MARKETPLACE
+  || (!robinhood ? "0xf08f44AC84632c7E3dF2E63804fB8eECb4B346bb" : undefined)) as `0x${string}` | undefined;
+const nftStartBlock = BigInt(process.env.NFT_DEPLOYMENT_BLOCK || (!robinhood ? "48766938" : "0"));
+const nftPFPFactory = process.env.NFT_PFP_FACTORY as `0x${string}` | undefined;
+const nftPFPMarketplace = process.env.NFT_PFP_MARKETPLACE as `0x${string}` | undefined;
+const nftPFPStartBlock = BigInt(process.env.NFT_PFP_DEPLOYMENT_BLOCK || "0");
+const nftOffers = process.env.NFT_OFFERS as `0x${string}` | undefined;
+const nftOffersStartBlock = BigInt(process.env.NFT_OFFERS_DEPLOYMENT_BLOCK || "0");
+export const nftDeployment: NFTIndexerDeployment | undefined =
+  nftFactory && nftController && nftMarketplace && nftStartBlock > 0n
+    ? {
+        collectionFactory: nftFactory,
+        dropController: nftController,
+        marketplace: nftMarketplace,
+        pfpFactory: nftPFPFactory,
+        pfpMarketplace: nftPFPMarketplace,
+        pfpStartBlock: nftPFPStartBlock > 0n ? nftPFPStartBlock : undefined,
+        offers: nftOffers,
+        offersStartBlock: nftOffersStartBlock > 0n ? nftOffersStartBlock : undefined,
+        startBlock: nftStartBlock,
+        scope: `${chainId}:nft:${nftFactory.toLowerCase()}:${nftStartBlock.toString()}`
+      }
+    : undefined;
+
+const nftV2Deployment: NFTIndexerDeployment | undefined = !robinhood ? {
+  collectionFactory: (process.env.NFT_V2_COLLECTION_FACTORY || "0x38d3a8ee94f49ddeb7ba5c0f202e1aaf4b07c63a") as `0x${string}`,
+  dropController: (process.env.NFT_V2_DROP_CONTROLLER || "0xa799002045291b4c88db11d35f476f532ea012cb") as `0x${string}`,
+  marketplace: (process.env.NFT_V2_MARKETPLACE || "0x79509ab5348ecc30616ce7a8460d014cfee5737b") as `0x${string}`,
+  pfpFactory: (process.env.NFT_V2_PFP_FACTORY || "0x5c1796111e6e57d0d13555da1cdb2b1a98005732") as `0x${string}`,
+  pfpMarketplace: (process.env.NFT_V2_PFP_MARKETPLACE || "0x22c0b3344af12de3a5f6315663af2c9b9042e9f8") as `0x${string}`,
+  pfpStartBlock: BigInt(process.env.NFT_V2_DEPLOYMENT_BLOCK || "48813200"),
+  offers: (process.env.NFT_V2_OFFERS || "0x58b7e9f6c980800754cde5c9458e2ec42ebeb0ca") as `0x${string}`,
+  offersStartBlock: BigInt(process.env.NFT_V2_DEPLOYMENT_BLOCK || "48813200"),
+  startBlock: BigInt(process.env.NFT_V2_DEPLOYMENT_BLOCK || "48813200"),
+  scope: `${chainId}:nft-v2:${(process.env.NFT_V2_COLLECTION_FACTORY || "0x38d3a8ee94f49ddeb7ba5c0f202e1aaf4b07c63a").toLowerCase()}:${process.env.NFT_V2_DEPLOYMENT_BLOCK || "48813200"}`
+} : undefined;
+
+export const nftDeployments = [nftDeployment, nftV2Deployment].filter((deployment): deployment is NFTIndexerDeployment => Boolean(deployment));
+
 export const chainDefinition = defineChain({
   id: chainId,
   name: robinhood ? "Robinhood Chain" : "Base",
   nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
   rpcUrls: { default: { http: defaultRpcUrls } },
-  blockExplorers: { default: { name: robinhood ? "Robinhood Explorer" : "BaseScan", url: robinhood ? "https://robinhoodchain.blockscout.com" : "https://basescan.org" } }
+  blockExplorers: { default: { name: robinhood ? "Robinhood Explorer" : "BaseScan", url: robinhood ? "https://robinhoodchain.blockscout.com" : "https://basescan.org" } },
+  contracts: robinhood ? undefined : {
+    multicall3: {
+      address: "0xca11bde05977b3631167028862be2a173976ca11",
+      blockCreated: 5022
+    }
+  }
 });
 
 export const poolManager = robinhood

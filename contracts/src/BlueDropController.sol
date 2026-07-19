@@ -1,0 +1,347 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.25;
+
+import {ReentrancyGuard} from "./security/ReentrancyGuard.sol";
+import {MerkleProofLib} from "./libraries/MerkleProofLib.sol";
+import {IBlueEdition1155} from "./interfaces/IBlueEdition1155.sol";
+import {INFTFeePolicy} from "./interfaces/INFTFeePolicy.sol";
+
+/// @notice Public and Merkle-allowlist primary mint controller for BlueFun ERC-1155 collections.
+/// @dev Phase schedules are append-only and non-overlapping. A replacement controller can be authorized by the creator.
+contract BlueDropController is ReentrancyGuard {
+    error NotCollectionOwner();
+    error InvalidAddress();
+    error InvalidPhase();
+    error InvalidSchedule();
+    error InvalidQuantity();
+    error InvalidPayment();
+    error UnsupportedCurrency();
+    error PhaseNotActive();
+    error PhaseCancelled();
+    error WalletLimitExceeded();
+    error PhaseSupplyExceeded();
+    error InvalidProof();
+    error DeadlineExpired();
+    error MintsPaused();
+    error NativeTransferFailed();
+    error NoRevenue();
+
+    uint16 private constant BPS = 10_000;
+
+    enum PhaseType {
+        PUBLIC,
+        MERKLE_ALLOWLIST
+    }
+
+    enum LimitMode {
+        PER_PHASE,
+        CUMULATIVE
+    }
+
+    struct PhaseConfig {
+        PhaseType phaseType;
+        LimitMode limitMode;
+        address currency;
+        uint128 mintPrice;
+        uint64 startTime;
+        uint64 endTime;
+        uint64 phaseSupplyCap;
+        uint32 defaultWalletLimit;
+        uint32 maxPerTransaction;
+        bytes32 merkleRoot;
+    }
+
+    struct Phase {
+        PhaseType phaseType;
+        LimitMode limitMode;
+        address currency;
+        uint128 mintPrice;
+        uint64 startTime;
+        uint64 endTime;
+        uint64 phaseSupplyCap;
+        uint32 defaultWalletLimit;
+        uint32 maxPerTransaction;
+        bytes32 merkleRoot;
+        uint64 previousPhaseEnd;
+        bool cancelled;
+    }
+
+    INFTFeePolicy public immutable feePolicy;
+
+    mapping(address collection => mapping(uint256 tokenId => uint256 nextId)) public nextPhaseId;
+    mapping(address collection => mapping(uint256 tokenId => uint256 id)) public latestPhaseId;
+    mapping(address collection => mapping(uint256 tokenId => uint64 endTime)) public lastPhaseEnd;
+    mapping(address collection => mapping(uint256 tokenId => mapping(uint256 phaseId => Phase phase))) public phases;
+    mapping(address collection => mapping(uint256 tokenId => mapping(uint256 phaseId => uint256 amount))) public
+        phaseMinted;
+    mapping(
+        address collection
+            => mapping(uint256 tokenId => mapping(uint256 phaseId => mapping(address wallet => uint256 amount)))
+    ) public mintedByWalletInPhase;
+    mapping(address collection => mapping(uint256 tokenId => mapping(address wallet => uint256 amount))) public
+        mintedByWalletTotal;
+    mapping(address collection => uint256 amount) public pendingCreatorRevenue;
+    uint256 public pendingPlatformRevenue;
+
+    event PhaseCreated(
+        address indexed collection, uint256 indexed tokenId, uint256 indexed phaseId, PhaseConfig config
+    );
+    event PhaseUpdated(
+        address indexed collection, uint256 indexed tokenId, uint256 indexed phaseId, PhaseConfig config
+    );
+    event PhaseCancelledEvent(address indexed collection, uint256 indexed tokenId, uint256 indexed phaseId);
+    event NFTMinted(
+        address indexed collection,
+        uint256 indexed tokenId,
+        uint256 indexed phaseId,
+        address payer,
+        address recipient,
+        uint256 quantity,
+        uint256 unitPrice,
+        uint256 grossAmount,
+        uint256 platformFee
+    );
+    event CreatorRevenueClaimed(address indexed collection, address indexed recipient, uint256 amount);
+    event PlatformRevenueFlushed(uint256 amount);
+
+    constructor(INFTFeePolicy feePolicy_) {
+        if (address(feePolicy_) == address(0)) revert InvalidAddress();
+        feePolicy = feePolicy_;
+    }
+
+    function createPhase(address collection, uint256 tokenId, PhaseConfig calldata config)
+        external
+        returns (uint256 phaseId)
+    {
+        _onlyCollectionOwner(collection);
+        uint64 previousEnd = lastPhaseEnd[collection][tokenId];
+        _validatePhaseConfig(collection, tokenId, config, previousEnd);
+        phaseId = nextPhaseId[collection][tokenId] + 1;
+        nextPhaseId[collection][tokenId] = phaseId;
+        latestPhaseId[collection][tokenId] = phaseId;
+        lastPhaseEnd[collection][tokenId] = config.endTime;
+        _storePhase(phases[collection][tokenId][phaseId], config, previousEnd);
+        emit PhaseCreated(collection, tokenId, phaseId, config);
+    }
+
+    /// @notice A scheduled phase may be edited before it starts without crossing either neighbour.
+    function updatePhase(address collection, uint256 tokenId, uint256 phaseId, PhaseConfig calldata config) public {
+        _onlyCollectionOwner(collection);
+        uint256 latest = latestPhaseId[collection][tokenId];
+        if (phaseId == 0 || phaseId > latest) revert InvalidPhase();
+        Phase storage phase = phases[collection][tokenId][phaseId];
+        if (phase.cancelled || block.timestamp >= phase.startTime) revert InvalidPhase();
+        _validatePhaseConfig(collection, tokenId, config, phase.previousPhaseEnd);
+        uint256 nextActive = _nextActivePhase(collection, tokenId, phaseId + 1, latest);
+        if (nextActive != 0 && config.endTime > phases[collection][tokenId][nextActive].startTime) {
+            revert InvalidSchedule();
+        }
+        _storePhase(phase, config, phase.previousPhaseEnd);
+        if (nextActive == 0) lastPhaseEnd[collection][tokenId] = config.endTime;
+        else phases[collection][tokenId][nextActive].previousPhaseEnd = config.endTime;
+        emit PhaseUpdated(collection, tokenId, phaseId, config);
+    }
+
+    /// @notice Backwards-compatible shortcut for clients that only manage the tail phase.
+    function updateLatestPhase(address collection, uint256 tokenId, PhaseConfig calldata config) external {
+        updatePhase(collection, tokenId, latestPhaseId[collection][tokenId], config);
+    }
+
+    /// @notice Cancels any phase, including an active allowlist that already has a public successor.
+    function cancelPhase(address collection, uint256 tokenId, uint256 phaseId) public {
+        _onlyCollectionOwner(collection);
+        uint256 latest = latestPhaseId[collection][tokenId];
+        if (phaseId == 0 || phaseId > latest) revert InvalidPhase();
+        Phase storage phase = phases[collection][tokenId][phaseId];
+        if (phase.cancelled) revert PhaseCancelled();
+        phase.cancelled = true;
+        uint256 nextActive = _nextActivePhase(collection, tokenId, phaseId + 1, latest);
+        if (nextActive == 0) lastPhaseEnd[collection][tokenId] = phase.previousPhaseEnd;
+        else phases[collection][tokenId][nextActive].previousPhaseEnd = phase.previousPhaseEnd;
+        emit PhaseCancelledEvent(collection, tokenId, phaseId);
+    }
+
+    function cancelLatestPhase(address collection, uint256 tokenId) external {
+        cancelPhase(collection, tokenId, latestPhaseId[collection][tokenId]);
+    }
+
+    function mintPublic(
+        address collection,
+        uint256 tokenId,
+        uint256 phaseId,
+        uint256 quantity,
+        address recipient,
+        uint256 expectedUnitPrice,
+        uint256 deadline
+    ) external payable nonReentrant {
+        Phase storage phase = phases[collection][tokenId][phaseId];
+        if (phase.phaseType != PhaseType.PUBLIC) revert InvalidPhase();
+        _mint(
+            collection,
+            tokenId,
+            phaseId,
+            phase,
+            quantity,
+            recipient,
+            phase.defaultWalletLimit,
+            expectedUnitPrice,
+            deadline
+        );
+    }
+
+    function mintAllowlist(
+        address collection,
+        uint256 tokenId,
+        uint256 phaseId,
+        uint256 quantity,
+        address recipient,
+        uint256 walletAllowance,
+        uint256 allowlistUnitPrice,
+        uint256 deadline,
+        bytes32[] calldata proof
+    ) external payable nonReentrant {
+        Phase storage phase = phases[collection][tokenId][phaseId];
+        if (phase.phaseType != PhaseType.MERKLE_ALLOWLIST) revert InvalidPhase();
+        bytes32 inner = keccak256(
+            abi.encode(
+                block.chainid,
+                collection,
+                tokenId,
+                phaseId,
+                msg.sender,
+                walletAllowance,
+                allowlistUnitPrice,
+                phase.currency
+            )
+        );
+        bytes32 leaf = keccak256(abi.encodePacked(inner));
+        if (!MerkleProofLib.verify(proof, phase.merkleRoot, leaf)) revert InvalidProof();
+        _mint(collection, tokenId, phaseId, phase, quantity, recipient, walletAllowance, allowlistUnitPrice, deadline);
+    }
+
+    function claimCreatorRevenue(address collection) external nonReentrant returns (uint256 amount) {
+        amount = pendingCreatorRevenue[collection];
+        if (amount == 0) revert NoRevenue();
+        pendingCreatorRevenue[collection] = 0;
+        address recipient = IBlueEdition1155(collection).payoutRecipient();
+        if (recipient == address(0)) revert InvalidAddress();
+        (bool ok,) = payable(recipient).call{value: amount}("");
+        if (!ok) revert NativeTransferFailed();
+        emit CreatorRevenueClaimed(collection, recipient, amount);
+    }
+
+    function flushPlatformRevenue() external nonReentrant returns (uint256 amount) {
+        amount = pendingPlatformRevenue;
+        if (amount == 0) revert NoRevenue();
+        pendingPlatformRevenue = 0;
+        (bool ok,) = payable(feePolicy.platformWallet()).call{value: amount}("");
+        if (!ok) revert NativeTransferFailed();
+        emit PlatformRevenueFlushed(amount);
+    }
+
+    function allowlistLeaf(
+        address collection,
+        uint256 tokenId,
+        uint256 phaseId,
+        address wallet,
+        uint256 walletAllowance,
+        uint256 unitPrice,
+        address currency
+    ) external view returns (bytes32) {
+        bytes32 inner = keccak256(
+            abi.encode(block.chainid, collection, tokenId, phaseId, wallet, walletAllowance, unitPrice, currency)
+        );
+        return keccak256(abi.encodePacked(inner));
+    }
+
+    function _mint(
+        address collection,
+        uint256 tokenId,
+        uint256 phaseId,
+        Phase storage phase,
+        uint256 quantity,
+        address recipient,
+        uint256 walletLimit,
+        uint256 unitPrice,
+        uint256 deadline
+    ) private {
+        if (feePolicy.newMintsPaused()) revert MintsPaused();
+        if (deadline < block.timestamp) revert DeadlineExpired();
+        if (recipient == address(0) || quantity == 0 || quantity > phase.maxPerTransaction) revert InvalidQuantity();
+        if (phase.cancelled) revert PhaseCancelled();
+        if (block.timestamp < phase.startTime || block.timestamp >= phase.endTime) revert PhaseNotActive();
+        if (phase.currency != address(0)) revert UnsupportedCurrency();
+        if (phase.phaseType == PhaseType.PUBLIC && unitPrice != phase.mintPrice) revert InvalidPayment();
+
+        uint256 mintedInPhase = mintedByWalletInPhase[collection][tokenId][phaseId][msg.sender];
+        uint256 mintedTotal = mintedByWalletTotal[collection][tokenId][msg.sender];
+        if (walletLimit != 0) {
+            uint256 used = phase.limitMode == LimitMode.PER_PHASE ? mintedInPhase : mintedTotal;
+            if (used + quantity > walletLimit) revert WalletLimitExceeded();
+        }
+        uint256 currentPhaseMinted = phaseMinted[collection][tokenId][phaseId];
+        if (phase.phaseSupplyCap != 0 && currentPhaseMinted + quantity > phase.phaseSupplyCap) {
+            revert PhaseSupplyExceeded();
+        }
+
+        uint256 gross = unitPrice * quantity;
+        if (msg.value != gross) revert InvalidPayment();
+        uint256 platformFee = gross == 0 ? 0 : (gross * feePolicy.primaryMintFeeBps()) / BPS;
+        pendingCreatorRevenue[collection] += gross - platformFee;
+        pendingPlatformRevenue += platformFee;
+        mintedByWalletInPhase[collection][tokenId][phaseId][msg.sender] = mintedInPhase + quantity;
+        mintedByWalletTotal[collection][tokenId][msg.sender] = mintedTotal + quantity;
+        phaseMinted[collection][tokenId][phaseId] = currentPhaseMinted + quantity;
+
+        IBlueEdition1155(collection).mintByController(recipient, tokenId, quantity, "");
+        emit NFTMinted(collection, tokenId, phaseId, msg.sender, recipient, quantity, unitPrice, gross, platformFee);
+    }
+
+    function _validatePhaseConfig(address collection, uint256 tokenId, PhaseConfig calldata config, uint64 minimumStart)
+        private
+        view
+    {
+        if (collection == address(0) || IBlueEdition1155(collection).maxSupply(tokenId) == 0) revert InvalidAddress();
+        if (config.currency != address(0)) revert UnsupportedCurrency();
+        if (config.startTime < minimumStart || config.endTime <= config.startTime || config.maxPerTransaction == 0) {
+            revert InvalidSchedule();
+        }
+        if (config.phaseType == PhaseType.PUBLIC && config.merkleRoot != bytes32(0)) revert InvalidPhase();
+        if (config.phaseType == PhaseType.MERKLE_ALLOWLIST && config.merkleRoot == bytes32(0)) revert InvalidPhase();
+        uint256 cap = IBlueEdition1155(collection).maxSupply(tokenId);
+        if (config.phaseSupplyCap > cap) revert PhaseSupplyExceeded();
+    }
+
+    function _storePhase(Phase storage phase, PhaseConfig calldata config, uint64 previousEnd) private {
+        phase.phaseType = config.phaseType;
+        phase.limitMode = config.limitMode;
+        phase.currency = config.currency;
+        phase.mintPrice = config.mintPrice;
+        phase.startTime = config.startTime;
+        phase.endTime = config.endTime;
+        phase.phaseSupplyCap = config.phaseSupplyCap;
+        phase.defaultWalletLimit = config.defaultWalletLimit;
+        phase.maxPerTransaction = config.maxPerTransaction;
+        phase.merkleRoot = config.merkleRoot;
+        phase.previousPhaseEnd = previousEnd;
+        phase.cancelled = false;
+    }
+
+    function _nextActivePhase(address collection, uint256 tokenId, uint256 candidate, uint256 latest)
+        private
+        view
+        returns (uint256)
+    {
+        while (candidate <= latest) {
+            if (!phases[collection][tokenId][candidate].cancelled) return candidate;
+            unchecked {
+                ++candidate;
+            }
+        }
+        return 0;
+    }
+
+    function _onlyCollectionOwner(address collection) private view {
+        if (IBlueEdition1155(collection).owner() != msg.sender) revert NotCollectionOwner();
+    }
+}

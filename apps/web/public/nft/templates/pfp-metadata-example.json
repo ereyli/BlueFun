@@ -1,0 +1,26 @@
+[
+  {
+    "token_id": 1,
+    "name": "Blue Citizen #1",
+    "description": "A unique member of the Blue Citizens collection",
+    "image": "1.png",
+    "external_url": "https://example.com/1",
+    "attributes": [
+      { "trait_type": "Background", "value": "Ocean" },
+      { "trait_type": "Eyes", "value": "Focused" },
+      { "trait_type": "Headwear", "value": "Cap" }
+    ]
+  },
+  {
+    "token_id": 2,
+    "name": "Blue Citizen #2",
+    "description": "A unique member of the Blue Citizens collection",
+    "image": "2.png",
+    "external_url": "https://example.com/2",
+    "attributes": [
+      { "trait_type": "Background", "value": "Violet" },
+      { "trait_type": "Eyes", "value": "Happy" },
+      { "trait_type": "Headwear", "value": "Crown" }
+    ]
+  }
+]

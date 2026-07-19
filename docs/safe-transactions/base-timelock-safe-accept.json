@@ -1,0 +1,21 @@
+{
+  "version": "1.0",
+  "chainId": "8453",
+  "createdAt": 1784463447000,
+  "meta": {
+    "name": "BlueFun Base timelock ownership acceptance",
+    "description": "Use only after the scheduled proposeOwner operation has executed and pendingOwner is the Safe.",
+    "txBuilderVersion": "1.18.0",
+    "createdFromSafeAddress": "0x144A3f70C0bf33124852E3891011e033b909F46d",
+    "createdFromOwnerAddress": ""
+  },
+  "transactions": [
+    {
+      "to": "0xA7DEa156cD6a0a8D5e0c25e94e20E670b426cF26",
+      "value": "0",
+      "data": "0xebbc4965",
+      "contractMethod": null,
+      "contractInputsValues": null
+    }
+  ]
+}

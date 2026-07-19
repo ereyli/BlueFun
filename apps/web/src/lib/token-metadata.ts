@@ -9,6 +9,7 @@ export type TokenMetadata = {
 
 const METADATA_CACHE_TTL_MS = 5 * 60 * 1000;
 const METADATA_TIMEOUT_MS = 2_000;
+const MAX_METADATA_BYTES = 256 * 1024;
 const metadataCache = new Map<string, { data?: TokenMetadata; expiresAt: number; promise?: Promise<TokenMetadata> }>();
 
 export async function readTokenMetadata(contractURI: string): Promise<TokenMetadata> {
@@ -44,8 +45,8 @@ async function loadTokenMetadata(contractURI: string): Promise<TokenMetadata> {
       const response = await fetch(url, { signal: controller.signal, next: { revalidate: 300 } });
       clearTimeout(timeout);
 
-      if (!response.ok) continue;
-      const metadata = (await response.json()) as {
+      if (!response.ok || !isJsonResponse(response)) continue;
+      const metadata = (await readLimitedJson(response, MAX_METADATA_BYTES)) as {
         description?: unknown;
         external_url?: unknown;
         image?: unknown;
@@ -96,7 +97,7 @@ export function optimizedTokenImageUrl(uri?: string) {
 
 export function ipfsToGatewayUrls(uri?: string) {
   if (!uri) return [];
-  if (uri.startsWith("https://") || uri.startsWith("http://")) return [uri];
+  if (uri.startsWith("https://")) return isTrustedMetadataUrl(uri) ? [uri] : [];
   if (!uri.startsWith("ipfs://")) return [];
   const cidPath = uri.replace("ipfs://", "");
   const gateway = process.env.PINATA_GATEWAY_URL || "https://gateway.pinata.cloud/ipfs";
@@ -105,6 +106,51 @@ export function ipfsToGatewayUrls(uri?: string) {
     `https://ipfs.io/ipfs/${cidPath}`,
     `https://cloudflare-ipfs.com/ipfs/${cidPath}`
   ];
+}
+
+function isTrustedMetadataUrl(value: string) {
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "https:") return false;
+    const configuredHost = process.env.PINATA_GATEWAY_URL
+      ? new URL(process.env.PINATA_GATEWAY_URL).hostname.toLowerCase()
+      : "gateway.pinata.cloud";
+    const host = url.hostname.toLowerCase();
+    return host === configuredHost
+      || host === "ipfs.io"
+      || host === "cloudflare-ipfs.com"
+      || host.endsWith(".mypinata.cloud");
+  } catch {
+    return false;
+  }
+}
+
+function isJsonResponse(response: Response) {
+  const contentType = response.headers.get("content-type")?.toLowerCase() || "";
+  return contentType.includes("application/json") || contentType.includes("text/plain") || contentType === "";
+}
+
+async function readLimitedJson(response: Response, maxBytes: number) {
+  const declaredLength = Number(response.headers.get("content-length") || "0");
+  if (declaredLength > maxBytes) throw new Error("Metadata response is too large");
+  if (!response.body) throw new Error("Metadata response is empty");
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let size = 0;
+  let body = "";
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > maxBytes) {
+      await reader.cancel();
+      throw new Error("Metadata response is too large");
+    }
+    body += decoder.decode(value, { stream: true });
+  }
+  body += decoder.decode();
+  return JSON.parse(body) as unknown;
 }
 
 function isBlueFunCdnUrl(uri?: string) {

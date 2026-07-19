@@ -21,6 +21,12 @@ export const baseChain = defineChain({
       url: "https://basescan.org",
       apiUrl: "https://api.basescan.org/api"
     }
+  },
+  contracts: {
+    multicall3: {
+      address: "0xca11bde05977b3631167028862be2a173976ca11",
+      blockCreated: 5022
+    }
   }
 });
 

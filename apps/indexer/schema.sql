@@ -119,6 +119,184 @@ create index if not exists launches_scope_status_id_idx on launches (scope, stat
 create index if not exists launches_scope_progress_id_idx on launches (scope, progress desc, id desc);
 create index if not exists launches_scope_creator_idx on launches (scope, creator);
 
+create table if not exists nft_collections (
+  chain_id integer not null,
+  collection_id numeric not null,
+  collection text not null,
+  factory text not null,
+  creator text not null,
+  name text not null,
+  symbol text not null,
+  standard text not null default 'ERC1155' check (standard in ('ERC1155', 'ERC721')),
+  contract_uri text not null,
+  initial_token_id numeric not null default 1,
+  initial_max_supply numeric not null,
+  royalty_bps integer not null default 0,
+  created_tx text not null,
+  created_block numeric,
+  created_at timestamptz not null default now(),
+  primary key (chain_id, collection),
+  unique (chain_id, factory, collection_id)
+);
+create index if not exists nft_collections_creator_idx on nft_collections (chain_id, lower(creator), created_block desc);
+create index if not exists nft_collections_standard_idx on nft_collections (chain_id, standard, created_block desc);
+
+create table if not exists nft_items (
+  chain_id integer not null,
+  collection text not null,
+  token_id numeric not null,
+  max_supply numeric not null,
+  lifetime_minted numeric not null default 0,
+  metadata_uri text not null,
+  created_tx text,
+  created_block numeric,
+  created_at timestamptz not null default now(),
+  primary key (chain_id, collection, token_id)
+);
+
+create table if not exists nft_mint_phases (
+  chain_id integer not null,
+  collection text not null,
+  token_id numeric not null,
+  phase_id numeric not null,
+  phase_type integer not null,
+  limit_mode integer not null,
+  currency text not null,
+  mint_price numeric not null,
+  start_time numeric not null,
+  end_time numeric not null,
+  phase_supply_cap numeric not null,
+  default_wallet_limit numeric not null,
+  max_per_transaction numeric not null,
+  merkle_root text not null,
+  cancelled boolean not null default false,
+  created_tx text,
+  created_block numeric,
+  updated_at timestamptz not null default now(),
+  primary key (chain_id, collection, token_id, phase_id)
+);
+
+create table if not exists nft_mints (
+  chain_id integer not null,
+  collection text not null,
+  token_id numeric not null,
+  phase_id numeric not null,
+  payer text not null,
+  recipient text not null,
+  quantity numeric not null,
+  unit_price numeric not null,
+  gross_amount numeric not null,
+  platform_fee numeric not null,
+  tx_hash text not null,
+  log_index integer not null,
+  block_number numeric,
+  created_at timestamptz not null default now(),
+  primary key (chain_id, tx_hash, log_index)
+);
+create index if not exists nft_mints_collection_idx on nft_mints (chain_id, collection, token_id, block_number desc);
+
+create or replace function increment_nft_lifetime_minted(p_chain_id integer, p_collection text, p_token_id numeric, p_quantity numeric)
+returns void language sql security definer set search_path = public as $$
+  update nft_items set lifetime_minted = lifetime_minted + greatest(p_quantity, 0)
+  where chain_id = p_chain_id and collection = lower(p_collection) and token_id = p_token_id;
+$$;
+revoke all on function increment_nft_lifetime_minted(integer, text, numeric, numeric) from public;
+grant execute on function increment_nft_lifetime_minted(integer, text, numeric, numeric) to service_role;
+
+create table if not exists nft_listings (
+  chain_id integer not null, marketplace text not null, listing_id numeric not null, seller text not null, collection text not null,
+  token_id numeric not null, original_quantity numeric not null, remaining_quantity numeric not null,
+  unit_price numeric not null, start_time numeric not null, end_time numeric not null,
+  cancelled boolean not null default false, created_tx text not null, created_block numeric,
+  updated_at timestamptz not null default now(), primary key (chain_id, marketplace, listing_id)
+);
+create index if not exists nft_listings_item_idx on nft_listings (chain_id, collection, token_id, updated_at desc);
+
+create table if not exists nft_sales (
+  chain_id integer not null, marketplace text not null, listing_id numeric not null, buyer text not null, recipient text not null,
+  quantity numeric not null, gross_amount numeric not null, platform_fee numeric not null,
+  royalty_recipient text not null, royalty_amount numeric not null, tx_hash text not null,
+  log_index integer not null, block_number numeric, created_at timestamptz not null default now(),
+  primary key (chain_id, tx_hash, log_index)
+);
+create index if not exists nft_sales_item_idx on nft_sales (chain_id, listing_id, block_number desc);
+
+create table if not exists nft_offers (
+  chain_id integer not null, offers_contract text not null, offer_hash text not null, maker text not null, taker text not null,
+  recipient text not null, collection text not null, token_id numeric not null, unit_price numeric not null,
+  quantity numeric not null, filled_quantity numeric not null default 0, start_time numeric not null,
+  end_time numeric not null, nonce numeric not null, standard smallint not null check (standard in (1,2)),
+  offer_type smallint not null check (offer_type in (0,1)), signature text not null,
+  cancelled boolean not null default false, created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(), primary key (chain_id,offer_hash)
+);
+create index if not exists nft_offers_collection_idx on nft_offers (chain_id,collection,token_id,offer_type,end_time desc);
+create index if not exists nft_offers_maker_idx on nft_offers (chain_id,maker,updated_at desc);
+create table if not exists nft_offer_fills (
+  chain_id integer not null, offers_contract text not null, offer_hash text not null, maker text not null, seller text not null,
+  collection text not null, token_id numeric not null, quantity numeric not null, gross_amount numeric not null,
+  platform_fee numeric not null, royalty_recipient text not null, royalty_amount numeric not null,
+  standard smallint not null, offer_type smallint not null, tx_hash text not null, log_index integer not null,
+  block_number numeric, created_at timestamptz not null default now(), primary key(chain_id,tx_hash,log_index)
+);
+create index if not exists nft_offer_fills_offer_idx on nft_offer_fills (chain_id,offer_hash,block_number desc);
+create table if not exists nft_offer_nonce_floors (
+  chain_id integer not null, offers_contract text not null, maker text not null, minimum_nonce numeric not null,
+  updated_at timestamptz not null default now(), primary key(chain_id,offers_contract,maker)
+);
+create or replace function apply_nft_offer_fill(p_chain_id integer,p_offers_contract text,p_offer_hash text,p_quantity numeric)
+returns void language sql security definer set search_path=public as $$
+  update nft_offers set filled_quantity=least(quantity,filled_quantity+greatest(p_quantity,0)),updated_at=now()
+  where chain_id=p_chain_id and offers_contract=lower(p_offers_contract) and offer_hash=lower(p_offer_hash);
+$$;
+revoke all on function apply_nft_offer_fill(integer,text,text,numeric) from public;
+grant execute on function apply_nft_offer_fill(integer,text,text,numeric) to service_role;
+create or replace function apply_nft_offer_nonce_floor(p_chain_id integer,p_offers_contract text,p_maker text,p_minimum_nonce numeric)
+returns void language plpgsql security definer set search_path=public as $$ begin
+  insert into nft_offer_nonce_floors(chain_id,offers_contract,maker,minimum_nonce) values(p_chain_id,lower(p_offers_contract),lower(p_maker),p_minimum_nonce)
+  on conflict(chain_id,offers_contract,maker) do update set minimum_nonce=greatest(nft_offer_nonce_floors.minimum_nonce,excluded.minimum_nonce),updated_at=now();
+  update nft_offers set cancelled=true,updated_at=now() where chain_id=p_chain_id and offers_contract=lower(p_offers_contract) and maker=lower(p_maker) and nonce<p_minimum_nonce and cancelled=false;
+end $$;
+revoke all on function apply_nft_offer_nonce_floor(integer,text,text,numeric) from public;
+grant execute on function apply_nft_offer_nonce_floor(integer,text,text,numeric) to service_role;
+
+create or replace function apply_nft_sale(p_chain_id integer, p_marketplace text, p_listing_id numeric, p_quantity numeric)
+returns void language sql security definer set search_path = public as $$
+  update nft_listings set remaining_quantity = greatest(remaining_quantity - greatest(p_quantity, 0), 0), updated_at = now()
+  where chain_id = p_chain_id and marketplace=lower(p_marketplace) and listing_id = p_listing_id;
+$$;
+revoke all on function apply_nft_sale(integer, text, numeric, numeric) from public;
+grant execute on function apply_nft_sale(integer, text, numeric, numeric) to service_role;
+
+alter table nft_collections enable row level security;
+alter table nft_items enable row level security;
+alter table nft_mint_phases enable row level security;
+alter table nft_mints enable row level security;
+alter table nft_listings enable row level security;
+alter table nft_sales enable row level security;
+alter table nft_offers enable row level security;
+alter table nft_offer_fills enable row level security;
+alter table nft_offer_nonce_floors enable row level security;
+
+drop policy if exists "public read nft collections" on nft_collections;
+create policy "public read nft collections" on nft_collections for select using (true);
+drop policy if exists "public read nft items" on nft_items;
+create policy "public read nft items" on nft_items for select using (true);
+drop policy if exists "public read nft phases" on nft_mint_phases;
+create policy "public read nft phases" on nft_mint_phases for select using (true);
+drop policy if exists "public read nft mints" on nft_mints;
+create policy "public read nft mints" on nft_mints for select using (true);
+drop policy if exists "public read nft listings" on nft_listings;
+create policy "public read nft listings" on nft_listings for select using (true);
+drop policy if exists "public read nft sales" on nft_sales;
+create policy "public read nft sales" on nft_sales for select using (true);
+drop policy if exists "public read nft offers" on nft_offers;
+create policy "public read nft offers" on nft_offers for select using (true);
+drop policy if exists "public read nft offer fills" on nft_offer_fills;
+create policy "public read nft offer fills" on nft_offer_fills for select using (true);
+drop policy if exists "public read nft offer nonce floors" on nft_offer_nonce_floors;
+create policy "public read nft offer nonce floors" on nft_offer_nonce_floors for select using (true);
+
 create table if not exists chat_messages (
   id text primary key,
   scope text not null,
@@ -358,3 +536,49 @@ exception
   when duplicate_object then null;
   when undefined_object then null;
 end $$;
+
+create table if not exists nft_transfers (
+  chain_id integer not null, collection text not null, token_id numeric not null,
+  from_wallet text not null, to_wallet text not null, quantity numeric not null,
+  tx_hash text not null, log_index integer not null, batch_index integer not null default 0,
+  block_number numeric, created_at timestamptz not null default now(),
+  primary key (chain_id, tx_hash, log_index, batch_index)
+);
+create table if not exists nft_balances (
+  chain_id integer not null, collection text not null, token_id numeric not null,
+  owner text not null, balance numeric not null default 0,
+  updated_block numeric, updated_at timestamptz not null default now(),
+  primary key (chain_id, collection, token_id, owner)
+);
+create index if not exists nft_balances_owner_idx on nft_balances (chain_id, lower(owner), balance desc);
+create or replace function apply_nft_transfer(
+  p_chain_id integer, p_collection text, p_token_id numeric, p_from text, p_to text,
+  p_quantity numeric, p_tx_hash text, p_log_index integer, p_batch_index integer, p_block_number numeric
+) returns boolean language plpgsql security definer set search_path = public as $$
+declare affected integer;
+begin
+  insert into nft_transfers(chain_id,collection,token_id,from_wallet,to_wallet,quantity,tx_hash,log_index,batch_index,block_number)
+  values(p_chain_id,lower(p_collection),p_token_id,lower(p_from),lower(p_to),p_quantity,lower(p_tx_hash),p_log_index,p_batch_index,p_block_number)
+  on conflict do nothing;
+  get diagnostics affected = row_count;
+  if affected = 0 then return false; end if;
+  if lower(p_from) <> '0x0000000000000000000000000000000000000000' then
+    update nft_balances set balance=greatest(balance-p_quantity,0),updated_block=p_block_number,updated_at=now()
+    where chain_id=p_chain_id and collection=lower(p_collection) and token_id=p_token_id and owner=lower(p_from);
+  end if;
+  if lower(p_to) <> '0x0000000000000000000000000000000000000000' then
+    insert into nft_balances(chain_id,collection,token_id,owner,balance,updated_block)
+    values(p_chain_id,lower(p_collection),p_token_id,lower(p_to),p_quantity,p_block_number)
+    on conflict(chain_id,collection,token_id,owner) do update set
+      balance=nft_balances.balance+excluded.balance,updated_block=excluded.updated_block,updated_at=now();
+  end if;
+  return true;
+end $$;
+revoke all on function apply_nft_transfer(integer,text,numeric,text,text,numeric,text,integer,integer,numeric) from public;
+grant execute on function apply_nft_transfer(integer,text,numeric,text,text,numeric,text,integer,integer,numeric) to service_role;
+alter table nft_transfers enable row level security;
+alter table nft_balances enable row level security;
+drop policy if exists "public read nft transfers" on nft_transfers;
+create policy "public read nft transfers" on nft_transfers for select using (true);
+drop policy if exists "public read nft balances" on nft_balances;
+create policy "public read nft balances" on nft_balances for select using (true);

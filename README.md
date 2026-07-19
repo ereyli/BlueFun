@@ -75,3 +75,5 @@ The server-only `SITE_MAINTENANCE_MODE` switch controls the complete web interfa
 Production topology uses one web application plus independent Base and Robinhood indexer workers. Indexer workers expose `/health` on port `3000` and should not receive public domains.
 
 [`docs/PROTOCOL.md`](docs/PROTOCOL.md) is the canonical protocol and operations reference. It contains current rules, every production address, legacy-token compatibility, indexer behavior, deployment evidence, environment guidance and the required change procedure.
+
+[`docs/NFT_LAUNCHPAD.md`](docs/NFT_LAUNCHPAD.md) documents the verified Base mainnet creator-owned ERC-1155 launchpad, fees, allowlists, marketplace, OpenSea compatibility and security controls.

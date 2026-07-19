@@ -1,0 +1,9 @@
+{
+  "name": "BlueFun Genesis Signal Canary",
+  "symbol": "BFGSC",
+  "description": "Base mainnet ERC-1155 canary validating a 1,000 edition lifetime supply, free public mint, metadata and marketplace compatibility.",
+  "image": "ipfs://QmSBPXLh5kX88rQWWq89Qw8c7cwxgcQxk5z2Sz993hXBSt",
+  "supply": 1000,
+  "royaltyBps": 500,
+  "royaltyRecipient": "0xbec5d9ab9fE7C62EC0326188d6620F110d615a96"
+}

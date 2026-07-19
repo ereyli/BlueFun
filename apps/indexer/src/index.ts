@@ -1,26 +1,55 @@
 import "dotenv/config";
 import { createServer } from "node:http";
 import { createPublicClient, encodeAbiParameters, fallback, getAddress, http, keccak256, zeroAddress } from "viem";
-import { directLaunchFactoryAbi, graduationAbi, launchFactoryAbi, marketAbi, poolManagerAbi } from "./abi.js";
+import {
+  blueEdition1155Abi,
+  bluePFP721Abi,
+  directLaunchFactoryAbi,
+  graduationAbi,
+  launchFactoryAbi,
+  marketAbi,
+  nftCollectionFactoryAbi,
+  nftDropControllerAbi,
+  nftMarketplaceAbi,
+  nftOffersAbi,
+  nftPFPFactoryAbi,
+  nftPFPMarketplaceAbi,
+  poolManagerAbi
+} from "./abi.js";
 import {
   chainDefinition,
   chainId,
   defaultRpcUrls,
   directDeployments,
   deployments,
+  nftDeployments,
   poolManager,
   scopeForDeployment,
   type IndexerDeployment
 } from "./deployment.js";
 import {
   ensureSchema,
+  applyNFTTransfer,
+  applyNFTOfferNonceFloor,
+  cancelNFTOffer,
+  cancelNFTPhase,
+  cancelNFTListing,
   closeDatabase,
   getGraduatedLaunches,
   getIndexerState,
+  getNFTCollectionAddresses,
+  getNFTCollectionStandards,
+  insertNFTMint,
+  insertNFTSale,
+  insertNFTOfferFill,
   insertTrade,
   markGraduated,
   setIndexerState,
   updateLaunchState,
+  upsertNFTCollection,
+  upsertNFTItem,
+  upsertNFTPhase,
+  upsertNFTListing,
   upsertLaunch
 } from "./db.js";
 import { mirrorTokenImage } from "./token-image-cdn.js";
@@ -36,13 +65,17 @@ const deploymentContexts: DeploymentContext[] = deployments.map((deployment) => 
   ...deployment,
   scope: scopeForDeployment(deployment)
 }));
+let nftDeployment = nftDeployments[0];
 const v4TickSpacing = 60;
 const vNextBaseHook = "0xf0b8dde19510ee7d6d50be289c4257ecd14c60cc" as const;
 const chunkSize = BigInt(process.env.LOG_CHUNK_SIZE || "1900");
+const nftEventChunkSize = BigInt(process.env.NFT_EVENT_LOG_CHUNK_SIZE || "1900");
+const nftTransferChunkSize = BigInt(process.env.NFT_TRANSFER_LOG_CHUNK_SIZE || "1900");
 const pollMs = Number(process.env.POLL_MS || (chainId === 8453 ? "5000" : "12000"));
 const confirmations = BigInt(process.env.CONFIRMATIONS || (chainId === 8453 ? "2" : "3"));
 const totalSupplyRaw = 1_000_000_000n * 10n ** 18n;
 const q192 = 1n << 192n;
+const pfpListingKey = (listingId: bigint) => -listingId;
 let isPolling = false;
 let nextPollDelayMs = pollMs;
 let lastSuccessfulPollAt = 0;
@@ -78,7 +111,11 @@ const healthServer = createServer((request, response) => {
   const payload = JSON.stringify({
     status: healthy ? lastSuccessfulPollAt ? "ok" : "starting" : "stale",
     chainId,
-    scopes: [...deploymentContexts.map((deployment) => deployment.scope), ...directDeployments.map((deployment) => deployment.scope)],
+    scopes: [
+      ...deploymentContexts.map((deployment) => deployment.scope),
+      ...directDeployments.map((deployment) => deployment.scope),
+      ...nftDeployments.map((deployment) => deployment.scope)
+    ],
     isPolling,
     lastIndexedBlock: lastIndexedBlock.toString(),
     lastSuccessfulPollAt: lastSuccessfulPollAt ? new Date(lastSuccessfulPollAt).toISOString() : null,
@@ -176,6 +213,45 @@ async function backfillLoop() {
     await backfillDirectLaunches(directDeployment, latest);
     await backfillUniswapV4Swaps(directDeployment, latest);
   }
+  for (const deployment of nftDeployments) {
+    if (latest < deployment.startBlock) continue;
+    nftDeployment = deployment;
+    await backfillNFTCollections(latest);
+    await backfillNFTPFPCollections(latest);
+    await backfillNFTItems(latest);
+    await backfillNFTPhases(latest);
+    await backfillNFTMints(latest);
+    await backfillNFTTransfers(latest);
+    await backfillNFTMarketplace(latest);
+    await backfillNFTPFPMarketplace(latest);
+    await backfillNFTOffers(latest);
+  }
+}
+
+async function backfillNFTTransfers(latest: bigint) {
+  if (!nftDeployment) return;
+  const collections = await getNFTCollectionStandards(chainId);
+  const editions = collections.filter((item) => item.standard === "ERC1155").map((item) => item.collection);
+  const pfps = collections.filter((item) => item.standard === "ERC721").map((item) => item.collection);
+  let fromBlock = (await getIndexerState(stateKey(nftDeployment, "transfers_last_block"))) ?? nftDeployment.startBlock;
+  while (fromBlock <= latest) {
+    const toBlock = fromBlock + nftTransferChunkSize > latest ? latest : fromBlock + nftTransferChunkSize;
+    const events: Array<{ collection: `0x${string}`; tokenId: bigint; from: `0x${string}`; to: `0x${string}`; quantity: bigint; txHash: `0x${string}`; logIndex: number; batchIndex: number; blockNumber: bigint }> = [];
+    if (editions.length) {
+      const singles = await client.getContractEvents({ address: editions, abi: blueEdition1155Abi, eventName: "TransferSingle", fromBlock, toBlock });
+      for (const log of singles) events.push({ collection: log.address, tokenId: log.args.id!, from: log.args.from!, to: log.args.to!, quantity: log.args.value!, txHash: log.transactionHash, logIndex: Number(log.logIndex), batchIndex: 0, blockNumber: log.blockNumber });
+      const batches = await client.getContractEvents({ address: editions, abi: blueEdition1155Abi, eventName: "TransferBatch", fromBlock, toBlock });
+      for (const log of batches) for (let index = 0; index < (log.args.ids?.length ?? 0); ++index) events.push({ collection: log.address, tokenId: log.args.ids![index], from: log.args.from!, to: log.args.to!, quantity: log.args.values![index], txHash: log.transactionHash, logIndex: Number(log.logIndex), batchIndex: index, blockNumber: log.blockNumber });
+    }
+    if (pfps.length) {
+      const transfers = await client.getContractEvents({ address: pfps, abi: bluePFP721Abi, eventName: "Transfer", fromBlock, toBlock });
+      for (const log of transfers) events.push({ collection: log.address, tokenId: log.args.tokenId!, from: log.args.from!, to: log.args.to!, quantity: 1n, txHash: log.transactionHash, logIndex: Number(log.logIndex), batchIndex: 0, blockNumber: log.blockNumber });
+    }
+    events.sort((a, b) => Number(a.blockNumber - b.blockNumber) || a.logIndex - b.logIndex || a.batchIndex - b.batchIndex);
+    for (const event of events) await applyNFTTransfer({ chainId, ...event });
+    await setIndexerState(stateKey(nftDeployment, "transfers_last_block"), toBlock + 1n);
+    fromBlock = toBlock + 1n;
+  }
 }
 
 async function shutdown(signal: string) {
@@ -234,6 +310,293 @@ async function backfillDirectLaunches(
     });
     for (const log of logs) await handleDirectLaunchCreated(deployment, log);
     await setIndexerState(stateKey(deployment, "direct_launches_last_block"), toBlock + 1n);
+    fromBlock = toBlock + 1n;
+  }
+}
+
+async function backfillNFTCollections(latest: bigint) {
+  if (!nftDeployment) return;
+  let fromBlock = (await getIndexerState(stateKey(nftDeployment, "collections_last_block"))) ?? nftDeployment.startBlock;
+  if (fromBlock < nftDeployment.startBlock) fromBlock = nftDeployment.startBlock;
+  while (fromBlock <= latest) {
+    const toBlock = fromBlock + nftEventChunkSize > latest ? latest : fromBlock + nftEventChunkSize;
+    const logs = await client.getContractEvents({
+      address: nftDeployment.collectionFactory,
+      abi: nftCollectionFactoryAbi,
+      eventName: "NFTCollectionCreated",
+      fromBlock,
+      toBlock
+    });
+    for (const log of logs) {
+      await upsertNFTCollection({
+        chainId,
+        collectionId: log.args.collectionId!,
+        collection: log.args.collection!,
+        factory: nftDeployment.collectionFactory,
+        creator: log.args.creator!,
+        name: log.args.name!,
+        symbol: log.args.symbol!,
+        contractURI: log.args.contractURI!,
+        initialTokenId: log.args.initialTokenId!,
+        initialMaxSupply: log.args.initialMaxSupply!,
+        royaltyBps: Number(log.args.royaltyBps!),
+        txHash: log.transactionHash,
+        blockNumber: log.blockNumber
+      });
+      await upsertNFTItem({
+        chainId,
+        collection: log.args.collection!,
+        tokenId: log.args.initialTokenId!,
+        maxSupply: log.args.initialMaxSupply!,
+        metadataURI: log.args.initialItemURI!,
+        txHash: log.transactionHash,
+        blockNumber: log.blockNumber
+      });
+    }
+    await setIndexerState(stateKey(nftDeployment, "collections_last_block"), toBlock + 1n);
+    fromBlock = toBlock + 1n;
+  }
+}
+
+async function backfillNFTPFPCollections(latest: bigint) {
+  if (!nftDeployment?.pfpFactory || !nftDeployment.pfpStartBlock) return;
+  const context = { scope: `${nftDeployment.scope}:pfp`, startBlock: nftDeployment.pfpStartBlock };
+  let fromBlock = (await getIndexerState(stateKey(context, "collections_last_block"))) ?? context.startBlock;
+  if (fromBlock < context.startBlock) fromBlock = context.startBlock;
+  while (fromBlock <= latest) {
+    const toBlock = fromBlock + nftEventChunkSize > latest ? latest : fromBlock + nftEventChunkSize;
+    const logs = await client.getContractEvents({ address: nftDeployment.pfpFactory, abi: nftPFPFactoryAbi, eventName: "PFPCollectionCreated", fromBlock, toBlock });
+    for (const log of logs) await upsertNFTCollection({
+      chainId, collectionId: log.args.collectionId!, collection: log.args.collection!, factory: nftDeployment.pfpFactory,
+      creator: log.args.creator!, name: log.args.name!, symbol: log.args.symbol!, contractURI: log.args.contractURI!,
+      standard: "ERC721",
+      initialTokenId: 1n, initialMaxSupply: log.args.maxSupply!, royaltyBps: Number(log.args.royaltyBps!),
+      txHash: log.transactionHash, blockNumber: log.blockNumber
+    });
+    for (const log of logs) await upsertNFTItem({
+      chainId,
+      collection: log.args.collection!,
+      tokenId: 1n,
+      maxSupply: log.args.maxSupply!,
+      metadataURI: log.args.contractURI!,
+      txHash: log.transactionHash,
+      blockNumber: log.blockNumber
+    });
+    await setIndexerState(stateKey(context, "collections_last_block"), toBlock + 1n);
+    fromBlock = toBlock + 1n;
+  }
+}
+
+async function backfillNFTItems(latest: bigint) {
+  if (!nftDeployment) return;
+  const addresses = await getNFTCollectionAddresses(chainId);
+  if (addresses.length === 0) return;
+  let fromBlock = (await getIndexerState(stateKey(nftDeployment, "items_last_block"))) ?? nftDeployment.startBlock;
+  if (fromBlock < nftDeployment.startBlock) fromBlock = nftDeployment.startBlock;
+  while (fromBlock <= latest) {
+    const toBlock = fromBlock + nftEventChunkSize > latest ? latest : fromBlock + nftEventChunkSize;
+    const logs = await client.getContractEvents({
+      address: addresses,
+      abi: blueEdition1155Abi,
+      eventName: "ItemCreated",
+      fromBlock,
+      toBlock
+    });
+    for (const log of logs) {
+      await upsertNFTItem({
+        chainId,
+        collection: log.address,
+        tokenId: log.args.tokenId!,
+        maxSupply: log.args.maxSupply!,
+        metadataURI: log.args.uri!,
+        txHash: log.transactionHash,
+        blockNumber: log.blockNumber
+      });
+    }
+    await setIndexerState(stateKey(nftDeployment, "items_last_block"), toBlock + 1n);
+    fromBlock = toBlock + 1n;
+  }
+}
+
+async function backfillNFTPhases(latest: bigint) {
+  if (!nftDeployment) return;
+  const registeredCollections = new Set(
+    (await getNFTCollectionAddresses(chainId)).map((collection) => collection.toLowerCase())
+  );
+  let fromBlock = (await getIndexerState(stateKey(nftDeployment, "phases_last_block"))) ?? nftDeployment.startBlock;
+  if (fromBlock < nftDeployment.startBlock) fromBlock = nftDeployment.startBlock;
+  while (fromBlock <= latest) {
+    const toBlock = fromBlock + nftEventChunkSize > latest ? latest : fromBlock + nftEventChunkSize;
+    const created = await client.getContractEvents({
+      address: nftDeployment.dropController,
+      abi: nftDropControllerAbi,
+      eventName: "PhaseCreated",
+      fromBlock,
+      toBlock
+    });
+    const updated = await client.getContractEvents({
+      address: nftDeployment.dropController,
+      abi: nftDropControllerAbi,
+      eventName: "PhaseUpdated",
+      fromBlock,
+      toBlock
+    });
+    for (const log of [...created, ...updated]) {
+      if (!registeredCollections.has(log.args.collection!.toLowerCase())) continue;
+      const config = log.args.config!;
+      await upsertNFTPhase({
+        chainId,
+        collection: log.args.collection!,
+        tokenId: log.args.tokenId!,
+        phaseId: log.args.phaseId!,
+        phaseType: Number(config.phaseType),
+        limitMode: Number(config.limitMode),
+        currency: config.currency,
+        mintPrice: config.mintPrice,
+        startTime: config.startTime,
+        endTime: config.endTime,
+        phaseSupplyCap: config.phaseSupplyCap,
+        defaultWalletLimit: BigInt(config.defaultWalletLimit),
+        maxPerTransaction: BigInt(config.maxPerTransaction),
+        merkleRoot: config.merkleRoot,
+        txHash: log.transactionHash,
+        blockNumber: log.blockNumber
+      });
+    }
+    const cancelled = await client.getContractEvents({
+      address: nftDeployment.dropController,
+      abi: nftDropControllerAbi,
+      eventName: "PhaseCancelledEvent",
+      fromBlock,
+      toBlock
+    });
+    for (const log of cancelled) {
+      if (!registeredCollections.has(log.args.collection!.toLowerCase())) continue;
+      await cancelNFTPhase(chainId, log.args.collection!, log.args.tokenId!, log.args.phaseId!);
+    }
+    await setIndexerState(stateKey(nftDeployment, "phases_last_block"), toBlock + 1n);
+    fromBlock = toBlock + 1n;
+  }
+}
+
+async function backfillNFTMints(latest: bigint) {
+  if (!nftDeployment) return;
+  const registeredCollections = new Set(
+    (await getNFTCollectionAddresses(chainId)).map((collection) => collection.toLowerCase())
+  );
+  let fromBlock = (await getIndexerState(stateKey(nftDeployment, "mints_last_block"))) ?? nftDeployment.startBlock;
+  if (fromBlock < nftDeployment.startBlock) fromBlock = nftDeployment.startBlock;
+  while (fromBlock <= latest) {
+    const toBlock = fromBlock + nftEventChunkSize > latest ? latest : fromBlock + nftEventChunkSize;
+    const logs = await client.getContractEvents({
+      address: nftDeployment.dropController,
+      abi: nftDropControllerAbi,
+      eventName: "NFTMinted",
+      fromBlock,
+      toBlock
+    });
+    for (const log of logs) {
+      if (!registeredCollections.has(log.args.collection!.toLowerCase())) continue;
+      await insertNFTMint({
+        chainId,
+        collection: log.args.collection!,
+        tokenId: log.args.tokenId!,
+        phaseId: log.args.phaseId!,
+        payer: log.args.payer!,
+        recipient: log.args.recipient!,
+        quantity: log.args.quantity!,
+        unitPrice: log.args.unitPrice!,
+        grossAmount: log.args.grossAmount!,
+        platformFee: log.args.platformFee!,
+        txHash: log.transactionHash,
+        logIndex: Number(log.logIndex),
+        blockNumber: log.blockNumber
+      });
+    }
+    await setIndexerState(stateKey(nftDeployment, "mints_last_block"), toBlock + 1n);
+    fromBlock = toBlock + 1n;
+  }
+}
+
+async function backfillNFTMarketplace(latest: bigint) {
+  if (!nftDeployment) return;
+  let fromBlock = (await getIndexerState(stateKey(nftDeployment, "marketplace_last_block"))) ?? nftDeployment.startBlock;
+  if (fromBlock < nftDeployment.startBlock) fromBlock = nftDeployment.startBlock;
+  while (fromBlock <= latest) {
+    const toBlock = fromBlock + nftEventChunkSize > latest ? latest : fromBlock + nftEventChunkSize;
+    const created = await client.getContractEvents({
+      address: nftDeployment.marketplace, abi: nftMarketplaceAbi, eventName: "ListingCreated", fromBlock, toBlock
+    });
+    for (const log of created) await upsertNFTListing({
+      chainId, marketplace: nftDeployment.marketplace, listingId: log.args.listingId!, seller: log.args.seller!, collection: log.args.collection!,
+      tokenId: log.args.tokenId!, quantity: log.args.quantity!, unitPrice: log.args.unitPrice!,
+      startTime: log.args.startTime!, endTime: log.args.endTime!, txHash: log.transactionHash, blockNumber: log.blockNumber
+    });
+    const cancelled = await client.getContractEvents({
+      address: nftDeployment.marketplace, abi: nftMarketplaceAbi, eventName: "ListingCancelled", fromBlock, toBlock
+    });
+    for (const log of cancelled) await cancelNFTListing(chainId, nftDeployment.marketplace, log.args.listingId!);
+    const purchased = await client.getContractEvents({
+      address: nftDeployment.marketplace, abi: nftMarketplaceAbi, eventName: "ListingPurchased", fromBlock, toBlock
+    });
+    for (const log of purchased) await insertNFTSale({
+      chainId, marketplace: nftDeployment.marketplace, listingId: log.args.listingId!, buyer: log.args.buyer!, recipient: log.args.recipient!,
+      quantity: log.args.quantity!, grossAmount: log.args.grossAmount!, platformFee: log.args.platformFee!,
+      royaltyRecipient: log.args.royaltyRecipient!, royaltyAmount: log.args.royaltyAmount!,
+      txHash: log.transactionHash, logIndex: Number(log.logIndex), blockNumber: log.blockNumber
+    });
+    await setIndexerState(stateKey(nftDeployment, "marketplace_last_block"), toBlock + 1n);
+    fromBlock = toBlock + 1n;
+  }
+}
+
+async function backfillNFTPFPMarketplace(latest: bigint) {
+  if (!nftDeployment?.pfpMarketplace || !nftDeployment.pfpStartBlock) return;
+  const context = { scope: `${nftDeployment.scope}:pfp-market`, startBlock: nftDeployment.pfpStartBlock };
+  let fromBlock = (await getIndexerState(stateKey(context, "marketplace_last_block"))) ?? context.startBlock;
+  if (fromBlock < context.startBlock) fromBlock = context.startBlock;
+  while (fromBlock <= latest) {
+    const toBlock = fromBlock + nftEventChunkSize > latest ? latest : fromBlock + nftEventChunkSize;
+    const created = await client.getContractEvents({ address: nftDeployment.pfpMarketplace, abi: nftPFPMarketplaceAbi, eventName: "ListingCreated", fromBlock, toBlock });
+    for (const log of created) await upsertNFTListing({
+      chainId, marketplace: nftDeployment.pfpMarketplace, listingId: pfpListingKey(log.args.listingId!), seller: log.args.seller!, collection: log.args.collection!,
+      tokenId: log.args.tokenId!, quantity: 1n, unitPrice: log.args.price!, startTime: log.args.startTime!,
+      endTime: log.args.endTime!, txHash: log.transactionHash, blockNumber: log.blockNumber
+    });
+    const cancelled = await client.getContractEvents({ address: nftDeployment.pfpMarketplace, abi: nftPFPMarketplaceAbi, eventName: "ListingCancelled", fromBlock, toBlock });
+    for (const log of cancelled) await cancelNFTListing(chainId, nftDeployment.pfpMarketplace, pfpListingKey(log.args.listingId!));
+    const purchased = await client.getContractEvents({ address: nftDeployment.pfpMarketplace, abi: nftPFPMarketplaceAbi, eventName: "ListingPurchased", fromBlock, toBlock });
+    for (const log of purchased) await insertNFTSale({
+      chainId, marketplace: nftDeployment.pfpMarketplace, listingId: pfpListingKey(log.args.listingId!), buyer: log.args.buyer!, recipient: log.args.recipient!, quantity: 1n,
+      grossAmount: log.args.grossAmount!, platformFee: log.args.platformFee!, royaltyRecipient: log.args.royaltyRecipient!,
+      royaltyAmount: log.args.royaltyAmount!, txHash: log.transactionHash, logIndex: Number(log.logIndex), blockNumber: log.blockNumber
+    });
+    await setIndexerState(stateKey(context, "marketplace_last_block"), toBlock + 1n);
+    fromBlock = toBlock + 1n;
+  }
+}
+
+async function backfillNFTOffers(latest: bigint) {
+  if (!nftDeployment?.offers || !nftDeployment.offersStartBlock) return;
+  const context = { scope: `${nftDeployment.scope}:offers`, startBlock: nftDeployment.offersStartBlock };
+  let fromBlock = (await getIndexerState(stateKey(context, "offers_last_block"))) ?? context.startBlock;
+  if (fromBlock < context.startBlock) fromBlock = context.startBlock;
+  while (fromBlock <= latest) {
+    const toBlock = fromBlock + nftEventChunkSize > latest ? latest : fromBlock + nftEventChunkSize;
+    const cancelled = await client.getContractEvents({ address: nftDeployment.offers, abi: nftOffersAbi, eventName: "OfferCancelled", fromBlock, toBlock });
+    for (const log of cancelled) await cancelNFTOffer(chainId, nftDeployment.offers, log.args.offerHash!);
+    const floors = await client.getContractEvents({ address: nftDeployment.offers, abi: nftOffersAbi, eventName: "AllOffersCancelled", fromBlock, toBlock });
+    for (const log of floors) await applyNFTOfferNonceFloor(chainId, nftDeployment.offers, log.args.maker!, log.args.newMinimumNonce!);
+    const accepted = await client.getContractEvents({ address: nftDeployment.offers, abi: nftOffersAbi, eventName: "OfferAccepted", fromBlock, toBlock });
+    for (const log of accepted) await insertNFTOfferFill({
+      chainId, offersContract: nftDeployment.offers, offerHash: log.args.offerHash!, maker: log.args.maker!, seller: log.args.seller!,
+      collection: log.args.collection!, tokenId: log.args.tokenId!, quantity: log.args.quantity!,
+      grossAmount: log.args.grossAmount!, platformFee: log.args.platformFee!,
+      royaltyRecipient: log.args.royaltyRecipient!, royaltyAmount: log.args.royaltyAmount!,
+      standard: Number(log.args.standard!), offerType: Number(log.args.offerType!),
+      txHash: log.transactionHash, logIndex: Number(log.logIndex), blockNumber: log.blockNumber
+    });
+    await setIndexerState(stateKey(context, "offers_last_block"), toBlock + 1n);
     fromBlock = toBlock + 1n;
   }
 }
@@ -438,8 +801,8 @@ async function readLaunchMetadata(contractURI: string): Promise<LaunchMetadata> 
       const timeout = setTimeout(() => controller.abort(), 8_000);
       const response = await fetch(url, { signal: controller.signal });
       clearTimeout(timeout);
-      if (!response.ok) continue;
-      const metadata = await response.json() as {
+      if (!response.ok || !isJsonResponse(response)) continue;
+      const metadata = await readLimitedJson(response, 256 * 1024) as {
         description?: unknown;
         external_url?: unknown;
         image?: unknown;
@@ -462,7 +825,7 @@ async function readLaunchMetadata(contractURI: string): Promise<LaunchMetadata> 
 
 function ipfsToGatewayUrls(uri: string) {
   if (!uri) return [];
-  if (uri.startsWith("https://") || uri.startsWith("http://")) return [uri];
+  if (uri.startsWith("https://")) return isTrustedMetadataUrl(uri) ? [uri] : [];
   if (!uri.startsWith("ipfs://")) return [];
   const cidPath = uri.replace("ipfs://", "");
   const gateway = process.env.PINATA_GATEWAY_URL || "https://gateway.pinata.cloud/ipfs";
@@ -471,6 +834,50 @@ function ipfsToGatewayUrls(uri: string) {
     `https://ipfs.io/ipfs/${cidPath}`,
     `https://cloudflare-ipfs.com/ipfs/${cidPath}`
   ];
+}
+
+function isTrustedMetadataUrl(value: string) {
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "https:") return false;
+    const configuredHost = process.env.PINATA_GATEWAY_URL
+      ? new URL(process.env.PINATA_GATEWAY_URL).hostname.toLowerCase()
+      : "gateway.pinata.cloud";
+    const host = url.hostname.toLowerCase();
+    return host === configuredHost
+      || host === "ipfs.io"
+      || host === "cloudflare-ipfs.com"
+      || host.endsWith(".mypinata.cloud");
+  } catch {
+    return false;
+  }
+}
+
+function isJsonResponse(response: Response) {
+  const contentType = response.headers.get("content-type")?.toLowerCase() || "";
+  return contentType.includes("application/json") || contentType.includes("text/plain") || contentType === "";
+}
+
+async function readLimitedJson(response: Response, maxBytes: number) {
+  const declaredLength = Number(response.headers.get("content-length") || "0");
+  if (declaredLength > maxBytes) throw new Error("Metadata response is too large");
+  if (!response.body) throw new Error("Metadata response is empty");
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let size = 0;
+  let body = "";
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > maxBytes) {
+      await reader.cancel();
+      throw new Error("Metadata response is too large");
+    }
+    body += decoder.decode(value, { stream: true });
+  }
+  body += decoder.decode();
+  return JSON.parse(body) as unknown;
 }
 
 function cleanMetadataText(value: unknown, maxLength: number) {

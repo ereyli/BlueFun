@@ -10,9 +10,17 @@ let pool: pg.Pool | undefined;
 let supabase: SupabaseClient | undefined;
 
 export class RequestGuardError extends Error {
-  constructor(message: string, readonly status: 403 | 429) {
+  constructor(message: string, readonly status: 400 | 403 | 413 | 429) {
     super(message);
   }
+}
+
+export function assertRequestSize(request: Request, maxBytes: number) {
+  const raw = request.headers.get("content-length");
+  if (!raw) return;
+  const length = Number(raw);
+  if (!Number.isSafeInteger(length) || length < 0) throw new RequestGuardError("Invalid request size.", 400);
+  if (length > maxBytes) throw new RequestGuardError("This upload is too large.", 413);
 }
 
 export function assertSameOrigin(request: Request) {

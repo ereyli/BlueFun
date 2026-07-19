@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { assertRateLimit, assertSameOrigin, RequestGuardError } from "@/lib/server/request-guard";
+import { assertRateLimit, assertRequestSize, assertSameOrigin, RequestGuardError } from "@/lib/server/request-guard";
 import { hasSupportedImageSignature, optimizeTokenImage } from "@/lib/server/image-validation";
 
 export const runtime = "nodejs";
@@ -10,6 +10,7 @@ const PINATA_FILE_ENDPOINT = "https://api.pinata.cloud/pinning/pinFileToIPFS";
 export async function POST(request: Request) {
   try {
     assertSameOrigin(request);
+    assertRequestSize(request, MAX_IMAGE_BYTES + 256 * 1024);
     await assertRateLimit(request, "pinata-image");
   } catch (error) {
     return NextResponse.json(
