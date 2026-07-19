@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { ChevronDown, Coins, Images } from "lucide-react";
+import { ArrowUpRight, Check, ChevronDown, Coins, Images } from "lucide-react";
 
 export function BrandLaunchpadMenu() {
   const pathname = usePathname();
@@ -30,15 +30,21 @@ export function BrandLaunchpadMenu() {
 
   return <div className={`brand-launchpad-menu ${open ? "open" : ""}`} ref={root}>
     <button aria-expanded={open} aria-haspopup="menu" aria-label="Choose launchpad" onClick={() => setOpen((value) => !value)} title="Choose launchpad" type="button">
-      <span>{nftMode ? "NFT" : "Token"}</span><ChevronDown aria-hidden="true" />
+      <i className={nftMode ? "nft" : "token"}>{nftMode ? <Images aria-hidden="true" /> : <Coins aria-hidden="true" />}</i>
+      <span>{nftMode ? "NFT" : "Token"}</span>
+      <ChevronDown aria-hidden="true" />
     </button>
     {open ? <div aria-label="Launchpads" className="brand-launchpad-popover" role="menu">
-      <div className="brand-launchpad-popover-head"><span>Launchpads</span><small>Switch workspace</small></div>
+      <div className="brand-launchpad-popover-head"><span>Switch launchpad</span></div>
       <Link className={!nftMode ? "active" : undefined} href="/" role="menuitem">
-        <i className="token"><Coins aria-hidden="true"/></i><span><strong>Token Launchpad</strong><small>Discover, launch and trade tokens</small></span><em>{!nftMode ? "Current" : "Open"}</em>
+        <i className="token"><Coins aria-hidden="true"/></i>
+        <span><strong>Token Launchpad</strong><small>Launch and trade tokens</small></span>
+        <em>{!nftMode ? <><Check aria-hidden="true"/>Active</> : <ArrowUpRight aria-hidden="true"/>}</em>
       </Link>
       <Link className={nftMode ? "active" : undefined} href="/nft" role="menuitem">
-        <i className="nft"><Images aria-hidden="true"/></i><span><strong>NFT Launchpad</strong><small>Create collections, mint and trade</small></span><em>{nftMode ? "Current" : "Open"}</em>
+        <i className="nft"><Images aria-hidden="true"/></i>
+        <span><strong>NFT Launchpad</strong><small>Create, mint and trade NFTs</small></span>
+        <em>{nftMode ? <><Check aria-hidden="true"/>Active</> : <ArrowUpRight aria-hidden="true"/>}</em>
       </Link>
     </div> : null}
   </div>;
