@@ -5,14 +5,13 @@ import Link from "next/link";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { formatEther, type Address } from "viem";
 import { useAccount, useReadContract } from "wagmi";
-import { Activity, ArrowDownLeft, ArrowUpRight, ExternalLink, Gavel, Images, LayoutDashboard, Loader2, Plus, ShoppingBag, Sparkles, Wallet } from "lucide-react";
+import { Activity, ArrowDownLeft, ArrowUpRight, ChevronRight, ExternalLink, Gavel, Images, LayoutDashboard, Loader2, Plus, ShoppingBag, Sparkles, Wallet } from "lucide-react";
 import { blueEditionAbi, bluePFPAbi, ipfsGateway } from "@/lib/nft-contracts";
 import { NFTWalletOffers } from "./nft-wallet-offers";
 import { NFTAssetDialog, type DashboardNFT } from "./nft-asset-dialog";
 import { CreatorCollectionManager } from "./creator-collection-manager";
-import { NFTMarketplaceRevenue } from "./nft-marketplace-revenue";
 
-type Collection = { collection: string; factory?: string; name: string; symbol: string; standard: "ERC721" | "ERC1155"; initial_max_supply?: string };
+type Collection = { collection: string; factory?: string; name: string; symbol: string; standard: "ERC721" | "ERC1155"; initial_max_supply?: string; created_at?: string };
 type Owned = DashboardNFT;
 type Listing = { listing_id: string; collection: string; token_id: string; remaining_quantity: string; unit_price: string; end_time: string; cancelled: boolean; collectionInfo: Collection | null };
 type WalletActivity = { type: "mint" | "received" | "sent"; collection: string; token_id: string; quantity: string; gross_amount?: string; counterparty?: string | null; tx_hash: string; created_at: string };
@@ -22,7 +21,7 @@ export function NFTDashboard() {
   const { address, isConnected } = useAccount();
   const [data, setData] = useState<DashboardData>();
   const [loading, setLoading] = useState(false);
-  const [tab, setTab] = useState<"owned" | "created" | "listings" | "offers" | "activity">("owned");
+  const [tab, setTab] = useState<"owned" | "created" | "listings" | "offers" | "activity">("created");
   const [selectedNFT, setSelectedNFT] = useState<Owned>();
   const [managedCollection, setManagedCollection] = useState<Collection>();
   const [contractInput, setContractInput] = useState("");
@@ -56,15 +55,15 @@ export function NFTDashboard() {
     <section className="nft-dashboard-stats"><article><small>OWNED ITEMS</small><strong>{data?.owned.length ?? "—"}</strong></article><article><small>COLLECTIONS CREATED</small><strong>{data?.created.length ?? "—"}</strong></article><article><small>ACTIVE LISTINGS</small><strong>{activeListings.length}</strong></article><article><small>LISTED VALUE</small><strong>{formatEther(listedValue)} ETH</strong></article></section>
     {loading ? <div className="nft-dashboard-loading"><Loader2 className="spin"/>Syncing onchain ownership…</div> : null}
     {data && !data.indexingReady ? <p className="nft-dashboard-warning">Ownership indexing is not enabled yet. Created collections and listings remain available.</p> : null}
-    <NFTMarketplaceRevenue/>
     <nav className="nft-dashboard-tabs" aria-label="Wallet views"><button className={tab === "owned" ? "active" : ""} onClick={() => setTab("owned")}><Images/>Collected <b>{data?.owned.length || 0}</b></button><button className={tab === "created" ? "active" : ""} onClick={() => setTab("created")}><Sparkles/>Created <b>{data?.created.length || 0}</b></button><button className={tab === "listings" ? "active" : ""} onClick={() => setTab("listings")}><ShoppingBag/>Listings <b>{activeListings.length}</b></button><button className={tab === "offers" ? "active" : ""} onClick={() => setTab("offers")}><Gavel/>Offers</button><button className={tab === "activity" ? "active" : ""} onClick={() => setTab("activity")}><Activity/>Activity</button></nav>
     {tab === "owned" ? <DashboardSection icon={<Images/>} title="Collected NFTs" count={data?.owned.length || 0} empty="NFTs held by this wallet will appear here." grid>
       {data?.owned.map((item) => <OwnedNFTCard item={item} key={`${item.collection}-${item.token_id}`} onOpen={() => setSelectedNFT(item)}/>)}
     </DashboardSection> : null}
-    {tab === "created" ? <DashboardSection icon={<Sparkles/>} title="Created collections" count={data?.created.length || 0} empty="Collections launched by this wallet will appear here.">
-      {data?.created.map((item) => <button className="nft-dashboard-row" onClick={()=>setManagedCollection(item)} key={item.collection}><span className="nft-dashboard-thumb"><Images/></span><span><strong>{item.name}</strong><small>{item.standard === "ERC721" ? "Generative PFP · ERC-721" : "Editions · ERC-1155"} · {item.symbol}</small></span><em>Manage</em></button>)}
-    </DashboardSection> : null}
-    {tab === "created" ? <section className="nft-dashboard-import"><div><strong>Manage by contract</strong><small>Use this after an ownership transfer or to accept a collection that was nominated to this wallet.</small></div><input aria-label="Collection contract address" placeholder="0x collection address" value={contractInput} onChange={(event) => setContractInput(event.target.value)}/><button className="button" onClick={() => void openCollectionContract()}>Open controls</button>{contractNotice ? <p>{contractNotice}</p> : null}</section> : null}
+    {tab === "created" && !managedCollection ? <section className="nft-directory-panel nft-dashboard-panel nft-created-panel">
+      <header><div><span><Sparkles/>CREATOR PORTFOLIO</span><h2>Your collections</h2><p>Select a collection to manage minting, earnings, metadata and reveal.</p></div><strong>{data?.created.length || 0}</strong></header>
+      {data?.created.length ? <div className="nft-created-grid">{data.created.map((item) => <CreatorCollectionCard item={item} key={item.collection} onOpen={() => setManagedCollection(item)}/>)}</div> : <div className="nft-created-empty"><Images/><h3>No collections yet</h3><p>Collections launched from this wallet will appear here.</p><Link className="button primary" href="/nft/launch"><Plus/>Create collection</Link></div>}
+    </section> : null}
+    {tab === "created" && !managedCollection ? <details className="nft-dashboard-import"><summary>Manage a transferred collection</summary><div><small>Enter the collection contract after an ownership transfer or nomination.</small></div><input aria-label="Collection contract address" placeholder="0x collection address" value={contractInput} onChange={(event) => setContractInput(event.target.value)}/><button className="button" onClick={() => void openCollectionContract()}>Open collection</button>{contractNotice ? <p>{contractNotice}</p> : null}</details> : null}
     {tab==="created"&&managedCollection?<CreatorCollectionManager item={managedCollection} onClose={()=>setManagedCollection(undefined)}/>:null}
     {tab === "listings" ? <DashboardSection icon={<ShoppingBag/>} title="My listings" count={data?.listings.length || 0} empty="NFTs listed from this wallet will appear here.">
       {data?.listings.map((item) => { const active = !item.cancelled && BigInt(item.remaining_quantity) > 0n && BigInt(item.end_time) > BigInt(Math.floor(Date.now() / 1000)); return <Link className="nft-dashboard-row" href={`/nft/${item.collection}/${item.token_id}`} key={item.listing_id}><span className="nft-dashboard-thumb"><ShoppingBag/></span><span><strong>{item.collectionInfo?.name || shortAddress(item.collection)} #{item.token_id}</strong><small>{formatEther(BigInt(item.unit_price))} ETH · {active ? "Active" : item.cancelled ? "Cancelled" : "Ended"}</small></span><em className={active ? "live" : ""}>{active ? "Live" : "Closed"}</em></Link>; })}
@@ -89,5 +88,27 @@ function OwnedNFTCard({ item, onOpen }: { item: Owned; onOpen: () => void }) {
   const metadataUri = pfpUri.data || editionUri.data || item.metadataUri;
   useEffect(() => { if (!metadataUri) return; fetch(ipfsGateway(metadataUri)).then((response) => response.ok ? response.json() : {}).then(setMetadata).catch(() => undefined); }, [metadataUri]);
   return <button className="nft-owned-card" onClick={onOpen}><span className="nft-owned-art">{metadata.image ? <img src={ipfsGateway(metadata.image)} alt={metadata.name || "NFT"}/> : <Sparkles/>}<i>{item.collectionInfo?.standard === "ERC721" ? "ERC-721" : `${item.balance} owned`}</i></span><span className="nft-owned-card-body"><small>{item.collectionInfo?.name || shortAddress(item.collection)}</small><strong>{metadata.name || `Token #${item.token_id}`}</strong><span><b>View details</b><ExternalLink/></span></span></button>;
+}
+
+function CreatorCollectionCard({ item, onOpen }: { item: Collection; onOpen: () => void }) {
+  const collection = item.collection as Address;
+  const contractURI = useReadContract({ address: collection, abi: item.standard === "ERC721" ? bluePFPAbi : blueEditionAbi, functionName: "contractURI", chainId: 8453 });
+  const [metadata, setMetadata] = useState<{ image?: string }>({});
+  useEffect(() => {
+    if (!contractURI.data) return;
+    fetch(ipfsGateway(String(contractURI.data))).then((response) => response.ok ? response.json() : {}).then(setMetadata).catch(() => undefined);
+  }, [contractURI.data]);
+  return <button className="nft-created-card" onClick={onOpen}>
+    <span className={`nft-created-art ${item.standard === "ERC721" ? "pfp" : "edition"}`}>
+      {metadata.image ? <img src={ipfsGateway(metadata.image)} alt=""/> : item.standard === "ERC721" ? <Sparkles/> : <Images/>}
+      <i><span/>Live on Base</i>
+      <em>{item.standard === "ERC721" ? "ERC-721 PFP" : "ERC-1155 EDITION"}</em>
+    </span>
+    <span className="nft-created-card-body">
+      <small>{item.symbol}</small>
+      <strong>{item.name}</strong>
+      <span><code>{shortAddress(item.collection)}</code><b>Open dashboard <ChevronRight/></b></span>
+    </span>
+  </button>;
 }
 function shortAddress(value: string) { return `${value.slice(0, 6)}…${value.slice(-4)}`; }

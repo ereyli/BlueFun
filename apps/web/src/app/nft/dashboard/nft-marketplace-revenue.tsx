@@ -1,8 +1,9 @@
 "use client";
 
+import { useState } from "react";
 import { formatEther } from "viem";
 import { useAccount, usePublicClient, useReadContracts, useWriteContract } from "wagmi";
-import { CircleDollarSign, Loader2 } from "lucide-react";
+import { ChevronDown, CircleDollarSign, Loader2, WalletCards } from "lucide-react";
 import { legacyNftAddresses, nftAddresses, nftMarketplaceAbi, nftPFPMarketplaceAbi } from "@/lib/nft-contracts";
 
 const markets = [
@@ -16,6 +17,8 @@ export function NFTMarketplaceRevenue() {
   const { address } = useAccount();
   const client = usePublicClient({ chainId: 8453 });
   const { writeContractAsync, isPending } = useWriteContract();
+  const [claiming, setClaiming] = useState(false);
+  const [notice, setNotice] = useState("");
   const revenue = useReadContracts({
     contracts: markets.map((market) => ({
       address: market.address,
@@ -38,11 +41,22 @@ export function NFTMarketplaceRevenue() {
     await revenue.refetch();
   }
 
+  async function claimAll() {
+    setClaiming(true); setNotice("");
+    try {
+      for (let index = 0; index < amounts.length; index += 1) if (amounts[index] > 0n) await claim(index);
+      setNotice("All available marketplace earnings were claimed.");
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message.split("Request Arguments:")[0].slice(0, 220) : "Claim failed.");
+    } finally { setClaiming(false); }
+  }
+
   if (!address) return null;
-  return <section className="nft-directory-panel nft-dashboard-panel nft-market-revenue">
-    <header><div><span><CircleDollarSign/>MARKETPLACE PAYOUTS</span><h2>Seller proceeds & royalties</h2><p>BlueFun fixed-price sales are pull-based. Claim every pending ETH balance from its marketplace.</p></div><strong>{formatEther(total)} ETH</strong></header>
-    <div className="nft-dashboard-list">
-      {markets.map((market, index) => <div className="nft-dashboard-row" key={market.address}><span className="nft-dashboard-thumb"><CircleDollarSign/></span><span><strong>{market.label}</strong><small>{market.standard} · {formatEther(amounts[index])} ETH claimable</small></span><button className="button" disabled={amounts[index] === 0n || isPending} onClick={() => void claim(index)}>{isPending ? <Loader2 className="spin"/> : null}Claim</button></div>)}
-    </div>
+  return <section className="nft-market-earnings">
+    <div className="nft-market-earnings-icon"><WalletCards/></div>
+    <div className="nft-market-earnings-copy"><small>MARKETPLACE EARNINGS</small><h3>{total > 0n ? `${formatEther(total)} ETH available` : "No earnings to claim"}</h3><p>Seller proceeds and royalties from BlueFun marketplace sales.</p></div>
+    <button className="button primary" disabled={total === 0n || isPending || claiming} onClick={() => void claimAll()}>{claiming ? <Loader2 className="spin"/> : <CircleDollarSign/>}Claim all</button>
+    <details><summary>View payout breakdown <ChevronDown/></summary><p>Marketplace earnings are accumulated per wallet across all of your BlueFun collections.</p><div>{markets.map((market, index) => <span key={market.address}><b>{market.label}</b><em>{formatEther(amounts[index])} ETH</em></span>)}</div></details>
+    {notice ? <p className="nft-market-earnings-notice">{notice}</p> : null}
   </section>;
 }
