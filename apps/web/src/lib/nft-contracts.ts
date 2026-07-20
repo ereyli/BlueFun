@@ -3,16 +3,24 @@ import { zeroAddress } from "viem";
 const address = (value?: string) => (value && /^0x[a-fA-F0-9]{40}$/.test(value) ? value : zeroAddress) as `0x${string}`;
 
 export const nftAddresses = {
-  feePolicy: address(process.env.NEXT_PUBLIC_NFT_FEE_POLICY || "0x453d7086FAe834B573bf129C2D64Fb50ad0c4c2D"),
-  dropController: address(process.env.NEXT_PUBLIC_NFT_DROP_CONTROLLER || "0xa799002045291b4c88db11d35f476f532ea012cb"),
-  collectionFactory: address(process.env.NEXT_PUBLIC_NFT_COLLECTION_FACTORY || "0x38d3a8ee94f49ddeb7ba5c0f202e1aaf4b07c63a"),
-  marketplace: address(process.env.NEXT_PUBLIC_NFT_MARKETPLACE || "0x79509ab5348ecc30616ce7a8460d014cfee5737b"),
-  pfpFactory: address(process.env.NEXT_PUBLIC_NFT_PFP_FACTORY),
-  pfpMarketplace: address(process.env.NEXT_PUBLIC_NFT_PFP_MARKETPLACE),
-  offers: address(process.env.NEXT_PUBLIC_NFT_OFFERS),
+  feePolicy: address(process.env.NEXT_PUBLIC_NFT_FEE_POLICY || "0xde97ac7497b9b6c75dec228a5c28501cbf627aac"),
+  dropController: address(process.env.NEXT_PUBLIC_NFT_DROP_CONTROLLER || "0xf65bdf38fc7e47a4750564853f55f9d6760a7767"),
+  collectionFactory: address(process.env.NEXT_PUBLIC_NFT_COLLECTION_FACTORY || "0xdcb1ac13fede90e7fdcaeb419a1803b2473cf0b3"),
+  marketplace: address(process.env.NEXT_PUBLIC_NFT_MARKETPLACE || "0x0b68d3ae48d8f1880cc79aa8190f41516dbde5dc"),
+  pfpFactory: address(process.env.NEXT_PUBLIC_NFT_PFP_FACTORY || "0xb0c5f7b8372a9c85c449aff8dfd1b833186046a2"),
+  pfpMarketplace: address(process.env.NEXT_PUBLIC_NFT_PFP_MARKETPLACE || "0x6420b1c74029927df9ba552445094e15788ba76c"),
+  offers: address(process.env.NEXT_PUBLIC_NFT_OFFERS || "0x72db1ef886b1880c89cbe54caa48aa6b6ddf932e"),
   weth: address(process.env.NEXT_PUBLIC_BASE_WETH || "0x4200000000000000000000000000000000000006"),
-  deploymentBlock: BigInt(process.env.NEXT_PUBLIC_NFT_DEPLOYMENT_BLOCK || "48813200")
+  deploymentBlock: BigInt(process.env.NEXT_PUBLIC_NFT_DEPLOYMENT_BLOCK || "48879542")
 };
+export const v2NftAddresses = {
+  dropController: "0xa799002045291b4c88db11d35f476f532ea012cb",
+  collectionFactory: "0x38d3a8ee94f49ddeb7ba5c0f202e1aaf4b07c63a",
+  marketplace: "0x79509ab5348ecc30616ce7a8460d014cfee5737b",
+  pfpFactory: "0x5c1796111e6e57d0d13555da1cdb2b1a98005732",
+  pfpMarketplace: "0x22c0b3344af12de3a5f6315663af2c9b9042e9f8",
+  offers: "0x58b7e9f6c980800754cde5c9458e2ec42ebeb0ca"
+} as const;
 export const legacyNftAddresses = {
   dropController: "0xb129417fFc25b5A8e918Cb63E6f45a605905C0aC",
   collectionFactory: "0x342F90f22fBd5f7D680d3d84Ce121BDA995F6F4D",
@@ -22,28 +30,33 @@ export const legacyNftAddresses = {
   offers: "0x5BDb354b162dF83392cf852A86B31194C1d3906f"
 } as const;
 
-export type NFTDeployment = "legacy" | "current";
+export type NFTDeployment = "legacy" | "v2" | "current";
 
 export function nftDeploymentForFactory(factory?: string): NFTDeployment {
   const normalized = factory?.toLowerCase();
   return normalized === legacyNftAddresses.collectionFactory.toLowerCase()
     || normalized === legacyNftAddresses.pfpFactory.toLowerCase()
     ? "legacy"
-    : "current";
+    : normalized === v2NftAddresses.collectionFactory.toLowerCase()
+        || normalized === v2NftAddresses.pfpFactory.toLowerCase()
+      ? "v2"
+      : "current";
 }
 
 export function nftControllerForDeployment(deployment: NFTDeployment) {
-  return deployment === "legacy" ? legacyNftAddresses.dropController : nftAddresses.dropController;
+  if (deployment === "legacy") return legacyNftAddresses.dropController;
+  return deployment === "v2" ? v2NftAddresses.dropController : nftAddresses.dropController;
 }
 
 export function nftMarketplaceForDeployment(deployment: NFTDeployment, standard: "ERC721" | "ERC1155") {
   if (deployment === "legacy") return standard === "ERC721" ? legacyNftAddresses.pfpMarketplace : legacyNftAddresses.marketplace;
+  if (deployment === "v2") return standard === "ERC721" ? v2NftAddresses.pfpMarketplace : v2NftAddresses.marketplace;
   return standard === "ERC721" ? nftAddresses.pfpMarketplace : nftAddresses.marketplace;
 }
 
 export function isKnownNFTMarketplace(value: string, standard: "ERC721" | "ERC1155") {
   const normalized = value.toLowerCase();
-  return (["current", "legacy"] as const).some((deployment) =>
+  return (["current", "v2", "legacy"] as const).some((deployment) =>
     nftMarketplaceForDeployment(deployment, standard).toLowerCase() === normalized
   );
 }
@@ -58,7 +71,7 @@ export const pfpLaunchpadEnabled = nftLaunchpadEnabled
   && nftAddresses.pfpMarketplace !== zeroAddress;
 
 export const nftOffersEnabled = pfpLaunchpadEnabled && nftAddresses.offers !== zeroAddress && nftAddresses.weth !== zeroAddress;
-export const nftProtocolVersion = process.env.NEXT_PUBLIC_NFT_PROTOCOL_VERSION === "v3" ? "v3" : "v2";
+export const nftProtocolVersion = process.env.NEXT_PUBLIC_NFT_PROTOCOL_VERSION === "v2" ? "v2" : "v3";
 
 export const nftFeePolicyAbi = [
   { type: "function", name: "collectionLaunchFee", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },

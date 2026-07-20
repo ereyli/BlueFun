@@ -158,17 +158,20 @@ export const directDeployments = Array.from(new Map(
 ).values());
 
 const nftFactory = (process.env.NFT_COLLECTION_FACTORY
-  || (!robinhood ? "0x342F90f22fBd5f7D680d3d84Ce121BDA995F6F4D" : undefined)) as `0x${string}` | undefined;
+  || (!robinhood ? "0xdcb1ac13fede90e7fdcaeb419a1803b2473cf0b3" : undefined)) as `0x${string}` | undefined;
 const nftController = (process.env.NFT_DROP_CONTROLLER
-  || (!robinhood ? "0xb129417fFc25b5A8e918Cb63E6f45a605905C0aC" : undefined)) as `0x${string}` | undefined;
+  || (!robinhood ? "0xf65bdf38fc7e47a4750564853f55f9d6760a7767" : undefined)) as `0x${string}` | undefined;
 const nftMarketplace = (process.env.NFT_MARKETPLACE
-  || (!robinhood ? "0xf08f44AC84632c7E3dF2E63804fB8eECb4B346bb" : undefined)) as `0x${string}` | undefined;
-const nftStartBlock = BigInt(process.env.NFT_DEPLOYMENT_BLOCK || (!robinhood ? "48766938" : "0"));
-const nftPFPFactory = process.env.NFT_PFP_FACTORY as `0x${string}` | undefined;
-const nftPFPMarketplace = process.env.NFT_PFP_MARKETPLACE as `0x${string}` | undefined;
-const nftPFPStartBlock = BigInt(process.env.NFT_PFP_DEPLOYMENT_BLOCK || "0");
-const nftOffers = process.env.NFT_OFFERS as `0x${string}` | undefined;
-const nftOffersStartBlock = BigInt(process.env.NFT_OFFERS_DEPLOYMENT_BLOCK || "0");
+  || (!robinhood ? "0x0b68d3ae48d8f1880cc79aa8190f41516dbde5dc" : undefined)) as `0x${string}` | undefined;
+const nftStartBlock = BigInt(process.env.NFT_DEPLOYMENT_BLOCK || (!robinhood ? "48879542" : "0"));
+const nftPFPFactory = (process.env.NFT_PFP_FACTORY
+  || (!robinhood ? "0xb0c5f7b8372a9c85c449aff8dfd1b833186046a2" : undefined)) as `0x${string}` | undefined;
+const nftPFPMarketplace = (process.env.NFT_PFP_MARKETPLACE
+  || (!robinhood ? "0x6420b1c74029927df9ba552445094e15788ba76c" : undefined)) as `0x${string}` | undefined;
+const nftPFPStartBlock = BigInt(process.env.NFT_PFP_DEPLOYMENT_BLOCK || (!robinhood ? "48879542" : "0"));
+const nftOffers = (process.env.NFT_OFFERS
+  || (!robinhood ? "0x72db1ef886b1880c89cbe54caa48aa6b6ddf932e" : undefined)) as `0x${string}` | undefined;
+const nftOffersStartBlock = BigInt(process.env.NFT_OFFERS_DEPLOYMENT_BLOCK || (!robinhood ? "48879542" : "0"));
 export const nftDeployment: NFTIndexerDeployment | undefined =
   nftFactory && nftController && nftMarketplace && nftStartBlock > 0n
     ? {
@@ -198,7 +201,21 @@ const nftV2Deployment: NFTIndexerDeployment | undefined = !robinhood ? {
   scope: `${chainId}:nft-v2:${(process.env.NFT_V2_COLLECTION_FACTORY || "0x38d3a8ee94f49ddeb7ba5c0f202e1aaf4b07c63a").toLowerCase()}:${process.env.NFT_V2_DEPLOYMENT_BLOCK || "48813200"}`
 } : undefined;
 
-export const nftDeployments = [nftDeployment, nftV2Deployment].filter((deployment): deployment is NFTIndexerDeployment => Boolean(deployment));
+const nftLegacyDeployment: NFTIndexerDeployment | undefined = !robinhood ? {
+  collectionFactory: "0x342F90f22fBd5f7D680d3d84Ce121BDA995F6F4D",
+  dropController: "0xb129417fFc25b5A8e918Cb63E6f45a605905C0aC",
+  marketplace: "0xf08f44AC84632c7E3dF2E63804fB8eECb4B346bb",
+  pfpFactory: "0x7A43a7e57481816cdCF534b2A0ee56940Bb8F416",
+  pfpMarketplace: "0xd16eF0dcf1e7b430d38Fe2E26eCFc73f099f25d0",
+  pfpStartBlock: 48769759n,
+  offers: "0x5BDb354b162dF83392cf852A86B31194C1d3906f",
+  offersStartBlock: 48801786n,
+  startBlock: 48766938n,
+  scope: `${chainId}:nft-legacy:0x342f90f22fbd5f7d680d3d84ce121bda995f6f4d:48766938`
+} : undefined;
+
+export const nftDeployments = [nftDeployment, nftV2Deployment, nftLegacyDeployment]
+  .filter((deployment): deployment is NFTIndexerDeployment => Boolean(deployment));
 
 export const chainDefinition = defineChain({
   id: chainId,

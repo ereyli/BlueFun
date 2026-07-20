@@ -1,0 +1,33 @@
+{
+  "chainId": 8453,
+  "network": "Base Mainnet",
+  "deploymentBlock": 48879542,
+  "sourceCommit": "097b672",
+  "deployer": "0x9d5f55a644eF0eB9FF82dbd14Dd0471de3ff5bfb",
+  "safe": "0x144A3f70C0bf33124852E3891011e033b909F46d",
+  "admin": "0x144A3f70C0bf33124852E3891011e033b909F46d",
+  "guardian": "0x144A3f70C0bf33124852E3891011e033b909F46d",
+  "platformWallet": "0x144A3f70C0bf33124852E3891011e033b909F46d",
+  "weth": "0x4200000000000000000000000000000000000006",
+  "feePolicy": "0xde97ac7497b9b6c75dec228a5c28501cbf627aac",
+  "dropController": "0xf65bdf38fc7e47a4750564853f55f9d6760a7767",
+  "editionFactory": "0xdcb1ac13fede90e7fdcaeb419a1803b2473cf0b3",
+  "pfpFactory": "0xb0c5f7b8372a9c85c449aff8dfd1b833186046a2",
+  "editionMarketplace": "0x0b68d3ae48d8f1880cc79aa8190f41516dbde5dc",
+  "pfpMarketplace": "0x6420b1c74029927df9ba552445094e15788ba76c",
+  "offers": "0x72db1ef886b1880c89cbe54caa48aa6b6ddf932e",
+  "transactions": {
+    "feePolicy": "0xfec52a0310b23486fa9815795d82f5b57889db9a5723036f72c976740a042adc",
+    "dropController": "0xba2269fedcb929d6014a6d83a85ccafff5c015ced562157c78b8df95d3802bdd",
+    "editionFactory": "0x0395339f34b28810b3f31e49f81b3331f0e867df298be12aeb959ba991a7a506",
+    "pfpFactory": "0xf711e904807ae60c27bbeeec7b9f79972f7c4edcc9c63bb8b72cc778243c9ddf",
+    "configureFactories": "0x5f9d75f1f00721fc1ca07d251b9dbd2f78c39255798cf9b5b2774aff32da67c4",
+    "editionMarketplace": "0x2d13ce6a42ffd7b688e72f589cfd71fb35eae8f100d16d6b2a227c45a03b80f9",
+    "pfpMarketplace": "0x6ff982c62c95743ef4bbd270fbba403030516f51e6e7d547e4c9a9fec8c41552",
+    "offers": "0xfe7482b00c3e8188ffbfb198b1af6617ed85924305f4978a5fedaad240726256"
+  },
+  "verification": {
+    "onchainWiring": "verified",
+    "source": "verified on BaseScan"
+  }
+}

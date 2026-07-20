@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { createPublicClient, fallback, formatEther, getAddress, hashTypedData, http, isAddress, verifyTypedData, zeroAddress, type Hex } from "viem";
 import { getNFTCollections } from "@/lib/nft-collections";
-import { legacyNftAddresses, nftAddresses, nftCollectionFactoryAbi, nftOffersEnabled, nftPFPFactoryAbi } from "@/lib/nft-contracts";
+import { legacyNftAddresses, nftAddresses, nftCollectionFactoryAbi, nftOffersEnabled, nftPFPFactoryAbi, v2NftAddresses } from "@/lib/nft-contracts";
 import { baseChain } from "@/lib/base-chain";
 import { baseRpcUrls } from "@/lib/rpc";
 import { nftOfferDomainFor, nftOfferTypes, parseIndexedNFTOffer, type NFTOffer } from "@/lib/nft-offers";
@@ -111,16 +111,21 @@ async function verifyOfferSignature(offer: NFTOffer, signature: Hex, offersContr
 function parseOffersContract(value?: string) {
   if (!value || !isAddress(value)) throw new RequestGuardError("Offer contract is required.", 400);
   const contract = getAddress(value);
-  const allowed = [nftAddresses.offers, legacyNftAddresses.offers].some((address) => address.toLowerCase() === contract.toLowerCase());
+  const allowed = [nftAddresses.offers, v2NftAddresses.offers, legacyNftAddresses.offers]
+    .some((address) => address.toLowerCase() === contract.toLowerCase());
   if (!allowed) throw new RequestGuardError("Unsupported offer contract.", 400);
   return contract;
 }
 
 async function collectionBelongsToOfferDeployment(collection: `0x${string}`, standard: number, offersContract: `0x${string}`) {
-  const current = offersContract.toLowerCase() === nftAddresses.offers.toLowerCase();
+  const deployment = offersContract.toLowerCase() === nftAddresses.offers.toLowerCase()
+    ? nftAddresses
+    : offersContract.toLowerCase() === v2NftAddresses.offers.toLowerCase()
+      ? v2NftAddresses
+      : legacyNftAddresses;
   const factory = standard === 1
-    ? current ? nftAddresses.pfpFactory : legacyNftAddresses.pfpFactory
-    : current ? nftAddresses.collectionFactory : legacyNftAddresses.collectionFactory;
+    ? deployment.pfpFactory
+    : deployment.collectionFactory;
   const abi = standard === 1 ? nftPFPFactoryAbi : nftCollectionFactoryAbi;
   try { return await offerPublicClient.readContract({ address: factory, abi, functionName: "isBlueFunCollection", args: [collection] }); }
   catch { return false; }
