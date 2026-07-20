@@ -191,16 +191,18 @@ button,
 .theme-toggle,
 .wallet-button { border-radius: 3px; }
 .theme-toggle {
-  background: color-mix(in srgb, var(--panel-2) 92%, transparent);
+  align-items: center;
+  background: #e3e7ed;
   border: 1px solid var(--line);
-  border-radius: 4px;
+  border-radius: 999px;
   display: grid;
   flex: 0 0 auto;
-  gap: 2px;
+  gap: 1px;
   grid-template-columns: repeat(2,minmax(0,1fr));
-  height: 38px;
+  height: 36px;
   padding: 3px;
-  width: 124px;
+  transition: background 160ms ease, border-color 160ms ease;
+  width: 70px;
 }
 .theme-toggle:hover {
   border-color: var(--line-strong);
@@ -210,26 +212,30 @@ button,
 .theme-option {
   align-items: center;
   border: 1px solid transparent;
+  border-radius: 50%;
   color: var(--muted);
-  display: inline-flex;
-  font-size: 9px;
-  font-weight: 850;
-  gap: 4px;
+  display: flex;
+  height: 28px;
   justify-content: center;
-  letter-spacing: .02em;
   min-width: 0;
-  padding-inline: 6px;
+  transition: background 160ms ease, border-color 160ms ease, color 160ms ease, transform 160ms ease;
+  width: 28px;
 }
 .theme-option.active {
-  background: var(--panel);
-  border-color: var(--line);
-  box-shadow: 0 1px 3px rgba(15,23,42,.08);
-  color: var(--text);
+  background: #fff;
+  border-color: rgba(15,23,42,.08);
+  box-shadow: 0 2px 7px rgba(15,23,42,.16);
+  color: #18202b;
+  transform: scale(1.02);
+}
+html[data-theme="dark"] .theme-toggle {
+  background: #25282b;
+  border-color: #34383c;
 }
 html[data-theme="dark"] .theme-option.active {
-  background: #eef1f5;
-  border-color: #eef1f5;
-  color: #11151d;
+  background: #f5f6f7;
+  border-color: #f5f6f7;
+  color: #101215;
 }
 .button.primary {
   background: var(--blue);
@@ -828,9 +834,8 @@ html[data-theme="dark"] .dashboard-tabs button[aria-current="page"] { background
   .main { padding-top: 14px; }
   .topbar { min-height: 62px; }
   .topbar-create { display: none !important; }
-  .theme-toggle { width: 66px; }
-  .theme-option { padding: 0; }
-  .theme-option > span { display: none; }
+  .theme-toggle { height: 34px; width: 66px; }
+  .theme-option { height: 26px; width: 26px; }
   .bottom-nav {
     background: color-mix(in srgb, var(--panel) 94%, transparent);
     border-color: var(--line);

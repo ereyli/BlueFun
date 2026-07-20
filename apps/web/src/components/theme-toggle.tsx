@@ -34,11 +34,11 @@ export function ThemeToggle() {
       title={theme === "dark" ? "Light mode" : "Dark mode"}
       type="button"
     >
-      <span className={`theme-option light${theme === "light" ? " active" : ""}`}>
-        <Sun size={14} /><span>Light</span>
+      <span aria-hidden="true" className={`theme-option light${theme === "light" ? " active" : ""}`}>
+        <Sun size={16} />
       </span>
-      <span className={`theme-option dark${theme === "dark" ? " active" : ""}`}>
-        <Moon size={14} /><span>Dark</span>
+      <span aria-hidden="true" className={`theme-option dark${theme === "dark" ? " active" : ""}`}>
+        <Moon size={16} />
       </span>
     </button>
   );
