@@ -3,6 +3,7 @@ import { createClient } from "@supabase/supabase-js";
 import { formatEther, getAddress, isAddress } from "viem";
 import {
   isKnownNFTMarketplace,
+  nftAddresses,
   nftDeploymentForFactory
 } from "@/lib/nft-contracts";
 import {
@@ -52,7 +53,15 @@ export async function GET(request: Request) {
   const indexed = indexedResponse.error ? [] : normalizeIndexedListings((indexedResponse.data || []) as IndexedListing[]);
   let snapshot: OnchainListingSnapshot | undefined;
   const collectionRow = collectionResponse.data;
-  if (collectionRow && (collectionRow.standard === "ERC721" || collectionRow.standard === "ERC1155")) {
+  const currentFactories = new Set([
+    nftAddresses.collectionFactory.toLowerCase(),
+    nftAddresses.pfpFactory.toLowerCase()
+  ]);
+  const isCurrentCollection = collectionRow && currentFactories.has(String(collectionRow.factory).toLowerCase());
+  if (!isCurrentCollection) {
+    return NextResponse.json(tokenValue ? {} : { listings: [] }, { status: collectionRow ? 404 : 200, headers: fastPublicCache() });
+  }
+  if (collectionRow.standard === "ERC721" || collectionRow.standard === "ERC1155") {
     snapshot = await readOnchainListingSnapshot({
       collection: collectionAddress,
       standard: collectionRow.standard,

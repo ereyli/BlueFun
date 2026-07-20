@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { createPublicClient, fallback, getAddress, http, isAddress } from "viem";
 import { baseChain } from "@/lib/base-chain";
-import { isKnownNFTMarketplace, nftMarketplaceAbi, nftPFPMarketplaceAbi } from "@/lib/nft-contracts";
+import { isKnownNFTMarketplace, nftAddresses, nftMarketplaceAbi, nftPFPMarketplaceAbi } from "@/lib/nft-contracts";
 import { baseRpcUrls } from "@/lib/rpc";
 
 const dashboardClient = createPublicClient({
@@ -19,6 +19,14 @@ export async function GET(request: Request) {
 
   const wallet = getAddress(walletValue).toLowerCase();
   const db = createClient(supabaseUrl, supabaseKey, { auth: { persistSession: false } });
+  const allowedResult = await db.from("nft_collections").select("collection").eq("chain_id", 8453)
+    .in("factory", [nftAddresses.collectionFactory.toLowerCase(), nftAddresses.pfpFactory.toLowerCase()])
+    .limit(10_000);
+  const allowedCollections = (allowedResult.data || []).map((row) => String(row.collection).toLowerCase());
+  if (!allowedCollections.length) {
+    return NextResponse.json({ created: [], owned: [], listings: [], activity: [], indexingReady: !allowedResult.error });
+  }
+  const allowedSet = new Set(allowedCollections);
   const [createdResult, balancesResult, listingsResult, mintsResult, transfersResult] = await Promise.all([
     db.from("nft_collections").select("collection,factory,name,symbol,standard,initial_max_supply,created_at").eq("chain_id", 8453).eq("creator", wallet).order("created_at", { ascending: false }),
     db.from("nft_balances").select("collection,token_id,balance,updated_at").eq("chain_id", 8453).eq("owner", wallet).gt("balance", 0).order("updated_at", { ascending: false }),
@@ -26,11 +34,18 @@ export async function GET(request: Request) {
     db.from("nft_mints").select("collection,token_id,quantity,gross_amount,tx_hash,created_at").eq("chain_id", 8453).or(`payer.eq.${wallet},recipient.eq.${wallet}`).order("created_at", { ascending: false }).limit(50),
     db.from("nft_transfers").select("collection,token_id,from_wallet,to_wallet,quantity,tx_hash,created_at").eq("chain_id", 8453).or(`from_wallet.eq.${wallet},to_wallet.eq.${wallet}`).order("created_at", { ascending: false }).limit(50)
   ]);
+  const onlyAllowed = <T extends { collection: unknown }>(rows: T[] | null) =>
+    (rows || []).filter((row) => allowedSet.has(String(row.collection).toLowerCase()));
+  const createdRows = onlyAllowed(createdResult.data);
+  const balanceRows = onlyAllowed(balancesResult.data);
+  const listingRows = onlyAllowed(listingsResult.data);
+  const mintRows = onlyAllowed(mintsResult.data);
+  const transferRows = onlyAllowed(transfersResult.data);
 
   const indexingReady = !balancesResult.error;
   const collections = new Set<string>();
-  for (const row of balancesResult.data || []) collections.add(String(row.collection));
-  for (const row of listingsResult.data || []) collections.add(String(row.collection));
+  for (const row of balanceRows) collections.add(String(row.collection));
+  for (const row of listingRows) collections.add(String(row.collection));
   const collectionResult = collections.size
     ? await db.from("nft_collections").select("collection,factory,name,symbol,standard").eq("chain_id", 8453).in("collection", [...collections])
     : { data: [], error: null };
@@ -39,15 +54,15 @@ export async function GET(request: Request) {
     : { data: [], error: null };
   const names = new Map((collectionResult.data || []).map((row) => [String(row.collection).toLowerCase(), row]));
   const itemMetadata = new Map((itemResult.data || []).map((row) => [`${String(row.collection).toLowerCase()}:${String(row.token_id)}`, String(row.metadata_uri || "")]));
-  const listings = await reconcileListings(listingsResult.data || [], names, wallet);
+  const listings = await reconcileListings(listingRows, names, wallet);
 
   return NextResponse.json({
-    created: createdResult.data || [],
-    owned: (balancesResult.data || []).map((row) => ({ ...row, metadataUri: itemMetadata.get(`${String(row.collection).toLowerCase()}:${String(row.token_id)}`) || "", collectionInfo: names.get(String(row.collection).toLowerCase()) || null })),
+    created: createdRows,
+    owned: balanceRows.map((row) => ({ ...row, metadataUri: itemMetadata.get(`${String(row.collection).toLowerCase()}:${String(row.token_id)}`) || "", collectionInfo: names.get(String(row.collection).toLowerCase()) || null })),
     listings,
     activity: [
-      ...(mintsResult.data || []).map((row) => ({ ...row, type: "mint", counterparty: null })),
-      ...(transfersResult.data || []).filter((row) => row.from_wallet !== "0x0000000000000000000000000000000000000000").map((row) => ({ ...row, type: row.to_wallet === wallet ? "received" : "sent", counterparty: row.to_wallet === wallet ? row.from_wallet : row.to_wallet }))
+      ...mintRows.map((row) => ({ ...row, type: "mint", counterparty: null })),
+      ...transferRows.filter((row) => row.from_wallet !== "0x0000000000000000000000000000000000000000").map((row) => ({ ...row, type: row.to_wallet === wallet ? "received" : "sent", counterparty: row.to_wallet === wallet ? row.from_wallet : row.to_wallet }))
     ].sort((a, b) => new Date(String(b.created_at)).getTime() - new Date(String(a.created_at)).getTime()).slice(0, 100),
     indexingReady,
     errors: [createdResult.error?.message, balancesResult.error?.message, listingsResult.error?.message, mintsResult.error?.message, transfersResult.error?.message, itemResult.error?.message].filter(Boolean)

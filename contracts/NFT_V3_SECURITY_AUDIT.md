@@ -198,8 +198,8 @@ legacy balances live at the old contract addresses.
 
 Forced ETH also cannot be assigned to these zero mappings and remains unrecoverable.
 
-Required remediation: remove dead pull-payment state/functions from V3. Preserve legacy support in a separate ABI and
-UI route pointed at V1/V2 addresses.
+Required remediation: remove dead pull-payment state/functions from V3. Superseded V1/V2 deployments must not be
+referenced by the active UI, API or indexer configuration.
 
 Relevant code: `BlueDropController.sol:88-89,232-250`, `BlueNFTMarketplace.sol:44-50,160-176`,
 `BlueNFTMarketplace721.sol:41-46,115-131`.

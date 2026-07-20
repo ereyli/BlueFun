@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { getAddress, isAddress } from "viem";
+import { nftAddresses } from "@/lib/nft-contracts";
 
 export async function GET(request: Request) {
   const value = new URL(request.url).searchParams.get("collection") || "";
@@ -11,6 +12,18 @@ export async function GET(request: Request) {
   if (!supabaseUrl || !supabaseKey) return NextResponse.json(empty);
   const collection = getAddress(value).toLowerCase();
   const db = createClient(supabaseUrl, supabaseKey, { auth: { persistSession: false } });
+  const { data: indexedCollection, error: collectionError } = await db.from("nft_collections")
+    .select("factory")
+    .eq("chain_id", 8453)
+    .eq("collection", collection)
+    .maybeSingle();
+  const currentFactories = new Set([
+    nftAddresses.collectionFactory.toLowerCase(),
+    nftAddresses.pfpFactory.toLowerCase()
+  ]);
+  if (collectionError || !indexedCollection || !currentFactories.has(String(indexedCollection.factory).toLowerCase())) {
+    return NextResponse.json(empty, { status: indexedCollection ? 404 : 200 });
+  }
   const now = Math.floor(Date.now() / 1000);
   const [mints, listings, transfers, ownerCount] = await Promise.all([
     db.from("nft_mints").select("token_id,recipient,quantity,gross_amount,tx_hash,log_index,created_at").eq("chain_id", 8453).eq("collection", collection).order("created_at", { ascending: false }).limit(50),

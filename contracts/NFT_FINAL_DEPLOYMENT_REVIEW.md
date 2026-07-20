@@ -27,14 +27,14 @@ maker. V3 adds an explicit minimum-proceeds acceptance path so the seller can bi
 2. Deploy with the designated Safe as `NFT_ADMIN`, guardian and platform payout wallet, plus canonical Base WETH. This
    intentionally centralizes operations in one Safe so pause, recovery and revenue management use the same treasury.
 3. Verify every source and constructor argument on Base explorers.
-4. Set the reviewed V3 addresses and protocol-version flag atomically. V3 ABI paths are already feature-gated;
-   preserve read/claim support for V1/V2 contracts.
+4. Set the reviewed V3 addresses and protocol-version flag atomically. The production application and indexer must
+   reject every superseded NFT factory, marketplace and offer address.
 5. Re-check the feature-gated scheduled-reveal flow: securely back up the URI and random 32-byte secret, submit the
    salted commitment at creation, and provide both values only at execution.
 6. Re-check the feature-gated `acceptOfferWithMinProceeds` flow and display gross, platform fee, royalty and seller
    net before signing.
 7. Update the indexer for `AutomaticPayout`, V3 factories, new marketplaces and committed reveal events.
-8. Give V1/V2 users a permanent legacy claim page. Existing pending balances cannot be reassigned by V3.
+8. Confirm that no superseded NFT deployment is exposed through production routes or indexing scopes.
 9. Use a dedicated production RPC, redundant event ingestion, reorg handling and monitoring before public traffic.
 10. Run a small-value mainnet smoke sequence: collection creation, paid/free mint, listing, purchase, WETH offer,
     royalty payout, rejecting-ETH smart-wallet fallback, cancellation, reveal commitment and emergency pause.

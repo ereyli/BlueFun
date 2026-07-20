@@ -4,7 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { BadgeCheck, Check, Clock3, Coins, Loader2, ShieldCheck, Tag, WalletCards, X } from "lucide-react";
 import { formatEther, maxUint256, parseEther, zeroAddress, type Address, type Hex } from "viem";
 import { useAccount, usePublicClient, useReadContract, useSignTypedData, useWriteContract } from "wagmi";
-import { blueEditionAbi, bluePFPAbi, legacyNftAddresses, nftAddresses, nftCollectionFactoryAbi, nftFeePolicyAbi, nftOffersAbi, nftOffersEnabled, nftPFPFactoryAbi, nftProtocolVersion, v2NftAddresses, wethOffersAbi } from "@/lib/nft-contracts";
+import { blueEditionAbi, bluePFPAbi, nftAddresses, nftCollectionFactoryAbi, nftFeePolicyAbi, nftOffersAbi, nftOffersEnabled, nftPFPFactoryAbi, nftProtocolVersion, wethOffersAbi } from "@/lib/nft-contracts";
 import { nftOfferDomainFor, nftOfferTypes, serializeNFTOffer, type NFTOffer } from "@/lib/nft-offers";
 
 type OfferRow = NFTOffer & { offersContract: Address; offerHash: Hex; signature: Hex; filledQuantity: bigint; remainingQuantity: bigint; createdAt: string };
@@ -25,16 +25,13 @@ export function NFTOffersPanel({ collection, tokenId, standard, ownsItem = false
   const gross = parsedPrice * parsedQuantity;
   const currentEdition = useReadContract({ address: nftAddresses.collectionFactory, abi: nftCollectionFactoryAbi, functionName: "isBlueFunCollection", args: [collection], chainId: 8453, query: { enabled: standard === "ERC1155" } });
   const currentPFP = useReadContract({ address: nftAddresses.pfpFactory, abi: nftPFPFactoryAbi, functionName: "isBlueFunCollection", args: [collection], chainId: 8453, query: { enabled: standard === "ERC721" } });
-  const v2Edition = useReadContract({ address: v2NftAddresses.collectionFactory, abi: nftCollectionFactoryAbi, functionName: "isBlueFunCollection", args: [collection], chainId: 8453, query: { enabled: standard === "ERC1155" } });
-  const v2PFP = useReadContract({ address: v2NftAddresses.pfpFactory, abi: nftPFPFactoryAbi, functionName: "isBlueFunCollection", args: [collection], chainId: 8453, query: { enabled: standard === "ERC721" } });
   const registryResult = standard === "ERC721" ? currentPFP.data : currentEdition.data;
-  const v2RegistryResult = standard === "ERC721" ? v2PFP.data : v2Edition.data;
-  const offersAddress = registryResult === true ? nftAddresses.offers : v2RegistryResult === true ? v2NftAddresses.offers : legacyNftAddresses.offers;
+  const offersAddress = nftAddresses.offers;
   const wethBalance = useReadContract({ address: nftAddresses.weth, abi: wethOffersAbi, functionName: "balanceOf", args: [address!], chainId: 8453, query: { enabled: Boolean(address) && nftOffersEnabled } });
   const wethAllowance = useReadContract({ address: nftAddresses.weth, abi: wethOffersAbi, functionName: "allowance", args: [address!, offersAddress], chainId: 8453, query: { enabled: Boolean(address) && nftOffersEnabled } });
   const pfpApproval = useReadContract({ address: collection, abi: bluePFPAbi, functionName: "getApproved", args: [tokenId || 0n], chainId: 8453, query: { enabled: standard === "ERC721" && Boolean(address) && Boolean(tokenId) && nftOffersEnabled } });
   const editionApproval = useReadContract({ address: collection, abi: blueEditionAbi, functionName: "isApprovedForAll", args: [address!, offersAddress], chainId: 8453, query: { enabled: standard === "ERC1155" && Boolean(address) && nftOffersEnabled } });
-  const canCreate = isConnected && !(mode === "item" && ownsItem) && parsedPrice > 0n && parsedQuantity > 0n && !isWriting && !isSigning;
+  const canCreate = isConnected && registryResult === true && !(mode === "item" && ownsItem) && parsedPrice > 0n && parsedQuantity > 0n && !isWriting && !isSigning;
 
   const loadOffers = useCallback(async () => {
     setLoading(true);

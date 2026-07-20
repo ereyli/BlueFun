@@ -188,33 +188,7 @@ export const nftDeployment: NFTIndexerDeployment | undefined =
       }
     : undefined;
 
-const nftV2Deployment: NFTIndexerDeployment | undefined = !robinhood ? {
-  collectionFactory: (process.env.NFT_V2_COLLECTION_FACTORY || "0x38d3a8ee94f49ddeb7ba5c0f202e1aaf4b07c63a") as `0x${string}`,
-  dropController: (process.env.NFT_V2_DROP_CONTROLLER || "0xa799002045291b4c88db11d35f476f532ea012cb") as `0x${string}`,
-  marketplace: (process.env.NFT_V2_MARKETPLACE || "0x79509ab5348ecc30616ce7a8460d014cfee5737b") as `0x${string}`,
-  pfpFactory: (process.env.NFT_V2_PFP_FACTORY || "0x5c1796111e6e57d0d13555da1cdb2b1a98005732") as `0x${string}`,
-  pfpMarketplace: (process.env.NFT_V2_PFP_MARKETPLACE || "0x22c0b3344af12de3a5f6315663af2c9b9042e9f8") as `0x${string}`,
-  pfpStartBlock: BigInt(process.env.NFT_V2_DEPLOYMENT_BLOCK || "48813200"),
-  offers: (process.env.NFT_V2_OFFERS || "0x58b7e9f6c980800754cde5c9458e2ec42ebeb0ca") as `0x${string}`,
-  offersStartBlock: BigInt(process.env.NFT_V2_DEPLOYMENT_BLOCK || "48813200"),
-  startBlock: BigInt(process.env.NFT_V2_DEPLOYMENT_BLOCK || "48813200"),
-  scope: `${chainId}:nft-v2:${(process.env.NFT_V2_COLLECTION_FACTORY || "0x38d3a8ee94f49ddeb7ba5c0f202e1aaf4b07c63a").toLowerCase()}:${process.env.NFT_V2_DEPLOYMENT_BLOCK || "48813200"}`
-} : undefined;
-
-const nftLegacyDeployment: NFTIndexerDeployment | undefined = !robinhood ? {
-  collectionFactory: "0x342F90f22fBd5f7D680d3d84Ce121BDA995F6F4D",
-  dropController: "0xb129417fFc25b5A8e918Cb63E6f45a605905C0aC",
-  marketplace: "0xf08f44AC84632c7E3dF2E63804fB8eECb4B346bb",
-  pfpFactory: "0x7A43a7e57481816cdCF534b2A0ee56940Bb8F416",
-  pfpMarketplace: "0xd16eF0dcf1e7b430d38Fe2E26eCFc73f099f25d0",
-  pfpStartBlock: 48769759n,
-  offers: "0x5BDb354b162dF83392cf852A86B31194C1d3906f",
-  offersStartBlock: 48801786n,
-  startBlock: 48766938n,
-  scope: `${chainId}:nft-legacy:0x342f90f22fbd5f7d680d3d84ce121bda995f6f4d:48766938`
-} : undefined;
-
-export const nftDeployments = [nftDeployment, nftV2Deployment, nftLegacyDeployment]
+export const nftDeployments = [nftDeployment]
   .filter((deployment): deployment is NFTIndexerDeployment => Boolean(deployment));
 
 export const chainDefinition = defineChain({

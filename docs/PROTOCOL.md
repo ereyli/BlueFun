@@ -398,7 +398,8 @@ Before changing economics or deploying another generation:
 12. Confirm new launches use the new generation while historical tokens still load and trade through their original generation.
 13. Update the reviewed date and live evidence in this document.
 
-Do not remove a legacy contract from web or indexer catalogs merely because it is no longer used for new creation. Removal requires proof that no production token depends on that deployment.
+The NFT launchpad is intentionally V3-only. Web and indexer catalogs reject superseded NFT factories and markets;
+historical contracts remain visible only through their public chain history.
 
 ## 16. Release commands
 

@@ -6,7 +6,7 @@ BlueFun supports PFP drops as a parallel module rather than changing the deploye
 
 - `BluePFP721`: creator-owned sequential ERC-721 minting, ERC-2981 royalties, ERC-4906 metadata refresh events, provenance commitment, delayed or instant reveal, optional permanent metadata freeze, burn support, two-step ownership transfer and optional transfer validation.
 - `NFTPFPFactory`: permissionless CREATE2 deployment using the existing configurable collection launch fee and the existing `BlueDropController`.
-- `BlueNFTMarketplace721`: non-custodial fixed-price PFP listings using the existing marketplace fee policy and pull-payment accounting.
+- `BlueNFTMarketplace721`: non-custodial fixed-price PFP listings with automatic seller, royalty and platform settlement.
 
 The creator studio accepts a folder or ZIP containing up to 10,000 PNG/JPG/GIF/WEBP assets plus one of:
 
@@ -17,16 +17,19 @@ The creator studio accepts a folder or ZIP containing up to 10,000 PNG/JPG/GIF/W
 
 Media and normalized metadata are pinned as separate IPFS directories. Delayed reveal stores only the placeholder URI and provenance hash at deployment; the metadata base URI is published later by the creator. The generated reveal manifest must therefore be kept safely until reveal.
 
-Status: deployed to Base mainnet on 2026-07-18 from block `48766938`. All four core contracts are source-verified on Blockscout. An independent external audit is still recommended before broad public promotion.
+Status: V3 deployed to Base mainnet on 2026-07-20 from block `48879542`. V3 is the only deployment used by the
+web application and indexer. All contracts are source-verified on BaseScan.
 
 ## Base mainnet deployment
 
-- Platform wallet: `0x6d5C7C444d130554Ab195F1D64c3b6D054BF19F8`
-- Fee policy: [`0x453d7086FAe834B573bf129C2D64Fb50ad0c4c2D`](https://base.blockscout.com/address/0x453d7086fae834b573bf129c2d64fb50ad0c4c2d)
-- Drop controller: [`0xb129417fFc25b5A8e918Cb63E6f45a605905C0aC`](https://base.blockscout.com/address/0xb129417ffc25b5a8e918cb63e6f45a605905c0ac)
-- Collection factory: [`0x342F90f22fBd5f7D680d3d84Ce121BDA995F6F4D`](https://base.blockscout.com/address/0x342f90f22fbd5f7d680d3d84ce121bda995f6f4d)
-- Marketplace: [`0xf08f44AC84632c7E3dF2E63804fB8eECb4B346bb`](https://base.blockscout.com/address/0xf08f44ac84632c7e3df2e63804fb8eecb4b346bb)
-- WETH offers: [`0x5BDb354b162dF83392cf852A86B31194C1d3906f`](https://base.blockscout.com/address/0x5bdb354b162df83392cf852a86b31194c1d3906f), deployed at block `48801786` and source-verified.
+- Admin, guardian and platform revenue Safe: `0x144A3f70C0bf33124852E3891011e033b909F46d`
+- Fee policy: [`0xde97ac7497b9b6c75dec228a5c28501cbf627aac`](https://basescan.org/address/0xde97ac7497b9b6c75dec228a5c28501cbf627aac)
+- Drop controller: [`0xf65bdf38fc7e47a4750564853f55f9d6760a7767`](https://basescan.org/address/0xf65bdf38fc7e47a4750564853f55f9d6760a7767)
+- ERC-1155 factory: [`0xdcb1ac13fede90e7fdcaeb419a1803b2473cf0b3`](https://basescan.org/address/0xdcb1ac13fede90e7fdcaeb419a1803b2473cf0b3)
+- ERC-721 factory: [`0xb0c5f7b8372a9c85c449aff8dfd1b833186046a2`](https://basescan.org/address/0xb0c5f7b8372a9c85c449aff8dfd1b833186046a2)
+- ERC-1155 marketplace: [`0x0b68d3ae48d8f1880cc79aa8190f41516dbde5dc`](https://basescan.org/address/0x0b68d3ae48d8f1880cc79aa8190f41516dbde5dc)
+- ERC-721 marketplace: [`0x6420b1c74029927df9ba552445094e15788ba76c`](https://basescan.org/address/0x6420b1c74029927df9ba552445094e15788ba76c)
+- WETH offers: [`0x72db1ef886b1880c89cbe54caa48aa6b6ddf932e`](https://basescan.org/address/0x72db1ef886b1880c89cbe54caa48aa6b6ddf932e)
 
 ## Product rules
 
@@ -38,7 +41,8 @@ Status: deployed to Base mainnet on 2026-07-18 from block `48766938`. All four c
 - BlueFun secondary market: `0.8%` platform fee plus the creator's ERC-2981 royalty (maximum 10%).
 - Signed offers: item and collection bids are denominated in canonical Base WETH. Signing is gasless and non-custodial; WETH moves atomically only when an owner accepts. The same `0.8%` secondary fee and ERC-2981 royalty rules apply.
 - Mint access: public, Merkle allowlist, or allowlist followed by public. Each phase supports time bounds, phase supply cap, per-wallet limit, max per transaction and per-wallet allowlist price/allowance.
-- Creator, royalty and seller revenue is pull-based. NFT platform revenue is sent directly to the deployment wallet; no separate revenue router is used.
+- Creator, royalty, seller and platform revenue is distributed automatically during the mint, sale or offer fill.
+  Recipients that reject native ETH receive canonical Base WETH instead.
 
 The secondary fee tracks OpenSea's documented 1% NFT marketplace fee at a 20% discount. Primary mint intentionally uses a much lower 2% creator-friendly rate rather than tracking OpenSea's documented 10% primary-drop fee. OpenSea documents public/presale stages with price, duration and wallet limits. It also documents `contractURI`, `ContractURIUpdated`, and ERC-173 contract ownership for collection attribution.
 
@@ -80,10 +84,9 @@ Canonical Base WETH is `0x4200000000000000000000000000000000000006`. The offers 
 
 ## Creator self-service
 
-The connected-wallet dashboard at `/nft/dashboard` is the operational control surface for both legacy and V2 collections:
+The connected-wallet dashboard at `/nft/dashboard` is the operational control surface for V3 collections:
 
-- claim primary mint revenue from the collection's deployment-specific drop controller;
-- claim seller proceeds and ERC-2981 royalties from all four Base fixed-price marketplaces;
+- monitor automatic primary mint, seller and ERC-2981 royalty payouts;
 - create, edit queued, or cancel queued/active public and allowlist mint phases;
 - airdrop creator reserve and release unused reserve into public supply;
 - update the primary payout wallet, royalty recipient/rate, contract metadata and two-step collection ownership;

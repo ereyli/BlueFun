@@ -39,25 +39,24 @@ Current guardians:
 
 - Base timelock and staking vault: `0xd5bc4D80797ddAEBd91282659Eb79ABaf659B47C`
 - Robinhood timelock: `0x9d5f55a644eF0eB9FF82dbd14Dd0471de3ff5bfb`
-- NFT policy: becomes the Safe when the NFT activation batch is executed
+- NFT V3 policy: `0x144A3f70C0bf33124852E3891011e033b909F46d`
 
-## NFT V2: no redeployment required
+## NFT V3 production deployment
 
-The active Base NFT V2 contracts all resolve the same mutable fee policy:
-`0x453d7086FAe834B573bf129C2D64Fb50ad0c4c2D`.
+Only the Base NFT V3 deployment is used by the application and indexer.
 
 | Component | Address |
 | --- | --- |
-| Drop controller | `0xa799002045291b4c88db11d35f476f532ea012cb` |
-| Edition factory | `0x38d3a8ee94f49ddeb7ba5c0f202e1aaf4b07c63a` |
-| PFP factory | `0x5c1796111e6e57d0d13555da1cdb2b1a98005732` |
-| Edition marketplace | `0x79509ab5348ecc30616ce7a8460d014cfee5737b` |
-| PFP marketplace | `0x22c0b3344af12de3a5f6315663af2c9b9042e9f8` |
-| Offers | `0x58b7e9f6c980800754cde5c9458e2ec42ebeb0ca` |
+| Fee policy | `0xde97ac7497b9b6c75dec228a5c28501cbf627aac` |
+| Drop controller | `0xf65bdf38fc7e47a4750564853f55f9d6760a7767` |
+| Edition factory | `0xdcb1ac13fede90e7fdcaeb419a1803b2473cf0b3` |
+| PFP factory | `0xb0c5f7b8372a9c85c449aff8dfd1b833186046a2` |
+| Edition marketplace | `0x0b68d3ae48d8f1880cc79aa8190f41516dbde5dc` |
+| PFP marketplace | `0x6420b1c74029927df9ba552445094e15788ba76c` |
+| Offers | `0x72db1ef886b1880c89cbe54caa48aa6b6ddf932e` |
 
-The factories and trading contracts read `platformWallet`, fees and pause state
-from that policy at execution time. They do not embed the old revenue wallet as
-an immutable destination. Existing creator collections also remain valid.
+The factory and trading contracts read the Safe-controlled platform wallet, fees
+and pause state from the V3 policy at execution time.
 
 Verified policy state after activation:
 

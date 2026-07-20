@@ -95,6 +95,7 @@ async function loadIndexedCollections(limit: number): Promise<NFTCollectionSumma
     const collectionsResponse = await supabase.from("nft_collections")
       .select("collection_id,collection,creator,factory,name,symbol,standard,contract_uri,initial_max_supply,royalty_bps,created_block")
       .eq("chain_id", 8453)
+      .in("factory", [nftAddresses.collectionFactory.toLowerCase(), nftAddresses.pfpFactory.toLowerCase()])
       .order("created_block", { ascending: false })
       .limit(limit);
     if (collectionsResponse.error) throw collectionsResponse.error;

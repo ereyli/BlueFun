@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { getAddress, isAddress } from "viem";
+import { nftAddresses } from "@/lib/nft-contracts";
 
 export async function GET(request: Request) {
   const value = new URL(request.url).searchParams.get("address") || "";
@@ -16,5 +17,12 @@ export async function GET(request: Request) {
     .maybeSingle();
   if (error) return NextResponse.json({ error: "Collection lookup failed." }, { status: 500 });
   if (!data) return NextResponse.json({ error: "This is not an indexed BlueFun collection." }, { status: 404 });
+  const currentFactories = new Set([
+    nftAddresses.collectionFactory.toLowerCase(),
+    nftAddresses.pfpFactory.toLowerCase()
+  ]);
+  if (!currentFactories.has(String(data.factory).toLowerCase())) {
+    return NextResponse.json({ error: "This collection is not part of the current BlueFun NFT deployment." }, { status: 404 });
+  }
   return NextResponse.json({ collection: data }, { headers: { "cache-control": "public, max-age=15" } });
 }
