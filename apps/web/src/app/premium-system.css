@@ -1869,3 +1869,281 @@ html[data-theme="dark"] .launch-success-modal { background: #0b0b0d; border-colo
 @keyframes launch-result-backdrop { from { opacity: 0; } }
 @keyframes launch-result-enter { from { opacity: 0; transform: translateY(16px) scale(.98); } }
 @media (prefers-reduced-motion: reduce) { .launch-success-backdrop,.launch-success-modal { animation: none; } }
+
+/* Unified swap terminal: clear asset flow, compact controls, one execution action */
+.swap-terminal {
+  overflow: visible;
+}
+.swap-terminal .trade-card-toolbar {
+  align-items: center;
+  display: flex;
+  justify-content: space-between;
+  min-height: 42px;
+  padding: 2px 2px 9px;
+}
+.swap-terminal .trade-card-toolbar > div {
+  display: grid;
+  gap: 1px;
+}
+.swap-terminal .trade-card-toolbar > div > strong {
+  font-size: 18px;
+  letter-spacing: -.035em;
+}
+.swap-terminal .trade-card-toolbar > div > span {
+  color: var(--muted);
+  font-size: 9px;
+  letter-spacing: .05em;
+  text-transform: uppercase;
+}
+.swap-settings-trigger {
+  align-items: center;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  color: var(--muted);
+  display: inline-flex;
+  font-size: 11px;
+  font-weight: 800;
+  gap: 7px;
+  min-height: 34px;
+  padding: 0 8px;
+}
+.swap-settings-trigger:hover,
+.swap-settings-trigger.active {
+  background: #f2f5fa;
+  border-color: var(--line);
+  color: var(--text);
+}
+.swap-terminal .trade-tabs-top {
+  border-radius: 13px;
+  margin: 0 0 3px;
+  padding: 4px;
+}
+.swap-terminal .trade-tabs-top button {
+  border-radius: 10px;
+  font-size: 12px;
+  min-height: 42px;
+}
+.swap-asset-stack {
+  display: grid;
+  margin-top: 2px;
+  position: relative;
+}
+.swap-asset-panel {
+  background: #f7f9fc;
+  border: 1px solid #dfe5ee;
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  padding: 13px;
+  transition: border-color 160ms ease, background 160ms ease;
+}
+.swap-asset-panel:focus-within {
+  background: #fbfcff;
+  border-color: #aebfe8;
+}
+.swap-pay-panel { border-radius: 14px 14px 8px 8px; padding-bottom: 19px; }
+.swap-receive-panel { border-radius: 8px 8px 14px 14px; padding-top: 19px; }
+.swap-panel-label {
+  align-items: center;
+  color: #788499;
+  display: flex;
+  font-size: 11px;
+  font-weight: 750;
+  justify-content: space-between;
+  min-height: 20px;
+}
+.swap-panel-label .balance-button {
+  color: #68758c;
+  font-size: 9px;
+  max-width: 58%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.swap-asset-main {
+  align-items: center;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(0,1fr) auto;
+  min-height: 58px;
+  min-width: 0;
+}
+.swap-amount-input,
+.swap-quote-value {
+  background: transparent;
+  border: 0;
+  color: var(--text);
+  font: inherit;
+  font-size: clamp(27px, 3vw, 36px);
+  font-weight: 780;
+  letter-spacing: -.045em;
+  line-height: 1;
+  min-width: 0;
+  outline: 0;
+  overflow: hidden;
+  padding: 0;
+  text-overflow: ellipsis;
+  width: 100%;
+}
+.swap-amount-input::placeholder { color: #a8b0be; }
+.swap-quote-value {
+  display: block;
+  white-space: nowrap;
+}
+.swap-token-pill {
+  align-items: center;
+  background: #fff;
+  border: 1px solid #e0e5ed;
+  border-radius: 999px;
+  box-shadow: 0 2px 8px rgba(16,24,40,.045);
+  display: inline-flex;
+  flex: 0 0 auto;
+  gap: 8px;
+  max-width: 142px;
+  min-height: 48px;
+  padding: 5px 10px 5px 6px;
+}
+.swap-token-icon {
+  align-items: center;
+  background: #e9efff;
+  border: 1px solid #d4def4;
+  border-radius: 50%;
+  color: #2859d9;
+  display: flex;
+  flex: 0 0 auto;
+  font-size: 8px;
+  font-weight: 900;
+  height: 36px;
+  justify-content: center;
+  object-fit: cover;
+  overflow: hidden;
+  width: 36px;
+}
+.swap-token-icon.native { background: transparent; border: 0; }
+.swap-token-copy {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.swap-token-copy strong {
+  color: var(--text);
+  font-size: 12px;
+  line-height: 1;
+  max-width: 72px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.swap-token-copy small {
+  color: var(--muted);
+  font-size: 8px;
+  font-weight: 750;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.swap-direction-button {
+  align-items: center;
+  background: #fff;
+  border: 1px solid #d9e0eb;
+  border-radius: 10px;
+  box-shadow: 0 4px 12px rgba(16,24,40,.1);
+  color: #65728a;
+  display: flex;
+  height: 36px;
+  justify-content: center;
+  justify-self: center;
+  margin: -9px 0;
+  position: relative;
+  transform: rotate(90deg);
+  transition: transform 160ms ease, color 160ms ease, border-color 160ms ease;
+  width: 36px;
+  z-index: 2;
+}
+.swap-direction-button:hover {
+  border-color: #8fa7e6;
+  color: #2457f5;
+  transform: rotate(90deg) scale(1.05);
+}
+.swap-quick-row {
+  display: grid;
+  gap: 6px;
+  grid-template-columns: repeat(3,minmax(0,1fr));
+}
+.swap-quick-row.sell-grid { grid-template-columns: repeat(4,minmax(0,1fr)); }
+.swap-quick-row button {
+  background: #fff;
+  border: 1px solid #dfe5ee;
+  border-radius: 8px;
+  color: #5f6e86;
+  font-size: 10px;
+  font-weight: 820;
+  min-height: 30px;
+}
+.swap-quick-row button:hover { border-color: #9bb0e8; color: #2457f5; }
+.swap-detail-row {
+  align-items: center;
+  color: #7a8699;
+  display: flex;
+  font-size: 9px;
+  gap: 8px 13px;
+  justify-content: space-between;
+  min-width: 0;
+}
+.swap-detail-row span {
+  align-items: center;
+  display: flex;
+  gap: 5px;
+  min-width: 0;
+}
+.swap-detail-row b {
+  color: #45536a;
+  font-size: 9px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.swap-terminal .trade-settings-panel { margin: 2px 0 0; }
+.swap-terminal .trade-meta-line {
+  color: #7d899b;
+  font-size: 9px;
+  margin: 1px 0;
+}
+.swap-terminal .trade-submit {
+  border-radius: 12px !important;
+  font-size: 13px !important;
+  min-height: 50px !important;
+}
+.swap-terminal .trade-helper { font-size: 9px; line-height: 1.4; }
+
+html[data-theme="dark"] .swap-settings-trigger:hover,
+html[data-theme="dark"] .swap-settings-trigger.active { background: #17171b; border-color: #303038; }
+html[data-theme="dark"] .swap-asset-panel {
+  background: #0d0d10;
+  border-color: #292930;
+}
+html[data-theme="dark"] .swap-asset-panel:focus-within { background: #101014; border-color: #3c4b73; }
+html[data-theme="dark"] .swap-token-pill,
+html[data-theme="dark"] .swap-direction-button,
+html[data-theme="dark"] .swap-quick-row button {
+  background: #151519;
+  border-color: #303038;
+  box-shadow: none;
+}
+html[data-theme="dark"] .swap-token-icon { background: #18213a; border-color: #2b3d68; color: #9eb4ff; }
+html[data-theme="dark"] .swap-token-icon.native { background: transparent; border-color: transparent; }
+html[data-theme="dark"] .swap-quick-row button { color: #a5adba; }
+html[data-theme="dark"] .swap-quick-row button:hover { border-color: #5069a6; color: #b6c6ff; }
+html[data-theme="dark"] .swap-detail-row b { color: #c3c8d1; }
+
+@media (max-width: 560px) {
+  .swap-terminal .trade-card-toolbar > div > strong { font-size: 17px; }
+  .swap-asset-panel { gap: 9px; padding-inline: 11px; }
+  .swap-amount-input,
+  .swap-quote-value { font-size: 27px; }
+  .swap-token-pill { max-width: 126px; min-height: 44px; padding-right: 8px; }
+  .swap-token-icon { height: 32px; width: 32px; }
+  .swap-token-copy strong { font-size: 11px; max-width: 60px; }
+  .swap-detail-row { align-items: flex-start; flex-direction: column; gap: 5px; }
+}

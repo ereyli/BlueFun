@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 import { formatEther, maxUint256, parseEther, zeroAddress } from "viem";
 import { useAccount, useBalance, useChainId, useReadContract, useReadContracts, useSignMessage, useSignTypedData, useSimulateContract, useSwitchChain, useWaitForTransactionReceipt, useWriteContract } from "wagmi";
-import { ArrowDownUp, Copy, ExternalLink, Flame, Loader2, LockKeyhole, RotateCcw, Settings, ShieldCheck, Sparkles } from "lucide-react";
+import { ArrowDownUp, Copy, ExternalLink, Flame, Loader2, LockKeyhole, RotateCcw, Settings, ShieldCheck } from "lucide-react";
 import type {
   CandlestickData,
   HistogramData,
@@ -621,9 +621,13 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
             wrongNetwork={wrongNetwork}
           />
         ) : (
-          <section className="trade-card">
+          <section className="trade-card swap-terminal">
             <div className="trade-card-toolbar">
-              <div><strong>Trade</strong><span>BlueFun curve</span></div>
+              <div><strong>Swap</strong><span>BlueFun curve</span></div>
+              <button className={settingsOpen ? "swap-settings-trigger active" : "swap-settings-trigger"} onClick={() => setSettingsOpen((open) => !open)} type="button" aria-label="Trade settings">
+                <Settings size={17} />
+                <span>{Number(slippageBps) / 100}%</span>
+              </button>
             </div>
             <div className="form">
               <div className="trade-tabs trade-tabs-top" role="tablist" aria-label="Trade direction">
@@ -642,44 +646,39 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
                 </TradeStatus>
               ) : null}
               {chainSwitchError ? <TradeStatus tone="danger">{chainSwitchError}</TradeStatus> : null}
-              <div className="trade-amount-block">
-                <div className="trade-amount-head">
-                  <span>You pay</span>
-                  {mode === "sell" ? (
-                    <button className="balance-button" onClick={() => setSellPercent(100n)} type="button">
-                      {formatTokenBalance(sellBalance)} {launch.symbol}
-                    </button>
-                  ) : null}
+              <div className="swap-asset-stack">
+                <div className="swap-asset-panel swap-pay-panel">
+                  <div className="swap-panel-label">
+                    <span>{mode === "buy" ? "You pay" : "You sell"}</span>
+                    {mode === "sell" ? (
+                      <button className="balance-button" onClick={() => setSellPercent(100n)} type="button">
+                        Balance {formatTokenBalance(sellBalance)}
+                      </button>
+                    ) : null}
+                  </div>
+                  <div className="swap-asset-main">
+                    <input aria-label={mode === "buy" ? "ETH amount" : `${launch.symbol} amount`} className="swap-amount-input" inputMode="decimal" value={amount} onChange={(event) => setAmount(event.target.value)} />
+                    <SwapAssetPill chainId={activeChainId} launch={launch} native={mode === "buy"} />
+                  </div>
+                  <div className={mode === "buy" ? "swap-quick-row" : "swap-quick-row sell-grid"}>
+                    {mode === "buy" ? (
+                      <><button type="button" onClick={() => setAmount("0.01")}>0.01</button><button type="button" onClick={() => setAmount("0.05")}>0.05</button><button type="button" onClick={() => setAmount("0.1")}>0.1</button></>
+                    ) : (
+                      <><button type="button" onClick={() => setSellPercent(25n)}>25%</button><button type="button" onClick={() => setSellPercent(50n)}>50%</button><button type="button" onClick={() => setSellPercent(75n)}>75%</button><button type="button" onClick={() => setSellPercent(100n)}>Max</button></>
+                    )}
+                  </div>
                 </div>
-                <div className="trade-input-shell">
-                  <input aria-label={mode === "buy" ? "ETH amount" : `${launch.symbol} amount`} className="amount-input" inputMode="decimal" value={amount} onChange={(event) => setAmount(event.target.value)} />
-                  <strong>{mode === "buy" ? "ETH" : launch.symbol}</strong>
-                </div>
-              </div>
-              <div className="trade-quick-settings">
-                <div className={mode === "buy" ? "quick-grid" : "quick-grid sell-grid"}>
-                  {mode === "buy" ? (
-                    <><button type="button" onClick={() => setAmount("0.01")}>0.01</button><button type="button" onClick={() => setAmount("0.05")}>0.05</button><button type="button" onClick={() => setAmount("0.1")}>0.1</button></>
-                  ) : (
-                    <><button type="button" onClick={() => setSellPercent(25n)}>25%</button><button type="button" onClick={() => setSellPercent(50n)}>50%</button><button type="button" onClick={() => setSellPercent(75n)}>75%</button><button type="button" onClick={() => setSellPercent(100n)}>Max</button></>
-                  )}
-                </div>
-                <button className={settingsOpen ? "settings-button active" : "settings-button"} onClick={() => setSettingsOpen((open) => !open)} type="button" aria-label="Trade settings"><Settings size={16} /></button>
-              </div>
-              <div className="quote-box">
-                <div className="quote-head">
-                  <span>{quoteLoading ? "Updating quote" : "You receive"}</span>
-                </div>
-                <strong>{quotedOut ? formatQuote(quotedOut, mode === "buy" ? launch.symbol : "ETH") : "-"}</strong>
-                <div className="quote-breakdown">
-                  <span>
-                    <small>Minimum</small>
-                    <b>{minOut ? formatQuote(minOut, mode === "buy" ? launch.symbol : "ETH") : "-"}</b>
-                  </span>
-                  <span>
-                    <small>Impact</small>
-                    <b>{formatPercent(priceImpact)}</b>
-                  </span>
+                <button className="swap-direction-button" onClick={() => setMode(mode === "buy" ? "sell" : "buy")} type="button" aria-label="Reverse swap direction"><ArrowDownUp size={17} /></button>
+                <div className="swap-asset-panel swap-receive-panel">
+                  <div className="swap-panel-label"><span>{quoteLoading ? "Updating quote" : "You receive"}</span></div>
+                  <div className="swap-asset-main">
+                    <strong className="swap-quote-value">{quotedOut ? formatQuoteValue(quotedOut) : "-"}</strong>
+                    <SwapAssetPill chainId={activeChainId} launch={launch} native={mode === "sell"} />
+                  </div>
+                  <div className="swap-detail-row">
+                    <span>Minimum <b>{minOut ? formatQuote(minOut, mode === "buy" ? launch.symbol : "ETH") : "-"}</b></span>
+                    <span>Impact <b>{formatPercent(priceImpact)}</b></span>
+                  </div>
                 </div>
               </div>
               <div className="trade-meta-line"><span><NetworkIcon chainId={activeChainId} size={14} />{chain.name}</span><i />BlueFun curve<i />1% fee</div>
@@ -994,12 +993,13 @@ function GraduatedTradeCard({
 }) {
   const { chain, uniswapChainName } = contractsForChain(launch.chainId);
   return (
-    <section className="graduated-trade-card">
+    <section className="graduated-trade-card swap-terminal">
       <div className="trade-card-toolbar graduated-trade-toolbar">
-        <div className="graduated-badge">
-          <Sparkles size={16} />
-          {launch.launchMode === "direct" ? "Direct DEX" : "Graduated"}
-        </div>
+        <div><strong>Swap</strong><span>{launch.launchMode === "direct" ? "Direct Uniswap v4" : "Uniswap v4"}</span></div>
+        <button className={settingsOpen ? "swap-settings-trigger active" : "swap-settings-trigger"} onClick={() => setSettingsOpen((open) => !open)} type="button" aria-label="Trade settings">
+          <Settings size={17} />
+          <span>{Number(slippageBps) / 100}%</span>
+        </button>
       </div>
       <div className="form graduated-swap-form">
         <div className="trade-tabs trade-tabs-top" role="tablist" aria-label="Trade direction">
@@ -1021,53 +1021,39 @@ function GraduatedTradeCard({
           </TradeStatus>
         ) : null}
         {chainSwitchError ? <TradeStatus tone="danger">{chainSwitchError}</TradeStatus> : null}
-        <div className="trade-amount-block">
-          <div className="trade-amount-head">
-            <span>{mode === "buy" ? "You pay" : "You sell"}</span>
-            {mode === "sell" ? (
-              <button className="balance-button" onClick={() => setSellPercent(100n)} type="button">
-                {formatTokenBalance(sellBalance)} {launch.symbol}
-              </button>
-            ) : null}
+        <div className="swap-asset-stack">
+          <div className="swap-asset-panel swap-pay-panel">
+            <div className="swap-panel-label">
+              <span>{mode === "buy" ? "You pay" : "You sell"}</span>
+              {mode === "sell" ? (
+                <button className="balance-button" onClick={() => setSellPercent(100n)} type="button">
+                  Balance {formatTokenBalance(sellBalance)}
+                </button>
+              ) : null}
+            </div>
+            <div className="swap-asset-main">
+              <input aria-label={mode === "buy" ? "ETH amount" : `${launch.symbol} amount`} className="swap-amount-input" inputMode="decimal" value={amount} onChange={(event) => setAmount(event.target.value)} />
+              <SwapAssetPill chainId={launch.chainId} launch={launch} native={mode === "buy"} />
+            </div>
+            <div className={mode === "buy" ? "swap-quick-row" : "swap-quick-row sell-grid"}>
+              {mode === "buy" ? (
+                <><button type="button" onClick={() => setAmount("0.01")}>0.01</button><button type="button" onClick={() => setAmount("0.05")}>0.05</button><button type="button" onClick={() => setAmount("0.1")}>0.1</button></>
+              ) : (
+                <><button type="button" onClick={() => setSellPercent(25n)}>25%</button><button type="button" onClick={() => setSellPercent(50n)}>50%</button><button type="button" onClick={() => setSellPercent(75n)}>75%</button><button type="button" onClick={() => setSellPercent(100n)}>Max</button></>
+              )}
+            </div>
           </div>
-          <div className="trade-input-shell">
-            <input aria-label={mode === "buy" ? "ETH amount" : `${launch.symbol} amount`} className="amount-input" inputMode="decimal" value={amount} onChange={(event) => setAmount(event.target.value)} />
-            <strong>{mode === "buy" ? "ETH" : launch.symbol}</strong>
-          </div>
-        </div>
-        <div className="trade-quick-settings">
-          <div className={mode === "buy" ? "quick-grid" : "quick-grid sell-grid"}>
-            {mode === "buy" ? (
-              <>
-                <button type="button" onClick={() => setAmount("0.01")}>0.01</button>
-                <button type="button" onClick={() => setAmount("0.05")}>0.05</button>
-                <button type="button" onClick={() => setAmount("0.1")}>0.1</button>
-              </>
-            ) : (
-              <>
-                <button type="button" onClick={() => setSellPercent(25n)}>25%</button>
-                <button type="button" onClick={() => setSellPercent(50n)}>50%</button>
-                <button type="button" onClick={() => setSellPercent(75n)}>75%</button>
-                <button type="button" onClick={() => setSellPercent(100n)}>Max</button>
-              </>
-            )}
-          </div>
-          <button className={settingsOpen ? "settings-button active" : "settings-button"} onClick={() => setSettingsOpen((open) => !open)} type="button" aria-label="Trade settings"><Settings size={16} /></button>
-        </div>
-        <div className="quote-box">
-          <div className="quote-head">
-            <span>{quoteLoading ? "Quoting Uniswap v4..." : mode === "buy" ? "Estimated tokens" : "Estimated ETH"}</span>
-          </div>
-          <strong>{quote ? formatQuote(quote, mode === "buy" ? launch.symbol : "ETH") : "-"}</strong>
-          <div className="quote-breakdown">
-            <span>
-              <small>Min received</small>
-              <b>{minOut ? formatQuote(minOut, mode === "buy" ? launch.symbol : "ETH") : "-"}</b>
-            </span>
-            <span>
-              <small>Route</small>
-              <b>{quoteFromFallback ? "Indexed price" : "Uniswap v4"}</b>
-            </span>
+          <button className="swap-direction-button" onClick={() => setMode(mode === "buy" ? "sell" : "buy")} type="button" aria-label="Reverse swap direction"><ArrowDownUp size={17} /></button>
+          <div className="swap-asset-panel swap-receive-panel">
+            <div className="swap-panel-label"><span>{quoteLoading ? "Updating quote" : "You receive"}</span></div>
+            <div className="swap-asset-main">
+              <strong className="swap-quote-value">{quote ? formatQuoteValue(quote) : "-"}</strong>
+              <SwapAssetPill chainId={launch.chainId} launch={launch} native={mode === "sell"} />
+            </div>
+            <div className="swap-detail-row">
+              <span>Minimum <b>{minOut ? formatQuote(minOut, mode === "buy" ? launch.symbol : "ETH") : "-"}</b></span>
+              <span>Route <b>{quoteFromFallback ? "Indexed price" : "Uniswap v4"}</b></span>
+            </div>
           </div>
         </div>
         {settingsOpen ? (
@@ -1460,6 +1446,23 @@ function TokenAvatar({ launch, className }: { launch: DeployedLaunch; className:
   return <span className={className}>{launch.symbol.slice(0, 4)}</span>;
 }
 
+function SwapAssetPill({ chainId, launch, native }: { chainId: number; launch: DeployedLaunch; native: boolean }) {
+  const { chain } = contractsForChain(chainId);
+  return (
+    <span className="swap-token-pill">
+      {native ? (
+        <span className="swap-token-icon native"><NetworkIcon chainId={chainId} size={28} /></span>
+      ) : (
+        <TokenAvatar className="swap-token-icon" launch={launch} />
+      )}
+      <span className="swap-token-copy">
+        <strong>{native ? "ETH" : launch.symbol}</strong>
+        <small>{chain.name}</small>
+      </span>
+    </span>
+  );
+}
+
 function applySlippage(value: bigint, slippageBps: bigint) {
   return (value * (10_000n - slippageBps)) / 10_000n;
 }
@@ -1479,6 +1482,11 @@ function formatQuote(value: bigint, unit: string) {
   const [whole, fraction = ""] = formatEther(value).split(".");
   const trimmed = fraction.slice(0, 6).replace(/0+$/, "");
   return `${trimmed ? `${whole}.${trimmed}` : whole} ${unit}`;
+}
+
+function formatQuoteValue(value: bigint) {
+  const numeric = formatEther(value);
+  return compactTokenAmount(numeric);
 }
 
 function formatTokenInput(value: bigint) {
