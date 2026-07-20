@@ -26,3 +26,79 @@
 /* Active mint phase visibility */
 .nft-phase-runtime{background:var(--panel);border:1px solid var(--line);border-radius:10px;display:grid;grid-column:1/-1;grid-template-columns:repeat(3,minmax(0,1fr));overflow:hidden}.nft-phase-runtime>span{display:grid;gap:3px;min-width:0;padding:9px 10px}.nft-phase-runtime>span+span{border-left:1px solid var(--line)}.nft-phase-runtime small{color:var(--muted);font-size:6px;font-weight:900;letter-spacing:.1em}.nft-phase-runtime strong{font-size:8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.nft-phase-runtime>span:first-child strong{color:var(--blue)}
 @media(max-width:440px){.nft-phase-runtime{grid-template-columns:1fr 1fr}.nft-phase-runtime>span:first-child{grid-column:1/-1}.nft-phase-runtime>span:nth-child(2){border-left:0;border-top:1px solid var(--line)}.nft-phase-runtime>span:nth-child(3){border-top:1px solid var(--line)}}
+
+/* Compact collection trading workspace */
+.nft-drop-home{gap:10px;max-width:1440px}
+.nft-drop-home .nft-profile-shell{border-radius:14px;box-shadow:0 14px 38px rgba(4,12,30,.12)}
+.nft-drop-home .nft-profile-banner{align-items:stretch;gap:16px;grid-template-columns:minmax(0,1fr) minmax(350px,430px);min-height:0;padding:16px}
+.nft-drop-home .nft-profile-shell.mint-hidden .nft-profile-banner{grid-template-columns:1fr}
+.nft-profile-overview{align-content:center;display:grid;gap:12px;min-width:0;position:relative;z-index:1}
+.nft-drop-home .nft-profile-identity{align-items:center;gap:13px;grid-template-columns:72px minmax(0,1fr)}
+.nft-drop-home .nft-profile-avatar{border-width:2px;border-radius:12px;height:72px;width:72px}
+.nft-drop-home .nft-profile-title{gap:3px}
+.nft-drop-home .nft-profile-title h1{font-size:clamp(25px,2.45vw,36px);line-height:.96}
+.nft-drop-home .nft-profile-title>div{font-size:7px}
+.nft-drop-home .nft-profile-about{align-content:start;gap:8px;padding:0}
+.nft-drop-home .nft-profile-chips{gap:5px}
+.nft-drop-home .nft-profile-chips span{background:rgba(7,14,27,.72);border-color:rgba(255,255,255,.12);color:#9cacbf;font-size:6px;padding:5px 7px}
+.nft-drop-home .nft-profile-about>p{color:#9ba9bd;font-size:8px;line-height:1.45;max-width:760px}
+.nft-drop-home .nft-profile-links{gap:10px}
+.nft-drop-home .nft-profile-links a{color:#89a7ff;font-size:6px}
+.nft-drop-home .nft-profile-links code{color:#78889f;font-size:6px;margin-left:0}
+.nft-drop-home .nft-profile-mint{align-self:stretch;background:rgba(5,10,20,.82);border-color:rgba(255,255,255,.13);border-radius:11px;padding:4px;position:relative;z-index:1}
+.nft-drop-home .nft-profile-mint .nft-compact-mint{align-content:center;gap:8px;padding:10px}
+.nft-drop-home .nft-profile-mint .nft-compact-mint h2{font-size:15px}
+.nft-drop-home .nft-profile-mint .nft-phase-runtime>span{padding:7px 8px}
+.nft-drop-home .nft-profile-mint .nft-compact-mint .field input{min-height:34px}
+.nft-drop-home .nft-profile-mint .nft-mint-button{min-height:36px}
+.nft-drop-home .nft-profile-mint .nft-compact-note{font-size:6px}
+.nft-profile-marketbar{align-items:stretch;background:var(--panel);border-top:1px solid var(--line);display:grid;grid-template-columns:175px minmax(0,1fr);min-height:58px}
+.nft-profile-marketbar-title{align-content:center;border-right:1px solid var(--line);display:grid;gap:3px;padding:9px 16px}
+.nft-profile-marketbar-title small{color:var(--blue);font-size:6px;font-weight:900;letter-spacing:.11em}
+.nft-profile-marketbar-title strong{font-size:10px}
+.nft-profile-marketbar .nft-profile-stats{backdrop-filter:none;background:transparent;border:0;border-radius:0;display:grid;grid-template-columns:repeat(4,minmax(0,1fr));overflow:hidden}
+.nft-profile-marketbar .nft-profile-stats>div{align-content:center;border-left:1px solid var(--line)!important;border-top:0!important;gap:3px;padding:9px 14px}
+.nft-profile-marketbar .nft-profile-stats>div:first-child{border-left:0!important}
+.nft-profile-marketbar .nft-profile-stats small{color:var(--muted);font-size:6px}
+.nft-profile-marketbar .nft-profile-stats strong{color:var(--text);font-size:13px}
+.nft-drop-home .nft-collection-workspace{gap:8px}
+.nft-drop-home .nft-collection-workspace>nav{border-radius:11px;padding:4px}
+.nft-drop-home .nft-collection-workspace>nav button{border-radius:7px;font-size:8px;min-height:32px;padding:0 11px}
+.nft-drop-home .nft-marketplace-panel{border-radius:14px;gap:12px;padding:15px}
+.nft-drop-home .nft-marketplace-panel>header h2{font-size:19px}
+.nft-drop-home .nft-marketplace-panel>header p{font-size:8px}
+.nft-drop-home .nft-market-toolbar{gap:8px;padding:9px 0}
+.nft-drop-home .nft-market-toolbar input{min-height:34px}
+.nft-drop-home .nft-market-toolbar select{min-height:36px}
+.nft-drop-home .nft-market-status button{min-height:28px;padding:0 9px}
+.nft-drop-home .nft-market-items.grid{gap:8px;grid-template-columns:repeat(5,minmax(0,1fr))}
+.nft-drop-home .nft-market-items.grid .nft-item-card .nft-collection-body{gap:6px;padding:8px}
+.nft-drop-home .nft-market-items.grid .nft-item-card .nft-collection-body h3{font-size:12px}
+.nft-drop-home .nft-card-buy{min-height:39px;padding:7px 9px}
+.nft-drop-home .nft-card-buy small{font-size:6px}
+
+@media(max-width:1180px){
+  .nft-drop-home .nft-profile-banner{grid-template-columns:minmax(0,1fr) minmax(330px,390px)}
+  .nft-drop-home .nft-market-items.grid{grid-template-columns:repeat(4,minmax(0,1fr))}
+}
+@media(max-width:900px){
+  .nft-drop-home .nft-profile-banner{grid-template-columns:1fr;min-height:0}
+  .nft-drop-home .nft-profile-marketbar{grid-template-columns:1fr}
+  .nft-drop-home .nft-profile-marketbar-title{border-bottom:1px solid var(--line);border-right:0;display:flex;justify-content:space-between}
+  .nft-drop-home .nft-market-items.grid{grid-template-columns:repeat(3,minmax(0,1fr))}
+}
+@media(max-width:620px){
+  .nft-drop-home{gap:8px}
+  .nft-drop-home .nft-profile-banner{gap:12px;padding:12px}
+  .nft-drop-home .nft-profile-identity{grid-template-columns:60px minmax(0,1fr)}
+  .nft-drop-home .nft-profile-avatar{height:60px;width:60px}
+  .nft-drop-home .nft-profile-title h1{font-size:24px}
+  .nft-drop-home .nft-profile-about>p{display:-webkit-box;overflow:hidden;-webkit-box-orient:vertical;-webkit-line-clamp:2}
+  .nft-drop-home .nft-profile-links code{display:none}
+  .nft-drop-home .nft-profile-marketbar-title{display:none}
+  .nft-drop-home .nft-profile-marketbar .nft-profile-stats{grid-template-columns:1fr 1fr}
+  .nft-drop-home .nft-profile-marketbar .nft-profile-stats>div:nth-child(3){border-left:0!important;border-top:1px solid var(--line)!important}
+  .nft-drop-home .nft-profile-marketbar .nft-profile-stats>div:nth-child(4){border-top:1px solid var(--line)!important}
+  .nft-drop-home .nft-marketplace-panel{padding:11px}
+  .nft-drop-home .nft-market-items.grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
