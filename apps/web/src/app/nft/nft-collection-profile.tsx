@@ -88,7 +88,7 @@ function formatWei(value: string) {
   try { return formatNumber(Number(formatEther(BigInt(value)))); } catch { return "0"; }
 }
 function formatNumber(value: number) {
-  return value.toLocaleString("en-US", { maximumFractionDigits: 4 });
+  return value.toLocaleString("en-US", { maximumFractionDigits: 8 });
 }
 function safeSocialUrl(value?: string, allowedHosts?: string[]) {
   if (!value) return undefined;

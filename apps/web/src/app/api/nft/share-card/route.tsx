@@ -88,7 +88,7 @@ function ShareCardStat({ label, value }: { label: string; value: string }) {
 
 function formatWei(value: string) {
   try {
-    return Number(formatEther(BigInt(value))).toLocaleString("en-US", { maximumFractionDigits: 4 });
+    return Number(formatEther(BigInt(value))).toLocaleString("en-US", { maximumFractionDigits: 8 });
   } catch {
     return "0";
   }

@@ -44,5 +44,5 @@ function AnalyticsView({ summary }: { summary?: ActivityPayload["summary"] }) {
 function activityIcon(type: ActivityRow["type"]) { return type === "mint" ? <ArrowDownToLine/> : type === "listing" ? <Tag/> : type === "sale" ? <ShoppingBag/> : <WalletCards/>; }
 function activityLabel(type: ActivityRow["type"]) { return type === "mint" ? "Mint" : type === "listing" ? "Listed" : type === "sale" ? "Sale" : "Transfer"; }
 function shortAddress(value: string) { return `${value.slice(0, 6)}…${value.slice(-4)}`; }
-function formatWei(value: string) { try { return Number(formatEther(BigInt(value))).toLocaleString("en-US", { maximumFractionDigits: 4 }); } catch { return "0"; } }
+function formatWei(value: string) { try { return Number(formatEther(BigInt(value))).toLocaleString("en-US", { maximumFractionDigits: 8 }); } catch { return "0"; } }
 function formatAge(value: string) { const seconds = Math.max(0, Math.floor((Date.now() - new Date(value).getTime()) / 1000)); if (seconds < 60) return `${seconds}s`; if (seconds < 3600) return `${Math.floor(seconds / 60)}m`; if (seconds < 86400) return `${Math.floor(seconds / 3600)}h`; return `${Math.floor(seconds / 86400)}d`; }

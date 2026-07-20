@@ -1,0 +1,170 @@
+{
+  "generatedAt": "2026-07-20T12:59:21.733Z",
+  "creator": "0x9d5f55a644eF0eB9FF82dbd14Dd0471de3ff5bfb",
+  "edition": {
+    "itemURI": "ipfs://QmNtd8i9mW6qmZBHkwYNip1T9GdXxQa8CBXwXumEzmVfbw",
+    "contractURI": "ipfs://QmW3RpHkdbt1ukmx1W2jmPJ1CZE4JUwQamqcCuwSQ1ptb5"
+  },
+  "pfp": {
+    "itemCount": 1000,
+    "imageBaseURI": "ipfs://QmPTY2B3HYkrtAgAxn2vk8UgfQ77f8uJA7JhgmdVPtf3my/bluefun/",
+    "metadataBaseURI": "ipfs://QmWFiDvTPFY6sR99JZffzaMcrYwW88pw1HTswEjZNp8bpd/bluefun/",
+    "placeholderURI": "ipfs://Qmd2qGkfrocq43XUD9NCzzDp1SQPxLbtJGhcz718CB3gqg",
+    "contractURI": "ipfs://QmRThb9SyyBuVcEnNxgdUpefscZuzhDVYzyzZsjyZrk66j",
+    "provenanceHash": "0xee555804e2a6700303a88a6276620096f8dcc4086b06ce206c452465113eb0f3",
+    "preview": [
+      {
+        "name": "BlueFun V3 Pioneer #1",
+        "description": "BlueFun V3 Base mainnet PFP canary validating committed reveal, mint, atomic settlement, listings and WETH offers.",
+        "image": "ipfs://QmPTY2B3HYkrtAgAxn2vk8UgfQ77f8uJA7JhgmdVPtf3my/bluefun/celestial-bird.png",
+        "attributes": [
+          {
+            "trait_type": "Family",
+            "value": "Celestial Bird"
+          },
+          {
+            "trait_type": "Protocol",
+            "value": "BlueFun NFT V3"
+          },
+          {
+            "trait_type": "Serial",
+            "value": 1
+          }
+        ]
+      },
+      {
+        "name": "BlueFun V3 Pioneer #2",
+        "description": "BlueFun V3 Base mainnet PFP canary validating committed reveal, mint, atomic settlement, listings and WETH offers.",
+        "image": "ipfs://QmPTY2B3HYkrtAgAxn2vk8UgfQ77f8uJA7JhgmdVPtf3my/bluefun/tide-technomancer.png",
+        "attributes": [
+          {
+            "trait_type": "Family",
+            "value": "Tide Technomancer"
+          },
+          {
+            "trait_type": "Protocol",
+            "value": "BlueFun NFT V3"
+          },
+          {
+            "trait_type": "Serial",
+            "value": 2
+          }
+        ]
+      },
+      {
+        "name": "BlueFun V3 Pioneer #3",
+        "description": "BlueFun V3 Base mainnet PFP canary validating committed reveal, mint, atomic settlement, listings and WETH offers.",
+        "image": "ipfs://QmPTY2B3HYkrtAgAxn2vk8UgfQ77f8uJA7JhgmdVPtf3my/bluefun/orbital-fox.png",
+        "attributes": [
+          {
+            "trait_type": "Family",
+            "value": "Orbital Fox"
+          },
+          {
+            "trait_type": "Protocol",
+            "value": "BlueFun NFT V3"
+          },
+          {
+            "trait_type": "Serial",
+            "value": 3
+          }
+        ]
+      },
+      {
+        "name": "BlueFun V3 Pioneer #4",
+        "description": "BlueFun V3 Base mainnet PFP canary validating committed reveal, mint, atomic settlement, listings and WETH offers.",
+        "image": "ipfs://QmPTY2B3HYkrtAgAxn2vk8UgfQ77f8uJA7JhgmdVPtf3my/bluefun/celestial-bird.png",
+        "attributes": [
+          {
+            "trait_type": "Family",
+            "value": "Celestial Bird"
+          },
+          {
+            "trait_type": "Protocol",
+            "value": "BlueFun NFT V3"
+          },
+          {
+            "trait_type": "Serial",
+            "value": 4
+          }
+        ]
+      },
+      {
+        "name": "BlueFun V3 Pioneer #5",
+        "description": "BlueFun V3 Base mainnet PFP canary validating committed reveal, mint, atomic settlement, listings and WETH offers.",
+        "image": "ipfs://QmPTY2B3HYkrtAgAxn2vk8UgfQ77f8uJA7JhgmdVPtf3my/bluefun/tide-technomancer.png",
+        "attributes": [
+          {
+            "trait_type": "Family",
+            "value": "Tide Technomancer"
+          },
+          {
+            "trait_type": "Protocol",
+            "value": "BlueFun NFT V3"
+          },
+          {
+            "trait_type": "Serial",
+            "value": 5
+          }
+        ]
+      },
+      {
+        "name": "BlueFun V3 Pioneer #6",
+        "description": "BlueFun V3 Base mainnet PFP canary validating committed reveal, mint, atomic settlement, listings and WETH offers.",
+        "image": "ipfs://QmPTY2B3HYkrtAgAxn2vk8UgfQ77f8uJA7JhgmdVPtf3my/bluefun/orbital-fox.png",
+        "attributes": [
+          {
+            "trait_type": "Family",
+            "value": "Orbital Fox"
+          },
+          {
+            "trait_type": "Protocol",
+            "value": "BlueFun NFT V3"
+          },
+          {
+            "trait_type": "Serial",
+            "value": 6
+          }
+        ]
+      },
+      {
+        "name": "BlueFun V3 Pioneer #7",
+        "description": "BlueFun V3 Base mainnet PFP canary validating committed reveal, mint, atomic settlement, listings and WETH offers.",
+        "image": "ipfs://QmPTY2B3HYkrtAgAxn2vk8UgfQ77f8uJA7JhgmdVPtf3my/bluefun/celestial-bird.png",
+        "attributes": [
+          {
+            "trait_type": "Family",
+            "value": "Celestial Bird"
+          },
+          {
+            "trait_type": "Protocol",
+            "value": "BlueFun NFT V3"
+          },
+          {
+            "trait_type": "Serial",
+            "value": 7
+          }
+        ]
+      },
+      {
+        "name": "BlueFun V3 Pioneer #8",
+        "description": "BlueFun V3 Base mainnet PFP canary validating committed reveal, mint, atomic settlement, listings and WETH offers.",
+        "image": "ipfs://QmPTY2B3HYkrtAgAxn2vk8UgfQ77f8uJA7JhgmdVPtf3my/bluefun/tide-technomancer.png",
+        "attributes": [
+          {
+            "trait_type": "Family",
+            "value": "Tide Technomancer"
+          },
+          {
+            "trait_type": "Protocol",
+            "value": "BlueFun NFT V3"
+          },
+          {
+            "trait_type": "Serial",
+            "value": 8
+          }
+        ]
+      }
+    ]
+  }
+}
