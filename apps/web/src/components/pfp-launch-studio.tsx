@@ -6,7 +6,7 @@ import { unzip } from "fflate";
 import { decodeEventLog, formatEther, keccak256, parseEther, toBytes, zeroAddress } from "viem";
 import { useAccount, usePublicClient, useReadContract, useWriteContract } from "wagmi";
 import { ArrowLeft, BadgeCheck, CheckCircle2, FileArchive, FolderOpen, ImagePlus, Images, Layers3, Loader2, LockKeyhole, ShieldCheck, Sparkles, UploadCloud, WalletCards } from "lucide-react";
-import { bluePFPAbi, nftAddresses, nftDropControllerAbi, nftFeePolicyAbi, nftPFPFactoryAbi, pfpLaunchpadEnabled } from "@/lib/nft-contracts";
+import { bluePFPAbi, nftAddresses, nftDropControllerAbi, nftFeePolicyAbi, nftPFPFactoryAbi, nftProtocolVersion, pfpLaunchpadEnabled } from "@/lib/nft-contracts";
 import { defaultMintSchedule, emptyMintSchedule, mintScheduleIsValid, MintScheduleFields, resolveMintSchedule } from "@/components/nft-mint-schedule";
 import { buildAllowlistTree, parseAllowlistCSV } from "@/lib/nft-allowlist";
 import { clearLaunchRecovery, NFTLaunchRecoveryPanel, saveLaunchRecovery } from "@/components/nft-launch-recovery";
@@ -104,7 +104,14 @@ export function PFPLaunchStudio({ onSelectEdition }: { onSelectEdition: () => vo
       const hash = await writeContractAsync({ chainId: 8453, address: nftAddresses.pfpFactory, abi: nftPFPFactoryAbi,
         functionName: "createPFPCollection", value: launchFee, args: [{
           name: name.trim(), symbol: symbol.trim().toUpperCase(), contractURI: prepared.contractURI,
-          baseURI: revealed || scheduled ? prepared.metadataBaseURI : "", placeholderURI: prepared.placeholderURI,
+          baseURI: revealed
+            ? prepared.metadataBaseURI
+            : scheduled && nftProtocolVersion === "v3"
+              ? keccak256(toBytes(prepared.metadataBaseURI))
+              : scheduled
+                ? prepared.metadataBaseURI
+                : "",
+          placeholderURI: prepared.placeholderURI,
           maxSupply: BigInt(prepared.itemCount), provenanceHash: prepared.provenanceHash, revealed,
           creatorReserve: safeBigInt(creatorReserve), revealTime: scheduled ? BigInt(revealTimestamp) : 0n, freezeOnReveal,
           royaltyRecipient: address, royaltyBps, salt: keccak256(toBytes(`${address}:${name}:${Date.now()}`))

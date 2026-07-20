@@ -5,9 +5,10 @@ import {ReentrancyGuard} from "./security/ReentrancyGuard.sol";
 import {INFTFeePolicy} from "./interfaces/INFTFeePolicy.sol";
 import {INFTCollectionRegistry} from "./interfaces/INFTCollectionRegistry.sol";
 import {IERC1155Market} from "./interfaces/IERC1155Market.sol";
+import {NativeSettlement} from "./libraries/NativeSettlement.sol";
 
 /// @notice Non-custodial fixed-price secondary market for BlueFun ERC-1155 editions.
-/// @dev NFTs remain with the seller. Native proceeds use pull payments so a recipient cannot block a sale.
+/// @dev NFTs remain with the seller. Proceeds settle atomically as ETH with a WETH fallback.
 contract BlueNFTMarketplace is ReentrancyGuard {
     error InvalidAddress();
     error InvalidListing();
@@ -18,6 +19,7 @@ contract BlueNFTMarketplace is ReentrancyGuard {
     error NotApproved();
     error InsufficientBalance();
     error FeeOverflow();
+    error FeeTermsChanged();
     error NativeTransferFailed();
     error NoRevenue();
     error MarketplacePaused();
@@ -37,10 +39,14 @@ contract BlueNFTMarketplace is ReentrancyGuard {
 
     INFTFeePolicy public immutable feePolicy;
     INFTCollectionRegistry public immutable collectionRegistry;
+    address public immutable weth;
     uint256 public listingCount;
+    /// @dev Deprecated V2 accounting slots. New settlements never accrue balances here.
     uint256 public pendingPlatformRevenue;
 
     mapping(uint256 listingId => Listing listing) public listings;
+    mapping(uint256 listingId => uint16 bps) public maximumMarketplaceFeeBps;
+    mapping(uint256 listingId => uint16 bps) public maximumRoyaltyBps;
     mapping(address recipient => uint256 amount) public pendingRevenue;
 
     event ListingCreated(
@@ -66,13 +72,16 @@ contract BlueNFTMarketplace is ReentrancyGuard {
     );
     event RevenueClaimed(address indexed recipient, uint256 amount);
     event PlatformRevenueFlushed(uint256 amount);
+    event AutomaticPayout(address indexed recipient, uint256 amount, bool paidAsWETH);
 
-    constructor(INFTFeePolicy feePolicy_, INFTCollectionRegistry collectionRegistry_) {
+    constructor(INFTFeePolicy feePolicy_, INFTCollectionRegistry collectionRegistry_, address weth_) {
         if (address(feePolicy_) == address(0) || address(collectionRegistry_) == address(0)) {
             revert InvalidAddress();
         }
+        NativeSettlement.validate(weth_);
         feePolicy = feePolicy_;
         collectionRegistry = collectionRegistry_;
+        weth = weth_;
     }
 
     function createListing(
@@ -102,6 +111,10 @@ contract BlueNFTMarketplace is ReentrancyGuard {
             remainingQuantity: quantity,
             cancelled: false
         });
+        (, uint256 royaltyBps) = nft.royaltyInfo(tokenId, BPS);
+        if (royaltyBps > BPS) revert FeeOverflow();
+        maximumMarketplaceFeeBps[listingId] = feePolicy.marketplaceFeeBps();
+        maximumRoyaltyBps[listingId] = uint16(royaltyBps);
         emit ListingCreated(listingId, msg.sender, collection, tokenId, quantity, unitPrice, startTime, endTime);
     }
 
@@ -125,18 +138,20 @@ contract BlueNFTMarketplace is ReentrancyGuard {
 
         uint256 gross = uint256(listing.unitPrice) * quantity;
         if (msg.value != gross) revert InvalidPayment();
-        uint256 platformFee = (gross * feePolicy.marketplaceFeeBps()) / BPS;
+        uint16 marketplaceFeeBps = feePolicy.marketplaceFeeBps();
+        if (marketplaceFeeBps > maximumMarketplaceFeeBps[listingId]) revert FeeTermsChanged();
+        uint256 platformFee = (gross * marketplaceFeeBps) / BPS;
         (address royaltyRecipient, uint256 royaltyAmount) =
             IERC1155Market(listing.collection).royaltyInfo(listing.tokenId, gross);
         if (royaltyRecipient == address(0)) royaltyAmount = 0;
+        if (royaltyAmount > (gross * maximumRoyaltyBps[listingId]) / BPS) revert FeeTermsChanged();
         if (platformFee + royaltyAmount > gross) revert FeeOverflow();
 
         listing.remainingQuantity -= quantity;
-        pendingPlatformRevenue += platformFee;
-        pendingRevenue[listing.seller] += gross - platformFee - royaltyAmount;
-        if (royaltyAmount != 0) pendingRevenue[royaltyRecipient] += royaltyAmount;
-
         IERC1155Market(listing.collection).safeTransferFrom(listing.seller, recipient, listing.tokenId, quantity, "");
+        _payout(listing.seller, gross - platformFee - royaltyAmount);
+        if (royaltyAmount != 0) _payout(royaltyRecipient, royaltyAmount);
+        if (platformFee != 0) _payout(feePolicy.platformWallet(), platformFee);
         emit ListingPurchased(
             listingId, msg.sender, recipient, quantity, gross, platformFee, royaltyRecipient, royaltyAmount
         );
@@ -158,5 +173,10 @@ contract BlueNFTMarketplace is ReentrancyGuard {
         (bool ok,) = payable(feePolicy.platformWallet()).call{value: amount}("");
         if (!ok) revert NativeTransferFailed();
         emit PlatformRevenueFlushed(amount);
+    }
+
+    function _payout(address recipient, uint256 amount) private {
+        bool paidAsWETH = NativeSettlement.pay(weth, recipient, amount);
+        emit AutomaticPayout(recipient, amount, paidAsWETH);
     }
 }

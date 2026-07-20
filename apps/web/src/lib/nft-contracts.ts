@@ -58,6 +58,7 @@ export const pfpLaunchpadEnabled = nftLaunchpadEnabled
   && nftAddresses.pfpMarketplace !== zeroAddress;
 
 export const nftOffersEnabled = pfpLaunchpadEnabled && nftAddresses.offers !== zeroAddress && nftAddresses.weth !== zeroAddress;
+export const nftProtocolVersion = process.env.NEXT_PUBLIC_NFT_PROTOCOL_VERSION === "v3" ? "v3" : "v2";
 
 export const nftFeePolicyAbi = [
   { type: "function", name: "collectionLaunchFee", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
@@ -120,6 +121,7 @@ export const bluePFPAbi = [
   { type: "function", name: "contractMetadataFrozen", stateMutability: "view", inputs: [], outputs: [{ type: "bool" }] },
   { type: "function", name: "royaltyRecipient", stateMutability: "view", inputs: [], outputs: [{ type: "address" }] },
   { type: "function", name: "royaltyBps", stateMutability: "view", inputs: [], outputs: [{ type: "uint16" }] },
+  { type: "function", name: "royaltyInfo", stateMutability: "view", inputs: [{ type: "uint256" }, { type: "uint256" }], outputs: [{ type: "address" }, { type: "uint256" }] },
   { type: "function", name: "royaltyFrozen", stateMutability: "view", inputs: [], outputs: [{ type: "bool" }] },
   { type: "function", name: "collectionMaxSupply", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
   { type: "function", name: "totalLifetimeMinted", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
@@ -153,6 +155,11 @@ export const bluePFPAbi = [
   { type: "function", name: "setTransferValidator", stateMutability: "nonpayable", inputs: [{ type: "address" }], outputs: [] },
   { type: "function", name: "freezeMetadata", stateMutability: "nonpayable", inputs: [], outputs: [] },
   { type: "function", name: "approve", stateMutability: "nonpayable", inputs: [{ type: "address" }, { type: "uint256" }], outputs: [] }
+] as const;
+
+export const bluePFPV3RevealAbi = [
+  { type: "function", name: "scheduleReveal", stateMutability: "nonpayable", inputs: [{ type: "bytes32" }, { type: "uint64" }, { type: "bool" }], outputs: [] },
+  { type: "function", name: "executeScheduledReveal", stateMutability: "nonpayable", inputs: [{ type: "string" }], outputs: [] }
 ] as const;
 
 export const nftPFPMarketplaceAbi = [
@@ -221,6 +228,7 @@ export const blueEditionAbi = [
   { type: "function", name: "contractMetadataFrozen", stateMutability: "view", inputs: [], outputs: [{ type: "bool" }] },
   { type: "function", name: "royaltyRecipient", stateMutability: "view", inputs: [], outputs: [{ type: "address" }] },
   { type: "function", name: "royaltyBps", stateMutability: "view", inputs: [], outputs: [{ type: "uint16" }] },
+  { type: "function", name: "royaltyInfo", stateMutability: "view", inputs: [{ type: "uint256" }, { type: "uint256" }], outputs: [{ type: "address" }, { type: "uint256" }] },
   { type: "function", name: "royaltyFrozen", stateMutability: "view", inputs: [], outputs: [{ type: "bool" }] },
   { type: "function", name: "totalLifetimeMinted", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
   { type: "function", name: "nextTokenId", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
@@ -276,10 +284,12 @@ export const nftOfferComponents = [
 ] as const;
 
 export const nftOffersAbi = [
+  { type: "function", name: "feePolicy", stateMutability: "view", inputs: [], outputs: [{ type: "address" }] },
   { type: "function", name: "hashOffer", stateMutability: "view", inputs: [{ name: "offer", type: "tuple", components: nftOfferComponents }], outputs: [{ type: "bytes32" }] },
   { type: "function", name: "filledQuantity", stateMutability: "view", inputs: [{ type: "bytes32" }], outputs: [{ type: "uint64" }] },
   { type: "function", name: "minimumNonce", stateMutability: "view", inputs: [{ type: "address" }], outputs: [{ type: "uint256" }] },
   { type: "function", name: "acceptOffer", stateMutability: "nonpayable", inputs: [{ name: "offer", type: "tuple", components: nftOfferComponents }, { name: "tokenId", type: "uint256" }, { name: "quantity", type: "uint64" }, { name: "signature", type: "bytes" }], outputs: [] },
+  { type: "function", name: "acceptOfferWithMinProceeds", stateMutability: "nonpayable", inputs: [{ name: "offer", type: "tuple", components: nftOfferComponents }, { name: "tokenId", type: "uint256" }, { name: "quantity", type: "uint64" }, { name: "signature", type: "bytes" }, { name: "minimumSellerProceeds", type: "uint256" }], outputs: [] },
   { type: "function", name: "cancelOffer", stateMutability: "nonpayable", inputs: [{ name: "offer", type: "tuple", components: nftOfferComponents }], outputs: [] },
   { type: "function", name: "cancelAllOffers", stateMutability: "nonpayable", inputs: [{ name: "newMinimumNonce", type: "uint256" }], outputs: [] }
 ] as const;

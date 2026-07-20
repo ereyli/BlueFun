@@ -21,11 +21,16 @@ contract DeployNFTPFPBaseMainnet {
         address platformWallet = vm.envAddress("NFT_PLATFORM_WALLET");
         address feePolicy = vm.envAddress("NFT_FEE_POLICY");
         address dropController = vm.envAddress("NFT_DROP_CONTROLLER");
-        require(platformWallet != address(0) && feePolicy != address(0) && dropController != address(0), "INVALID_PFP_CONFIG");
+        address weth = vm.envAddress("NFT_WETH");
+        require(
+            platformWallet != address(0) && feePolicy != address(0) && dropController != address(0)
+                && weth != address(0),
+            "INVALID_PFP_CONFIG"
+        );
 
         vm.startBroadcast(platformWallet);
         NFTPFPFactory factory = new NFTPFPFactory(INFTFeePolicy(feePolicy), dropController);
-        BlueNFTMarketplace721 marketplace = new BlueNFTMarketplace721(INFTFeePolicy(feePolicy), factory);
+        BlueNFTMarketplace721 marketplace = new BlueNFTMarketplace721(INFTFeePolicy(feePolicy), factory, weth);
         vm.stopBroadcast();
 
         emit NFTPFPModuleDeployed(address(factory), address(marketplace), feePolicy, dropController);

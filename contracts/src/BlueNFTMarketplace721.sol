@@ -5,6 +5,7 @@ import {ReentrancyGuard} from "./security/ReentrancyGuard.sol";
 import {INFTFeePolicy} from "./interfaces/INFTFeePolicy.sol";
 import {INFTCollectionRegistry} from "./interfaces/INFTCollectionRegistry.sol";
 import {IERC721Market} from "./interfaces/IERC721Market.sol";
+import {NativeSettlement} from "./libraries/NativeSettlement.sol";
 
 /// @notice Non-custodial fixed-price market for BlueFun PFP collections.
 contract BlueNFTMarketplace721 is ReentrancyGuard {
@@ -15,6 +16,7 @@ contract BlueNFTMarketplace721 is ReentrancyGuard {
     error NotSeller();
     error NotApproved();
     error FeeOverflow();
+    error FeeTermsChanged();
     error NoRevenue();
     error NativeTransferFailed();
     error MarketplacePaused();
@@ -34,9 +36,13 @@ contract BlueNFTMarketplace721 is ReentrancyGuard {
 
     INFTFeePolicy public immutable feePolicy;
     INFTCollectionRegistry public immutable collectionRegistry;
+    address public immutable weth;
     uint256 public listingCount;
+    /// @dev Deprecated V2 accounting slots. New settlements never accrue balances here.
     uint256 public pendingPlatformRevenue;
     mapping(uint256 listingId => Listing listing) public listings;
+    mapping(uint256 listingId => uint16 bps) public maximumMarketplaceFeeBps;
+    mapping(uint256 listingId => uint16 bps) public maximumRoyaltyBps;
     mapping(address recipient => uint256 amount) public pendingRevenue;
 
     event ListingCreated(uint256 indexed listingId, address indexed seller, address indexed collection, uint256 tokenId, uint256 price, uint64 startTime, uint64 endTime);
@@ -44,11 +50,14 @@ contract BlueNFTMarketplace721 is ReentrancyGuard {
     event ListingPurchased(uint256 indexed listingId, address indexed buyer, address indexed recipient, uint256 grossAmount, uint256 platformFee, address royaltyRecipient, uint256 royaltyAmount);
     event RevenueClaimed(address indexed recipient, uint256 amount);
     event PlatformRevenueFlushed(uint256 amount);
+    event AutomaticPayout(address indexed recipient, uint256 amount, bool paidAsWETH);
 
-    constructor(INFTFeePolicy feePolicy_, INFTCollectionRegistry registry_) {
+    constructor(INFTFeePolicy feePolicy_, INFTCollectionRegistry registry_, address weth_) {
         if (address(feePolicy_) == address(0) || address(registry_) == address(0)) revert InvalidAddress();
+        NativeSettlement.validate(weth_);
         feePolicy = feePolicy_;
         collectionRegistry = registry_;
+        weth = weth_;
     }
 
     function createListing(address collection, uint256 tokenId, uint128 price, uint64 startTime, uint64 endTime)
@@ -62,6 +71,10 @@ contract BlueNFTMarketplace721 is ReentrancyGuard {
         if (nft.getApproved(tokenId) != address(this) && !nft.isApprovedForAll(msg.sender, address(this))) revert NotApproved();
         listingId = ++listingCount;
         listings[listingId] = Listing(msg.sender, collection, tokenId, price, startTime, endTime, false, false);
+        (, uint256 royaltyBps) = nft.royaltyInfo(tokenId, BPS);
+        if (royaltyBps > BPS) revert FeeOverflow();
+        maximumMarketplaceFeeBps[listingId] = feePolicy.marketplaceFeeBps();
+        maximumRoyaltyBps[listingId] = uint16(royaltyBps);
         emit ListingCreated(listingId, msg.sender, collection, tokenId, price, startTime, endTime);
     }
 
@@ -82,15 +95,20 @@ contract BlueNFTMarketplace721 is ReentrancyGuard {
         IERC721Market nft = IERC721Market(listing.collection);
         if (nft.ownerOf(listing.tokenId) != listing.seller) revert InvalidListing();
 
-        uint256 platformFee = (uint256(listing.price) * feePolicy.marketplaceFeeBps()) / BPS;
+        uint16 marketplaceFeeBps = feePolicy.marketplaceFeeBps();
+        if (marketplaceFeeBps > maximumMarketplaceFeeBps[listingId]) revert FeeTermsChanged();
+        uint256 platformFee = (uint256(listing.price) * marketplaceFeeBps) / BPS;
         (address royaltyRecipient, uint256 royaltyAmount) = nft.royaltyInfo(listing.tokenId, listing.price);
         if (royaltyRecipient == address(0)) royaltyAmount = 0;
+        if (royaltyAmount > (uint256(listing.price) * maximumRoyaltyBps[listingId]) / BPS) {
+            revert FeeTermsChanged();
+        }
         if (platformFee + royaltyAmount > listing.price) revert FeeOverflow();
         listing.sold = true;
-        pendingPlatformRevenue += platformFee;
-        pendingRevenue[listing.seller] += uint256(listing.price) - platformFee - royaltyAmount;
-        if (royaltyAmount != 0) pendingRevenue[royaltyRecipient] += royaltyAmount;
         nft.safeTransferFrom(listing.seller, recipient, listing.tokenId);
+        _payout(listing.seller, uint256(listing.price) - platformFee - royaltyAmount);
+        if (royaltyAmount != 0) _payout(royaltyRecipient, royaltyAmount);
+        if (platformFee != 0) _payout(feePolicy.platformWallet(), platformFee);
         emit ListingPurchased(listingId, msg.sender, recipient, listing.price, platformFee, royaltyRecipient, royaltyAmount);
     }
 
@@ -110,5 +128,10 @@ contract BlueNFTMarketplace721 is ReentrancyGuard {
         (bool ok,) = payable(feePolicy.platformWallet()).call{value: amount}("");
         if (!ok) revert NativeTransferFailed();
         emit PlatformRevenueFlushed(amount);
+    }
+
+    function _payout(address recipient, uint256 amount) private {
+        bool paidAsWETH = NativeSettlement.pay(weth, recipient, amount);
+        emit AutomaticPayout(recipient, amount, paidAsWETH);
     }
 }

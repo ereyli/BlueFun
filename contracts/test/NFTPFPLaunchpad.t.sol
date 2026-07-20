@@ -7,6 +7,7 @@ import {NFTPFPFactory} from "../src/NFTPFPFactory.sol";
 import {BluePFP721} from "../src/BluePFP721.sol";
 import {BlueDropController} from "../src/BlueDropController.sol";
 import {BlueNFTMarketplace721} from "../src/BlueNFTMarketplace721.sol";
+import {MockWETH} from "./mocks/MockWETH.sol";
 
 contract NFTPFPLaunchpadTest is Test {
     address internal creator = address(0xC0FFEE);
@@ -18,12 +19,14 @@ contract NFTPFPLaunchpadTest is Test {
     BlueDropController internal controller;
     NFTPFPFactory internal factory;
     BlueNFTMarketplace721 internal marketplace;
+    MockWETH internal weth;
 
     function setUp() public {
         policy = new NFTFeePolicy(address(this), address(this), platformWallet);
-        controller = new BlueDropController(policy);
+        weth = new MockWETH();
+        controller = new BlueDropController(policy, address(weth));
         factory = new NFTPFPFactory(policy, address(controller));
-        marketplace = new BlueNFTMarketplace721(policy, factory);
+        marketplace = new BlueNFTMarketplace721(policy, factory, address(weth));
         vm.deal(creator, 10 ether);
         vm.deal(buyer, 10 ether);
         vm.deal(other, 10 ether);
@@ -42,6 +45,8 @@ contract NFTPFPLaunchpadTest is Test {
     function testControllerMintsSequentialUniqueTokens() public {
         BluePFP721 collection = _create(true, 3);
         uint256 phaseId = _publicPhase(collection, 0.01 ether, 3);
+        uint256 creatorBefore = creator.balance;
+        uint256 platformBefore = platformWallet.balance;
         vm.prank(buyer);
         controller.mintPublic{value: 0.02 ether}(
             address(collection), 1, phaseId, 2, buyer, 0.01 ether, block.timestamp + 1 hours
@@ -50,7 +55,10 @@ contract NFTPFPLaunchpadTest is Test {
         assertEq(collection.ownerOf(2), buyer);
         assertEq(collection.balanceOf(buyer), 2);
         assertEq(collection.totalLifetimeMinted(), 2);
-        assertEq(controller.pendingPlatformRevenue(), 0.0004 ether);
+        assertEq(controller.pendingPlatformRevenue(), 0);
+        assertEq(creator.balance, creatorBefore + 0.0196 ether);
+        assertEq(platformWallet.balance, platformBefore + 0.0004 ether);
+        assertEq(address(controller).balance, 0);
     }
 
     function testDelayedRevealCanBePermanentlyFrozen() public {
@@ -92,12 +100,19 @@ contract NFTPFPLaunchpadTest is Test {
         uint256 listingId = marketplace.createListing(
             address(collection), 1, 1 ether, uint64(block.timestamp), uint64(block.timestamp + 1 days)
         );
+        uint256 sellerBefore = buyer.balance;
+        uint256 creatorBefore = creator.balance;
+        uint256 platformBefore = platformWallet.balance;
         vm.prank(other);
         marketplace.buy{value: 1 ether}(listingId, other);
         assertEq(collection.ownerOf(1), other);
-        assertEq(marketplace.pendingPlatformRevenue(), 0.008 ether);
-        assertEq(marketplace.pendingRevenue(creator), 0.05 ether);
-        assertEq(marketplace.pendingRevenue(buyer), 0.942 ether);
+        assertEq(marketplace.pendingPlatformRevenue(), 0);
+        assertEq(marketplace.pendingRevenue(creator), 0);
+        assertEq(marketplace.pendingRevenue(buyer), 0);
+        assertEq(buyer.balance, sellerBefore + 0.942 ether);
+        assertEq(creator.balance, creatorBefore + 0.05 ether);
+        assertEq(platformWallet.balance, platformBefore + 0.008 ether);
+        assertEq(address(marketplace).balance, 0);
     }
 
     function testPFPAllowlistBindsWalletPriceAndAllowance() public {
@@ -183,12 +198,51 @@ contract NFTPFPLaunchpadTest is Test {
 
     function testScheduledRevealIsPermissionlessAfterDeadline() public {
         BluePFP721 collection = _create(false, 10);
-        vm.prank(creator); collection.scheduleReveal("ipfs://future/", uint64(block.timestamp + 1 days), true);
-        vm.expectRevert(BluePFP721.RevealTooEarly.selector); collection.executeScheduledReveal();
+        string memory revealURI = "ipfs://future/";
+        vm.prank(creator);
+        collection.scheduleReveal(keccak256(bytes(revealURI)), uint64(block.timestamp + 1 days), true);
+        vm.expectRevert(BluePFP721.RevealTooEarly.selector);
+        collection.executeScheduledReveal(revealURI);
         vm.warp(block.timestamp + 1 days);
-        vm.prank(other); collection.executeScheduledReveal();
+        vm.prank(other);
+        collection.executeScheduledReveal(revealURI);
         assertTrue(collection.revealed()); assertTrue(collection.metadataFrozen());
         assertEq(collection.scheduledRevealTime(), 0);
+    }
+
+    function testFactoryScheduledRevealStoresOnlyURICommitment() public {
+        string memory revealURI = "ipfs://future/";
+        NFTPFPFactory.CreatePFPParams memory params = NFTPFPFactory.CreatePFPParams({
+            name: "Committed PFP",
+            symbol: "CPFP",
+            contractURI: "ipfs://collection",
+            baseURI: "0x84d346974dafc47a0860779b71f7578c99f129128b72a2874b19671f0de84242",
+            placeholderURI: "ipfs://hidden",
+            maxSupply: 10,
+            provenanceHash: keccak256("provenance"),
+            revealed: false,
+            creatorReserve: 0,
+            revealTime: uint64(block.timestamp + 1 days),
+            freezeOnReveal: true,
+            royaltyRecipient: creator,
+            royaltyBps: 500,
+            salt: keccak256("committed-reveal")
+        });
+        vm.prank(creator);
+        (, address deployed) = factory.createPFPCollection{value: policy.collectionLaunchFee()}(params);
+        BluePFP721 collection = BluePFP721(deployed);
+
+        assertEq(bytes(collection.baseURI()).length, 0);
+        assertEq(
+            uint256(collection.scheduledRevealCommitment()),
+            uint256(keccak256(bytes(revealURI)))
+        );
+        vm.warp(block.timestamp + 1 days);
+        vm.expectRevert(BluePFP721.InvalidRevealProof.selector);
+        collection.executeScheduledReveal("ipfs://wrong/");
+        vm.prank(other);
+        collection.executeScheduledReveal(revealURI);
+        assertTrue(collection.revealed());
     }
 
     function _publicPhase(BluePFP721 collection, uint256 price, uint64 cap) internal returns (uint256 phaseId) {

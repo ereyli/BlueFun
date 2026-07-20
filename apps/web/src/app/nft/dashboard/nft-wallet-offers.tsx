@@ -5,7 +5,7 @@ import Link from "next/link";
 import { formatEther, type Address, type Hex } from "viem";
 import { useAccount, usePublicClient, useWriteContract } from "wagmi";
 import { Check, ExternalLink, Gavel, Loader2, Tag } from "lucide-react";
-import { blueEditionAbi, bluePFPAbi, nftOffersAbi, nftOffersEnabled } from "@/lib/nft-contracts";
+import { blueEditionAbi, bluePFPAbi, nftFeePolicyAbi, nftOffersAbi, nftOffersEnabled, nftProtocolVersion } from "@/lib/nft-contracts";
 
 type WalletOffer = {
   offersContract: Address; offerHash: Hex; maker: Address; taker: Address; recipient: Address; collection: Address; tokenId: string;
@@ -75,13 +75,19 @@ export function NFTWalletOffers() {
           await publicClient?.waitForTransactionReceipt({ hash: approvalHash });
         }
       }
-      const hash = await writeContractAsync({
-        chainId: 8453,
-        address: offer.offersContract,
-        abi: nftOffersAbi,
-        functionName: "acceptOffer",
-        args: [offerTuple(offer), tokenId, 1n, offer.signature]
-      });
+      let hash: Hex;
+      if (nftProtocolVersion === "v3") {
+        const gross = BigInt(offer.unitPrice);
+        const feePolicy = await publicClient!.readContract({ address: offer.offersContract, abi: nftOffersAbi, functionName: "feePolicy" });
+        const [feeBps, royalty] = await Promise.all([
+          publicClient!.readContract({ address: feePolicy, abi: nftFeePolicyAbi, functionName: "marketplaceFeeBps" }),
+          publicClient!.readContract({ address: offer.collection, abi: offer.standard === 1 ? bluePFPAbi : blueEditionAbi, functionName: "royaltyInfo", args: [tokenId, gross] })
+        ]);
+        const minimumProceeds = gross - (gross * BigInt(feeBps)) / 10_000n - royalty[1];
+        hash = await writeContractAsync({ chainId: 8453, address: offer.offersContract, abi: nftOffersAbi, functionName: "acceptOfferWithMinProceeds", args: [offerTuple(offer), tokenId, 1n, offer.signature, minimumProceeds] });
+      } else {
+        hash = await writeContractAsync({ chainId: 8453, address: offer.offersContract, abi: nftOffersAbi, functionName: "acceptOffer", args: [offerTuple(offer), tokenId, 1n, offer.signature] });
+      }
       setNotice("Offer acceptance submitted. Waiting for atomic WETH settlement…");
       await publicClient?.waitForTransactionReceipt({ hash });
       setReceived((current) => current.flatMap((item) => {

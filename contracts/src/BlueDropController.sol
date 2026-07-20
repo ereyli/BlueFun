@@ -5,6 +5,7 @@ import {ReentrancyGuard} from "./security/ReentrancyGuard.sol";
 import {MerkleProofLib} from "./libraries/MerkleProofLib.sol";
 import {IBlueEdition1155} from "./interfaces/IBlueEdition1155.sol";
 import {INFTFeePolicy} from "./interfaces/INFTFeePolicy.sol";
+import {NativeSettlement} from "./libraries/NativeSettlement.sol";
 
 /// @notice Public and Merkle-allowlist primary mint controller for BlueFun ERC-1155 collections.
 /// @dev Phase schedules are append-only and non-overlapping. A replacement controller can be authorized by the creator.
@@ -25,6 +26,7 @@ contract BlueDropController is ReentrancyGuard {
     error MintsPaused();
     error NativeTransferFailed();
     error NoRevenue();
+    error FeeTermsChanged();
 
     uint16 private constant BPS = 10_000;
 
@@ -67,6 +69,7 @@ contract BlueDropController is ReentrancyGuard {
     }
 
     INFTFeePolicy public immutable feePolicy;
+    address public immutable weth;
 
     mapping(address collection => mapping(uint256 tokenId => uint256 nextId)) public nextPhaseId;
     mapping(address collection => mapping(uint256 tokenId => uint256 id)) public latestPhaseId;
@@ -74,6 +77,8 @@ contract BlueDropController is ReentrancyGuard {
     mapping(address collection => mapping(uint256 tokenId => mapping(uint256 phaseId => Phase phase))) public phases;
     mapping(address collection => mapping(uint256 tokenId => mapping(uint256 phaseId => uint256 amount))) public
         phaseMinted;
+    mapping(address collection => mapping(uint256 tokenId => mapping(uint256 phaseId => uint16 bps))) public
+        maximumPrimaryFeeBps;
     mapping(
         address collection
             => mapping(uint256 tokenId => mapping(uint256 phaseId => mapping(address wallet => uint256 amount)))
@@ -103,10 +108,13 @@ contract BlueDropController is ReentrancyGuard {
     );
     event CreatorRevenueClaimed(address indexed collection, address indexed recipient, uint256 amount);
     event PlatformRevenueFlushed(uint256 amount);
+    event AutomaticPayout(address indexed collection, address indexed recipient, uint256 amount, bool paidAsWETH);
 
-    constructor(INFTFeePolicy feePolicy_) {
+    constructor(INFTFeePolicy feePolicy_, address weth_) {
         if (address(feePolicy_) == address(0)) revert InvalidAddress();
+        NativeSettlement.validate(weth_);
         feePolicy = feePolicy_;
+        weth = weth_;
     }
 
     function createPhase(address collection, uint256 tokenId, PhaseConfig calldata config)
@@ -121,6 +129,7 @@ contract BlueDropController is ReentrancyGuard {
         latestPhaseId[collection][tokenId] = phaseId;
         lastPhaseEnd[collection][tokenId] = config.endTime;
         _storePhase(phases[collection][tokenId][phaseId], config, previousEnd);
+        maximumPrimaryFeeBps[collection][tokenId][phaseId] = feePolicy.primaryMintFeeBps();
         emit PhaseCreated(collection, tokenId, phaseId, config);
     }
 
@@ -137,6 +146,7 @@ contract BlueDropController is ReentrancyGuard {
             revert InvalidSchedule();
         }
         _storePhase(phase, config, phase.previousPhaseEnd);
+        maximumPrimaryFeeBps[collection][tokenId][phaseId] = feePolicy.primaryMintFeeBps();
         if (nextActive == 0) lastPhaseEnd[collection][tokenId] = config.endTime;
         else phases[collection][tokenId][nextActive].previousPhaseEnd = config.endTime;
         emit PhaseUpdated(collection, tokenId, phaseId, config);
@@ -286,14 +296,18 @@ contract BlueDropController is ReentrancyGuard {
 
         uint256 gross = unitPrice * quantity;
         if (msg.value != gross) revert InvalidPayment();
-        uint256 platformFee = gross == 0 ? 0 : (gross * feePolicy.primaryMintFeeBps()) / BPS;
-        pendingCreatorRevenue[collection] += gross - platformFee;
-        pendingPlatformRevenue += platformFee;
+        uint16 primaryFeeBps = feePolicy.primaryMintFeeBps();
+        if (primaryFeeBps > maximumPrimaryFeeBps[collection][tokenId][phaseId]) revert FeeTermsChanged();
+        uint256 platformFee = gross == 0 ? 0 : (gross * primaryFeeBps) / BPS;
         mintedByWalletInPhase[collection][tokenId][phaseId][msg.sender] = mintedInPhase + quantity;
         mintedByWalletTotal[collection][tokenId][msg.sender] = mintedTotal + quantity;
         phaseMinted[collection][tokenId][phaseId] = currentPhaseMinted + quantity;
 
         IBlueEdition1155(collection).mintByController(recipient, tokenId, quantity, "");
+        address creatorRecipient = IBlueEdition1155(collection).payoutRecipient();
+        if (creatorRecipient == address(0)) revert InvalidAddress();
+        _payout(collection, creatorRecipient, gross - platformFee);
+        if (platformFee != 0) _payout(collection, feePolicy.platformWallet(), platformFee);
         emit NFTMinted(collection, tokenId, phaseId, msg.sender, recipient, quantity, unitPrice, gross, platformFee);
     }
 
@@ -343,5 +357,11 @@ contract BlueDropController is ReentrancyGuard {
 
     function _onlyCollectionOwner(address collection) private view {
         if (IBlueEdition1155(collection).owner() != msg.sender) revert NotCollectionOwner();
+    }
+
+    function _payout(address collection, address recipient, uint256 amount) private {
+        if (amount == 0) return;
+        bool paidAsWETH = NativeSettlement.pay(weth, recipient, amount);
+        emit AutomaticPayout(collection, recipient, amount, paidAsWETH);
     }
 }

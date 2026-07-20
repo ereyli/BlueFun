@@ -28,6 +28,7 @@ contract BlueNFTOffers is ReentrancyGuard {
     error NotApproved();
     error FeeOverflow();
     error TransferFailed();
+    error InsufficientSellerProceeds(uint256 actual, uint256 minimum);
     error MarketplacePaused();
 
     uint16 private constant BPS = 10_000;
@@ -137,6 +138,27 @@ contract BlueNFTOffers is ReentrancyGuard {
         external
         nonReentrant
     {
+        _acceptOffer(offer, tokenId, quantity, signature, 0);
+    }
+
+    /// @notice Accepts an offer only when current platform and royalty deductions preserve the seller's quote.
+    function acceptOfferWithMinProceeds(
+        Offer calldata offer,
+        uint256 tokenId,
+        uint64 quantity,
+        bytes calldata signature,
+        uint256 minimumSellerProceeds
+    ) external nonReentrant {
+        _acceptOffer(offer, tokenId, quantity, signature, minimumSellerProceeds);
+    }
+
+    function _acceptOffer(
+        Offer calldata offer,
+        uint256 tokenId,
+        uint64 quantity,
+        bytes calldata signature,
+        uint256 minimumSellerProceeds
+    ) private {
         if (feePolicy.marketplacePaused()) revert MarketplacePaused();
         bytes32 digest = hashOffer(offer);
         _validateOffer(offer, digest, tokenId, quantity, signature);
@@ -152,6 +174,9 @@ contract BlueNFTOffers is ReentrancyGuard {
         if (platformFee + royaltyAmount > gross) revert FeeOverflow();
 
         uint256 sellerProceeds = gross - platformFee - royaltyAmount;
+        if (sellerProceeds < minimumSellerProceeds) {
+            revert InsufficientSellerProceeds(sellerProceeds, minimumSellerProceeds);
+        }
         _safeTransferFrom(offer.maker, msg.sender, sellerProceeds);
         if (platformFee != 0) _safeTransferFrom(offer.maker, feePolicy.platformWallet(), platformFee);
         if (royaltyAmount != 0) _safeTransferFrom(offer.maker, royaltyRecipient, royaltyAmount);

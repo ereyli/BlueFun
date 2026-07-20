@@ -27,13 +27,14 @@ contract DeployNFTLaunchpadBaseMainnet {
 
     function run() external {
         address platformWallet = vm.envAddress("NFT_PLATFORM_WALLET");
-        require(platformWallet != address(0), "INVALID_PLATFORM_WALLET");
+        address weth = vm.envAddress("NFT_WETH");
+        require(platformWallet != address(0) && weth != address(0), "INVALID_PLATFORM_CONFIG");
 
         vm.startBroadcast(platformWallet);
         NFTFeePolicy policy = new NFTFeePolicy(platformWallet, platformWallet, payable(platformWallet));
-        BlueDropController controller = new BlueDropController(policy);
+        BlueDropController controller = new BlueDropController(policy, weth);
         NFTCollectionFactory factory = new NFTCollectionFactory(policy, address(controller));
-        BlueNFTMarketplace marketplace = new BlueNFTMarketplace(policy, factory);
+        BlueNFTMarketplace marketplace = new BlueNFTMarketplace(policy, factory, weth);
         vm.stopBroadcast();
 
         emit NFTLaunchpadDeployed(

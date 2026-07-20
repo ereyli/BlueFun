@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { formatEther, getAddress, isAddress, parseEther, zeroAddress, type Address, type Hex } from "viem";
+import { formatEther, getAddress, isAddress, keccak256, parseEther, toBytes, zeroAddress, type Address, type Hex } from "viem";
 import { usePublicClient, useReadContract, useWriteContract } from "wagmi";
 import { CalendarClock, CircleDollarSign, Gift, Loader2, Plus, RefreshCw, Trash2 } from "lucide-react";
-import { blueEditionAbi, bluePFPAbi, nftControllerForDeployment, nftDeploymentForFactory, nftDropControllerAbi } from "@/lib/nft-contracts";
+import { blueEditionAbi, bluePFPAbi, bluePFPV3RevealAbi, nftControllerForDeployment, nftDeploymentForFactory, nftDropControllerAbi, nftProtocolVersion } from "@/lib/nft-contracts";
 import { buildAllowlistTree, parseAllowlistCSV } from "@/lib/nft-allowlist";
 import { CreatorCollectionSettings } from "./creator-collection-settings";
 import { NFTMarketplaceRevenue } from "./nft-marketplace-revenue";
@@ -15,7 +15,9 @@ const zeroHash = `0x${"0".repeat(64)}` as Hex;
 
 export function CreatorCollectionManager({ item, onClose }: { item: Collection; onClose: () => void }) {
   const collection = getAddress(item.collection); const tokenId = 1n; const client = usePublicClient({ chainId: 8453 }); const { writeContractAsync, isPending } = useWriteContract();
-  const controllerAddress = nftControllerForDeployment(nftDeploymentForFactory(item.factory));
+  const deployment = nftDeploymentForFactory(item.factory);
+  const controllerAddress = nftControllerForDeployment(deployment);
+  const secureReveal = deployment === "current" && nftProtocolVersion === "v3";
   const [phases, setPhases] = useState<Phase[]>([]); const [loading, setLoading] = useState(true); const [notice, setNotice] = useState(""); const [editing, setEditing] = useState<bigint>();
   const [kind, setKind] = useState<"public" | "allowlist">("public"); const [price, setPrice] = useState("0"); const [start, setStart] = useState(toLocal(Date.now() + 10 * 60_000)); const [end, setEnd] = useState(toLocal(Date.now() + 7 * 86400_000));
   const [cap, setCap] = useState("0"); const [limit, setLimit] = useState("2"); const [maxPerTx, setMaxPerTx] = useState("2"); const [csv, setCsv] = useState("");
@@ -91,8 +93,8 @@ export function CreatorCollectionManager({ item, onClose }: { item: Collection; 
   async function claim() { try { const hash=await writeContractAsync({chainId:8453,address:controllerAddress,abi:nftDropControllerAbi,functionName:"claimCreatorRevenue",args:[collection]});await client?.waitForTransactionReceipt({hash});await revenue.refetch();setNotice("Primary mint revenue claimed to the payout wallet.");}catch(error){setNotice(shortError(error));} }
   async function submitAirdrop() { try { const rows=airdrop.split(/\r?\n/).filter(Boolean).map((line)=>line.split(/[;,]/).map((value)=>value.trim()));if(!rows.length||rows.some(([wallet,qty])=>!isAddress(wallet)||!/^\d+$/.test(qty||"")||BigInt(qty)===0n))throw new Error("Use one wallet,quantity pair per line.");const recipients=rows.map(([wallet])=>getAddress(wallet));const quantities=rows.map(([,qty])=>BigInt(qty));const hash=item.standard==="ERC721"?await writeContractAsync({chainId:8453,address:collection,abi:bluePFPAbi,functionName:"airdrop",args:[recipients,quantities]}):await writeContractAsync({chainId:8453,address:collection,abi:blueEditionAbi,functionName:"airdrop",args:[tokenId,recipients,quantities]});await client?.waitForTransactionReceipt({hash});await reserve.refetch();setAirdrop("");setNotice("Reserve airdrop completed.");}catch(error){setNotice(shortError(error));} }
   async function releaseReserve(){try{const amount=BigInt(releaseAmount||0);if(amount<=0n)throw new Error("Enter a reserve amount.");const hash=item.standard==="ERC721"?await writeContractAsync({chainId:8453,address:collection,abi:bluePFPAbi,functionName:"releaseCreatorReserve",args:[amount]}):await writeContractAsync({chainId:8453,address:collection,abi:blueEditionAbi,functionName:"releaseCreatorReserve",args:[tokenId,amount]});await client?.waitForTransactionReceipt({hash});await reserve.refetch();setReleaseAmount("");setNotice("Reserve released to public mint supply.");}catch(error){setNotice(shortError(error));}}
-  async function scheduleReveal(){try{const time=BigInt(Math.floor(new Date(revealAt).getTime()/1000));if(!revealURI.startsWith("ipfs://")||time<=BigInt(Math.floor(Date.now()/1000)))throw new Error("Use a valid IPFS URI and a future reveal time.");const hash=await writeContractAsync({chainId:8453,address:collection,abi:bluePFPAbi,functionName:"scheduleReveal",args:[revealURI,time,freezeScheduledReveal]});await client?.waitForTransactionReceipt({hash});await scheduledReveal.refetch();setNotice("Reveal scheduled. Anyone can execute it after the deadline.");}catch(error){setNotice(shortError(error));}}
-  async function executeReveal(){try{const hash=await writeContractAsync({chainId:8453,address:collection,abi:bluePFPAbi,functionName:"executeScheduledReveal"});await client?.waitForTransactionReceipt({hash});await scheduledReveal.refetch();setNotice("Collection revealed.");}catch(error){setNotice(shortError(error));}}
+  async function scheduleReveal(){try{const time=BigInt(Math.floor(new Date(revealAt).getTime()/1000));if(!revealURI.startsWith("ipfs://")||time<=BigInt(Math.floor(Date.now()/1000)))throw new Error("Use a valid IPFS URI and a future reveal time.");const hash=secureReveal?await writeContractAsync({chainId:8453,address:collection,abi:bluePFPV3RevealAbi,functionName:"scheduleReveal",args:[keccak256(toBytes(revealURI)),time,freezeScheduledReveal]}):await writeContractAsync({chainId:8453,address:collection,abi:bluePFPAbi,functionName:"scheduleReveal",args:[revealURI,time,freezeScheduledReveal]});await client?.waitForTransactionReceipt({hash});await scheduledReveal.refetch();setNotice(secureReveal?"Reveal commitment scheduled. Keep the exact IPFS URI safe.":"Reveal scheduled. Anyone can execute it after the deadline.");}catch(error){setNotice(shortError(error));}}
+  async function executeReveal(){try{const hash=secureReveal?await writeContractAsync({chainId:8453,address:collection,abi:bluePFPV3RevealAbi,functionName:"executeScheduledReveal",args:[revealURI]}):await writeContractAsync({chainId:8453,address:collection,abi:bluePFPAbi,functionName:"executeScheduledReveal"});await client?.waitForTransactionReceipt({hash});await scheduledReveal.refetch();setNotice("Collection revealed.");}catch(error){setNotice(shortError(error));}}
   async function toggleRevealReminder(){
     const key=`bluefun:reveal-reminder:${collection.toLowerCase()}`;
     if(revealReminder){window.localStorage.removeItem(key);setRevealReminder(false);setNotice("Reveal reminder disabled.");return;}

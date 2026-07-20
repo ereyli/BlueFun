@@ -20,6 +20,9 @@ contract BluePFP721 {
     error ReserveExceeded();
     error RevealNotScheduled();
     error RevealTooEarly();
+    error InvalidRevealProof();
+    error ControllerLockedAfterMint();
+    error ValidatorLockedAfterMint();
 
     uint16 private constant BPS = 10_000;
     uint16 public constant MAX_ROYALTY_BPS = 1_000;
@@ -45,7 +48,7 @@ contract BluePFP721 {
     bool public contractMetadataFrozen;
     bool public royaltyFrozen;
     uint256 public creatorReserveRemaining;
-    string public scheduledRevealURI;
+    bytes32 public scheduledRevealCommitment;
     uint64 public scheduledRevealTime;
     bool public scheduledRevealFreeze;
 
@@ -75,7 +78,7 @@ contract BluePFP721 {
     event BatchMetadataUpdate(uint256 indexed fromTokenId, uint256 indexed toTokenId);
     event CreatorReserveReleased(uint256 amount, uint256 remaining);
     event CreatorAirdrop(address indexed recipient, uint256 quantity, uint256 remainingReserve);
-    event RevealScheduled(uint64 indexed revealTime, string baseURI, bool freezeAfterReveal);
+    event RevealScheduled(uint64 indexed revealTime, bytes32 indexed commitment, bool freezeAfterReveal);
     event ScheduledRevealCancelled();
 
     constructor(
@@ -91,6 +94,7 @@ contract BluePFP721 {
         bool revealed_,
         uint256 creatorReserve_,
         uint64 revealTime_,
+        bytes32 revealCommitment_,
         bool freezeOnReveal_,
         address royaltyRecipient_,
         uint16 royaltyBps_
@@ -104,7 +108,10 @@ contract BluePFP721 {
         if (revealed_ && bytes(baseURI_).length == 0) revert InvalidAmount();
         if (creatorReserve_ > maxSupply_) revert ReserveExceeded();
         if (revealed_ && revealTime_ != 0) revert InvalidAmount();
-        if (revealTime_ != 0 && (revealTime_ <= block.timestamp || bytes(baseURI_).length == 0)) revert InvalidAmount();
+        if (revealTime_ != 0 && (revealTime_ <= block.timestamp || revealCommitment_ == bytes32(0))) {
+            revert InvalidAmount();
+        }
+        if (revealTime_ == 0 && revealCommitment_ != bytes32(0)) revert InvalidAmount();
         if (royaltyBps_ > MAX_ROYALTY_BPS) revert InvalidRoyalty();
         originalCreator = creator_;
         owner = creator_;
@@ -112,7 +119,7 @@ contract BluePFP721 {
         name = name_;
         symbol = symbol_;
         contractURI = contractURI_;
-        baseURI = baseURI_;
+        baseURI = revealed_ ? baseURI_ : "";
         placeholderURI = placeholderURI_;
         collectionMaxSupply = maxSupply_;
         provenanceHash = provenanceHash_;
@@ -127,10 +134,10 @@ contract BluePFP721 {
         emit RoyaltyUpdated(royaltyRecipient_, royaltyBps_);
         if (provenanceHash_ != bytes32(0)) emit ProvenanceHashUpdated(provenanceHash_);
         if (revealTime_ != 0) {
-            scheduledRevealURI = baseURI_;
+            scheduledRevealCommitment = revealCommitment_;
             scheduledRevealTime = revealTime_;
             scheduledRevealFreeze = freezeOnReveal_;
-            emit RevealScheduled(revealTime_, baseURI_, freezeOnReveal_);
+            emit RevealScheduled(revealTime_, revealCommitment_, freezeOnReveal_);
         }
     }
 
@@ -170,6 +177,7 @@ contract BluePFP721 {
 
     function setMintController(address controller, bool allowed) external onlyOwner {
         if (controller == address(0)) revert InvalidAddress();
+        if (allowed && !mintController[controller] && totalLifetimeMinted != 0) revert ControllerLockedAfterMint();
         mintController[controller] = allowed;
         emit MintControllerUpdated(controller, allowed);
     }
@@ -312,29 +320,29 @@ contract BluePFP721 {
         _reveal(uri, freezeAfterReveal);
     }
 
-    function scheduleReveal(string calldata uri, uint64 revealTime, bool freezeAfterReveal) external onlyOwner {
+    function scheduleReveal(bytes32 commitment, uint64 revealTime, bool freezeAfterReveal) external onlyOwner {
         if (revealed) revert AlreadyRevealed();
-        if (metadataFrozen || bytes(uri).length == 0) revert MetadataFrozen();
+        if (metadataFrozen || commitment == bytes32(0)) revert MetadataFrozen();
         if (revealTime <= block.timestamp) revert RevealTooEarly();
-        scheduledRevealURI = uri;
+        scheduledRevealCommitment = commitment;
         scheduledRevealTime = revealTime;
         scheduledRevealFreeze = freezeAfterReveal;
-        emit RevealScheduled(revealTime, uri, freezeAfterReveal);
+        emit RevealScheduled(revealTime, commitment, freezeAfterReveal);
     }
 
     function cancelScheduledReveal() external onlyOwner {
         if (scheduledRevealTime == 0) revert RevealNotScheduled();
-        delete scheduledRevealURI;
+        scheduledRevealCommitment = bytes32(0);
         scheduledRevealTime = 0;
         scheduledRevealFreeze = false;
         emit ScheduledRevealCancelled();
     }
 
-    function executeScheduledReveal() external {
+    function executeScheduledReveal(string calldata uri) external {
         uint64 revealTime = scheduledRevealTime;
         if (revealTime == 0) revert RevealNotScheduled();
         if (block.timestamp < revealTime) revert RevealTooEarly();
-        string memory uri = scheduledRevealURI;
+        if (keccak256(bytes(uri)) != scheduledRevealCommitment) revert InvalidRevealProof();
         bool freezeAfterReveal = scheduledRevealFreeze;
         _reveal(uri, freezeAfterReveal);
     }
@@ -381,6 +389,9 @@ contract BluePFP721 {
     }
 
     function setTransferValidator(address validator) external onlyOwner {
+        if (validator != address(0) && validator != transferValidator && totalLifetimeMinted != 0) {
+            revert ValidatorLockedAfterMint();
+        }
         emit TransferValidatorUpdated(transferValidator, validator);
         transferValidator = validator;
     }
@@ -418,7 +429,7 @@ contract BluePFP721 {
         if (metadataFrozen || bytes(uri).length == 0) revert MetadataFrozen();
         baseURI = uri;
         revealed = true;
-        delete scheduledRevealURI;
+        scheduledRevealCommitment = bytes32(0);
         scheduledRevealTime = 0;
         scheduledRevealFreeze = false;
         if (freezeAfterReveal) metadataFrozen = true;

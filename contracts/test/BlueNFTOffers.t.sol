@@ -17,6 +17,13 @@ contract MockWETHOffers is IERC20Offers {
 
     function mint(address recipient, uint256 amount) external { balanceOf[recipient] += amount; }
     function approve(address spender, uint256 amount) external returns (bool) { allowance[msg.sender][spender] = amount; return true; }
+    function deposit() external payable { balanceOf[msg.sender] += msg.value; }
+    function transfer(address to, uint256 amount) external returns (bool) {
+        if (balanceOf[msg.sender] < amount) return false;
+        balanceOf[msg.sender] -= amount;
+        balanceOf[to] += amount;
+        return true;
+    }
     function transferFrom(address from, address to, uint256 amount) external returns (bool) {
         uint256 allowed = allowance[from][msg.sender];
         if (allowed < amount || balanceOf[from] < amount) return false;
@@ -58,10 +65,10 @@ contract BlueNFTOffersTest is Test {
     function setUp() public {
         maker = vm.addr(MAKER_KEY);
         policy = new NFTFeePolicy(address(this), address(this), platformWallet);
-        controller = new BlueDropController(policy);
+        weth = new MockWETHOffers();
+        controller = new BlueDropController(policy, address(weth));
         editionFactory = new NFTCollectionFactory(policy, address(controller));
         pfpFactory = new NFTPFPFactory(policy, address(controller));
-        weth = new MockWETHOffers();
         offers = new BlueNFTOffers(policy, editionFactory, pfpFactory, weth);
         vm.deal(creator, 10 ether);
         weth.mint(maker, 100 ether);
@@ -87,6 +94,25 @@ contract BlueNFTOffersTest is Test {
         assertEq(weth.balanceOf(creator), 0.05 ether);
         assertEq(weth.balanceOf(platformWallet), 0.008 ether);
         assertEq(offers.filledQuantity(offers.hashOffer(offer)), 1);
+    }
+
+    function testSellerCanProtectMinimumOfferProceeds() public {
+        BluePFP721 collection = _createPFP(2);
+        _mintPFP(collection, seller, 1);
+        vm.prank(seller);
+        collection.approve(address(offers), 1);
+        BlueNFTOffers.Offer memory offer = _offer(
+            address(collection), 1, 1 ether, 1, offers.STANDARD_ERC721(), offers.OFFER_ITEM(), address(0), 77
+        );
+        bytes memory signature = _sign(offer);
+
+        vm.prank(seller);
+        vm.expectRevert();
+        offers.acceptOfferWithMinProceeds(offer, 1, 1, signature, 0.95 ether);
+
+        vm.prank(seller);
+        offers.acceptOfferWithMinProceeds(offer, 1, 1, signature, 0.942 ether);
+        assertEq(collection.ownerOf(1), maker);
     }
 
     function testERC721CollectionOfferCanFillDifferentTokenIds() public {

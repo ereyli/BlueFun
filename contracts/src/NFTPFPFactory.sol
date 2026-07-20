@@ -78,6 +78,7 @@ contract NFTPFPFactory is ReentrancyGuard, INFTCollectionRegistry {
             params.revealed,
             params.creatorReserve,
             params.revealTime,
+            params.revealTime == 0 ? bytes32(0) : _parseBytes32(params.baseURI),
             params.freezeOnReveal,
             params.royaltyRecipient,
             params.royaltyBps
@@ -105,8 +106,35 @@ contract NFTPFPFactory is ReentrancyGuard, INFTCollectionRegistry {
                 || bytes(params.baseURI).length > 512 || (params.revealed && bytes(params.baseURI).length == 0)
                 || params.maxSupply == 0 || params.maxSupply > type(uint64).max
                 || params.creatorReserve > params.maxSupply || (params.revealed && params.revealTime != 0)
-                || (params.revealTime != 0 && bytes(params.baseURI).length == 0)
+                || (!params.revealed && params.revealTime == 0 && bytes(params.baseURI).length != 0)
+                || (params.revealTime != 0 && !_isBytes32(params.baseURI))
                 || params.royaltyRecipient == address(0) || params.royaltyBps > 1_000
         ) revert InvalidConfig();
+    }
+
+    function _isBytes32(string calldata value) private pure returns (bool) {
+        bytes calldata data = bytes(value);
+        if (data.length != 66 || data[0] != "0" || data[1] != "x") return false;
+        for (uint256 i = 2; i < 66; ++i) {
+            bytes1 char = data[i];
+            if (
+                !(char >= "0" && char <= "9") && !(char >= "a" && char <= "f")
+                    && !(char >= "A" && char <= "F")
+            ) return false;
+        }
+        return true;
+    }
+
+    function _parseBytes32(string calldata value) private pure returns (bytes32 result) {
+        if (!_isBytes32(value)) revert InvalidConfig();
+        bytes calldata data = bytes(value);
+        uint256 parsed;
+        for (uint256 i = 2; i < 66; ++i) {
+            uint8 char = uint8(data[i]);
+            uint8 nibble =
+                char >= 97 ? char - 87 : char >= 65 ? char - 55 : char - 48;
+            parsed = (parsed << 4) | nibble;
+        }
+        result = bytes32(parsed);
     }
 }

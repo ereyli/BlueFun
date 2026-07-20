@@ -41,11 +41,11 @@ contract DeployNFTLaunchpadV2BaseMainnet {
         INFTFeePolicy policy = INFTFeePolicy(feePolicyAddress);
 
         vm.startBroadcast(deployer);
-        BlueDropController controller = new BlueDropController(policy);
+        BlueDropController controller = new BlueDropController(policy, weth);
         NFTCollectionFactory editionFactory = new NFTCollectionFactory(policy, address(controller));
         NFTPFPFactory pfpFactory = new NFTPFPFactory(policy, address(controller));
-        BlueNFTMarketplace editionMarketplace = new BlueNFTMarketplace(policy, editionFactory);
-        BlueNFTMarketplace721 pfpMarketplace = new BlueNFTMarketplace721(policy, pfpFactory);
+        BlueNFTMarketplace editionMarketplace = new BlueNFTMarketplace(policy, editionFactory, weth);
+        BlueNFTMarketplace721 pfpMarketplace = new BlueNFTMarketplace721(policy, pfpFactory, weth);
         BlueNFTOffers offers = new BlueNFTOffers(
             policy,
             INFTCollectionRegistry(address(editionFactory)),

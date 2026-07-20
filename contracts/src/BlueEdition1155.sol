@@ -20,6 +20,8 @@ contract BlueEdition1155 {
     error InvalidRoyalty();
     error TransferRejected();
     error ReserveExceeded();
+    error ControllerLockedAfterMint();
+    error ValidatorLockedAfterMint();
 
     uint16 private constant BPS = 10_000;
     uint256 private constant TRANSFER_VALIDATOR_GAS_LIMIT = 100_000;
@@ -140,6 +142,7 @@ contract BlueEdition1155 {
 
     function setMintController(address controller, bool allowed) external onlyOwner {
         if (controller == address(0)) revert InvalidAddress();
+        if (allowed && !mintController[controller] && totalLifetimeMinted != 0) revert ControllerLockedAfterMint();
         mintController[controller] = allowed;
         emit MintControllerUpdated(controller, allowed);
     }
@@ -213,6 +216,9 @@ contract BlueEdition1155 {
     }
 
     function setTransferValidator(address newValidator) external onlyOwner {
+        if (newValidator != address(0) && newValidator != transferValidator && totalLifetimeMinted != 0) {
+            revert ValidatorLockedAfterMint();
+        }
         emit TransferValidatorUpdated(transferValidator, newValidator);
         transferValidator = newValidator;
     }
