@@ -43,8 +43,8 @@ contract DeployNFTLaunchpadV3BaseMainnet {
         address payable platformWallet = payable(vm.envAddress("NFT_PLATFORM_WALLET"));
         address weth = vm.envAddress("NFT_WETH");
         require(
-            deployer != address(0) && admin != address(0) && guardian != address(0)
-                && platformWallet != address(0) && weth != address(0),
+            deployer != address(0) && admin != address(0) && guardian != address(0) && platformWallet != address(0)
+                && weth != address(0),
             "INVALID_V3_CONFIG"
         );
         require(weth == BASE_WETH, "INVALID_BASE_WETH");
@@ -53,9 +53,10 @@ contract DeployNFTLaunchpadV3BaseMainnet {
 
         vm.startBroadcast(deployer);
         NFTFeePolicy policy = new NFTFeePolicy(admin, guardian, platformWallet);
-        BlueDropController controller = new BlueDropController(policy, weth);
-        NFTCollectionFactory editionFactory = new NFTCollectionFactory(policy, address(controller));
-        NFTPFPFactory pfpFactory = new NFTPFPFactory(policy, address(controller));
+        BlueDropController controller = new BlueDropController(policy, weth, deployer);
+        NFTCollectionFactory editionFactory = new NFTCollectionFactory(policy, address(controller), weth);
+        NFTPFPFactory pfpFactory = new NFTPFPFactory(policy, address(controller), weth);
+        controller.configureFactories(address(editionFactory), address(pfpFactory));
         BlueNFTMarketplace editionMarketplace = new BlueNFTMarketplace(policy, editionFactory, weth);
         BlueNFTMarketplace721 pfpMarketplace = new BlueNFTMarketplace721(policy, pfpFactory, weth);
         BlueNFTOffers offers = new BlueNFTOffers(policy, editionFactory, pfpFactory, IERC20Offers(weth));

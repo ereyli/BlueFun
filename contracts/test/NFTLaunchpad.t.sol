@@ -14,12 +14,12 @@ contract RevertingNativeReceiver {
         revert();
     }
 
-    function onERC1155Received(address, address, uint256, uint256, bytes calldata)
-        external
-        pure
-        returns (bytes4)
-    {
+    function onERC1155Received(address, address, uint256, uint256, bytes calldata) external pure returns (bytes4) {
         return 0xf23a6e61;
+    }
+
+    function acceptPlatformWallet(NFTFeePolicy policy) external {
+        policy.acceptPlatformWallet();
     }
 }
 
@@ -49,8 +49,9 @@ contract NFTLaunchpadTest is Test {
     function setUp() public {
         policy = new NFTFeePolicy(address(this), guardian, platformWallet);
         weth = new MockWETH();
-        controller = new BlueDropController(policy, address(weth));
-        factory = new NFTCollectionFactory(policy, address(controller));
+        controller = new BlueDropController(policy, address(weth), address(this));
+        factory = new NFTCollectionFactory(policy, address(controller), address(weth));
+        controller.configureFactories(address(factory), address(factory));
         marketplace = new BlueNFTMarketplace(policy, factory, address(weth));
         vm.deal(platformWallet, 0);
         vm.deal(creator, 20 ether);
@@ -81,6 +82,33 @@ contract NFTLaunchpadTest is Test {
         assertEq(BlueEdition1155(collection).maxSupply(1), 1_000);
         assertEq(platformWallet.balance, 0.001 ether);
         assertTrue(factory.isBlueFunCollection(collection));
+        assertTrue(controller.registeredCollection(collection));
+    }
+
+    function testRejectingPlatformWalletReceivesLaunchFeeAsWETH() public {
+        RevertingNativeReceiver rejectingWallet = new RevertingNativeReceiver();
+        policy.proposePlatformWallet(payable(address(rejectingWallet)));
+        rejectingWallet.acceptPlatformWallet(policy);
+
+        vm.prank(creator);
+        (, address collection) =
+            factory.createCollection{value: policy.collectionLaunchFee()}(_collectionParams("weth-launch-fee"));
+
+        assertTrue(factory.isBlueFunCollection(collection));
+        assertEq(weth.balanceOf(address(rejectingWallet)), policy.collectionLaunchFee());
+        assertEq(address(factory).balance, 0);
+    }
+
+    function testUnregisteredCollectionCannotCreateCanonicalPhases() public {
+        BlueEdition1155 lookalike = new BlueEdition1155(
+            creator, address(controller), "Lookalike", "FAKE", "ipfs://contract", "ipfs://item", 10, 0, creator, 500
+        );
+        BlueDropController.PhaseConfig memory config = _phaseConfig(
+            BlueDropController.PhaseType.PUBLIC, BlueDropController.LimitMode.PER_PHASE, 0, 1, 10, bytes32(0)
+        );
+        vm.prank(creator);
+        vm.expectRevert(BlueDropController.UnregisteredCollection.selector);
+        controller.createPhase(address(lookalike), 1, config);
     }
 
     function testFreePublicMintTakesNoPrimaryFee() public {
@@ -91,8 +119,7 @@ contract NFTLaunchpadTest is Test {
         controller.mintPublic(address(collection), 1, phaseId, 2, buyer, 0, block.timestamp + 1 hours);
 
         assertEq(collection.balanceOf(buyer, 1), 2);
-        assertEq(controller.pendingCreatorRevenue(address(collection)), 0);
-        assertEq(controller.pendingPlatformRevenue(), 0);
+        assertEq(address(controller).balance, 0);
     }
 
     function testPaidPublicMintSettlesCreatorAndPlatformAutomatically() public {
@@ -106,8 +133,6 @@ contract NFTLaunchpadTest is Test {
             address(collection), 1, phaseId, 2, buyer, 0.1 ether, block.timestamp + 1 hours
         );
 
-        assertEq(controller.pendingCreatorRevenue(address(collection)), 0);
-        assertEq(controller.pendingPlatformRevenue(), 0);
         assertEq(collection.balanceOf(buyer, 1), 2);
         assertEq(creator.balance, creatorBefore + 0.196 ether);
         assertEq(platformWallet.balance, platformBefore + 0.004 ether);
@@ -117,12 +142,7 @@ contract NFTLaunchpadTest is Test {
     function testMintPhaseCannotSilentlyChargeHigherPlatformFee() public {
         BlueEdition1155 collection = _createCollection("mint-fee-terms");
         BlueDropController.PhaseConfig memory config = _phaseConfig(
-            BlueDropController.PhaseType.PUBLIC,
-            BlueDropController.LimitMode.PER_PHASE,
-            0.1 ether,
-            1,
-            1,
-            bytes32(0)
+            BlueDropController.PhaseType.PUBLIC, BlueDropController.LimitMode.PER_PHASE, 0.1 ether, 1, 1, bytes32(0)
         );
         config.endTime = uint64(block.timestamp + 7 days);
         vm.prank(creator);
@@ -150,7 +170,6 @@ contract NFTLaunchpadTest is Test {
             address(collection), 1, phaseId, 1, buyer, 0.1 ether, block.timestamp + 1 hours
         );
         assertEq(collection.balanceOf(buyer, 1), 1);
-        assertEq(controller.pendingCreatorRevenue(address(collection)), 0);
         assertEq(weth.balanceOf(address(rejectingRecipient)), 0.098 ether);
         assertEq(address(controller).balance, 0);
     }
@@ -177,8 +196,6 @@ contract NFTLaunchpadTest is Test {
         );
 
         assertEq(collection.balanceOf(buyer, 1), 3);
-        assertEq(controller.pendingCreatorRevenue(address(collection)), 0);
-        assertEq(controller.pendingPlatformRevenue(), 0);
         assertEq(creator.balance, creatorBefore + 0.0588 ether);
         assertEq(platformWallet.balance, platformBefore + 0.0012 ether);
 
@@ -256,6 +273,18 @@ contract NFTLaunchpadTest is Test {
         vm.prank(creator);
         collection.createItem("ipfs://second", 1);
         assertEq(collection.maxSupply(2), 1);
+    }
+
+    function testMintControllerConfigurationIsImmutableAfterFirstMint() public {
+        BlueEdition1155 collection = _createCollection("controller-lock");
+        uint256 phaseId = _createPublicPhase(collection, 0, 1, 1, BlueDropController.LimitMode.PER_PHASE);
+        vm.prank(buyer);
+        controller.mintPublic(address(collection), 1, phaseId, 1, buyer, 0, block.timestamp + 1 hours);
+
+        vm.prank(creator);
+        vm.expectRevert(BlueEdition1155.ControllerLockedAfterMint.selector);
+        collection.setMintController(address(controller), false);
+        assertTrue(collection.mintController(address(controller)));
     }
 
     function testRoyaltyCannotIncreaseAfterMintAndCanBeFrozen() public {
@@ -401,8 +430,7 @@ contract NFTLaunchpadTest is Test {
         );
 
         uint256 expectedFee = (gross * policy.primaryMintFeeBps()) / 10_000;
-        assertEq(controller.pendingPlatformRevenue(), 0);
-        assertEq(controller.pendingCreatorRevenue(address(collection)), 0);
+        assertEq(address(controller).balance, 0);
         assertEq(platformWallet.balance, platformBefore + expectedFee);
         assertEq(creator.balance, creatorBefore + gross - expectedFee);
         assertEq(address(controller).balance, 0);
@@ -442,9 +470,7 @@ contract NFTLaunchpadTest is Test {
         marketplace.buy{value: 1 ether}(listingId, 1, other);
 
         assertEq(collection.balanceOf(other, 1), 1);
-        assertEq(marketplace.pendingPlatformRevenue(), 0);
-        assertEq(marketplace.pendingRevenue(creator), 0);
-        assertEq(marketplace.pendingRevenue(buyer), 0);
+        assertEq(address(marketplace).balance, 0);
         assertEq(buyer.balance, sellerBefore + 0.942 ether);
         assertEq(creator.balance, creatorBefore + 0.05 ether);
         assertEq(platformWallet.balance, platformBefore + 0.008 ether);
@@ -537,9 +563,7 @@ contract NFTLaunchpadTest is Test {
         (,,,,,, uint64 remaining, bool cancelled) = marketplace.listings(listingId);
         assertEq(remaining, 1);
         assertFalse(cancelled);
-        assertEq(marketplace.pendingPlatformRevenue(), 0);
-        assertEq(marketplace.pendingRevenue(buyer), 0);
-        assertEq(marketplace.pendingRevenue(creator), 0);
+        assertEq(address(marketplace).balance, 0);
         assertEq(collection.balanceOf(buyer, 1), 1);
     }
 
@@ -737,11 +761,7 @@ contract NFTLaunchpadTest is Test {
         });
     }
 
-    function _scheduledPublic(uint64 start, uint64 end)
-        internal
-        pure
-        returns (BlueDropController.PhaseConfig memory)
-    {
+    function _scheduledPublic(uint64 start, uint64 end) internal pure returns (BlueDropController.PhaseConfig memory) {
         return BlueDropController.PhaseConfig({
             phaseType: BlueDropController.PhaseType.PUBLIC,
             limitMode: BlueDropController.LimitMode.PER_PHASE,
@@ -785,9 +805,12 @@ contract NFTLaunchpadTest is Test {
         vm.prank(buyer);
         vm.expectRevert(BlueEdition1155.SupplyExceeded.selector);
         controller.mintPublic(address(collection), 1, phaseId, 1, buyer, 0, block.timestamp + 1 hours);
-        address[] memory recipients = new address[](1); recipients[0] = creator;
-        uint256[] memory quantities = new uint256[](1); quantities[0] = 3;
-        vm.prank(creator); collection.airdrop(1, recipients, quantities);
+        address[] memory recipients = new address[](1);
+        recipients[0] = creator;
+        uint256[] memory quantities = new uint256[](1);
+        quantities[0] = 3;
+        vm.prank(creator);
+        collection.airdrop(1, recipients, quantities);
         assertEq(collection.lifetimeMinted(1), 10);
         assertEq(collection.creatorReserveRemaining(1), 0);
     }

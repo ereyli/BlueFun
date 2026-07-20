@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.25;
 
+import {ReentrancyGuard} from "./security/ReentrancyGuard.sol";
+
 /// @notice Creator-owned ERC-1155 collection with immutable lifetime supply caps and modular mint controllers.
-contract BlueEdition1155 {
+contract BlueEdition1155 is ReentrancyGuard {
     error NotOwner();
     error NotPendingOwner();
     error NotController();
@@ -71,7 +73,9 @@ contract BlueEdition1155 {
     event RoyaltyFrozenForever(address indexed recipient, uint16 bps);
     event TransferValidatorUpdated(address oldValidator, address newValidator);
     event CreatorReserveReleased(uint256 indexed tokenId, uint256 amount, uint256 remaining);
-    event CreatorAirdrop(uint256 indexed tokenId, address indexed recipient, uint256 quantity, uint256 remainingReserve);
+    event CreatorAirdrop(
+        uint256 indexed tokenId, address indexed recipient, uint256 quantity, uint256 remainingReserve
+    );
 
     constructor(
         address creator_,
@@ -142,7 +146,7 @@ contract BlueEdition1155 {
 
     function setMintController(address controller, bool allowed) external onlyOwner {
         if (controller == address(0)) revert InvalidAddress();
-        if (allowed && !mintController[controller] && totalLifetimeMinted != 0) revert ControllerLockedAfterMint();
+        if (totalLifetimeMinted != 0 && mintController[controller] != allowed) revert ControllerLockedAfterMint();
         mintController[controller] = allowed;
         emit MintControllerUpdated(controller, allowed);
     }
@@ -153,7 +157,9 @@ contract BlueEdition1155 {
     }
 
     function createItemWithReserve(string calldata tokenURI_, uint256 maxSupply_, uint256 reserve_)
-        external onlyOwner returns (uint256 tokenId)
+        external
+        onlyOwner
+        returns (uint256 tokenId)
     {
         if (maxSupply_ == 0 || bytes(tokenURI_).length == 0) revert InvalidAmount();
         if (reserve_ > maxSupply_) revert ReserveExceeded();
@@ -302,7 +308,10 @@ contract BlueEdition1155 {
         }
     }
 
-    function mintByController(address to, uint256 tokenId, uint256 quantity, bytes calldata data) external {
+    function mintByController(address to, uint256 tokenId, uint256 quantity, bytes calldata data)
+        external
+        nonReentrant
+    {
         if (!mintController[msg.sender]) revert NotController();
         if (to == address(0) || quantity == 0) revert InvalidAmount();
         uint256 cap = maxSupply[tokenId];
@@ -317,9 +326,13 @@ contract BlueEdition1155 {
         _checkSingleReceiver(msg.sender, address(0), to, tokenId, quantity, data);
     }
 
-    function airdrop(uint256 tokenId, address[] calldata recipients, uint256[] calldata quantities) external onlyOwner {
+    function airdrop(uint256 tokenId, address[] calldata recipients, uint256[] calldata quantities)
+        external
+        onlyOwner
+        nonReentrant
+    {
         if (recipients.length == 0 || recipients.length != quantities.length) revert InvalidAmount();
-        uint256 total;
+        uint256 total = 0;
         for (uint256 i; i < quantities.length; ++i) {
             if (recipients[i] == address(0) || quantities[i] == 0) revert InvalidAmount();
             total += quantities[i];
@@ -352,7 +365,10 @@ contract BlueEdition1155 {
         emit TransferSingle(msg.sender, from, address(0), tokenId, quantity);
     }
 
-    function _createItem(string memory tokenURI_, uint256 maxSupply_, uint256 reserve_) private returns (uint256 tokenId) {
+    function _createItem(string memory tokenURI_, uint256 maxSupply_, uint256 reserve_)
+        private
+        returns (uint256 tokenId)
+    {
         tokenId = nextTokenId++;
         maxSupply[tokenId] = maxSupply_;
         creatorReserveRemaining[tokenId] = reserve_;
@@ -360,7 +376,6 @@ contract BlueEdition1155 {
         emit ItemCreated(tokenId, maxSupply_, tokenURI_);
         emit URI(tokenURI_, tokenId);
     }
-
 
     function _mintReserved(uint256 tokenId, address to, uint256 quantity) private {
         uint256 cap = maxSupply[tokenId];

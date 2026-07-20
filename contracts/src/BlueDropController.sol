@@ -24,11 +24,14 @@ contract BlueDropController is ReentrancyGuard {
     error InvalidProof();
     error DeadlineExpired();
     error MintsPaused();
-    error NativeTransferFailed();
-    error NoRevenue();
     error FeeTermsChanged();
+    error NotConfigurationAdmin();
+    error FactoriesAlreadyConfigured();
+    error NotCollectionFactory();
+    error UnregisteredCollection();
 
     uint16 private constant BPS = 10_000;
+    uint32 public constant MAX_PFP_MINT_PER_TRANSACTION = 100;
 
     enum PhaseType {
         PUBLIC,
@@ -70,6 +73,11 @@ contract BlueDropController is ReentrancyGuard {
 
     INFTFeePolicy public immutable feePolicy;
     address public immutable weth;
+    address public configurationAdmin;
+    address public editionFactory;
+    address public pfpFactory;
+    mapping(address collection => bool registered) public registeredCollection;
+    mapping(address collection => uint8 standard) public collectionStandard;
 
     mapping(address collection => mapping(uint256 tokenId => uint256 nextId)) public nextPhaseId;
     mapping(address collection => mapping(uint256 tokenId => uint256 id)) public latestPhaseId;
@@ -85,9 +93,6 @@ contract BlueDropController is ReentrancyGuard {
     ) public mintedByWalletInPhase;
     mapping(address collection => mapping(uint256 tokenId => mapping(address wallet => uint256 amount))) public
         mintedByWalletTotal;
-    mapping(address collection => uint256 amount) public pendingCreatorRevenue;
-    uint256 public pendingPlatformRevenue;
-
     event PhaseCreated(
         address indexed collection, uint256 indexed tokenId, uint256 indexed phaseId, PhaseConfig config
     );
@@ -106,15 +111,35 @@ contract BlueDropController is ReentrancyGuard {
         uint256 grossAmount,
         uint256 platformFee
     );
-    event CreatorRevenueClaimed(address indexed collection, address indexed recipient, uint256 amount);
-    event PlatformRevenueFlushed(uint256 amount);
     event AutomaticPayout(address indexed collection, address indexed recipient, uint256 amount, bool paidAsWETH);
+    event CollectionFactoriesConfigured(address indexed editionFactory, address indexed pfpFactory);
+    event CollectionRegistered(address indexed factory, address indexed collection);
 
-    constructor(INFTFeePolicy feePolicy_, address weth_) {
-        if (address(feePolicy_) == address(0)) revert InvalidAddress();
+    constructor(INFTFeePolicy feePolicy_, address weth_, address configurationAdmin_) {
+        if (address(feePolicy_) == address(0) || configurationAdmin_ == address(0)) revert InvalidAddress();
         NativeSettlement.validate(weth_);
         feePolicy = feePolicy_;
         weth = weth_;
+        configurationAdmin = configurationAdmin_;
+    }
+
+    /// @notice One-time deployment wiring. The temporary configurator is permanently cleared.
+    function configureFactories(address editionFactory_, address pfpFactory_) external {
+        if (msg.sender != configurationAdmin) revert NotConfigurationAdmin();
+        if (editionFactory != address(0) || pfpFactory != address(0)) revert FactoriesAlreadyConfigured();
+        if (editionFactory_.code.length == 0 || pfpFactory_.code.length == 0) revert InvalidAddress();
+        editionFactory = editionFactory_;
+        pfpFactory = pfpFactory_;
+        configurationAdmin = address(0);
+        emit CollectionFactoriesConfigured(editionFactory_, pfpFactory_);
+    }
+
+    function registerCollection(address collection) external {
+        if (msg.sender != editionFactory && msg.sender != pfpFactory) revert NotCollectionFactory();
+        if (collection.code.length == 0 || registeredCollection[collection]) revert InvalidAddress();
+        registeredCollection[collection] = true;
+        collectionStandard[collection] = msg.sender == pfpFactory ? 2 : 1;
+        emit CollectionRegistered(msg.sender, collection);
     }
 
     function createPhase(address collection, uint256 tokenId, PhaseConfig calldata config)
@@ -229,26 +254,6 @@ contract BlueDropController is ReentrancyGuard {
         _mint(collection, tokenId, phaseId, phase, quantity, recipient, walletAllowance, allowlistUnitPrice, deadline);
     }
 
-    function claimCreatorRevenue(address collection) external nonReentrant returns (uint256 amount) {
-        amount = pendingCreatorRevenue[collection];
-        if (amount == 0) revert NoRevenue();
-        pendingCreatorRevenue[collection] = 0;
-        address recipient = IBlueEdition1155(collection).payoutRecipient();
-        if (recipient == address(0)) revert InvalidAddress();
-        (bool ok,) = payable(recipient).call{value: amount}("");
-        if (!ok) revert NativeTransferFailed();
-        emit CreatorRevenueClaimed(collection, recipient, amount);
-    }
-
-    function flushPlatformRevenue() external nonReentrant returns (uint256 amount) {
-        amount = pendingPlatformRevenue;
-        if (amount == 0) revert NoRevenue();
-        pendingPlatformRevenue = 0;
-        (bool ok,) = payable(feePolicy.platformWallet()).call{value: amount}("");
-        if (!ok) revert NativeTransferFailed();
-        emit PlatformRevenueFlushed(amount);
-    }
-
     function allowlistLeaf(
         address collection,
         uint256 tokenId,
@@ -317,6 +322,9 @@ contract BlueDropController is ReentrancyGuard {
     {
         if (collection == address(0) || IBlueEdition1155(collection).maxSupply(tokenId) == 0) revert InvalidAddress();
         if (config.currency != address(0)) revert UnsupportedCurrency();
+        if (collectionStandard[collection] == 2 && config.maxPerTransaction > MAX_PFP_MINT_PER_TRANSACTION) {
+            revert InvalidQuantity();
+        }
         if (config.startTime < minimumStart || config.endTime <= config.startTime || config.maxPerTransaction == 0) {
             revert InvalidSchedule();
         }
@@ -356,6 +364,7 @@ contract BlueDropController is ReentrancyGuard {
     }
 
     function _onlyCollectionOwner(address collection) private view {
+        if (!registeredCollection[collection]) revert UnregisteredCollection();
         if (IBlueEdition1155(collection).owner() != msg.sender) revert NotCollectionOwner();
     }
 

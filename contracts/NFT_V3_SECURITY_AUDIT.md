@@ -1,8 +1,9 @@
 # BlueFun NFT V3 security audit
 
 Date: 2026-07-20  
-Reviewed commit: `45007f146454a175f2123fcdecc0c7c6c89e9973`  
-Status: **NOT READY FOR MAINNET**
+Original reviewed commit: `45007f146454a175f2123fcdecc0c7c6c89e9973`
+Remediation date: 2026-07-20
+Status: **INTERNAL FINDINGS REMEDIATED — EXTERNAL AUDIT AND RELEASE CHECKLIST STILL REQUIRED**
 
 This is an internal, repository-grounded security review. It is not a substitute for an independent audit by a
 specialist Solidity firm.
@@ -29,9 +30,32 @@ specialist Solidity firm.
 - Clean-cache Foundry build and complete test run.
 - Targeted review against ERC-721, ERC-1155, ERC-1271, EIP-712, ERC-2981 and ERC-4906 behavior.
 
-Validation result: **139 tests passed, 0 failed**. The NFT-specific suites account for 53 passing tests, including
+Original validation result: **139 tests passed, 0 failed**. The NFT-specific suites account for 53 passing tests, including
 256-run fuzz cases. Foundry coverage could not produce a reliable report: the non-IR run hit `stack too deep`, and
 the `--ir-minimum` workaround hit a Yul stack exception.
+
+## Remediation verification
+
+All findings listed below were corrected in the post-audit working tree and covered by regression tests:
+
+| ID | Resolution |
+| --- | --- |
+| H-01 | Reveal commitments now include a cryptographic salt and are domain-separated by collection address and chain ID. Scheduled reveal cannot be bypassed, cancelled or changed after minting begins. |
+| M-01 | Both factories route launch fees through canonical ETH/WETH fallback settlement. |
+| M-02 | Every historical mainnet deployment entry point now reverts; V3 is the only executable NFT deployment script. |
+| M-03 | Mint-controller permissions become fully immutable after the first mint, preventing accidental one-way revocation. |
+| L-01 | The controller accepts only collections registered directly by its one-time configured factories. |
+| L-02 | The legacy offer acceptance selector is retained only for ABI compatibility and always reverts in V3; a nonzero seller minimum is mandatory. |
+| L-03 | `isOfferExecutable` reports signed-offer validity, required WETH, maker balance and allowance. |
+| L-04 | Dead V2 pending-revenue mappings and claim/flush entry points were removed from V3 bytecode. |
+| I-01 | Metadata mutability remains an explicit creator choice and must continue to be disclosed in the UI. |
+| I-02 | ERC-721 controller mints and creator airdrops are capped at 100 NFTs per transaction. |
+
+Post-remediation verification: **153 Foundry tests passed, 0 failed**, including fuzz, invariant and deployment-script suites; NFT
+typecheck, lint and production build passed. Slither found **zero high-severity findings**. Its remaining medium
+reports are manually triaged callback-loop/ignored-tuple warnings: receiver state is committed before each standard
+safe-mint callback, mint/airdrop entry points are non-reentrant, lifetime supply is reserved before callbacks, and
+ignored royalty tuple values are intentionally unused.
 
 ## Finding summary
 
@@ -221,8 +245,9 @@ callbacks. Manual triage found:
 
 ## Release decision
 
-Do not deploy the reviewed commit. H-01 and M-01 through M-03 must be corrected and covered by regression tests.
-After corrections, repeat Slither, the full Foundry suite, Base-fork smoke tests and an independent external audit.
+The internal code blockers in this report are resolved. Do not broadcast a mainnet deployment yet: obtain an
+independent external Solidity audit, run the Base-fork smoke test against the final candidate, verify production
+addresses/roles and complete every item in `NFT_FINAL_DEPLOYMENT_REVIEW.md` first.
 
 Primary standards:
 

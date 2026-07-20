@@ -12,9 +12,9 @@ LooksRare-style WETH fallback settlement, ERC-2981 royalties and ERC-4906 metada
 | --- | --- | --- |
 | Critical UX / funds | Fixed-price seller proceeds, royalties, primary mint revenue and platform fees accumulated in contracts and required later claims. | Every mint and fixed-price sale now distributes funds atomically. Seller, creator and platform receive ETH in the purchase transaction. |
 | High availability | A seller, royalty recipient or payout smart contract that rejects ETH could not be paid automatically. | Native payment uses a bounded-gas transfer and automatically wraps only that recipient's amount to Base WETH when ETH is rejected. The transaction leaves no normal sale proceeds in the market/controller. |
-| High fairness | Scheduled PFP reveal stored the final metadata base URI before reveal, allowing pre-reveal metadata inspection. | Scheduled reveal stores only `keccak256(bytes(uri))`. The real IPFS URI is supplied and verified after the deadline. |
+| High fairness | Scheduled PFP reveal stored the final metadata base URI before reveal, allowing pre-reveal metadata inspection. | Scheduled reveal stores a salted commitment domain-separated by collection and chain. The URI and secret are supplied only after the deadline; the schedule cannot be bypassed or changed after minting starts. |
 | High economic integrity | Admin fee changes could silently reduce the creator/seller net amount after a mint phase or listing was created. | Mint phases and listings snapshot maximum fee terms. Higher deductions make the action revert instead of silently changing net proceeds. Offer acceptance has a minimum-seller-proceeds path. |
-| High trust | A creator could add a new mint controller or arbitrary transfer validator after collectors had minted. | New controller/validator authorization is locked after the first mint. Existing permissions may still be revoked and a validator may be cleared. |
+| High trust | A creator could add a new mint controller or arbitrary transfer validator after collectors had minted. | Controller permissions and validator authorization are fully immutable after the first mint. |
 | High governance | Fee increases and payout-wallet replacement were immediate admin actions. | Fee increases have a 48-hour onchain delay; reductions remain immediate. Platform-wallet replacement is two-step. |
 | Medium observability | Pull-payment balances required four marketplace reads and claim UX. | `AutomaticPayout` events identify recipient, amount and whether WETH fallback was used. |
 
@@ -28,8 +28,8 @@ maker. V3 adds an explicit minimum-proceeds acceptance path so the seller can bi
 3. Verify every source and constructor argument on Base explorers.
 4. Set the reviewed V3 addresses and protocol-version flag atomically. V3 ABI paths are already feature-gated;
    preserve read/claim support for V1/V2 contracts.
-5. Re-check the feature-gated scheduled-reveal flow: submit the URI commitment at creation and the exact URI only
-   at execution.
+5. Re-check the feature-gated scheduled-reveal flow: securely back up the URI and random 32-byte secret, submit the
+   salted commitment at creation, and provide both values only at execution.
 6. Re-check the feature-gated `acceptOfferWithMinProceeds` flow and display gross, platform fee, royalty and seller
    net before signing.
 7. Update the indexer for `AutomaticPayout`, V3 factories, new marketplaces and committed reveal events.

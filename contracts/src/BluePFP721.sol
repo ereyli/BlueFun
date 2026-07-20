@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.25;
 
+import {ReentrancyGuard} from "./security/ReentrancyGuard.sol";
+
 /// @notice Creator-owned ERC-721 PFP collection with sequential controller mints and delayed reveal.
-contract BluePFP721 {
+contract BluePFP721 is ReentrancyGuard {
     error NotOwner();
     error NotPendingOwner();
     error NotController();
@@ -21,11 +23,14 @@ contract BluePFP721 {
     error RevealNotScheduled();
     error RevealTooEarly();
     error InvalidRevealProof();
+    error RevealScheduleLocked();
+    error ScheduledRevealRequired();
     error ControllerLockedAfterMint();
     error ValidatorLockedAfterMint();
 
     uint16 private constant BPS = 10_000;
     uint16 public constant MAX_ROYALTY_BPS = 1_000;
+    uint256 public constant MAX_BATCH_MINT = 100;
     uint256 private constant TRANSFER_VALIDATOR_GAS_LIMIT = 100_000;
 
     string public name;
@@ -134,10 +139,11 @@ contract BluePFP721 {
         emit RoyaltyUpdated(royaltyRecipient_, royaltyBps_);
         if (provenanceHash_ != bytes32(0)) emit ProvenanceHashUpdated(provenanceHash_);
         if (revealTime_ != 0) {
-            scheduledRevealCommitment = revealCommitment_;
+            bytes32 domainCommitment = _domainRevealCommitment(revealCommitment_);
+            scheduledRevealCommitment = domainCommitment;
             scheduledRevealTime = revealTime_;
             scheduledRevealFreeze = freezeOnReveal_;
-            emit RevealScheduled(revealTime_, revealCommitment_, freezeOnReveal_);
+            emit RevealScheduled(revealTime_, domainCommitment, freezeOnReveal_);
         }
     }
 
@@ -177,7 +183,7 @@ contract BluePFP721 {
 
     function setMintController(address controller, bool allowed) external onlyOwner {
         if (controller == address(0)) revert InvalidAddress();
-        if (allowed && !mintController[controller] && totalLifetimeMinted != 0) revert ControllerLockedAfterMint();
+        if (totalLifetimeMinted != 0 && mintController[controller] != allowed) revert ControllerLockedAfterMint();
         mintController[controller] = allowed;
         emit MintControllerUpdated(controller, allowed);
     }
@@ -193,28 +199,34 @@ contract BluePFP721 {
         return totalLifetimeMinted;
     }
 
-    function mintByController(address to, uint256 tokenId, uint256 quantity, bytes calldata data) external {
+    function mintByController(address to, uint256 tokenId, uint256 quantity, bytes calldata data)
+        external
+        nonReentrant
+    {
         if (!mintController[msg.sender]) revert NotController();
-        if (tokenId != 1 || to == address(0) || quantity == 0) revert InvalidAmount();
+        if (tokenId != 1 || to == address(0) || quantity == 0 || quantity > MAX_BATCH_MINT) revert InvalidAmount();
         uint256 first = totalLifetimeMinted + 1;
         uint256 last = totalLifetimeMinted + quantity;
         if (last > collectionMaxSupply - creatorReserveRemaining) revert SupplyExceeded();
         totalLifetimeMinted = last;
         for (uint256 id = first; id <= last; ++id) {
             _ownerOf[id] = to;
-            unchecked { ++_balanceOf[to]; }
+            unchecked {
+                ++_balanceOf[to];
+            }
             emit Transfer(address(0), to, id);
             _checkReceiver(msg.sender, address(0), to, id, data);
         }
     }
 
-    function airdrop(address[] calldata recipients, uint256[] calldata quantities) external onlyOwner {
+    function airdrop(address[] calldata recipients, uint256[] calldata quantities) external onlyOwner nonReentrant {
         if (recipients.length == 0 || recipients.length != quantities.length) revert InvalidAmount();
-        uint256 total;
+        uint256 total = 0;
         for (uint256 i; i < quantities.length; ++i) {
             if (recipients[i] == address(0) || quantities[i] == 0) revert InvalidAmount();
             total += quantities[i];
         }
+        if (total > MAX_BATCH_MINT) revert InvalidAmount();
         if (total > creatorReserveRemaining) revert ReserveExceeded();
         creatorReserveRemaining -= total;
         for (uint256 i; i < recipients.length; ++i) {
@@ -274,7 +286,10 @@ contract BluePFP721 {
         }
         _validateTransfer(msg.sender, from, to, tokenId);
         delete _tokenApproval[tokenId];
-        unchecked { --_balanceOf[from]; ++_balanceOf[to]; }
+        unchecked {
+            --_balanceOf[from];
+            ++_balanceOf[to];
+        }
         _ownerOf[tokenId] = to;
         emit Transfer(from, to, tokenId);
     }
@@ -296,7 +311,9 @@ contract BluePFP721 {
         _validateTransfer(msg.sender, holder, address(0), tokenId);
         delete _tokenApproval[tokenId];
         delete _ownerOf[tokenId];
-        unchecked { --_balanceOf[holder]; }
+        unchecked {
+            --_balanceOf[holder];
+        }
         emit Transfer(holder, address(0), tokenId);
     }
 
@@ -316,33 +333,38 @@ contract BluePFP721 {
 
     function reveal(string calldata uri, bool freezeAfterReveal) external onlyOwner {
         if (revealed) revert AlreadyRevealed();
+        if (scheduledRevealTime != 0) revert ScheduledRevealRequired();
         if (metadataFrozen || bytes(uri).length == 0) revert MetadataFrozen();
         _reveal(uri, freezeAfterReveal);
     }
 
     function scheduleReveal(bytes32 commitment, uint64 revealTime, bool freezeAfterReveal) external onlyOwner {
         if (revealed) revert AlreadyRevealed();
+        if (totalLifetimeMinted != 0) revert RevealScheduleLocked();
         if (metadataFrozen || commitment == bytes32(0)) revert MetadataFrozen();
         if (revealTime <= block.timestamp) revert RevealTooEarly();
-        scheduledRevealCommitment = commitment;
+        bytes32 domainCommitment = _domainRevealCommitment(commitment);
+        scheduledRevealCommitment = domainCommitment;
         scheduledRevealTime = revealTime;
         scheduledRevealFreeze = freezeAfterReveal;
-        emit RevealScheduled(revealTime, commitment, freezeAfterReveal);
+        emit RevealScheduled(revealTime, domainCommitment, freezeAfterReveal);
     }
 
     function cancelScheduledReveal() external onlyOwner {
         if (scheduledRevealTime == 0) revert RevealNotScheduled();
+        if (totalLifetimeMinted != 0) revert RevealScheduleLocked();
         scheduledRevealCommitment = bytes32(0);
         scheduledRevealTime = 0;
         scheduledRevealFreeze = false;
         emit ScheduledRevealCancelled();
     }
 
-    function executeScheduledReveal(string calldata uri) external {
+    function executeScheduledReveal(string calldata uri, bytes32 secretSalt) external {
         uint64 revealTime = scheduledRevealTime;
         if (revealTime == 0) revert RevealNotScheduled();
         if (block.timestamp < revealTime) revert RevealTooEarly();
-        if (keccak256(bytes(uri)) != scheduledRevealCommitment) revert InvalidRevealProof();
+        bytes32 innerCommitment = keccak256(abi.encode(uri, secretSalt));
+        if (_domainRevealCommitment(innerCommitment) != scheduledRevealCommitment) revert InvalidRevealProof();
         bool freezeAfterReveal = scheduledRevealFreeze;
         _reveal(uri, freezeAfterReveal);
     }
@@ -350,6 +372,11 @@ contract BluePFP721 {
     function freezeMetadata() external onlyOwner {
         metadataFrozen = true;
         emit MetadataFrozenForever();
+    }
+
+    /// @notice Domain-separates a reveal commitment so it cannot be replayed across collections or chains.
+    function revealCommitmentFor(bytes32 innerCommitment) external view returns (bytes32) {
+        return _domainRevealCommitment(innerCommitment);
     }
 
     function setProvenanceHash(bytes32 value) external onlyOwner {
@@ -396,7 +423,9 @@ contract BluePFP721 {
         transferValidator = validator;
     }
 
-    function getTransferValidator() external view returns (address) { return transferValidator; }
+    function getTransferValidator() external view returns (address) {
+        return transferValidator;
+    }
 
     function getTransferValidationFunction() external pure returns (bytes4 functionSignature, bool isViewFunction) {
         return (bytes4(keccak256("validateTransfer(address,address,address,uint256,uint256)")), true);
@@ -406,7 +435,9 @@ contract BluePFP721 {
         address validator = transferValidator;
         if (validator == address(0)) return;
         (bool ok,) = validator.staticcall{gas: TRANSFER_VALIDATOR_GAS_LIMIT}(
-            abi.encodeWithSignature("validateTransfer(address,address,address,uint256,uint256)", operator, from, to, tokenId, 1)
+            abi.encodeWithSignature(
+                "validateTransfer(address,address,address,uint256,uint256)", operator, from, to, tokenId, 1
+            )
         );
         if (!ok) revert TransferRejected();
     }
@@ -418,7 +449,9 @@ contract BluePFP721 {
         totalLifetimeMinted = last;
         for (uint256 id = first; id <= last; ++id) {
             _ownerOf[id] = to;
-            unchecked { ++_balanceOf[to]; }
+            unchecked {
+                ++_balanceOf[to];
+            }
             emit Transfer(address(0), to, id);
             _checkReceiver(msg.sender, address(0), to, id, "");
         }
@@ -440,19 +473,23 @@ contract BluePFP721 {
 
     function _checkReceiver(address operator, address from, address to, uint256 tokenId, bytes memory data) private {
         if (to.code.length == 0) return;
-        (bool ok, bytes memory result) = to.call(
-            abi.encodeWithSelector(0x150b7a02, operator, from, tokenId, data)
-        );
+        (bool ok, bytes memory result) = to.call(abi.encodeWithSelector(0x150b7a02, operator, from, tokenId, data));
         if (!ok || result.length < 32 || abi.decode(result, (bytes4)) != 0x150b7a02) revert TransferRejected();
+    }
+
+    function _domainRevealCommitment(bytes32 innerCommitment) private view returns (bytes32) {
+        return keccak256(abi.encode(innerCommitment, address(this), block.chainid));
     }
 
     function _toString(uint256 value) private pure returns (string memory str) {
         if (value == 0) return "0";
-        uint256 digits;
+        uint256 digits = 0;
         uint256 current = value;
-        while (current != 0) { ++digits; current /= 10; }
+        while (current != 0) ++digits;
+        current /= 10;
         bytes memory buffer = new bytes(digits);
-        while (value != 0) { buffer[--digits] = bytes1(uint8(48 + value % 10)); value /= 10; }
+        while (value != 0) buffer[--digits] = bytes1(uint8(48 + value % 10));
+        value /= 10;
         str = string(buffer);
     }
 }

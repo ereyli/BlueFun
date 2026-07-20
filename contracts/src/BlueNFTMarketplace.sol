@@ -20,8 +20,6 @@ contract BlueNFTMarketplace is ReentrancyGuard {
     error InsufficientBalance();
     error FeeOverflow();
     error FeeTermsChanged();
-    error NativeTransferFailed();
-    error NoRevenue();
     error MarketplacePaused();
 
     uint16 private constant BPS = 10_000;
@@ -41,13 +39,9 @@ contract BlueNFTMarketplace is ReentrancyGuard {
     INFTCollectionRegistry public immutable collectionRegistry;
     address public immutable weth;
     uint256 public listingCount;
-    /// @dev Deprecated V2 accounting slots. New settlements never accrue balances here.
-    uint256 public pendingPlatformRevenue;
-
     mapping(uint256 listingId => Listing listing) public listings;
     mapping(uint256 listingId => uint16 bps) public maximumMarketplaceFeeBps;
     mapping(uint256 listingId => uint16 bps) public maximumRoyaltyBps;
-    mapping(address recipient => uint256 amount) public pendingRevenue;
 
     event ListingCreated(
         uint256 indexed listingId,
@@ -70,8 +64,6 @@ contract BlueNFTMarketplace is ReentrancyGuard {
         address royaltyRecipient,
         uint256 royaltyAmount
     );
-    event RevenueClaimed(address indexed recipient, uint256 amount);
-    event PlatformRevenueFlushed(uint256 amount);
     event AutomaticPayout(address indexed recipient, uint256 amount, bool paidAsWETH);
 
     constructor(INFTFeePolicy feePolicy_, INFTCollectionRegistry collectionRegistry_, address weth_) {
@@ -155,24 +147,6 @@ contract BlueNFTMarketplace is ReentrancyGuard {
         emit ListingPurchased(
             listingId, msg.sender, recipient, quantity, gross, platformFee, royaltyRecipient, royaltyAmount
         );
-    }
-
-    function claimRevenue() external nonReentrant returns (uint256 amount) {
-        amount = pendingRevenue[msg.sender];
-        if (amount == 0) revert NoRevenue();
-        pendingRevenue[msg.sender] = 0;
-        (bool ok,) = payable(msg.sender).call{value: amount}("");
-        if (!ok) revert NativeTransferFailed();
-        emit RevenueClaimed(msg.sender, amount);
-    }
-
-    function flushPlatformRevenue() external nonReentrant returns (uint256 amount) {
-        amount = pendingPlatformRevenue;
-        if (amount == 0) revert NoRevenue();
-        pendingPlatformRevenue = 0;
-        (bool ok,) = payable(feePolicy.platformWallet()).call{value: amount}("");
-        if (!ok) revert NativeTransferFailed();
-        emit PlatformRevenueFlushed(amount);
     }
 
     function _payout(address recipient, uint256 amount) private {

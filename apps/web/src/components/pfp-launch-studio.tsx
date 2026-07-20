@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { unzip } from "fflate";
-import { decodeEventLog, formatEther, keccak256, parseEther, toBytes, zeroAddress } from "viem";
+import { decodeEventLog, encodeAbiParameters, formatEther, keccak256, parseEther, toBytes, zeroAddress } from "viem";
 import { useAccount, usePublicClient, useReadContract, useWriteContract } from "wagmi";
 import { ArrowLeft, BadgeCheck, CheckCircle2, FileArchive, FolderOpen, ImagePlus, Images, Layers3, Loader2, LockKeyhole, ShieldCheck, Sparkles, UploadCloud, WalletCards } from "lucide-react";
 import { bluePFPAbi, nftAddresses, nftDropControllerAbi, nftFeePolicyAbi, nftPFPFactoryAbi, nftProtocolVersion, pfpLaunchpadEnabled } from "@/lib/nft-contracts";
@@ -40,14 +40,15 @@ export function PFPLaunchStudio({ onSelectEdition }: { onSelectEdition: () => vo
   const [status, setStatus] = useState(""); const [error, setError] = useState(""); const [working, setWorking] = useState(false);
   const [step, setStep] = useState(1);
   const [collection, setCollection] = useState<`0x${string}`>(); const [manifest, setManifest] = useState<AllowlistManifest>();
+  const [revealSecret, setRevealSecret] = useState<`0x${string}`>();
   const fee = useReadContract({ address: nftAddresses.feePolicy, abi: nftFeePolicyAbi, functionName: "collectionLaunchFee", chainId: 8453 });
   const launchFee = fee.data ?? parseEther("0.001");
   const royaltyBps = Math.round(Number(royalty || 0) * 100);
   const allowlistResult = useMemo(() => { try { return { entries: parseAllowlistCSV(allowlist, { allowance: safeBigInt(allowlistLimit), unitPrice: safeParseEth(allowlistPrice) }), error: "" }; } catch (cause) { return { entries: [], error: message(cause) }; } }, [allowlist, allowlistLimit, allowlistPrice]);
   const publicLimit = Number(walletLimit); const wlLimit = Number(allowlistLimit); const publicTxMax = Number(publicMaxPerTx); const wlTxMax = Number(allowlistMaxPerTx);
   const supply = BigInt(prepared?.itemCount || media.length || 0); const publicCap = safeBigInt(publicPhaseCap); const wlCap = safeBigInt(allowlistPhaseCap);
-  const validMint = (mode === "allowlist" || (Number.isInteger(publicLimit) && publicLimit >= 0 && Number.isInteger(publicTxMax) && publicTxMax > 0 && (publicLimit === 0 || publicTxMax <= publicLimit) && publicCap >= 0n && (supply === 0n || publicCap <= supply)))
-    && (mode === "public" || (Number.isInteger(wlLimit) && wlLimit > 0 && Number.isInteger(wlTxMax) && wlTxMax > 0 && wlTxMax <= wlLimit && wlCap >= 0n && (supply === 0n || wlCap <= supply) && allowlistResult.entries.length > 0 && !allowlistResult.error))
+  const validMint = (mode === "allowlist" || (Number.isInteger(publicLimit) && publicLimit >= 0 && Number.isInteger(publicTxMax) && publicTxMax > 0 && publicTxMax <= 100 && (publicLimit === 0 || publicTxMax <= publicLimit) && publicCap >= 0n && (supply === 0n || publicCap <= supply)))
+    && (mode === "public" || (Number.isInteger(wlLimit) && wlLimit > 0 && Number.isInteger(wlTxMax) && wlTxMax > 0 && wlTxMax <= 100 && wlTxMax <= wlLimit && wlCap >= 0n && (supply === 0n || wlCap <= supply) && allowlistResult.entries.length > 0 && !allowlistResult.error))
     && (mode === "allowlist" || isValidEth(price)) && (mode === "public" || isValidEth(allowlistPrice))
     && mintScheduleIsValid(mintSchedule, mode);
   const revealTimestamp = revealAt ? Math.floor(new Date(revealAt).getTime()/1000) : 0;
@@ -101,13 +102,17 @@ export function PFPLaunchStudio({ onSelectEdition }: { onSelectEdition: () => vo
     try {
       setStatus(`Deploying the creator-owned ERC-721 contract (${formatEther(launchFee)} ETH launch fee)…`);
       const revealed = revealMode === "instant"; const scheduled = revealMode === "scheduled";
+      const scheduledSecret = scheduled && nftProtocolVersion === "v3" ? randomBytes32() : undefined;
+      const scheduledCommitment = scheduledSecret
+        ? keccak256(encodeAbiParameters([{ type: "string" }, { type: "bytes32" }], [prepared.metadataBaseURI, scheduledSecret]))
+        : undefined;
       const hash = await writeContractAsync({ chainId: 8453, address: nftAddresses.pfpFactory, abi: nftPFPFactoryAbi,
         functionName: "createPFPCollection", value: launchFee, args: [{
           name: name.trim(), symbol: symbol.trim().toUpperCase(), contractURI: prepared.contractURI,
           baseURI: revealed
             ? prepared.metadataBaseURI
             : scheduled && nftProtocolVersion === "v3"
-              ? keccak256(toBytes(prepared.metadataBaseURI))
+              ? scheduledCommitment!
               : scheduled
                 ? prepared.metadataBaseURI
                 : "",
@@ -124,6 +129,10 @@ export function PFPLaunchStudio({ onSelectEdition }: { onSelectEdition: () => vo
       } catch { /* unrelated log */ }
       if (!deployed) throw new Error("The PFP collection address could not be read from the receipt.");
       setCollection(deployed);
+      if (scheduledSecret) {
+        setRevealSecret(scheduledSecret);
+        localStorage.setItem(`bluefun:nft-reveal:${deployed.toLowerCase()}`, JSON.stringify({ uri: prepared.metadataBaseURI, secret: scheduledSecret }));
+      }
       const now = BigInt(Math.floor(Date.now() / 1000) + 300);
       const schedule = resolveMintSchedule(mintSchedule, mode, now);
       if (!schedule) throw new Error("Mint schedule is invalid. Check phase start and end times.");
@@ -142,7 +151,7 @@ export function PFPLaunchStudio({ onSelectEdition }: { onSelectEdition: () => vo
         await saveAllowlist(deployed, 1n, 1n, tree);
         if (mode === "both") await createPhase(deployed, { phaseType: 0, limitMode: publicCumulativeLimit ? 1 : 0, price: parseEth(price), start: schedule.public!.start, end: schedule.public!.end, cap: publicCap, limit: publicLimit, max: publicTxMax, root: zeroHash });
       } else await createPhase(deployed, { phaseType: 0, limitMode: 0, price: parseEth(price), start: schedule.public!.start, end: schedule.public!.end, cap: publicCap, limit: publicLimit, max: publicTxMax, root: zeroHash });
-      setStatus(revealed ? "PFP drop is live with instant metadata." : "PFP drop is live in pre-reveal mode. Keep the reveal manifest safe.");
+      setStatus(revealed ? "PFP drop is live with instant metadata." : "PFP drop is live in pre-reveal mode. Download and securely back up the reveal manifest.");
       clearLaunchRecovery(address,"pfp");
     } catch (cause) { setError(message(cause)); setStatus(""); } finally { setWorking(false); }
   }
@@ -158,7 +167,7 @@ export function PFPLaunchStudio({ onSelectEdition }: { onSelectEdition: () => vo
 
   function downloadLaunchFiles() {
     if (!prepared) return;
-    downloadJson(`${symbol || "pfp"}-reveal-manifest.json`, { collection, metadataBaseURI: prepared.metadataBaseURI, provenanceHash: prepared.provenanceHash, freezeOnReveal, itemCount: prepared.itemCount });
+    downloadJson(`${symbol || "pfp"}-reveal-manifest.json`, { collection, metadataBaseURI: prepared.metadataBaseURI, revealSecret: revealMode === "scheduled" ? revealSecret : undefined, provenanceHash: prepared.provenanceHash, freezeOnReveal, itemCount: prepared.itemCount });
     if (manifest) downloadJson(`${symbol || "pfp"}-allowlist-proofs.json`, manifest);
   }
 
@@ -202,8 +211,8 @@ export function PFPLaunchStudio({ onSelectEdition }: { onSelectEdition: () => vo
 
         <PFPSection active={step === 4} number="04" icon={<WalletCards/>} title="Mint strategy" detail="Free or paid public mint, allowlist, or staged access.">
           <div className="field"><label>Access mode</label><div className="nft-segmented">{(["public","allowlist","both"] as const).map((value) => <button className={mode === value ? "active" : ""} key={value} onClick={() => setMode(value)} type="button"><strong>{value === "public" ? "Public mint" : value === "allowlist" ? "Allowlist only" : "Allowlist → Public"}</strong><small>{value === "public" ? "Open to every wallet" : value === "allowlist" ? "Merkle-gated access" : "Staged release"}</small></button>)}</div></div>
-          {mode !== "allowlist" ? <><div className="nft-form-grid"><div className="field"><label>Public price <small>0 for free mint</small></label><div className="nft-input-suffix"><input min="0" step="0.001" type="number" value={price} onChange={(event) => setPrice(event.target.value)} /><span>ETH</span></div></div><div className="field"><label>Public allocation <small>0 = all remaining supply</small></label><input min="0" max={prepared?.itemCount || media.length || undefined} type="number" value={publicPhaseCap} onChange={(event) => setPublicPhaseCap(event.target.value)} /></div><div className="field"><label>Per-wallet limit <small>0 = unlimited</small></label><input min="0" type="number" value={walletLimit} onChange={(event) => setWalletLimit(event.target.value)} /></div><div className="field"><label>Max per transaction</label><input min="1" type="number" value={publicMaxPerTx} onChange={(event) => setPublicMaxPerTx(event.target.value)} /></div></div>{mode === "both" ? <label className="pfp-check"><input checked={publicCumulativeLimit} onChange={(event) => setPublicCumulativeLimit(event.target.checked)} type="checkbox"/><span><strong>Count allowlist mints toward the public wallet limit</strong><small>Prevents allowlisted wallets from receiving a fresh public allowance.</small></span></label> : null}</> : null}
-          {mode !== "public" ? <><div className="field"><label>Professional allowlist CSV <small>wallet, allowance, price</small></label><textarea className="nft-code-input" rows={6} placeholder={"wallet,allowance,price\n0x…,2,0.001"} value={allowlist} onChange={(event) => setAllowlist(event.target.value)} /><input type="file" accept=".csv,text/csv" onChange={(event)=>{const file=event.target.files?.[0];if(file)void file.text().then(setAllowlist);}}/>{allowlistResult.error?<small className="nft-error">{allowlistResult.error}</small>:<small>{allowlistResult.entries.length} wallets · per-wallet price and allowance supported</small>}</div><div className="nft-form-grid"><div className="field"><label>Default allowlist price</label><div className="nft-input-suffix"><input min="0" step="0.001" type="number" value={allowlistPrice} onChange={(event) => setAllowlistPrice(event.target.value)} /><span>ETH</span></div></div><div className="field"><label>Allowlist allocation <small>0 = all remaining supply</small></label><input min="0" max={prepared?.itemCount || media.length || undefined} type="number" value={allowlistPhaseCap} onChange={(event) => setAllowlistPhaseCap(event.target.value)} /></div><div className="field"><label>Default wallet allowance</label><input min="1" type="number" value={allowlistLimit} onChange={(event) => setAllowlistLimit(event.target.value)} /></div><div className="field"><label>Max per transaction</label><input min="1" type="number" value={allowlistMaxPerTx} onChange={(event) => setAllowlistMaxPerTx(event.target.value)} /></div></div></> : null}
+          {mode !== "allowlist" ? <><div className="nft-form-grid"><div className="field"><label>Public price <small>0 for free mint</small></label><div className="nft-input-suffix"><input min="0" step="0.001" type="number" value={price} onChange={(event) => setPrice(event.target.value)} /><span>ETH</span></div></div><div className="field"><label>Public allocation <small>0 = all remaining supply</small></label><input min="0" max={prepared?.itemCount || media.length || undefined} type="number" value={publicPhaseCap} onChange={(event) => setPublicPhaseCap(event.target.value)} /></div><div className="field"><label>Per-wallet limit <small>0 = unlimited</small></label><input min="0" type="number" value={walletLimit} onChange={(event) => setWalletLimit(event.target.value)} /></div><div className="field"><label>Max per transaction <small>Maximum 100</small></label><input min="1" max="100" type="number" value={publicMaxPerTx} onChange={(event) => setPublicMaxPerTx(event.target.value)} /></div></div>{mode === "both" ? <label className="pfp-check"><input checked={publicCumulativeLimit} onChange={(event) => setPublicCumulativeLimit(event.target.checked)} type="checkbox"/><span><strong>Count allowlist mints toward the public wallet limit</strong><small>Prevents allowlisted wallets from receiving a fresh public allowance.</small></span></label> : null}</> : null}
+          {mode !== "public" ? <><div className="field"><label>Professional allowlist CSV <small>wallet, allowance, price</small></label><textarea className="nft-code-input" rows={6} placeholder={"wallet,allowance,price\n0x…,2,0.001"} value={allowlist} onChange={(event) => setAllowlist(event.target.value)} /><input type="file" accept=".csv,text/csv" onChange={(event)=>{const file=event.target.files?.[0];if(file)void file.text().then(setAllowlist);}}/>{allowlistResult.error?<small className="nft-error">{allowlistResult.error}</small>:<small>{allowlistResult.entries.length} wallets · per-wallet price and allowance supported</small>}</div><div className="nft-form-grid"><div className="field"><label>Default allowlist price</label><div className="nft-input-suffix"><input min="0" step="0.001" type="number" value={allowlistPrice} onChange={(event) => setAllowlistPrice(event.target.value)} /><span>ETH</span></div></div><div className="field"><label>Allowlist allocation <small>0 = all remaining supply</small></label><input min="0" max={prepared?.itemCount || media.length || undefined} type="number" value={allowlistPhaseCap} onChange={(event) => setAllowlistPhaseCap(event.target.value)} /></div><div className="field"><label>Default wallet allowance</label><input min="1" type="number" value={allowlistLimit} onChange={(event) => setAllowlistLimit(event.target.value)} /></div><div className="field"><label>Max per transaction <small>Maximum 100</small></label><input min="1" max="100" type="number" value={allowlistMaxPerTx} onChange={(event) => setAllowlistMaxPerTx(event.target.value)} /></div></div></> : null}
           <MintScheduleFields mode={mode} schedule={mintSchedule} onChange={setMintSchedule}/>
         </PFPSection>
         {error ? <p className="nft-error">{error}</p> : null}{status ? <p className="nft-status">{working ? <Loader2 className="spin"/> : <CheckCircle2/>}{status}</p> : null}
@@ -239,5 +248,6 @@ function safeParseEth(value:string){try{return parseEth(value);}catch{return -1n
 function message(error: unknown) { return error instanceof Error ? error.message.split("Request Arguments:")[0].slice(0, 300) : "The operation failed."; }
 function formatBytes(value: number) { return value > 1024 * 1024 ? `${(value / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(value / 1024))} KB`; }
 function downloadJson(name: string, value: unknown) { const url = URL.createObjectURL(new Blob([JSON.stringify(value, null, 2)], { type: "application/json" })); const link = document.createElement("a"); link.href = url; link.download = name; link.click(); URL.revokeObjectURL(url); }
+function randomBytes32() { const bytes = crypto.getRandomValues(new Uint8Array(32)); return `0x${Array.from(bytes, (value) => value.toString(16).padStart(2, "0")).join("")}` as `0x${string}`; }
 const zeroHash = `0x${"0".repeat(64)}` as `0x${string}`;
 async function saveAllowlist(collection:`0x${string}`,tokenId:bigint,phaseId:bigint,tree:ReturnType<typeof buildAllowlistTree>){const response=await fetch("/api/nft/allowlist",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({collection,tokenId:tokenId.toString(),phaseId:phaseId.toString(),root:tree.root,entries:tree.entries.map((entry)=>({wallet:entry.wallet,allowance:entry.allowance.toString(),unitPrice:entry.unitPrice.toString(),proof:entry.proof}))})});if(!response.ok)throw new Error("The phase is onchain, but automatic proof storage failed. Resume this launch to retry safely.");}

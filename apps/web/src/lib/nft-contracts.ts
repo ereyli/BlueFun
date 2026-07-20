@@ -159,7 +159,7 @@ export const bluePFPAbi = [
 
 export const bluePFPV3RevealAbi = [
   { type: "function", name: "scheduleReveal", stateMutability: "nonpayable", inputs: [{ type: "bytes32" }, { type: "uint64" }, { type: "bool" }], outputs: [] },
-  { type: "function", name: "executeScheduledReveal", stateMutability: "nonpayable", inputs: [{ type: "string" }], outputs: [] }
+  { type: "function", name: "executeScheduledReveal", stateMutability: "nonpayable", inputs: [{ type: "string" }, { type: "bytes32" }], outputs: [] }
 ] as const;
 
 export const nftPFPMarketplaceAbi = [
@@ -290,6 +290,7 @@ export const nftOffersAbi = [
   { type: "function", name: "minimumNonce", stateMutability: "view", inputs: [{ type: "address" }], outputs: [{ type: "uint256" }] },
   { type: "function", name: "acceptOffer", stateMutability: "nonpayable", inputs: [{ name: "offer", type: "tuple", components: nftOfferComponents }, { name: "tokenId", type: "uint256" }, { name: "quantity", type: "uint64" }, { name: "signature", type: "bytes" }], outputs: [] },
   { type: "function", name: "acceptOfferWithMinProceeds", stateMutability: "nonpayable", inputs: [{ name: "offer", type: "tuple", components: nftOfferComponents }, { name: "tokenId", type: "uint256" }, { name: "quantity", type: "uint64" }, { name: "signature", type: "bytes" }, { name: "minimumSellerProceeds", type: "uint256" }], outputs: [] },
+  { type: "function", name: "isOfferExecutable", stateMutability: "view", inputs: [{ name: "offer", type: "tuple", components: nftOfferComponents }, { name: "signature", type: "bytes" }, { name: "quantity", type: "uint64" }], outputs: [{ name: "executable", type: "bool" }, { name: "requiredAmount", type: "uint256" }, { name: "balance", type: "uint256" }, { name: "allowance", type: "uint256" }] },
   { type: "function", name: "cancelOffer", stateMutability: "nonpayable", inputs: [{ name: "offer", type: "tuple", components: nftOfferComponents }], outputs: [] },
   { type: "function", name: "cancelAllOffers", stateMutability: "nonpayable", inputs: [{ name: "newMinimumNonce", type: "uint256" }], outputs: [] }
 ] as const;

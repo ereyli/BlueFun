@@ -6,15 +6,76 @@ import {NFTCollectionFactory} from "../src/NFTCollectionFactory.sol";
 import {NFTPFPFactory} from "../src/NFTPFPFactory.sol";
 import {BlueEdition1155} from "../src/BlueEdition1155.sol";
 import {BluePFP721} from "../src/BluePFP721.sol";
-import {BlueDropController} from "../src/BlueDropController.sol";
-import {BlueNFTMarketplace} from "../src/BlueNFTMarketplace.sol";
-import {BlueNFTMarketplace721} from "../src/BlueNFTMarketplace721.sol";
 import {BlueNFTOffers} from "../src/BlueNFTOffers.sol";
 
 interface IWETHFork {
     function deposit() external payable;
     function approve(address spender, uint256 amount) external returns (bool);
     function balanceOf(address account) external view returns (uint256);
+}
+
+interface ILegacyDropController {
+    enum PhaseType {
+        PUBLIC,
+        MERKLE_ALLOWLIST
+    }
+    enum LimitMode {
+        PER_PHASE,
+        CUMULATIVE
+    }
+
+    struct PhaseConfig {
+        PhaseType phaseType;
+        LimitMode limitMode;
+        address currency;
+        uint128 mintPrice;
+        uint64 startTime;
+        uint64 endTime;
+        uint64 phaseSupplyCap;
+        uint32 defaultWalletLimit;
+        uint32 maxPerTransaction;
+        bytes32 merkleRoot;
+    }
+    function createPhase(address collection, uint256 tokenId, PhaseConfig calldata config) external returns (uint256);
+    function mintPublic(
+        address collection,
+        uint256 tokenId,
+        uint256 phaseId,
+        uint256 quantity,
+        address recipient,
+        uint256 expectedUnitPrice,
+        uint256 deadline
+    ) external payable;
+    function pendingCreatorRevenue(address collection) external view returns (uint256);
+    function claimCreatorRevenue(address collection) external returns (uint256);
+}
+
+interface ILegacyEditionMarketplace {
+    function createListing(
+        address collection,
+        uint256 tokenId,
+        uint64 quantity,
+        uint128 unitPrice,
+        uint64 startTime,
+        uint64 endTime
+    ) external returns (uint256);
+    function buy(uint256 listingId, uint64 quantity, address recipient) external payable;
+    function pendingRevenue(address recipient) external view returns (uint256);
+    function claimRevenue() external returns (uint256);
+    function cancelListing(uint256 listingId) external;
+    function listings(uint256 listingId)
+        external
+        view
+        returns (address, address, uint256, uint128, uint64, uint64, uint64, bool);
+}
+
+interface ILegacyPFPMarketplace {
+    function createListing(address collection, uint256 tokenId, uint128 price, uint64 startTime, uint64 endTime)
+        external
+        returns (uint256);
+    function buy(uint256 listingId, address recipient) external payable;
+    function pendingRevenue(address recipient) external view returns (uint256);
+    function claimRevenue() external returns (uint256);
 }
 
 /// @notice Exercises the exact verified V2 deployment against a Base mainnet fork.
@@ -34,11 +95,11 @@ contract NFTBaseMainnetV2ForkTest is Test {
     address internal other = address(0xCAFE01);
     address internal maker;
 
-    BlueDropController internal controller = BlueDropController(DROP_CONTROLLER);
+    ILegacyDropController internal controller = ILegacyDropController(DROP_CONTROLLER);
     NFTCollectionFactory internal editionFactory = NFTCollectionFactory(EDITION_FACTORY);
     NFTPFPFactory internal pfpFactory = NFTPFPFactory(PFP_FACTORY);
-    BlueNFTMarketplace internal editionMarketplace = BlueNFTMarketplace(EDITION_MARKETPLACE);
-    BlueNFTMarketplace721 internal pfpMarketplace = BlueNFTMarketplace721(PFP_MARKETPLACE);
+    ILegacyEditionMarketplace internal editionMarketplace = ILegacyEditionMarketplace(EDITION_MARKETPLACE);
+    ILegacyPFPMarketplace internal pfpMarketplace = ILegacyPFPMarketplace(PFP_MARKETPLACE);
     BlueNFTOffers internal offers = BlueNFTOffers(OFFERS);
     IWETHFork internal weth = IWETHFork(WETH);
 
@@ -77,9 +138,7 @@ contract NFTBaseMainnetV2ForkTest is Test {
 
         uint256 phaseId = _createPublicPhase(deployed, 0.01 ether, 10);
         vm.prank(buyer);
-        controller.mintPublic{value: 0.03 ether}(
-            deployed, 1, phaseId, 3, buyer, 0.01 ether, block.timestamp + 1 hours
-        );
+        controller.mintPublic{value: 0.03 ether}(deployed, 1, phaseId, 3, buyer, 0.01 ether, block.timestamp + 1 hours);
         assertEq(collection.balanceOf(buyer, 1), 3);
         assertEq(controller.pendingCreatorRevenue(deployed), 0.0294 ether);
 
@@ -147,9 +206,7 @@ contract NFTBaseMainnetV2ForkTest is Test {
 
         uint256 phaseId = _createPublicPhase(deployed, 0.02 ether, 3);
         vm.prank(buyer);
-        controller.mintPublic{value: 0.04 ether}(
-            deployed, 1, phaseId, 2, buyer, 0.02 ether, block.timestamp + 1 hours
-        );
+        controller.mintPublic{value: 0.04 ether}(deployed, 1, phaseId, 2, buyer, 0.02 ether, block.timestamp + 1 hours);
         assertEq(collection.ownerOf(1), buyer);
         assertEq(collection.ownerOf(2), buyer);
         assertEq(controller.pendingCreatorRevenue(deployed), 0.0392 ether);
@@ -210,13 +267,10 @@ contract NFTBaseMainnetV2ForkTest is Test {
         assertEq(offers.filledQuantity(digest), 1);
     }
 
-    function _createPublicPhase(address collection, uint128 price, uint64 cap)
-        private
-        returns (uint256 phaseId)
-    {
-        BlueDropController.PhaseConfig memory config = BlueDropController.PhaseConfig({
-            phaseType: BlueDropController.PhaseType.PUBLIC,
-            limitMode: BlueDropController.LimitMode.PER_PHASE,
+    function _createPublicPhase(address collection, uint128 price, uint64 cap) private returns (uint256 phaseId) {
+        ILegacyDropController.PhaseConfig memory config = ILegacyDropController.PhaseConfig({
+            phaseType: ILegacyDropController.PhaseType.PUBLIC,
+            limitMode: ILegacyDropController.LimitMode.PER_PHASE,
             currency: address(0),
             mintPrice: price,
             startTime: uint64(block.timestamp),

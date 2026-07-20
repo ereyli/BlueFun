@@ -9,6 +9,16 @@ import {BlueDropController} from "../src/BlueDropController.sol";
 import {BlueNFTMarketplace721} from "../src/BlueNFTMarketplace721.sol";
 import {MockWETH} from "./mocks/MockWETH.sol";
 
+contract PFPRejectingPlatformWallet {
+    receive() external payable {
+        revert();
+    }
+
+    function acceptPlatformWallet(NFTFeePolicy policy) external {
+        policy.acceptPlatformWallet();
+    }
+}
+
 contract NFTPFPLaunchpadTest is Test {
     address internal creator = address(0xC0FFEE);
     address internal buyer = address(0xB0B);
@@ -24,8 +34,9 @@ contract NFTPFPLaunchpadTest is Test {
     function setUp() public {
         policy = new NFTFeePolicy(address(this), address(this), platformWallet);
         weth = new MockWETH();
-        controller = new BlueDropController(policy, address(weth));
-        factory = new NFTPFPFactory(policy, address(controller));
+        controller = new BlueDropController(policy, address(weth), address(this));
+        factory = new NFTPFPFactory(policy, address(controller), address(weth));
+        controller.configureFactories(address(factory), address(factory));
         marketplace = new BlueNFTMarketplace721(policy, factory, address(weth));
         vm.deal(creator, 10 ether);
         vm.deal(buyer, 10 ether);
@@ -40,6 +51,23 @@ contract NFTPFPLaunchpadTest is Test {
         assertEq(collection.maxSupply(1), 100);
         assertEq(platformWallet.balance, 0.001 ether);
         assertTrue(factory.isBlueFunCollection(address(collection)));
+        assertTrue(controller.registeredCollection(address(collection)));
+    }
+
+    function testPFPLaunchFeeFallsBackToWETH() public {
+        PFPRejectingPlatformWallet rejectingWallet = new PFPRejectingPlatformWallet();
+        policy.proposePlatformWallet(payable(address(rejectingWallet)));
+        rejectingWallet.acceptPlatformWallet(policy);
+        BluePFP721 collection = _create(false, 10);
+        assertTrue(factory.isBlueFunCollection(address(collection)));
+        assertEq(weth.balanceOf(address(rejectingWallet)), policy.collectionLaunchFee());
+        assertEq(address(factory).balance, 0);
+    }
+
+    function testPFPPhaseRejectsUnboundedBatchMint() public {
+        BluePFP721 collection = _create(false, 101);
+        vm.expectRevert(BlueDropController.InvalidQuantity.selector);
+        _publicPhase(collection, 0, 101);
     }
 
     function testControllerMintsSequentialUniqueTokens() public {
@@ -55,7 +83,7 @@ contract NFTPFPLaunchpadTest is Test {
         assertEq(collection.ownerOf(2), buyer);
         assertEq(collection.balanceOf(buyer), 2);
         assertEq(collection.totalLifetimeMinted(), 2);
-        assertEq(controller.pendingPlatformRevenue(), 0);
+        assertEq(address(controller).balance, 0);
         assertEq(creator.balance, creatorBefore + 0.0196 ether);
         assertEq(platformWallet.balance, platformBefore + 0.0004 ether);
         assertEq(address(controller).balance, 0);
@@ -106,9 +134,7 @@ contract NFTPFPLaunchpadTest is Test {
         vm.prank(other);
         marketplace.buy{value: 1 ether}(listingId, other);
         assertEq(collection.ownerOf(1), other);
-        assertEq(marketplace.pendingPlatformRevenue(), 0);
-        assertEq(marketplace.pendingRevenue(creator), 0);
-        assertEq(marketplace.pendingRevenue(buyer), 0);
+        assertEq(address(marketplace).balance, 0);
         assertEq(buyer.balance, sellerBefore + 0.942 ether);
         assertEq(creator.balance, creatorBefore + 0.05 ether);
         assertEq(platformWallet.balance, platformBefore + 0.008 ether);
@@ -123,9 +149,14 @@ contract NFTPFPLaunchpadTest is Test {
         BlueDropController.PhaseConfig memory config = BlueDropController.PhaseConfig({
             phaseType: BlueDropController.PhaseType.MERKLE_ALLOWLIST,
             limitMode: BlueDropController.LimitMode.PER_PHASE,
-            currency: address(0), mintPrice: uint128(price), startTime: uint64(block.timestamp),
-            endTime: uint64(block.timestamp + 1 days), phaseSupplyCap: 5,
-            defaultWalletLimit: 0, maxPerTransaction: 2, merkleRoot: root
+            currency: address(0),
+            mintPrice: uint128(price),
+            startTime: uint64(block.timestamp),
+            endTime: uint64(block.timestamp + 1 days),
+            phaseSupplyCap: 5,
+            defaultWalletLimit: 0,
+            maxPerTransaction: 2,
+            merkleRoot: root
         });
         vm.prank(creator);
         uint256 phaseId = controller.createPhase(address(collection), 1, config);
@@ -160,11 +191,20 @@ contract NFTPFPLaunchpadTest is Test {
 
     function _create(bool revealed, uint256 supply) internal returns (BluePFP721 collection) {
         NFTPFPFactory.CreatePFPParams memory params = NFTPFPFactory.CreatePFPParams({
-            name: "Blue PFP", symbol: "BPFP", contractURI: "ipfs://collection",
-            baseURI: revealed ? "ipfs://metadata/" : "", placeholderURI: "ipfs://hidden",
-            maxSupply: supply, provenanceHash: keccak256("metadata"), revealed: revealed,
-            creatorReserve: 0, revealTime: 0, freezeOnReveal: false,
-            royaltyRecipient: creator, royaltyBps: 500, salt: keccak256(abi.encode(supply, revealed))
+            name: "Blue PFP",
+            symbol: "BPFP",
+            contractURI: "ipfs://collection",
+            baseURI: revealed ? "ipfs://metadata/" : "",
+            placeholderURI: "ipfs://hidden",
+            maxSupply: supply,
+            provenanceHash: keccak256("metadata"),
+            revealed: revealed,
+            creatorReserve: 0,
+            revealTime: 0,
+            freezeOnReveal: false,
+            royaltyRecipient: creator,
+            royaltyBps: 500,
+            salt: keccak256(abi.encode(supply, revealed))
         });
         uint256 launchFee = policy.collectionLaunchFee();
         vm.prank(creator);
@@ -174,10 +214,20 @@ contract NFTPFPLaunchpadTest is Test {
 
     function testCreatorReserveCannotBeConsumedByPublicMintAndCanBeAirdropped() public {
         NFTPFPFactory.CreatePFPParams memory params = NFTPFPFactory.CreatePFPParams({
-            name: "Reserved PFP", symbol: "RPFP", contractURI: "ipfs://collection", baseURI: "ipfs://metadata/",
-            placeholderURI: "ipfs://hidden", maxSupply: 10, provenanceHash: keccak256("reserve"), revealed: true,
-            creatorReserve: 3, revealTime: 0, freezeOnReveal: false,
-            royaltyRecipient: creator, royaltyBps: 500, salt: keccak256("reserved")
+            name: "Reserved PFP",
+            symbol: "RPFP",
+            contractURI: "ipfs://collection",
+            baseURI: "ipfs://metadata/",
+            placeholderURI: "ipfs://hidden",
+            maxSupply: 10,
+            provenanceHash: keccak256("reserve"),
+            revealed: true,
+            creatorReserve: 3,
+            revealTime: 0,
+            freezeOnReveal: false,
+            royaltyRecipient: creator,
+            royaltyBps: 500,
+            salt: keccak256("reserved")
         });
         uint256 launchFee = policy.collectionLaunchFee();
         vm.prank(creator);
@@ -189,9 +239,14 @@ contract NFTPFPLaunchpadTest is Test {
         vm.prank(buyer);
         vm.expectRevert(BluePFP721.SupplyExceeded.selector);
         controller.mintPublic(deployed, 1, phaseId, 1, buyer, 0, block.timestamp + 1 hours);
-        address[] memory recipients = new address[](2); recipients[0] = creator; recipients[1] = buyer;
-        uint256[] memory quantities = new uint256[](2); quantities[0] = 1; quantities[1] = 2;
-        vm.prank(creator); reserved.airdrop(recipients, quantities);
+        address[] memory recipients = new address[](2);
+        recipients[0] = creator;
+        recipients[1] = buyer;
+        uint256[] memory quantities = new uint256[](2);
+        quantities[0] = 1;
+        quantities[1] = 2;
+        vm.prank(creator);
+        reserved.airdrop(recipients, quantities);
         assertEq(reserved.totalLifetimeMinted(), 10);
         assertEq(reserved.creatorReserveRemaining(), 0);
     }
@@ -199,24 +254,70 @@ contract NFTPFPLaunchpadTest is Test {
     function testScheduledRevealIsPermissionlessAfterDeadline() public {
         BluePFP721 collection = _create(false, 10);
         string memory revealURI = "ipfs://future/";
+        bytes32 secretSalt = bytes32(uint256(0xA11CE));
         vm.prank(creator);
-        collection.scheduleReveal(keccak256(bytes(revealURI)), uint64(block.timestamp + 1 days), true);
+        collection.scheduleReveal(keccak256(abi.encode(revealURI, secretSalt)), uint64(block.timestamp + 1 days), true);
         vm.expectRevert(BluePFP721.RevealTooEarly.selector);
-        collection.executeScheduledReveal(revealURI);
+        collection.executeScheduledReveal(revealURI, secretSalt);
         vm.warp(block.timestamp + 1 days);
         vm.prank(other);
-        collection.executeScheduledReveal(revealURI);
-        assertTrue(collection.revealed()); assertTrue(collection.metadataFrozen());
+        collection.executeScheduledReveal(revealURI, secretSalt);
+        assertTrue(collection.revealed());
+        assertTrue(collection.metadataFrozen());
         assertEq(collection.scheduledRevealTime(), 0);
     }
 
-    function testFactoryScheduledRevealStoresOnlyURICommitment() public {
+    function testScheduledRevealCannotBeBypassedOrChangedAfterMint() public {
+        BluePFP721 collection = _create(false, 10);
+        string memory revealURI = "ipfs://locked/";
+        bytes32 secretSalt = bytes32(uint256(0xB10E));
+        vm.prank(creator);
+        collection.scheduleReveal(keccak256(abi.encode(revealURI, secretSalt)), uint64(block.timestamp + 1 days), true);
+        uint256 phaseId = _publicPhase(collection, 0, 1);
+        vm.prank(buyer);
+        controller.mintPublic(address(collection), 1, phaseId, 1, buyer, 0, block.timestamp + 1 hours);
+
+        vm.prank(creator);
+        vm.expectRevert(BluePFP721.ScheduledRevealRequired.selector);
+        collection.reveal("ipfs://different/", false);
+        vm.prank(creator);
+        vm.expectRevert(BluePFP721.RevealScheduleLocked.selector);
+        collection.cancelScheduledReveal();
+        vm.prank(creator);
+        vm.expectRevert(BluePFP721.RevealScheduleLocked.selector);
+        collection.scheduleReveal(keccak256("replacement"), uint64(block.timestamp + 2 days), false);
+
+        vm.warp(block.timestamp + 1 days);
+        vm.expectRevert(BluePFP721.InvalidRevealProof.selector);
+        collection.executeScheduledReveal(revealURI, bytes32(uint256(0xBAD)));
+        collection.executeScheduledReveal(revealURI, secretSalt);
+        assertTrue(collection.revealed());
+        assertTrue(collection.metadataFrozen());
+    }
+
+    function testRevealCommitmentIsDomainSeparatedPerCollection() public {
+        BluePFP721 first = _create(false, 10);
+        BluePFP721 second = _create(false, 11);
+        bytes32 innerCommitment = keccak256(abi.encode("ipfs://same/", bytes32(uint256(0xCAFE))));
+
+        vm.startPrank(creator);
+        first.scheduleReveal(innerCommitment, uint64(block.timestamp + 1 days), true);
+        second.scheduleReveal(innerCommitment, uint64(block.timestamp + 1 days), true);
+        vm.stopPrank();
+
+        assertTrue(first.scheduledRevealCommitment() != second.scheduledRevealCommitment());
+        assertEq(uint256(first.scheduledRevealCommitment()), uint256(first.revealCommitmentFor(innerCommitment)));
+        assertEq(uint256(second.scheduledRevealCommitment()), uint256(second.revealCommitmentFor(innerCommitment)));
+    }
+
+    function testFactoryScheduledRevealStoresDomainSeparatedCommitment() public {
         string memory revealURI = "ipfs://future/";
+        bytes32 secretSalt = 0x1111111111111111111111111111111111111111111111111111111111111111;
         NFTPFPFactory.CreatePFPParams memory params = NFTPFPFactory.CreatePFPParams({
             name: "Committed PFP",
             symbol: "CPFP",
             contractURI: "ipfs://collection",
-            baseURI: "0x84d346974dafc47a0860779b71f7578c99f129128b72a2874b19671f0de84242",
+            baseURI: "0x3ab50d19f2aebc38fe3096f10006c9290053bb21e44ee63118117d29a6b128cd",
             placeholderURI: "ipfs://hidden",
             maxSupply: 10,
             provenanceHash: keccak256("provenance"),
@@ -233,15 +334,15 @@ contract NFTPFPLaunchpadTest is Test {
         BluePFP721 collection = BluePFP721(deployed);
 
         assertEq(bytes(collection.baseURI()).length, 0);
+        bytes32 innerCommitment = keccak256(abi.encode(revealURI, secretSalt));
         assertEq(
-            uint256(collection.scheduledRevealCommitment()),
-            uint256(keccak256(bytes(revealURI)))
+            uint256(collection.scheduledRevealCommitment()), uint256(collection.revealCommitmentFor(innerCommitment))
         );
         vm.warp(block.timestamp + 1 days);
         vm.expectRevert(BluePFP721.InvalidRevealProof.selector);
-        collection.executeScheduledReveal("ipfs://wrong/");
+        collection.executeScheduledReveal("ipfs://wrong/", secretSalt);
         vm.prank(other);
-        collection.executeScheduledReveal(revealURI);
+        collection.executeScheduledReveal(revealURI, secretSalt);
         assertTrue(collection.revealed());
     }
 
@@ -249,9 +350,14 @@ contract NFTPFPLaunchpadTest is Test {
         BlueDropController.PhaseConfig memory config = BlueDropController.PhaseConfig({
             phaseType: BlueDropController.PhaseType.PUBLIC,
             limitMode: BlueDropController.LimitMode.PER_PHASE,
-            currency: address(0), mintPrice: uint128(price), startTime: uint64(block.timestamp),
-            endTime: uint64(block.timestamp + 1 days), phaseSupplyCap: cap,
-            defaultWalletLimit: cap == 0 ? 10 : uint32(cap), maxPerTransaction: cap == 0 ? 10 : uint32(cap), merkleRoot: bytes32(0)
+            currency: address(0),
+            mintPrice: uint128(price),
+            startTime: uint64(block.timestamp),
+            endTime: uint64(block.timestamp + 1 days),
+            phaseSupplyCap: cap,
+            defaultWalletLimit: cap == 0 ? 10 : uint32(cap),
+            maxPerTransaction: cap == 0 ? 10 : uint32(cap),
+            merkleRoot: bytes32(0)
         });
         vm.prank(creator);
         phaseId = controller.createPhase(address(collection), 1, config);

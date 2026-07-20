@@ -29,6 +29,8 @@ contract BlueNFTOffers is ReentrancyGuard {
     error FeeOverflow();
     error TransferFailed();
     error InsufficientSellerProceeds(uint256 actual, uint256 minimum);
+    error InvalidMinimumSellerProceeds();
+    error LegacyEntryPointDisabled();
     error MarketplacePaused();
 
     uint16 private constant BPS = 10_000;
@@ -37,8 +39,7 @@ contract BlueNFTOffers is ReentrancyGuard {
     uint8 public constant OFFER_ITEM = 0;
     uint8 public constant OFFER_COLLECTION = 1;
     bytes4 private constant ERC1271_MAGICVALUE = 0x1626ba7e;
-    uint256 private constant SECP256K1N_DIV_2 =
-        0x7fffffffffffffffffffffffffffffff5d576e7357a4501ddfe92f46681b20a0;
+    uint256 private constant SECP256K1N_DIV_2 = 0x7fffffffffffffffffffffffffffffff5d576e7357a4501ddfe92f46681b20a0;
 
     bytes32 public constant DOMAIN_TYPEHASH =
         keccak256("EIP712Domain(string name,string version,uint256 chainId,address verifyingContract)");
@@ -134,11 +135,8 @@ contract BlueNFTOffers is ReentrancyGuard {
         emit AllOffersCancelled(msg.sender, previous, newMinimumNonce);
     }
 
-    function acceptOffer(Offer calldata offer, uint256 tokenId, uint64 quantity, bytes calldata signature)
-        external
-        nonReentrant
-    {
-        _acceptOffer(offer, tokenId, quantity, signature, 0);
+    function acceptOffer(Offer calldata, uint256, uint64, bytes calldata) external pure {
+        revert LegacyEntryPointDisabled();
     }
 
     /// @notice Accepts an offer only when current platform and royalty deductions preserve the seller's quote.
@@ -149,6 +147,7 @@ contract BlueNFTOffers is ReentrancyGuard {
         bytes calldata signature,
         uint256 minimumSellerProceeds
     ) external nonReentrant {
+        if (minimumSellerProceeds == 0) revert InvalidMinimumSellerProceeds();
         _acceptOffer(offer, tokenId, quantity, signature, minimumSellerProceeds);
     }
 
@@ -210,6 +209,28 @@ contract BlueNFTOffers is ReentrancyGuard {
             && offer.nonce >= minimumNonce[offer.maker] && block.timestamp >= offer.startTime
             && block.timestamp < offer.endTime && _validCollection(offer)
             && _isValidSignature(offer.maker, digest, signature);
+    }
+
+    /// @notice Separates signature validity from the maker's current WETH funding state.
+    function isOfferExecutable(Offer calldata offer, bytes calldata signature, uint64 quantity)
+        external
+        view
+        returns (bool executable, uint256 requiredAmount, uint256 balance, uint256 allowance)
+    {
+        bytes32 digest = hashOffer(offer);
+        uint64 filled = filledQuantity[digest];
+        uint64 remaining = offer.quantity > filled ? offer.quantity - filled : 0;
+        if (
+            quantity == 0 || quantity > remaining || feePolicy.marketplacePaused() || !_wellFormedOffer(offer)
+                || cancelledOffers[digest] || offer.nonce < minimumNonce[offer.maker]
+                || block.timestamp < offer.startTime || block.timestamp >= offer.endTime
+                || !_isValidSignature(offer.maker, digest, signature)
+        ) return (false, 0, 0, 0);
+        if (offer.standard == STANDARD_ERC721 && quantity != 1) return (false, 0, 0, 0);
+        requiredAmount = uint256(offer.unitPrice) * quantity;
+        balance = weth.balanceOf(offer.maker);
+        allowance = weth.allowance(offer.maker, address(this));
+        executable = balance >= requiredAmount && allowance >= requiredAmount;
     }
 
     function _wellFormedOffer(Offer calldata offer) private view returns (bool) {
@@ -293,9 +314,8 @@ contract BlueNFTOffers is ReentrancyGuard {
 
     function _safeTransferFrom(address from, address to, uint256 amount) private {
         if (amount == 0) return;
-        (bool success, bytes memory result) = address(weth).call(
-            abi.encodeCall(IERC20Offers.transferFrom, (from, to, amount))
-        );
+        (bool success, bytes memory result) =
+            address(weth).call(abi.encodeCall(IERC20Offers.transferFrom, (from, to, amount)));
         if (!success || (result.length != 0 && !abi.decode(result, (bool)))) revert TransferFailed();
     }
 
@@ -321,9 +341,8 @@ contract BlueNFTOffers is ReentrancyGuard {
 
     function _isValidSignature(address signer, bytes32 digest, bytes calldata signature) private view returns (bool) {
         if (signer.code.length != 0) {
-            (bool success, bytes memory result) = signer.staticcall(
-                abi.encodeCall(IERC1271Offers.isValidSignature, (digest, signature))
-            );
+            (bool success, bytes memory result) =
+                signer.staticcall(abi.encodeCall(IERC1271Offers.isValidSignature, (digest, signature)));
             return success && result.length >= 32 && bytes4(result) == ERC1271_MAGICVALUE;
         }
         return _recover(digest, signature) == signer;

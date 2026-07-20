@@ -3,8 +3,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { BadgeCheck, Check, Clock3, Coins, Loader2, ShieldCheck, Tag, WalletCards, X } from "lucide-react";
 import { formatEther, maxUint256, parseEther, zeroAddress, type Address, type Hex } from "viem";
-import { useAccount, useReadContract, useSignTypedData, useWriteContract } from "wagmi";
-import { blueEditionAbi, bluePFPAbi, legacyNftAddresses, nftAddresses, nftCollectionFactoryAbi, nftOffersAbi, nftOffersEnabled, nftPFPFactoryAbi, wethOffersAbi } from "@/lib/nft-contracts";
+import { useAccount, usePublicClient, useReadContract, useSignTypedData, useWriteContract } from "wagmi";
+import { blueEditionAbi, bluePFPAbi, legacyNftAddresses, nftAddresses, nftCollectionFactoryAbi, nftFeePolicyAbi, nftOffersAbi, nftOffersEnabled, nftPFPFactoryAbi, nftProtocolVersion, wethOffersAbi } from "@/lib/nft-contracts";
 import { nftOfferDomainFor, nftOfferTypes, serializeNFTOffer, type NFTOffer } from "@/lib/nft-offers";
 
 type OfferRow = NFTOffer & { offersContract: Address; offerHash: Hex; signature: Hex; filledQuantity: bigint; remainingQuantity: bigint; createdAt: string };
@@ -13,6 +13,7 @@ export function NFTOffersPanel({ collection, tokenId, standard, ownsItem = false
   collection: Address; tokenId?: bigint; standard: "ERC721" | "ERC1155"; ownsItem?: boolean; mode?: "item" | "collection"; compact?: boolean;
 }) {
   const { address, isConnected } = useAccount();
+  const publicClient = usePublicClient({ chainId: 8453 });
   const { signTypedDataAsync, isPending: isSigning } = useSignTypedData();
   const { writeContractAsync, isPending: isWriting } = useWriteContract();
   const [offers, setOffers] = useState<OfferRow[]>([]); const [loading, setLoading] = useState(true);
@@ -77,7 +78,19 @@ export function NFTOffersPanel({ collection, tokenId, standard, ownsItem = false
         else await writeContractAsync({ chainId: 8453, address: collection, abi: blueEditionAbi, functionName: "setApprovalForAll", args: [offerContract, true] });
         setStatus("Offer marketplace approval submitted. Accept after confirmation."); void pfpApproval.refetch(); void editionApproval.refetch(); return;
       }
-      await writeContractAsync({ chainId: 8453, address: offerContract, abi: nftOffersAbi, functionName: "acceptOffer", args: [offerTuple(offer), tokenId, qty, offer.signature] });
+      if (nftProtocolVersion === "v3" && offerContract.toLowerCase() === nftAddresses.offers.toLowerCase()) {
+        const offerGross = offer.unitPrice * qty;
+        if (!publicClient) throw new Error("Base RPC is unavailable.");
+        const feePolicy = await publicClient.readContract({ address: offerContract, abi: nftOffersAbi, functionName: "feePolicy" });
+        const [feeBps, royalty] = await Promise.all([
+          publicClient.readContract({ address: feePolicy, abi: nftFeePolicyAbi, functionName: "marketplaceFeeBps" }),
+          publicClient.readContract({ address: collection, abi: standard === "ERC721" ? bluePFPAbi : blueEditionAbi, functionName: "royaltyInfo", args: [tokenId, offerGross] })
+        ]);
+        const minimumProceeds = offerGross - (offerGross * BigInt(feeBps)) / 10_000n - royalty[1];
+        await writeContractAsync({ chainId: 8453, address: offerContract, abi: nftOffersAbi, functionName: "acceptOfferWithMinProceeds", args: [offerTuple(offer), tokenId, qty, offer.signature, minimumProceeds] });
+      } else {
+        await writeContractAsync({ chainId: 8453, address: offerContract, abi: nftOffersAbi, functionName: "acceptOffer", args: [offerTuple(offer), tokenId, qty, offer.signature] });
+      }
       setStatus("Offer acceptance submitted. Settlement is atomic in WETH.");
     } catch (error) { setStatus(shortError(error)); }
   }

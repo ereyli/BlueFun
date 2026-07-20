@@ -5,13 +5,17 @@ import {ReentrancyGuard} from "./security/ReentrancyGuard.sol";
 import {BlueEdition1155} from "./BlueEdition1155.sol";
 import {INFTFeePolicy} from "./interfaces/INFTFeePolicy.sol";
 import {INFTCollectionRegistry} from "./interfaces/INFTCollectionRegistry.sol";
+import {NativeSettlement} from "./libraries/NativeSettlement.sol";
+
+interface IBlueDropCollectionRegistry {
+    function registerCollection(address collection) external;
+}
 
 /// @notice Permissionless creator-owned ERC-1155 collection factory for BlueFun NFT launches.
 contract NFTCollectionFactory is ReentrancyGuard, INFTCollectionRegistry {
     error InvalidConfig();
     error IncorrectLaunchFee(uint256 supplied, uint256 required);
     error CollectionsPaused();
-    error PlatformTransferFailed();
 
     struct CreateCollectionParams {
         string name;
@@ -27,6 +31,7 @@ contract NFTCollectionFactory is ReentrancyGuard, INFTCollectionRegistry {
 
     INFTFeePolicy public immutable feePolicy;
     address public immutable dropController;
+    address public immutable weth;
     uint256 public collectionCount;
     mapping(uint256 collectionId => address collection) public collections;
     mapping(address collection => bool registered) public override isBlueFunCollection;
@@ -44,13 +49,16 @@ contract NFTCollectionFactory is ReentrancyGuard, INFTCollectionRegistry {
         uint16 royaltyBps
     );
     event NFTCollectionLaunchFeePaid(uint256 indexed collectionId, address indexed creator, uint256 amount);
+    event LaunchFeePayout(address indexed recipient, uint256 amount, bool paidAsWETH);
 
-    constructor(INFTFeePolicy feePolicy_, address dropController_) {
+    constructor(INFTFeePolicy feePolicy_, address dropController_, address weth_) {
         if (address(feePolicy_) == address(0) || dropController_ == address(0)) {
             revert InvalidConfig();
         }
+        NativeSettlement.validate(weth_);
         feePolicy = feePolicy_;
         dropController = dropController_;
+        weth = weth_;
     }
 
     function createCollection(CreateCollectionParams calldata params)
@@ -82,9 +90,11 @@ contract NFTCollectionFactory is ReentrancyGuard, INFTCollectionRegistry {
         collectionId = ++collectionCount;
         collections[collectionId] = collection;
         isBlueFunCollection[collection] = true;
+        IBlueDropCollectionRegistry(dropController).registerCollection(collection);
         if (requiredFee != 0) {
-            (bool ok,) = payable(feePolicy.platformWallet()).call{value: requiredFee}("");
-            if (!ok) revert PlatformTransferFailed();
+            address recipient = feePolicy.platformWallet();
+            bool paidAsWETH = NativeSettlement.pay(weth, recipient, requiredFee);
+            emit LaunchFeePayout(recipient, requiredFee, paidAsWETH);
         }
 
         emit NFTCollectionLaunchFeePaid(collectionId, msg.sender, requiredFee);
@@ -136,8 +146,8 @@ contract NFTCollectionFactory is ReentrancyGuard, INFTCollectionRegistry {
                 || bytes(params.symbol).length > 16 || bytes(params.contractURI).length == 0
                 || bytes(params.contractURI).length > 512 || bytes(params.initialItemURI).length == 0
                 || bytes(params.initialItemURI).length > 512 || params.initialMaxSupply == 0
-                || params.initialCreatorReserve > params.initialMaxSupply
-                || params.royaltyRecipient == address(0) || params.royaltyBps > 1_000
+                || params.initialCreatorReserve > params.initialMaxSupply || params.royaltyRecipient == address(0)
+                || params.royaltyBps > 1_000
         ) revert InvalidConfig();
     }
 }

@@ -5,7 +5,7 @@ import Link from "next/link";
 import { formatEther, type Address, type Hex } from "viem";
 import { useAccount, usePublicClient, useWriteContract } from "wagmi";
 import { Check, ExternalLink, Gavel, Loader2, Tag } from "lucide-react";
-import { blueEditionAbi, bluePFPAbi, nftFeePolicyAbi, nftOffersAbi, nftOffersEnabled, nftProtocolVersion } from "@/lib/nft-contracts";
+import { blueEditionAbi, bluePFPAbi, nftAddresses, nftFeePolicyAbi, nftOffersAbi, nftOffersEnabled, nftProtocolVersion } from "@/lib/nft-contracts";
 
 type WalletOffer = {
   offersContract: Address; offerHash: Hex; maker: Address; taker: Address; recipient: Address; collection: Address; tokenId: string;
@@ -76,7 +76,7 @@ export function NFTWalletOffers() {
         }
       }
       let hash: Hex;
-      if (nftProtocolVersion === "v3") {
+      if (nftProtocolVersion === "v3" && offer.offersContract.toLowerCase() === nftAddresses.offers.toLowerCase()) {
         const gross = BigInt(offer.unitPrice);
         const feePolicy = await publicClient!.readContract({ address: offer.offersContract, abi: nftOffersAbi, functionName: "feePolicy" });
         const [feeBps, royalty] = await Promise.all([
