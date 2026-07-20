@@ -24,7 +24,8 @@ maker. V3 adds an explicit minimum-proceeds acceptance path so the seller can bi
 ## Required before one final mainnet deployment
 
 1. Run the complete Foundry suite, V3 Base fork tests, fuzz/invariant tests and an independent Solidity audit.
-2. Deploy with a Safe multisig as `NFT_ADMIN`, a separate guardian, the intended payout wallet and canonical Base WETH.
+2. Deploy with the designated Safe as `NFT_ADMIN`, guardian and platform payout wallet, plus canonical Base WETH. This
+   intentionally centralizes operations in one Safe so pause, recovery and revenue management use the same treasury.
 3. Verify every source and constructor argument on Base explorers.
 4. Set the reviewed V3 addresses and protocol-version flag atomically. V3 ABI paths are already feature-gated;
    preserve read/claim support for V1/V2 contracts.

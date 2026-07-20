@@ -247,7 +247,8 @@ callbacks. Manual triage found:
 
 The internal code blockers in this report are resolved. Do not broadcast a mainnet deployment yet: obtain an
 independent external Solidity audit, run the Base-fork smoke test against the final candidate, verify production
-addresses/roles and complete every item in `NFT_FINAL_DEPLOYMENT_REVIEW.md` first.
+  addresses/roles and complete every item in `NFT_FINAL_DEPLOYMENT_REVIEW.md` first. The production owner explicitly
+  selected a single Safe for admin, guardian and platform revenue; the V3 deployment gate enforces that exact model.
 
 Primary standards:
 

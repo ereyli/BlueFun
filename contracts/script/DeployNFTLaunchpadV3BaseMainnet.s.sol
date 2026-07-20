@@ -48,8 +48,8 @@ contract DeployNFTLaunchpadV3BaseMainnet {
             "INVALID_V3_CONFIG"
         );
         require(weth == BASE_WETH, "INVALID_BASE_WETH");
-        require(admin.code.length != 0, "ADMIN_MUST_BE_MULTISIG");
-        require(admin != guardian && admin != platformWallet && guardian != platformWallet, "ROLES_NOT_SEPARATED");
+        require(admin.code.length != 0, "ADMIN_MUST_BE_SAFE");
+        require(guardian == admin && platformWallet == admin, "SAFE_MUST_CONTROL_ALL_ROLES");
 
         vm.startBroadcast(deployer);
         NFTFeePolicy policy = new NFTFeePolicy(admin, guardian, platformWallet);
