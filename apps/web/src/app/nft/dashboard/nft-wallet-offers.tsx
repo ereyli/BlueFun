@@ -76,7 +76,7 @@ export function NFTWalletOffers() {
         }
       }
       let hash: Hex;
-      if (nftProtocolVersion === "v3" && offer.offersContract.toLowerCase() === nftAddresses.offers.toLowerCase()) {
+      if (nftProtocolVersion === "v4" && offer.offersContract.toLowerCase() === nftAddresses.offers.toLowerCase()) {
         const gross = BigInt(offer.unitPrice);
         const feePolicy = await publicClient!.readContract({ address: offer.offersContract, abi: nftOffersAbi, functionName: "feePolicy" });
         const [feeBps, royalty] = await Promise.all([

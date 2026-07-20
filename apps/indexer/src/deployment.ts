@@ -158,20 +158,20 @@ export const directDeployments = Array.from(new Map(
 ).values());
 
 const nftFactory = (process.env.NFT_COLLECTION_FACTORY
-  || (!robinhood ? "0xdcb1ac13fede90e7fdcaeb419a1803b2473cf0b3" : undefined)) as `0x${string}` | undefined;
+  || (!robinhood ? "0xd8cf5150a4d789cab4b03855d3ff536c78fd4b33" : undefined)) as `0x${string}` | undefined;
 const nftController = (process.env.NFT_DROP_CONTROLLER
-  || (!robinhood ? "0xf65bdf38fc7e47a4750564853f55f9d6760a7767" : undefined)) as `0x${string}` | undefined;
+  || (!robinhood ? "0xf7fc2f208b936a5858f9ae7f7750147c8284a2c6" : undefined)) as `0x${string}` | undefined;
 const nftMarketplace = (process.env.NFT_MARKETPLACE
-  || (!robinhood ? "0x0b68d3ae48d8f1880cc79aa8190f41516dbde5dc" : undefined)) as `0x${string}` | undefined;
-const nftStartBlock = BigInt(process.env.NFT_DEPLOYMENT_BLOCK || (!robinhood ? "48879542" : "0"));
+  || (!robinhood ? "0x5be0b302e32031378fdbdea3e5bb3d487e345761" : undefined)) as `0x${string}` | undefined;
+const nftStartBlock = BigInt(process.env.NFT_DEPLOYMENT_BLOCK || (!robinhood ? "48886053" : "0"));
 const nftPFPFactory = (process.env.NFT_PFP_FACTORY
-  || (!robinhood ? "0xb0c5f7b8372a9c85c449aff8dfd1b833186046a2" : undefined)) as `0x${string}` | undefined;
+  || (!robinhood ? "0x022742905a07f4534f9794ceb8c42be23a1c6815" : undefined)) as `0x${string}` | undefined;
 const nftPFPMarketplace = (process.env.NFT_PFP_MARKETPLACE
-  || (!robinhood ? "0x6420b1c74029927df9ba552445094e15788ba76c" : undefined)) as `0x${string}` | undefined;
-const nftPFPStartBlock = BigInt(process.env.NFT_PFP_DEPLOYMENT_BLOCK || (!robinhood ? "48879542" : "0"));
+  || (!robinhood ? "0x8a777d7d590b658ab07b0aee90ccc51b79c2981d" : undefined)) as `0x${string}` | undefined;
+const nftPFPStartBlock = BigInt(process.env.NFT_PFP_DEPLOYMENT_BLOCK || (!robinhood ? "48886056" : "0"));
 const nftOffers = (process.env.NFT_OFFERS
-  || (!robinhood ? "0x72db1ef886b1880c89cbe54caa48aa6b6ddf932e" : undefined)) as `0x${string}` | undefined;
-const nftOffersStartBlock = BigInt(process.env.NFT_OFFERS_DEPLOYMENT_BLOCK || (!robinhood ? "48879542" : "0"));
+  || (!robinhood ? "0xdfb2ae739446fc8ffc57793005e687ce695dda64" : undefined)) as `0x${string}` | undefined;
+const nftOffersStartBlock = BigInt(process.env.NFT_OFFERS_DEPLOYMENT_BLOCK || (!robinhood ? "48886061" : "0"));
 export const nftDeployment: NFTIndexerDeployment | undefined =
   nftFactory && nftController && nftMarketplace && nftStartBlock > 0n
     ? {

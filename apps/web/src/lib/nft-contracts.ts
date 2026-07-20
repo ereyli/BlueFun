@@ -3,15 +3,15 @@ import { zeroAddress } from "viem";
 const address = (value?: string) => (value && /^0x[a-fA-F0-9]{40}$/.test(value) ? value : zeroAddress) as `0x${string}`;
 
 export const nftAddresses = {
-  feePolicy: address(process.env.NEXT_PUBLIC_NFT_FEE_POLICY || "0xde97ac7497b9b6c75dec228a5c28501cbf627aac"),
-  dropController: address(process.env.NEXT_PUBLIC_NFT_DROP_CONTROLLER || "0xf65bdf38fc7e47a4750564853f55f9d6760a7767"),
-  collectionFactory: address(process.env.NEXT_PUBLIC_NFT_COLLECTION_FACTORY || "0xdcb1ac13fede90e7fdcaeb419a1803b2473cf0b3"),
-  marketplace: address(process.env.NEXT_PUBLIC_NFT_MARKETPLACE || "0x0b68d3ae48d8f1880cc79aa8190f41516dbde5dc"),
-  pfpFactory: address(process.env.NEXT_PUBLIC_NFT_PFP_FACTORY || "0xb0c5f7b8372a9c85c449aff8dfd1b833186046a2"),
-  pfpMarketplace: address(process.env.NEXT_PUBLIC_NFT_PFP_MARKETPLACE || "0x6420b1c74029927df9ba552445094e15788ba76c"),
-  offers: address(process.env.NEXT_PUBLIC_NFT_OFFERS || "0x72db1ef886b1880c89cbe54caa48aa6b6ddf932e"),
+  feePolicy: address(process.env.NEXT_PUBLIC_NFT_FEE_POLICY || "0xc982023f393626309e13b7b75d988c273a9f7786"),
+  dropController: address(process.env.NEXT_PUBLIC_NFT_DROP_CONTROLLER || "0xf7fc2f208b936a5858f9ae7f7750147c8284a2c6"),
+  collectionFactory: address(process.env.NEXT_PUBLIC_NFT_COLLECTION_FACTORY || "0xd8cf5150a4d789cab4b03855d3ff536c78fd4b33"),
+  marketplace: address(process.env.NEXT_PUBLIC_NFT_MARKETPLACE || "0x5be0b302e32031378fdbdea3e5bb3d487e345761"),
+  pfpFactory: address(process.env.NEXT_PUBLIC_NFT_PFP_FACTORY || "0x022742905a07f4534f9794ceb8c42be23a1c6815"),
+  pfpMarketplace: address(process.env.NEXT_PUBLIC_NFT_PFP_MARKETPLACE || "0x8a777d7d590b658ab07b0aee90ccc51b79c2981d"),
+  offers: address(process.env.NEXT_PUBLIC_NFT_OFFERS || "0xdfb2ae739446fc8ffc57793005e687ce695dda64"),
   weth: address(process.env.NEXT_PUBLIC_BASE_WETH || "0x4200000000000000000000000000000000000006"),
-  deploymentBlock: BigInt(process.env.NEXT_PUBLIC_NFT_DEPLOYMENT_BLOCK || "48879542")
+  deploymentBlock: BigInt(process.env.NEXT_PUBLIC_NFT_DEPLOYMENT_BLOCK || "48886053")
 };
 export type NFTDeployment = "current";
 
@@ -44,7 +44,7 @@ export const pfpLaunchpadEnabled = nftLaunchpadEnabled
   && nftAddresses.pfpMarketplace !== zeroAddress;
 
 export const nftOffersEnabled = pfpLaunchpadEnabled && nftAddresses.offers !== zeroAddress && nftAddresses.weth !== zeroAddress;
-export const nftProtocolVersion = "v3" as const;
+export const nftProtocolVersion = "v4" as const;
 
 export const nftFeePolicyAbi = [
   { type: "function", name: "collectionLaunchFee", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },

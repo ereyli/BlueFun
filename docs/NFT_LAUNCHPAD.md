@@ -17,19 +17,19 @@ The creator studio accepts a folder or ZIP containing up to 10,000 PNG/JPG/GIF/W
 
 Media and normalized metadata are pinned as separate IPFS directories. Delayed reveal stores only the placeholder URI and provenance hash at deployment; the metadata base URI is published later by the creator. The generated reveal manifest must therefore be kept safely until reveal.
 
-Status: V3 deployed to Base mainnet on 2026-07-20 from block `48879542`. V3 is the only deployment used by the
-web application and indexer. All contracts are source-verified on BaseScan.
+Status: V4 deployed to Base mainnet on 2026-07-20 from block `48886053`. V4 is the only deployment used by the
+web application and indexer. All canonical contracts are source-verified on BaseScan. V3 and earlier addresses are retained only as immutable chain history.
 
 ## Base mainnet deployment
 
 - Admin, guardian and platform revenue Safe: `0x144A3f70C0bf33124852E3891011e033b909F46d`
-- Fee policy: [`0xde97ac7497b9b6c75dec228a5c28501cbf627aac`](https://basescan.org/address/0xde97ac7497b9b6c75dec228a5c28501cbf627aac)
-- Drop controller: [`0xf65bdf38fc7e47a4750564853f55f9d6760a7767`](https://basescan.org/address/0xf65bdf38fc7e47a4750564853f55f9d6760a7767)
-- ERC-1155 factory: [`0xdcb1ac13fede90e7fdcaeb419a1803b2473cf0b3`](https://basescan.org/address/0xdcb1ac13fede90e7fdcaeb419a1803b2473cf0b3)
-- ERC-721 factory: [`0xb0c5f7b8372a9c85c449aff8dfd1b833186046a2`](https://basescan.org/address/0xb0c5f7b8372a9c85c449aff8dfd1b833186046a2)
-- ERC-1155 marketplace: [`0x0b68d3ae48d8f1880cc79aa8190f41516dbde5dc`](https://basescan.org/address/0x0b68d3ae48d8f1880cc79aa8190f41516dbde5dc)
-- ERC-721 marketplace: [`0x6420b1c74029927df9ba552445094e15788ba76c`](https://basescan.org/address/0x6420b1c74029927df9ba552445094e15788ba76c)
-- WETH offers: [`0x72db1ef886b1880c89cbe54caa48aa6b6ddf932e`](https://basescan.org/address/0x72db1ef886b1880c89cbe54caa48aa6b6ddf932e)
+- Fee policy: [`0xc982023f393626309e13b7b75d988c273a9f7786`](https://basescan.org/address/0xc982023f393626309e13b7b75d988c273a9f7786)
+- Drop controller: [`0xf7fc2f208b936a5858f9ae7f7750147c8284a2c6`](https://basescan.org/address/0xf7fc2f208b936a5858f9ae7f7750147c8284a2c6)
+- ERC-1155 factory: [`0xd8cf5150a4d789cab4b03855d3ff536c78fd4b33`](https://basescan.org/address/0xd8cf5150a4d789cab4b03855d3ff536c78fd4b33)
+- ERC-721 factory: [`0x022742905a07f4534f9794ceb8c42be23a1c6815`](https://basescan.org/address/0x022742905a07f4534f9794ceb8c42be23a1c6815)
+- ERC-1155 marketplace: [`0x5be0b302e32031378fdbdea3e5bb3d487e345761`](https://basescan.org/address/0x5be0b302e32031378fdbdea3e5bb3d487e345761)
+- ERC-721 marketplace: [`0x8a777d7d590b658ab07b0aee90ccc51b79c2981d`](https://basescan.org/address/0x8a777d7d590b658ab07b0aee90ccc51b79c2981d)
+- WETH offers: [`0xdfb2ae739446fc8ffc57793005e687ce695dda64`](https://basescan.org/address/0xdfb2ae739446fc8ffc57793005e687ce695dda64)
 
 ## Product rules
 
@@ -84,7 +84,7 @@ Canonical Base WETH is `0x4200000000000000000000000000000000000006`. The offers 
 
 ## Creator self-service
 
-The connected-wallet dashboard at `/nft/dashboard` is the operational control surface for V3 collections:
+The connected-wallet dashboard at `/nft/dashboard` is the operational control surface for V4 collections:
 
 - monitor automatic primary mint, seller and ERC-2981 royalty payouts;
 - create, edit queued, or cancel queued/active public and allowlist mint phases;

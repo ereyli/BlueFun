@@ -17,7 +17,7 @@ export function CreatorCollectionManager({ item, onClose }: { item: Collection; 
   const collection = getAddress(item.collection); const tokenId = 1n; const client = usePublicClient({ chainId: 8453 }); const { writeContractAsync, isPending } = useWriteContract();
   const deployment = nftDeploymentForFactory(item.factory);
   const controllerAddress = nftControllerForDeployment(deployment);
-  const secureReveal = deployment === "current" && nftProtocolVersion === "v3";
+  const secureReveal = deployment === "current" && nftProtocolVersion === "v4";
   const [phases, setPhases] = useState<Phase[]>([]); const [loading, setLoading] = useState(true); const [notice, setNotice] = useState(""); const [editing, setEditing] = useState<bigint>();
   const [kind, setKind] = useState<"public" | "allowlist">("public"); const [price, setPrice] = useState("0"); const [start, setStart] = useState(toLocal(Date.now() + 10 * 60_000)); const [end, setEnd] = useState(toLocal(Date.now() + 7 * 86400_000));
   const [cap, setCap] = useState("0"); const [limit, setLimit] = useState("2"); const [maxPerTx, setMaxPerTx] = useState("2"); const [csv, setCsv] = useState("");

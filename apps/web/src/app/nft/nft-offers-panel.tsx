@@ -78,7 +78,7 @@ export function NFTOffersPanel({ collection, tokenId, standard, ownsItem = false
         else await writeContractAsync({ chainId: 8453, address: collection, abi: blueEditionAbi, functionName: "setApprovalForAll", args: [offerContract, true] });
         setStatus("Offer marketplace approval submitted. Accept after confirmation."); void pfpApproval.refetch(); void editionApproval.refetch(); return;
       }
-      if (nftProtocolVersion === "v3" && offerContract.toLowerCase() === nftAddresses.offers.toLowerCase()) {
+      if (nftProtocolVersion === "v4" && offerContract.toLowerCase() === nftAddresses.offers.toLowerCase()) {
         const offerGross = offer.unitPrice * qty;
         if (!publicClient) throw new Error("Base RPC is unavailable.");
         const feePolicy = await publicClient.readContract({ address: offerContract, abi: nftOffersAbi, functionName: "feePolicy" });

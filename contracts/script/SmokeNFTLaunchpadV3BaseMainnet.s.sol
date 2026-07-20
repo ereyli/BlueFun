@@ -15,7 +15,7 @@ interface IWETHCanary {
     function approve(address spender, uint256 amount) external returns (bool);
 }
 
-interface VmNFTV3Canary {
+interface VmNFTV4Canary {
     function envUint(string calldata name) external view returns (uint256);
     function envString(string calldata name) external view returns (string memory);
     function envBytes32(string calldata name) external view returns (bytes32);
@@ -26,9 +26,9 @@ interface VmNFTV3Canary {
     function stopBroadcast() external;
 }
 
-/// @notice Small-value, end-to-end Base mainnet validation for the canonical V3 NFT deployment.
-contract SmokeNFTLaunchpadV3BaseMainnet {
-    VmNFTV3Canary private constant vm = VmNFTV3Canary(address(uint160(uint256(keccak256("hevm cheat code")))));
+/// @notice Small-value, end-to-end Base mainnet validation for the canonical V4 NFT deployment.
+contract SmokeNFTLaunchpadV4BaseMainnet {
+    VmNFTV4Canary private constant vm = VmNFTV4Canary(address(uint160(uint256(keccak256("hevm cheat code")))));
     uint256 private constant BASE_CHAIN_ID = 8453;
     uint256 private constant SUPPLY = 1_000;
     uint256 private constant LAUNCH_FEE = 0.001 ether;
@@ -38,12 +38,12 @@ contract SmokeNFTLaunchpadV3BaseMainnet {
     uint16 private constant ROYALTY_BPS = 500;
     uint16 private constant MARKETPLACE_FEE_BPS = 80;
 
-    address private constant EDITION_FACTORY = 0xDCB1AC13fEdE90E7fdCAeB419a1803B2473cf0B3;
-    address private constant PFP_FACTORY = 0xb0c5F7b8372a9c85C449AfF8dFD1B833186046A2;
-    address private constant CONTROLLER = 0xf65BdF38Fc7E47A4750564853f55F9D6760A7767;
-    address private constant EDITION_MARKET = 0x0B68d3aE48d8f1880CC79Aa8190F41516dbDE5Dc;
-    address private constant PFP_MARKET = 0x6420b1C74029927DF9Ba552445094e15788bA76c;
-    address private constant OFFERS = 0x72dB1Ef886b1880C89cBE54cAA48AA6B6DdF932E;
+    address private constant EDITION_FACTORY = 0xd8CF5150a4d789cAb4b03855D3fF536c78fD4b33;
+    address private constant PFP_FACTORY = 0x022742905A07f4534f9794ceb8c42bE23a1c6815;
+    address private constant CONTROLLER = 0xf7fC2F208b936a5858F9Ae7F7750147C8284A2c6;
+    address private constant EDITION_MARKET = 0x5bE0B302e32031378fDBDEa3E5BB3D487e345761;
+    address private constant PFP_MARKET = 0x8a777D7d590b658ab07b0aEE90cCC51b79c2981d;
+    address private constant OFFERS = 0xDFB2aE739446Fc8ffc57793005e687ce695Dda64;
     address private constant WETH = 0x4200000000000000000000000000000000000006;
 
     event CanaryCollections(address indexed edition, address indexed pfp, address indexed creator, address buyer);
@@ -118,15 +118,15 @@ contract SmokeNFTLaunchpadV3BaseMainnet {
         vm.startBroadcast(creatorKey);
         (, edition) = NFTCollectionFactory(EDITION_FACTORY).createCollection{value: LAUNCH_FEE}(
             NFTCollectionFactory.CreateCollectionParams({
-                name: "BlueFun V3 Edition Canary 1000",
-                symbol: "BFV3E",
+                name: "BlueFun V4 Edition Canary 1000",
+                symbol: "BFV4E",
                 contractURI: editionContractURI,
                 initialItemURI: editionItemURI,
                 initialMaxSupply: SUPPLY,
                 initialCreatorReserve: 10,
                 royaltyRecipient: creator,
                 royaltyBps: ROYALTY_BPS,
-                salt: keccak256("BLUEFUN_V3_EDITION_CANARY_20260720")
+                salt: keccak256("BLUEFUN_V4_EDITION_CANARY_20260720")
             })
         );
         vm.stopBroadcast();
@@ -138,8 +138,8 @@ contract SmokeNFTLaunchpadV3BaseMainnet {
         vm.startBroadcast(creatorKey);
         (, pfp) = NFTPFPFactory(PFP_FACTORY).createPFPCollection{value: LAUNCH_FEE}(
             NFTPFPFactory.CreatePFPParams({
-                name: "BlueFun V3 Pioneers 1000",
-                symbol: "BFV3P",
+                name: "BlueFun V4 Pioneers 1000",
+                symbol: "BFV4P",
                 contractURI: pfpContractURI,
                 baseURI: vm.toString(innerRevealCommitment),
                 placeholderURI: pfpPlaceholderURI,
@@ -151,7 +151,7 @@ contract SmokeNFTLaunchpadV3BaseMainnet {
                 freezeOnReveal: true,
                 royaltyRecipient: creator,
                 royaltyBps: ROYALTY_BPS,
-                salt: keccak256("BLUEFUN_V3_PFP_CANARY_20260720")
+                salt: keccak256("BLUEFUN_V4_PFP_CANARY_20260720")
             })
         );
         vm.stopBroadcast();

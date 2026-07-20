@@ -102,7 +102,7 @@ export function PFPLaunchStudio({ onSelectEdition }: { onSelectEdition: () => vo
     try {
       setStatus(`Deploying the creator-owned ERC-721 contract (${formatEther(launchFee)} ETH launch fee)…`);
       const revealed = revealMode === "instant"; const scheduled = revealMode === "scheduled";
-      const scheduledSecret = scheduled && nftProtocolVersion === "v3" ? randomBytes32() : undefined;
+      const scheduledSecret = scheduled && nftProtocolVersion === "v4" ? randomBytes32() : undefined;
       const scheduledCommitment = scheduledSecret
         ? keccak256(encodeAbiParameters([{ type: "string" }, { type: "bytes32" }], [prepared.metadataBaseURI, scheduledSecret]))
         : undefined;
@@ -111,7 +111,7 @@ export function PFPLaunchStudio({ onSelectEdition }: { onSelectEdition: () => vo
           name: name.trim(), symbol: symbol.trim().toUpperCase(), contractURI: prepared.contractURI,
           baseURI: revealed
             ? prepared.metadataBaseURI
-            : scheduled && nftProtocolVersion === "v3"
+            : scheduled && nftProtocolVersion === "v4"
               ? scheduledCommitment!
               : scheduled
                 ? prepared.metadataBaseURI

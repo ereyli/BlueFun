@@ -39,24 +39,24 @@ Current guardians:
 
 - Base timelock and staking vault: `0xd5bc4D80797ddAEBd91282659Eb79ABaf659B47C`
 - Robinhood timelock: `0x9d5f55a644eF0eB9FF82dbd14Dd0471de3ff5bfb`
-- NFT V3 policy: `0x144A3f70C0bf33124852E3891011e033b909F46d`
+- NFT V4 policy: `0x144A3f70C0bf33124852E3891011e033b909F46d`
 
-## NFT V3 production deployment
+## NFT V4 production deployment
 
-Only the Base NFT V3 deployment is used by the application and indexer.
+Only the Base NFT V4 deployment is used by the application and indexer.
 
 | Component | Address |
 | --- | --- |
-| Fee policy | `0xde97ac7497b9b6c75dec228a5c28501cbf627aac` |
-| Drop controller | `0xf65bdf38fc7e47a4750564853f55f9d6760a7767` |
-| Edition factory | `0xdcb1ac13fede90e7fdcaeb419a1803b2473cf0b3` |
-| PFP factory | `0xb0c5f7b8372a9c85c449aff8dfd1b833186046a2` |
-| Edition marketplace | `0x0b68d3ae48d8f1880cc79aa8190f41516dbde5dc` |
-| PFP marketplace | `0x6420b1c74029927df9ba552445094e15788ba76c` |
-| Offers | `0x72db1ef886b1880c89cbe54caa48aa6b6ddf932e` |
+| Fee policy | `0xc982023f393626309e13b7b75d988c273a9f7786` |
+| Drop controller | `0xf7fc2f208b936a5858f9ae7f7750147c8284a2c6` |
+| Edition factory | `0xd8cf5150a4d789cab4b03855d3ff536c78fd4b33` |
+| PFP factory | `0x022742905a07f4534f9794ceb8c42be23a1c6815` |
+| Edition marketplace | `0x5be0b302e32031378fdbdea3e5bb3d487e345761` |
+| PFP marketplace | `0x8a777d7d590b658ab07b0aee90ccc51b79c2981d` |
+| Offers | `0xdfb2ae739446fc8ffc57793005e687ce695dda64` |
 
 The factory and trading contracts read the Safe-controlled platform wallet, fees
-and pause state from the V3 policy at execution time.
+and pause state from the V4 policy at execution time.
 
 Verified policy state after activation:
 
