@@ -4,21 +4,23 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { formatEther, type Address } from "viem";
-import { useAccount, useReadContract } from "wagmi";
-import { Activity, ArrowDownLeft, ArrowUpRight, ChevronRight, ExternalLink, Gavel, Images, LayoutDashboard, Loader2, Plus, ShoppingBag, Sparkles, Wallet } from "lucide-react";
-import { blueEditionAbi, bluePFPAbi, ipfsGateway } from "@/lib/nft-contracts";
+import { useAccount, usePublicClient, useReadContract, useWriteContract } from "wagmi";
+import { Activity, ArrowDownLeft, ArrowUpRight, ChevronRight, ExternalLink, Gavel, Images, LayoutDashboard, Loader2, Plus, ShoppingBag, Sparkles, Trash2, Wallet } from "lucide-react";
+import { blueEditionAbi, bluePFPAbi, ipfsGateway, nftMarketplaceAbi, nftPFPMarketplaceAbi } from "@/lib/nft-contracts";
 import { NFTWalletOffers } from "./nft-wallet-offers";
 import { NFTAssetDialog, type DashboardNFT } from "./nft-asset-dialog";
 import { CreatorCollectionManager } from "./creator-collection-manager";
 
 type Collection = { collection: string; factory?: string; name: string; symbol: string; standard: "ERC721" | "ERC1155"; initial_max_supply?: string; created_at?: string };
 type Owned = DashboardNFT;
-type Listing = { listing_id: string; collection: string; token_id: string; remaining_quantity: string; unit_price: string; end_time: string; cancelled: boolean; collectionInfo: Collection | null };
+type Listing = { marketplace: Address; listing_id: string; collection: string; token_id: string; remaining_quantity: string; unit_price: string; start_time: string; end_time: string; cancelled: boolean; standard: "ERC721" | "ERC1155"; onchainActive?: boolean; collectionInfo: Collection | null };
 type WalletActivity = { type: "mint" | "received" | "sent"; collection: string; token_id: string; quantity: string; gross_amount?: string; counterparty?: string | null; tx_hash: string; created_at: string };
 type DashboardData = { created: Collection[]; owned: Owned[]; listings: Listing[]; activity: WalletActivity[]; indexingReady: boolean; errors?: string[] };
 
 export function NFTDashboard() {
   const { address, isConnected } = useAccount();
+  const publicClient = usePublicClient({ chainId: 8453 });
+  const { writeContractAsync, isPending: listingPending } = useWriteContract();
   const [data, setData] = useState<DashboardData>();
   const [loading, setLoading] = useState(false);
   const [tab, setTab] = useState<"owned" | "created" | "listings" | "offers" | "activity">("created");
@@ -26,6 +28,8 @@ export function NFTDashboard() {
   const [managedCollection, setManagedCollection] = useState<Collection>();
   const [contractInput, setContractInput] = useState("");
   const [contractNotice, setContractNotice] = useState("");
+  const [listingNotice, setListingNotice] = useState("");
+  const [confirmListing, setConfirmListing] = useState("");
   useEffect(() => {
     if (!address) { setData(undefined); return; }
     const controller = new AbortController(); setLoading(true);
@@ -46,9 +50,29 @@ export function NFTDashboard() {
     } catch (error) { setContractNotice(error instanceof Error ? error.message : "Collection could not be loaded."); }
   }
 
+  async function cancelListing(item: Listing) {
+    const key = `${item.marketplace}:${item.listing_id}`;
+    if (confirmListing !== key) { setConfirmListing(key); return; }
+    setListingNotice("");
+    try {
+      const indexedId = BigInt(item.listing_id);
+      const listingId = indexedId < 0n ? -indexedId : indexedId;
+      const hash = item.standard === "ERC721"
+        ? await writeContractAsync({ chainId: 8453, address: item.marketplace, abi: nftPFPMarketplaceAbi, functionName: "cancelListing", args: [listingId] })
+        : await writeContractAsync({ chainId: 8453, address: item.marketplace, abi: nftMarketplaceAbi, functionName: "cancelListing", args: [listingId] });
+      setListingNotice("Cancellation submitted. Waiting for Base confirmation…");
+      await publicClient?.waitForTransactionReceipt({ hash });
+      setData((current) => current ? { ...current, listings: current.listings.map((listing) => listing === item ? { ...listing, cancelled: true, onchainActive: false } : listing) } : current);
+      setListingNotice("Listing cancelled successfully.");
+      setConfirmListing("");
+    } catch (error) {
+      setListingNotice(shortError(error, "Listing cancellation failed."));
+    }
+  }
+
   if (!isConnected) return <div className="nft-dashboard-empty"><section><Wallet/><span>PRIVATE WALLET VIEW</span><h1>Your NFT desk.</h1><p>See collections you created, NFTs you own and every active listing in one place.</p><ConnectButton.Custom>{({ mounted, openConnectModal }) => <button className="button primary" disabled={!mounted} onClick={openConnectModal}><Wallet/>Connect wallet</button>}</ConnectButton.Custom></section></div>;
 
-  const activeListings = data?.listings.filter((listing) => !listing.cancelled && BigInt(listing.remaining_quantity) > 0n && BigInt(listing.end_time) > BigInt(Math.floor(Date.now() / 1000))) || [];
+  const activeListings = data?.listings.filter((listing) => listing.onchainActive ?? (!listing.cancelled && BigInt(listing.remaining_quantity) > 0n && BigInt(listing.end_time) > BigInt(Math.floor(Date.now() / 1000)))) || [];
   const listedValue = activeListings.reduce((sum, listing) => sum + BigInt(listing.unit_price) * BigInt(listing.remaining_quantity), 0n);
   return <div className="nft-home nft-dashboard">
     <header className="nft-dashboard-hero"><div><span><LayoutDashboard/>COLLECTOR + CREATOR</span><h1>My NFT desk</h1><p>{shortAddress(address!)} · Base</p></div><Link className="button primary" href="/nft/launch"><Plus/>Create collection</Link></header>
@@ -66,7 +90,8 @@ export function NFTDashboard() {
     {tab === "created" && !managedCollection ? <details className="nft-dashboard-import"><summary>Manage a transferred collection</summary><div><small>Enter the collection contract after an ownership transfer or nomination.</small></div><input aria-label="Collection contract address" placeholder="0x collection address" value={contractInput} onChange={(event) => setContractInput(event.target.value)}/><button className="button" onClick={() => void openCollectionContract()}>Open collection</button>{contractNotice ? <p>{contractNotice}</p> : null}</details> : null}
     {tab==="created"&&managedCollection?<CreatorCollectionManager item={managedCollection} onClose={()=>setManagedCollection(undefined)}/>:null}
     {tab === "listings" ? <DashboardSection icon={<ShoppingBag/>} title="My listings" count={data?.listings.length || 0} empty="NFTs listed from this wallet will appear here.">
-      {data?.listings.map((item) => { const active = !item.cancelled && BigInt(item.remaining_quantity) > 0n && BigInt(item.end_time) > BigInt(Math.floor(Date.now() / 1000)); return <Link className="nft-dashboard-row" href={`/nft/${item.collection}/${item.token_id}`} key={item.listing_id}><span className="nft-dashboard-thumb"><ShoppingBag/></span><span><strong>{item.collectionInfo?.name || shortAddress(item.collection)} #{item.token_id}</strong><small>{formatEther(BigInt(item.unit_price))} ETH · {active ? "Active" : item.cancelled ? "Cancelled" : "Ended"}</small></span><em className={active ? "live" : ""}>{active ? "Live" : "Closed"}</em></Link>; })}
+      {data?.listings.map((item) => { const active = item.onchainActive ?? false; const key = `${item.marketplace}:${item.listing_id}`; return <div className="nft-dashboard-row nft-listing-row" key={key}><span className="nft-dashboard-thumb"><ShoppingBag/></span><span><strong>{item.collectionInfo?.name || shortAddress(item.collection)} #{item.token_id}</strong><small>{formatEther(BigInt(item.unit_price))} ETH · {active ? "Active on Base" : item.cancelled ? "Cancelled" : "Sold or ended"}</small></span><div className="nft-dashboard-row-actions"><em className={active ? "live" : ""}>{active ? "Live" : "Closed"}</em><Link className="button" href={`/nft/${item.collection}/${item.token_id}`}>View</Link>{active ? <button className={`button ${confirmListing === key ? "danger" : ""}`} disabled={listingPending} onClick={() => void cancelListing(item)}>{listingPending && confirmListing === key ? <Loader2 className="spin"/> : <Trash2/>}{confirmListing === key ? "Confirm cancel" : "Cancel"}</button> : null}</div></div>; })}
+      {listingNotice ? <p className="nft-status">{listingNotice}</p> : null}
     </DashboardSection> : null}
     {tab === "offers" ? <NFTWalletOffers/> : null}
     {tab === "activity" ? <DashboardSection icon={<Activity/>} title="Wallet activity" count={data?.activity.length || 0} empty="Confirmed NFT mints and transfers will appear here.">
@@ -112,3 +137,4 @@ function CreatorCollectionCard({ item, onOpen }: { item: Collection; onOpen: () 
   </button>;
 }
 function shortAddress(value: string) { return `${value.slice(0, 6)}…${value.slice(-4)}`; }
+function shortError(error: unknown, fallback: string) { return error instanceof Error ? error.message.split("Request Arguments:")[0].slice(0, 220) : fallback; }

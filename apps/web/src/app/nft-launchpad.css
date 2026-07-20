@@ -95,3 +95,13 @@ body.nft-dialog-open{overflow:hidden}.nft-dialog-backdrop{align-items:center;bac
 html[data-theme="dark"] .nft-created-card,html[data-theme="dark"] .nft-market-earnings{background:#0a0e16}
 @media(max-width:900px){.nft-created-grid{grid-template-columns:1fr 1fr}.nft-market-earnings{grid-template-columns:46px minmax(0,1fr)}.nft-market-earnings>.button{grid-column:1/-1}.nft-market-earnings>details,.nft-market-earnings-notice{grid-column:1/-1}}
 @media(max-width:560px){.nft-created-grid{grid-template-columns:1fr}.nft-creator-manager{padding:15px}.nft-creator-manager>header{align-items:flex-start;display:grid}.nft-creator-manager>header code{display:block;margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:80vw}.nft-market-earnings{grid-template-columns:38px minmax(0,1fr);padding:12px}.nft-market-earnings-icon{border-radius:10px;height:38px;width:38px}.nft-market-earnings-copy h3{font-size:14px}}
+
+/* Inline wallet marketplace actions */
+.nft-dashboard-row-actions{align-items:center;display:flex;gap:6px;justify-content:flex-end}
+.nft-dashboard-row-actions .button{font-size:7px;gap:5px;min-height:31px;padding:0 9px;white-space:nowrap}
+.nft-dashboard-row-actions .button svg{height:11px;width:11px}
+.nft-dashboard-row-actions .button.danger{background:#40171d;border-color:#7f303a;color:#ffbec5}
+.nft-dashboard-row-actions em{background:var(--panel-2);border-radius:99px;color:var(--muted);font-size:7px;font-style:normal;font-weight:900;padding:6px 8px}
+.nft-dashboard-row-actions em.live{background:rgba(37,183,137,.1);color:#1b9c76}
+.nft-wallet-offers .nft-dashboard-row,.nft-listing-row{grid-template-columns:42px minmax(0,1fr) auto}
+@media(max-width:680px){.nft-wallet-offers .nft-dashboard-row,.nft-listing-row{align-items:start;grid-template-columns:38px minmax(0,1fr)}.nft-dashboard-row-actions{grid-column:2;justify-content:flex-start;overflow-x:auto}.nft-dashboard-row-actions .button{flex:0 0 auto}}
