@@ -156,6 +156,7 @@ export const bluePFPAbi = [
 ] as const;
 
 export const nftPFPMarketplaceAbi = [
+  { type: "function", name: "listingCount", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
   { type: "function", name: "createListing", stateMutability: "nonpayable", inputs: [
     { type: "address" }, { type: "uint256" }, { type: "uint128" }, { type: "uint64" }, { type: "uint64" }
   ], outputs: [{ type: "uint256" }] },
@@ -250,6 +251,7 @@ export const blueEditionAbi = [
 ] as const;
 
 export const nftMarketplaceAbi = [
+  { type: "function", name: "listingCount", stateMutability: "view", inputs: [], outputs: [{ type: "uint256" }] },
   { type: "function", name: "createListing", stateMutability: "nonpayable", inputs: [
     { type: "address" }, { type: "uint256" }, { type: "uint64" }, { type: "uint128" }, { type: "uint64" }, { type: "uint64" }
   ], outputs: [{ type: "uint256" }] },

@@ -21,10 +21,19 @@ export async function GET(request: Request) {
 
   const activityUrl = new URL("/api/nft/activity", request.url);
   activityUrl.searchParams.set("collection", collection);
-  const activity = await fetch(activityUrl, { next: { revalidate: 15 } })
-    .then((response) => response.ok ? response.json() : undefined)
-    .catch(() => undefined) as { summary?: ShareSummary } | undefined;
-  const market = activity?.summary || {};
+  const listingUrl = new URL("/api/nft/listing", request.url);
+  listingUrl.searchParams.set("collection", collection);
+  listingUrl.searchParams.set("limit", "2000");
+  const [activity, listingPayload] = await Promise.all([
+    fetch(activityUrl, { next: { revalidate: 15 } }).then((response) => response.ok ? response.json() : undefined).catch(() => undefined) as Promise<{ summary?: ShareSummary } | undefined>,
+    fetch(listingUrl, { next: { revalidate: 5 } }).then((response) => response.ok ? response.json() : undefined).catch(() => undefined) as Promise<{ listings?: Array<{ unitPrice?: string }> } | undefined>
+  ]);
+  const listings = Array.isArray(listingPayload?.listings) ? listingPayload.listings : [];
+  const listingFloor = listings.reduce<string | null>((floor, listing) => {
+    if (!listing.unitPrice || !/^\d+$/.test(listing.unitPrice)) return floor;
+    return floor === null || BigInt(listing.unitPrice) < BigInt(floor) ? listing.unitPrice : floor;
+  }, null);
+  const market = { ...(activity?.summary || {}), floorPrice: listingFloor, listed: listings.length };
   const image = await shareImageDataUrl(summary.imageUrl, request.url);
   const floor = market.floorPrice ? `${formatWei(market.floorPrice)} ETH` : "—";
   const volume = `${formatWei(market.totalVolume || "0")} ETH`;
