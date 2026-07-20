@@ -1,5 +1,7 @@
 # NFT V3 Base Mainnet Canary — 2026-07-20
 
+> **Release blocker found during the UI retest:** the deployed ERC-721 PFP implementation has a non-terminating integer-to-string loop in revealed `tokenURI`. The transactional canary results below remain valid, but this PFP factory must not be treated as production-ready. See `RETEST.md` in this directory.
+
 ## Result
 
 The canonical NFT V3 deployment completed an end-to-end Base mainnet canary with two isolated test wallets. All 25 transactions in the primary broadcast were confirmed with receipt status `0x1`; the separately scheduled PFP reveal was also confirmed.

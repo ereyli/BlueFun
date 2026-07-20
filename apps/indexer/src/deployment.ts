@@ -5,7 +5,7 @@ const robinhood = chainId === 4663;
 export const defaultRpcUrl = robinhood ? "https://rpc.mainnet.chain.robinhood.com" : "https://mainnet.base.org";
 export const defaultRpcUrls = robinhood
   ? [defaultRpcUrl, ...splitRpcUrls(process.env.ROBINHOOD_RPC_FALLBACK_URLS)]
-  : [defaultRpcUrl, "https://base-rpc.publicnode.com", "https://1rpc.io/base"];
+  : [defaultRpcUrl, "https://base-rpc.publicnode.com", "https://base.drpc.org"];
 
 export type IndexerDeployment = {
   version: "legacy" | "fee-sharing-v1" | "current" | "vnext";

@@ -5,8 +5,9 @@ import Link from "next/link";
 import { formatEther, parseEther, type Address } from "viem";
 import { useAccount, useReadContract, useWriteContract } from "wagmi";
 import { ExternalLink, ImageIcon, Loader2, ShieldCheck, ShoppingBag, Sparkles, Tag, X } from "lucide-react";
-import { blueEditionAbi, bluePFPAbi, ipfsGateway, nftDeploymentForFactory, nftMarketplaceForDeployment, nftMarketplaceAbi, nftPFPMarketplaceAbi } from "@/lib/nft-contracts";
+import { blueEditionAbi, bluePFPAbi, nftDeploymentForFactory, nftMarketplaceForDeployment, nftMarketplaceAbi, nftPFPMarketplaceAbi } from "@/lib/nft-contracts";
 import { NFTOffersPanel } from "../nft-offers-panel";
+import { nftMetadataUrl, optimizedTokenImageUrl } from "@/lib/token-metadata";
 
 export type DashboardNFT = {
   collection: string;
@@ -30,7 +31,9 @@ export function NFTAssetDialog({ item, onClose }: { item: DashboardNFT; onClose:
   const parsedListingId = /^\d+$/.test(listingId) ? BigInt(listingId) : 0n;
   const pfpApproval = useReadContract({ address: collection, abi: bluePFPAbi, functionName: "getApproved", args: [tokenId], chainId: 8453, query: { enabled: standard === "ERC721" } });
   const editionApproval = useReadContract({ address: collection, abi: blueEditionAbi, functionName: "isApprovedForAll", args: [address!, marketAddress], chainId: 8453, query: { enabled: standard === "ERC1155" && Boolean(address) } });
-  const pfpUri = useReadContract({ address: collection, abi: bluePFPAbi, functionName: "tokenURI", args: [tokenId], chainId: 8453, query: { enabled: standard === "ERC721" } });
+  const pfpRevealed = useReadContract({ address: collection, abi: bluePFPAbi, functionName: "revealed", chainId: 8453, query: { enabled: standard === "ERC721" } });
+  const pfpBaseURI = useReadContract({ address: collection, abi: bluePFPAbi, functionName: "baseURI", chainId: 8453, query: { enabled: standard === "ERC721" && pfpRevealed.data === true } });
+  const pfpPlaceholderURI = useReadContract({ address: collection, abi: bluePFPAbi, functionName: "placeholderURI", chainId: 8453, query: { enabled: standard === "ERC721" && pfpRevealed.data === false } });
   const editionUri = useReadContract({ address: collection, abi: blueEditionAbi, functionName: "uri", args: [tokenId], chainId: 8453, query: { enabled: standard === "ERC1155" } });
   const pfpListing = useReadContract({ address: listingMarketplace, abi: nftPFPMarketplaceAbi, functionName: "listings", args: [parsedListingId], chainId: 8453, query: { enabled: standard === "ERC721" && parsedListingId > 0n } });
   const editionListing = useReadContract({ address: listingMarketplace, abi: nftMarketplaceAbi, functionName: "listings", args: [parsedListingId], chainId: 8453, query: { enabled: standard === "ERC1155" && parsedListingId > 0n } });
@@ -41,7 +44,7 @@ export function NFTAssetDialog({ item, onClose }: { item: DashboardNFT; onClose:
   const activePrice = standard === "ERC721" ? pfpListing.data?.[3] : editionListing.data?.[3];
   const approvalReady = standard === "ERC721" ? pfpApproval.data?.toLowerCase() === marketAddress.toLowerCase() : Boolean(editionApproval.data);
   const itemTitle = metadata.name || `${item.collectionInfo?.name || "NFT"} #${item.token_id}`;
-  const image = metadata.image ? ipfsGateway(metadata.image) : undefined;
+  const image = optimizedTokenImageUrl(metadata.image);
   const attributes = useMemo(() => (metadata.attributes || []).slice(0, 8), [metadata.attributes]);
 
   useEffect(() => {
@@ -50,10 +53,12 @@ export function NFTAssetDialog({ item, onClose }: { item: DashboardNFT; onClose:
     document.addEventListener("keydown", closeOnEscape);
     return () => { document.body.classList.remove("nft-dialog-open"); document.removeEventListener("keydown", closeOnEscape); };
   }, [onClose]);
-  const metadataUri = pfpUri.data || editionUri.data || item.metadataUri;
+  const metadataUri = standard === "ERC721"
+    ? pfpRevealed.data === true ? `${pfpBaseURI.data || ""}${tokenId}` : pfpRevealed.data === false ? pfpPlaceholderURI.data || "" : ""
+    : editionUri.data || item.metadataUri;
   useEffect(() => {
     if (!metadataUri) return;
-    fetch(ipfsGateway(metadataUri)).then((response) => response.ok ? response.json() : {}).then(setMetadata).catch(() => undefined);
+    fetch(nftMetadataUrl(metadataUri)).then((response) => response.ok ? response.json() : {}).then(setMetadata).catch(() => undefined);
   }, [metadataUri]);
   useEffect(() => {
     fetch(`/api/nft/listing?collection=${collection}&tokenId=${tokenId}`, { cache: "no-store" }).then((response) => response.ok ? response.json() : {}).then((data: { listingId?: string; marketplace?: Address }) => { setListingId(data.listingId || ""); if (data.marketplace) setListingMarketplace(data.marketplace); }).catch(() => undefined);

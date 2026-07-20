@@ -95,6 +95,10 @@ export function optimizedTokenImageUrl(uri?: string) {
   return uri ? `/api/token-image?uri=${encodeURIComponent(uri)}` : "";
 }
 
+export function nftMetadataUrl(uri?: string) {
+  return uri ? `/api/nft/metadata?uri=${encodeURIComponent(uri)}` : "";
+}
+
 export function ipfsToGatewayUrls(uri?: string) {
   if (!uri) return [];
   if (uri.startsWith("https://")) return isTrustedMetadataUrl(uri) ? [uri] : [];

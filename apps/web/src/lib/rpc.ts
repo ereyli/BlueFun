@@ -1,8 +1,7 @@
 export const DEFAULT_BASE_RPC_URLS = [
   "https://mainnet.base.org",
   "https://base-rpc.publicnode.com",
-  "https://1rpc.io/base",
-  "https://base.meowrpc.com"
+  "https://base.drpc.org"
 ];
 
 export const DEFAULT_ROBINHOOD_RPC_URLS = ["https://rpc.mainnet.chain.robinhood.com"];

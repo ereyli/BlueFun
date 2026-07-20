@@ -14,7 +14,7 @@ import { NFTOffersPanel } from "../../nft-offers-panel";
 import { MintPhaseStatus } from "@/components/nft-mint-schedule";
 import { useNFTMintPhase } from "@/lib/use-nft-mint-phase";
 import { useNFTAllowlistProof } from "@/lib/use-nft-allowlist-proof";
-import { optimizedTokenImageUrl } from "@/lib/token-metadata";
+import { nftMetadataUrl, optimizedTokenImageUrl } from "@/lib/token-metadata";
 import { NFTQuickBuyDialog, type NFTQuickBuyItem } from "../../nft-quick-buy-dialog";
 
 export function NFTMintMarket({ collection, tokenId, view = "item", standard, deployment = "current" }: { collection: `0x${string}`; tokenId: bigint; view?: "item" | "collection"; standard?: "ERC721" | "ERC1155"; deployment?: NFTDeployment }) {
@@ -71,8 +71,8 @@ function EditionMintMarket({ collection, tokenId, view, deployment }: { collecti
   const mintFinished = Boolean(phaseData && (phaseData[11] || nowSeconds >= phaseData[5] || (max.data ?? 0n) <= (minted.data ?? 0n)));
   const isOwner = Boolean(address && owner.data?.toLowerCase() === address.toLowerCase());
 
-  useEffect(() => { if (!uri.data) return; fetch(ipfsGateway(uri.data)).then((r) => r.ok ? r.json() : {}).then(setMetadata).catch(() => undefined); }, [uri.data]);
-  useEffect(() => { if (!contractURI.data) return; fetch(ipfsGateway(contractURI.data)).then((r) => r.ok ? r.json() : {}).then(setCollectionMetadata).catch(() => undefined); }, [contractURI.data]);
+  useEffect(() => { if (!uri.data) return; fetch(nftMetadataUrl(uri.data)).then((r) => r.ok ? r.json() : {}).then(setMetadata).catch(() => undefined); }, [uri.data]);
+  useEffect(() => { if (!contractURI.data) return; fetch(nftMetadataUrl(contractURI.data)).then((r) => r.ok ? r.json() : {}).then(setCollectionMetadata).catch(() => undefined); }, [contractURI.data]);
   useEffect(() => { fetch(`/api/nft/listing?collection=${collection}&tokenId=${tokenId}`).then((response) => response.ok ? response.json() : {}).then((data: { listingId?: string;marketplace?:`0x${string}` }) => {setListingId(data.listingId || "");if(data.marketplace)setListingMarketplace(data.marketplace);}).catch(() => undefined); }, [collection, tokenId]);
 
   async function mint() {
@@ -126,7 +126,7 @@ function EditionCollectionGrid({collection}:{collection:`0x${string}`}){
 
 function EditionItemCard({collection,item,listing,view,onBuy}:{collection:`0x${string}`;item:EditionItem;listing?:EditionListing;view:"grid"|"list";onBuy:(item:NFTQuickBuyItem)=>void}){
   const [metadata,setMetadata]=useState<{name?:string;image?:string}>({});
-  useEffect(()=>{if(!item.metadata_uri)return;const controller=new AbortController();fetch(ipfsGateway(item.metadata_uri),{signal:controller.signal}).then((r)=>r.ok?r.json():{}).then(setMetadata).catch(()=>undefined);return()=>controller.abort();},[item.metadata_uri]);const image=optimizedTokenImageUrl(metadata.image);
+  useEffect(()=>{if(!item.metadata_uri)return;const controller=new AbortController();fetch(nftMetadataUrl(item.metadata_uri),{signal:controller.signal}).then((r)=>r.ok?r.json():{}).then(setMetadata).catch(()=>undefined);return()=>controller.abort();},[item.metadata_uri]);const image=optimizedTokenImageUrl(metadata.image);
   return <article className={`nft-collection-card nft-item-card ${listing?"listed":""} ${view}`}><Link className="nft-card-link" href={`/nft/${collection}/${item.token_id}`} aria-label={`Open ${metadata.name||`Edition #${item.token_id}`}`}><div className="nft-collection-cover">{image?<img src={image} loading="lazy" decoding="async" alt={metadata.name||`Edition #${item.token_id}`}/>:<span><Sparkles/></span>}<b>#{item.token_id}</b></div><div className="nft-collection-body"><div><small>ERC-1155 · {item.lifetime_minted}/{item.max_supply} minted</small><h3>{metadata.name||`Edition #${item.token_id}`}</h3></div><footer><span>{listing?<><small>PRICE</small><strong>{listing.priceEth} ETH</strong></>:"Not listed"}</span><code>{listing?`${listing.remaining} available`:"Edition"}</code></footer></div></Link>{listing?<button className="nft-card-buy" type="button" onClick={()=>onBuy({collection,collectionName:"BlueFun collection",image,listingId:listing.listingId,marketplace:listing.marketplace,remaining:listing.remaining,standard:"ERC1155",title:metadata.name||`Edition #${item.token_id}`,tokenId:String(item.token_id),unitPrice:listing.unitPrice})}><span><b>Buy now</b><small>Instant checkout</small></span><strong>{listing.priceEth} ETH</strong></button>:null}</article>;
 }
 

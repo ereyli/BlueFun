@@ -485,11 +485,15 @@ contract BluePFP721 is ReentrancyGuard {
         if (value == 0) return "0";
         uint256 digits = 0;
         uint256 current = value;
-        while (current != 0) ++digits;
-        current /= 10;
+        while (current != 0) {
+            ++digits;
+            current /= 10;
+        }
         bytes memory buffer = new bytes(digits);
-        while (value != 0) buffer[--digits] = bytes1(uint8(48 + value % 10));
-        value /= 10;
+        while (value != 0) {
+            buffer[--digits] = bytes1(uint8(48 + value % 10));
+            value /= 10;
+        }
         str = string(buffer);
     }
 }

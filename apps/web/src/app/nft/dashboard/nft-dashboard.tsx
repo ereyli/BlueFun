@@ -6,10 +6,11 @@ import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { formatEther, type Address } from "viem";
 import { useAccount, usePublicClient, useReadContract, useWriteContract } from "wagmi";
 import { Activity, ArrowDownLeft, ArrowUpRight, ChevronRight, ExternalLink, Gavel, Images, LayoutDashboard, Loader2, Plus, ShoppingBag, Sparkles, Trash2, Wallet } from "lucide-react";
-import { blueEditionAbi, bluePFPAbi, ipfsGateway, nftMarketplaceAbi, nftPFPMarketplaceAbi } from "@/lib/nft-contracts";
+import { blueEditionAbi, bluePFPAbi, nftMarketplaceAbi, nftPFPMarketplaceAbi } from "@/lib/nft-contracts";
 import { NFTWalletOffers } from "./nft-wallet-offers";
 import { NFTAssetDialog, type DashboardNFT } from "./nft-asset-dialog";
 import { CreatorCollectionManager } from "./creator-collection-manager";
+import { nftMetadataUrl, optimizedTokenImageUrl } from "@/lib/token-metadata";
 
 type Collection = { collection: string; factory?: string; name: string; symbol: string; standard: "ERC721" | "ERC1155"; initial_max_supply?: string; created_at?: string };
 type Owned = DashboardNFT;
@@ -108,11 +109,15 @@ function DashboardSection({ icon, title, count, empty, children, grid = false }:
 function OwnedNFTCard({ item, onOpen }: { item: Owned; onOpen: () => void }) {
   const [metadata, setMetadata] = useState<{ name?: string; image?: string }>({});
   const collection = item.collection as Address; const tokenId = BigInt(item.token_id); const isPFP = item.collectionInfo?.standard === "ERC721";
-  const pfpUri = useReadContract({ address: collection, abi: bluePFPAbi, functionName: "tokenURI", args: [tokenId], chainId: 8453, query: { enabled: isPFP } });
+  const pfpRevealed = useReadContract({ address: collection, abi: bluePFPAbi, functionName: "revealed", chainId: 8453, query: { enabled: isPFP } });
+  const pfpBaseURI = useReadContract({ address: collection, abi: bluePFPAbi, functionName: "baseURI", chainId: 8453, query: { enabled: isPFP && pfpRevealed.data === true } });
+  const pfpPlaceholderURI = useReadContract({ address: collection, abi: bluePFPAbi, functionName: "placeholderURI", chainId: 8453, query: { enabled: isPFP && pfpRevealed.data === false } });
   const editionUri = useReadContract({ address: collection, abi: blueEditionAbi, functionName: "uri", args: [tokenId], chainId: 8453, query: { enabled: !isPFP } });
-  const metadataUri = pfpUri.data || editionUri.data || item.metadataUri;
-  useEffect(() => { if (!metadataUri) return; fetch(ipfsGateway(metadataUri)).then((response) => response.ok ? response.json() : {}).then(setMetadata).catch(() => undefined); }, [metadataUri]);
-  return <button className="nft-owned-card" onClick={onOpen}><span className="nft-owned-art">{metadata.image ? <img src={ipfsGateway(metadata.image)} alt={metadata.name || "NFT"}/> : <Sparkles/>}<i>{item.collectionInfo?.standard === "ERC721" ? "ERC-721" : `${item.balance} owned`}</i></span><span className="nft-owned-card-body"><small>{item.collectionInfo?.name || shortAddress(item.collection)}</small><strong>{metadata.name || `Token #${item.token_id}`}</strong><span><b>View details</b><ExternalLink/></span></span></button>;
+  const metadataUri = isPFP
+    ? pfpRevealed.data === true ? `${pfpBaseURI.data || ""}${tokenId}` : pfpRevealed.data === false ? pfpPlaceholderURI.data || "" : ""
+    : editionUri.data || item.metadataUri;
+  useEffect(() => { if (!metadataUri) return; fetch(nftMetadataUrl(metadataUri)).then((response) => response.ok ? response.json() : {}).then(setMetadata).catch(() => undefined); }, [metadataUri]);
+  return <button className="nft-owned-card" onClick={onOpen}><span className="nft-owned-art">{metadata.image ? <img src={optimizedTokenImageUrl(metadata.image)} alt={metadata.name || "NFT"}/> : <Sparkles/>}<i>{item.collectionInfo?.standard === "ERC721" ? "ERC-721" : `${item.balance} owned`}</i></span><span className="nft-owned-card-body"><small>{item.collectionInfo?.name || shortAddress(item.collection)}</small><strong>{metadata.name || `Token #${item.token_id}`}</strong><span><b>View details</b><ExternalLink/></span></span></button>;
 }
 
 function CreatorCollectionCard({ item, onOpen }: { item: Collection; onOpen: () => void }) {
@@ -121,11 +126,11 @@ function CreatorCollectionCard({ item, onOpen }: { item: Collection; onOpen: () 
   const [metadata, setMetadata] = useState<{ image?: string }>({});
   useEffect(() => {
     if (!contractURI.data) return;
-    fetch(ipfsGateway(String(contractURI.data))).then((response) => response.ok ? response.json() : {}).then(setMetadata).catch(() => undefined);
+    fetch(nftMetadataUrl(String(contractURI.data))).then((response) => response.ok ? response.json() : {}).then(setMetadata).catch(() => undefined);
   }, [contractURI.data]);
   return <button className="nft-created-card" onClick={onOpen}>
     <span className={`nft-created-art ${item.standard === "ERC721" ? "pfp" : "edition"}`}>
-      {metadata.image ? <img src={ipfsGateway(metadata.image)} alt=""/> : item.standard === "ERC721" ? <Sparkles/> : <Images/>}
+      {metadata.image ? <img src={optimizedTokenImageUrl(metadata.image)} alt=""/> : item.standard === "ERC721" ? <Sparkles/> : <Images/>}
       <i><span/>Live on Base</i>
       <em>{item.standard === "ERC721" ? "ERC-721 PFP" : "ERC-1155 EDITION"}</em>
     </span>

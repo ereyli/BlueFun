@@ -89,6 +89,29 @@ contract NFTPFPLaunchpadTest is Test {
         assertEq(address(controller).balance, 0);
     }
 
+    function testRevealedTokenURIsAreFiniteAndUseSequentialIds() public {
+        BluePFP721 collection = _create(true, 10);
+        uint256 phaseId = _publicPhase(collection, 0, 3);
+        vm.prank(buyer);
+        controller.mintPublic(address(collection), 1, phaseId, 3, buyer, 0, block.timestamp + 1 hours);
+
+        assertEq(uint256(keccak256(bytes(collection.tokenURI(1)))), uint256(keccak256("ipfs://metadata/1")));
+        assertEq(uint256(keccak256(bytes(collection.tokenURI(2)))), uint256(keccak256("ipfs://metadata/2")));
+        assertEq(uint256(keccak256(bytes(collection.tokenURI(3)))), uint256(keccak256("ipfs://metadata/3")));
+    }
+
+    function testTokenURISwitchesFromPlaceholderAfterReveal() public {
+        BluePFP721 collection = _create(false, 10);
+        uint256 phaseId = _publicPhase(collection, 0, 1);
+        vm.prank(buyer);
+        controller.mintPublic(address(collection), 1, phaseId, 1, buyer, 0, block.timestamp + 1 hours);
+
+        assertEq(uint256(keccak256(bytes(collection.tokenURI(1)))), uint256(keccak256("ipfs://hidden")));
+        vm.prank(creator);
+        collection.reveal("ipfs://revealed/", true);
+        assertEq(uint256(keccak256(bytes(collection.tokenURI(1)))), uint256(keccak256("ipfs://revealed/1")));
+    }
+
     function testDelayedRevealCanBePermanentlyFrozen() public {
         BluePFP721 collection = _create(false, 10);
         uint256 phaseId = _publicPhase(collection, 0, 2);
