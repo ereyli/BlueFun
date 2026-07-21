@@ -47,6 +47,14 @@ function ethAmount(value: bigint) {
   return precise.format(parsed);
 }
 
+function safeBigInt(value: string | number | bigint | undefined) {
+  try {
+    return BigInt(value ?? 0);
+  } catch {
+    return 0n;
+  }
+}
+
 function percentFromBps(value: number) {
   if (value === 0) return "0%";
   if (value < 1) return "<0.01%";
@@ -139,14 +147,14 @@ export function BlueStakingPanel() {
   const emergency = overview?.emergency ?? ((values[9] as boolean | undefined) ?? false);
   const unlockReady = cooling > 0n && cooldownEnd <= BigInt(now);
 
-  const totalStaked = overview ? BigInt(overview.totalActiveRaw) : contractTotalStaked;
-  const totalCooling = overview ? BigInt(overview.totalCoolingRaw) : 0n;
-  const rewardBalance = overview ? BigInt(overview.rewardBalanceRaw) : 0n;
-  const remainingRewards = overview ? BigInt(overview.remainingRewardsRaw) : 0n;
-  const lifetimeFunded = overview ? BigInt(overview.lifetimeFundedRaw) : 0n;
-  const lifetimeClaimed = overview ? BigInt(overview.lifetimeClaimedRaw) : 0n;
-  const periodFinish = overview ? BigInt(overview.periodFinish) : contractPeriodFinish;
-  const dailyRewards = overview ? BigInt(overview.rewardRateRaw) * 86_400n : 0n;
+  const totalStaked = overview ? safeBigInt(overview.totalActiveRaw) : contractTotalStaked;
+  const totalCooling = overview ? safeBigInt(overview.totalCoolingRaw) : 0n;
+  const rewardBalance = overview ? safeBigInt(overview.rewardBalanceRaw) : 0n;
+  const remainingRewards = overview ? safeBigInt(overview.remainingRewardsRaw) : 0n;
+  const lifetimeFunded = overview ? safeBigInt(overview.lifetimeFundedRaw) : 0n;
+  const lifetimeClaimed = overview ? safeBigInt(overview.lifetimeClaimedRaw) : 0n;
+  const periodFinish = overview ? safeBigInt(overview.periodFinish) : contractPeriodFinish;
+  const dailyRewards = overview ? safeBigInt(overview.rewardRateRaw) * 86_400n : 0n;
   const poolShareBps = totalStaked === 0n ? 0 : Number((active * 10_000n) / totalStaked);
   const projectedRemaining = totalStaked === 0n ? 0n : (remainingRewards * active) / totalStaked;
   const perMillionDaily = totalStaked === 0n ? 0n : (dailyRewards * 1_000_000n * 10n ** 18n) / totalStaked;
@@ -286,9 +294,9 @@ export function BlueStakingPanel() {
           const isYou = address?.toLowerCase() === staker.address.toLowerCase();
           return <div className="blue-staker-row" key={staker.address}>
             <span className="blue-staker-wallet"><i>{index + 1}</i><a href={`https://basescan.org/address/${staker.address}`} target="_blank" rel="noreferrer">{shortAddress(staker.address)}</a>{isYou ? <em>You</em> : null}</span>
-            <strong>{tokenAmount(BigInt(staker.activeRaw))} BLUE</strong>
+            <strong>{tokenAmount(safeBigInt(staker.activeRaw))} BLUE</strong>
             <span>{percentFromBps(staker.shareBps)}</span>
-            <span>{ethAmount(BigInt(staker.projectedRemainingRaw))} ETH</span>
+            <span>{ethAmount(safeBigInt(staker.projectedRemainingRaw))} ETH</span>
           </div>;
         })}
       </div> : <p className="blue-staker-empty">No active stake yet. The first active wallet receives the full share of the next funded stream.</p>}

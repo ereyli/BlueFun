@@ -28,6 +28,44 @@ export type LaunchBuyActivity = {
 export type LaunchPageFilter = "All" | "New" | "Volume" | "MarketCap" | "Newest" | "Direct" | "Live" | "Ready" | "Graduated" | "Progress";
 export type DbLaunchPage = { launches: DeployedLaunch[]; total: number };
 
+function databaseIntegerString(value: unknown) {
+  const input = String(value ?? "0").trim();
+  if (/^\d+$/.test(input)) return input.replace(/^0+(?=\d)/, "");
+
+  const scientific = input.match(/^\+?(\d+)(?:\.(\d+))?[eE]\+?(\d+)$/);
+  if (scientific) {
+    const whole = scientific[1];
+    const fraction = scientific[2] || "";
+    const exponent = Number(scientific[3]);
+    const digits = `${whole}${fraction}`;
+    const integerLength = whole.length + exponent;
+    if (Number.isSafeInteger(integerLength) && integerLength >= digits.length) {
+      return `${digits}${"0".repeat(integerLength - digits.length)}`.replace(/^0+(?=\d)/, "");
+    }
+  }
+
+  const decimal = input.match(/^\+?(\d+)\.0+$/);
+  return decimal ? decimal[1].replace(/^0+(?=\d)/, "") : "0";
+}
+
+function databaseStakers(value: unknown): BlueStakingOverview["stakers"] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((entry) => {
+    if (!entry || typeof entry !== "object") return [];
+    const row = entry as Record<string, unknown>;
+    if (typeof row.address !== "string") return [];
+    return [{
+      address: row.address,
+      activeRaw: databaseIntegerString(row.activeRaw),
+      coolingRaw: databaseIntegerString(row.coolingRaw),
+      earnedRaw: databaseIntegerString(row.earnedRaw),
+      cooldownEnd: Number(row.cooldownEnd || 0),
+      shareBps: Number(row.shareBps || 0),
+      projectedRemainingRaw: databaseIntegerString(row.projectedRemainingRaw)
+    }];
+  });
+}
+
 export async function getDbBlueStakingOverview(chainId: number, vault: string): Promise<BlueStakingOverview | undefined> {
   if (process.env.POSTGRES_INDEXER_ENABLED !== "true") return undefined;
   try {
@@ -59,22 +97,22 @@ export async function getDbBlueStakingOverview(chainId: number, vault: string): 
       indexedBlock: String(row.indexed_block || "0"),
       source: "indexer",
       isStale,
-      totalActiveRaw: String(row.total_active || "0"),
-      totalCoolingRaw: String(row.total_cooling || "0"),
-      rewardBalanceRaw: String(row.reward_balance || "0"),
-      queuedRewardsRaw: String(row.queued_rewards || "0"),
-      remainingRewardsRaw: String(row.remaining_rewards || "0"),
-      rewardRateRaw: String(row.reward_rate || "0"),
+      totalActiveRaw: databaseIntegerString(row.total_active),
+      totalCoolingRaw: databaseIntegerString(row.total_cooling),
+      rewardBalanceRaw: databaseIntegerString(row.reward_balance),
+      queuedRewardsRaw: databaseIntegerString(row.queued_rewards),
+      remainingRewardsRaw: databaseIntegerString(row.remaining_rewards),
+      rewardRateRaw: databaseIntegerString(row.reward_rate),
       rewardsDuration: Number(row.rewards_duration || 0),
       periodFinish: Number(row.period_finish || 0),
       stakingShareBps: Number(row.staking_share_bps || 0),
-      lifetimeFundedRaw: String(row.lifetime_funded || "0"),
-      lifetimeClaimedRaw: String(row.lifetime_claimed || "0"),
+      lifetimeFundedRaw: databaseIntegerString(row.lifetime_funded),
+      lifetimeClaimedRaw: databaseIntegerString(row.lifetime_claimed),
       uniqueStakers: Number(row.unique_stakers || 0),
       activeStakers: Number(row.active_stakers || 0),
       paused: Boolean(row.paused),
       emergency: Boolean(row.emergency),
-      stakers: (Array.isArray(row.stakers) ? row.stakers : []) as BlueStakingOverview["stakers"]
+      stakers: databaseStakers(row.stakers)
     };
   } catch (error) {
     console.error("Failed to read staking snapshot from database", error);
