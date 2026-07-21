@@ -1,73 +1,71 @@
-# Coolify production deployment
+# Coolify NFT V4 rollout
 
-BlueFun runs as one Coolify Docker Compose resource with three services:
+BlueFun already runs as three separate Coolify applications. Do not create a new
+Compose resource for the NFT launchpad rollout.
 
-- `web`: public Next.js application on port 3000
-- `indexer-base`: private Base and NFT indexer with `/health` on port 3000
-- `indexer-robinhood`: private Robinhood Chain indexer with `/health` on port 3000
+- `web`: update and redeploy
+- `base-indexer`: update NFT variables and redeploy first
+- `robinhood-indexer`: no NFT-specific change
 
-The current Supabase project remains the shared database. Do not add a Coolify
-Postgres service unless the application is deliberately migrated away from
-Supabase.
+The existing Supabase project remains the shared database.
 
-## Coolify resource
+## 1. Update the Base indexer
 
-1. Push the intended production commit to the GitHub repository.
-2. In Coolify choose **New Resource > Private Repository (with GitHub App)**.
-3. Select the repository and the production branch.
-4. Choose **Docker Compose** as the build pack.
-5. Set **Base Directory** to `/` and **Docker Compose Location** to
-   `/coolify-compose.yml`.
-6. Assign `https://funblue.xyz` (and optionally `https://www.funblue.xyz`) only
-   to the `web` service and its internal port `3000`.
-7. Do not expose either indexer with a public domain or host port.
-
-## Required Coolify variables
-
-Set these before the first build. Mark the three public variables as both build
-and runtime variables when using separate Dockerfile resources; the compose file
-already forwards them as Docker build arguments.
+Keep the existing RPC, Supabase and general token-launch variables. Replace or
+add only these NFT variables:
 
 ```dotenv
-NEXT_PUBLIC_SITE_URL=https://funblue.xyz
-NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID=
-NEXT_PUBLIC_SUPABASE_URL=
-NEXT_PUBLIC_SUPABASE_ANON_KEY=
-SUPABASE_URL=
-SUPABASE_ANON_KEY=
-SUPABASE_SERVICE_ROLE_KEY=
-RATE_LIMIT_SALT=
-PINATA_JWT=
+NFT_COLLECTION_FACTORY=0xd8cf5150a4d789cab4b03855d3ff536c78fd4b33
+NFT_DROP_CONTROLLER=0xf7fc2f208b936a5858f9ae7f7750147c8284a2c6
+NFT_MARKETPLACE=0x5be0b302e32031378fdbdea3e5bb3d487e345761
+NFT_DEPLOYMENT_BLOCK=48886053
+NFT_PFP_FACTORY=0x022742905a07f4534f9794ceb8c42be23a1c6815
+NFT_PFP_MARKETPLACE=0x8a777d7d590b658ab07b0aee90ccc51b79c2981d
+NFT_PFP_DEPLOYMENT_BLOCK=48886056
+NFT_OFFERS=0xdfb2ae739446fc8ffc57793005e687ce695dda64
+NFT_OFFERS_DEPLOYMENT_BLOCK=48886061
 ```
 
-Recommended production overrides:
+Deploy the Base indexer and wait until `/health` is healthy and the logs show a
+recent indexed block. Its Dockerfile is `Dockerfile.indexer` and internal health
+port is the service's existing `HEALTH_PORT`.
+
+## 2. Update the web application
+
+Keep the existing Supabase, Pinata, WalletConnect, RPC and site variables.
+Replace or add these variables:
 
 ```dotenv
-BASE_RPC_URL=
-BASE_RPC_FALLBACK_URLS=
-NEXT_PUBLIC_BASE_RPC_URL=
-NEXT_PUBLIC_BASE_RPC_FALLBACK_URLS=
-NEXT_PUBLIC_TOKEN_IMAGE_CDN_URL=
-TOKEN_IMAGE_CDN_URL=
+NEXT_PUBLIC_NFT_FEE_POLICY=0xc982023f393626309e13b7b75d988c273a9f7786
+NEXT_PUBLIC_NFT_DROP_CONTROLLER=0xf7fc2f208b936a5858f9ae7f7750147c8284a2c6
+NEXT_PUBLIC_NFT_COLLECTION_FACTORY=0xd8cf5150a4d789cab4b03855d3ff536c78fd4b33
+NEXT_PUBLIC_NFT_MARKETPLACE=0x5be0b302e32031378fdbdea3e5bb3d487e345761
+NEXT_PUBLIC_NFT_PFP_FACTORY=0x022742905a07f4534f9794ceb8c42be23a1c6815
+NEXT_PUBLIC_NFT_PFP_MARKETPLACE=0x8a777d7d590b658ab07b0aee90ccc51b79c2981d
+NEXT_PUBLIC_NFT_PFP_DEPLOYMENT_BLOCK=48886056
+NEXT_PUBLIC_NFT_DEPLOYMENT_BLOCK=48886053
+NEXT_PUBLIC_NFT_OFFERS=0xdfb2ae739446fc8ffc57793005e687ce695dda64
+NEXT_PUBLIC_NFT_OFFERS_DEPLOYMENT_BLOCK=48886061
+NEXT_PUBLIC_NFT_PROTOCOL_VERSION=v4
+NEXT_PUBLIC_BASE_WETH=0x4200000000000000000000000000000000000006
+POSTGRES_INDEXER_ENABLED=true
+ONCHAIN_FALLBACK_ENABLED=false
 ```
 
-Use a dedicated paid Base RPC endpoint for `BASE_RPC_URL`. Public RPC endpoints
-remain fallbacks. Store `SUPABASE_SERVICE_ROLE_KEY`, `RATE_LIMIT_SALT`, and
-`PINATA_JWT` as secrets and never expose them with a `NEXT_PUBLIC_` prefix.
+All `NEXT_PUBLIC_*` entries must be available during the Next.js build. In
+Coolify, mark them as build variables as well as runtime variables. Redeploy the
+web application only after the Base indexer is healthy.
 
-The canonical NFT V4 addresses and deployment blocks are pinned as defaults in
-`coolify-compose.yml`. Coolify overrides should only be added when a newer audited
-deployment intentionally replaces V4.
+The repository includes `Dockerfile.web` and `/api/health`; an already-working
+Nixpacks configuration does not have to switch build packs for this rollout.
 
-## First release order
+## 3. Release checks
 
-1. Deploy all services from the compose resource.
-2. Wait for both indexers to become healthy. The first backfill can take longer
-   than normal polling.
-3. Confirm `https://funblue.xyz/api/health` returns HTTP 200 and protocol `v4`.
-4. Check the Base indexer logs for the V4 NFT scope and a recent indexed block.
-5. Smoke-test wallet connect, one collection page, NFT images, listing, offer and
-   mint reads before changing DNS for all users.
+1. `https://funblue.xyz/api/health` returns HTTP 200 and protocol `v4`.
+2. `/nft` lists only V4-created collections.
+3. Collection pages show minted images, floor, listings and offers.
+4. Run a low-value mint, list, buy, offer, accept and cancel smoke test.
+5. Confirm seller proceeds and protocol fee transfers on BaseScan.
 
-For safer releases, deploy first on `staging.funblue.xyz`, run the smoke tests,
-then attach the production domain to the same healthy revision.
+Update the Coolify variables before pushing the production branch when automatic
+deployments are enabled. This prevents a build from embedding stale V3 addresses.

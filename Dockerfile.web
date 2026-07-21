@@ -14,8 +14,8 @@ COPY --from=dependencies /app/apps/web/node_modules ./apps/web/node_modules
 COPY package.json package-lock.json ./
 COPY apps/web ./apps/web
 
-# NEXT_PUBLIC_* values are embedded into the browser bundle by Next.js. Coolify
-# passes these as build arguments from coolify-compose.yml.
+# NEXT_PUBLIC_* values are embedded into the browser bundle by Next.js. When
+# this Dockerfile is used, configure them as Coolify build variables.
 ARG NEXT_PUBLIC_SITE_URL
 ARG NEXT_PUBLIC_BASE_RPC_URL
 ARG NEXT_PUBLIC_BASE_RPC_FALLBACK_URLS
@@ -102,4 +102,3 @@ USER nextjs
 EXPOSE 3000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=4 CMD node -e "fetch('http://127.0.0.1:3000/api/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"
 CMD ["node", "apps/web/server.js"]
-
