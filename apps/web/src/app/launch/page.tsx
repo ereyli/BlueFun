@@ -267,8 +267,8 @@ function LaunchPageContent() {
       <section className="launch-form-card">
         <div className="launch-form-header">
           <div>
-            <span className="pill">Issue parameters</span>
-            <h2>Configure launch</h2>
+            <span className="pill">Launch setup</span>
+            <h2>Configure market</h2>
           </div>
           <span className="launch-form-network"><NetworkIcon chainId={activeChainId} size={14} />{chain.name}</span>
         </div>
@@ -280,11 +280,11 @@ function LaunchPageContent() {
             </div>
           ) : null}
           <div className="launch-mode-picker" role="radiogroup" aria-label="Launch route">
-            <button aria-checked={launchMode === "bond"} className={launchMode === "bond" ? "active" : ""} disabled={isWorking} onClick={() => setLaunchMode("bond")} role="radio" type="button">
-              <TimerReset size={19} /><span><strong>Bond launch</strong><small>Trade on the fair curve, then graduate at {FAIR_GRADUATION_TARGET_ETH} ETH.</small></span>{launchMode === "bond" ? <CheckCircle2 size={17} /> : null}
-            </button>
             <button aria-checked={launchMode === "direct"} className={launchMode === "direct" ? "active" : ""} disabled={isWorking} onClick={() => setLaunchMode("direct")} role="radio" type="button">
-              <Zap size={19} /><span><strong>Direct DEX launch</strong><small>Permanent LP lock · 1% directional fee model.</small></span>{launchMode === "direct" ? <CheckCircle2 size={17} /> : null}
+              <Zap size={19} /><span><strong>Direct DEX launch</strong><small>Uniswap v4 market · LP locked</small></span>{launchMode === "direct" ? <CheckCircle2 size={17} /> : null}
+            </button>
+            <button aria-checked={launchMode === "bond"} className={launchMode === "bond" ? "active" : ""} disabled={isWorking} onClick={() => setLaunchMode("bond")} role="radio" type="button">
+              <TimerReset size={19} /><span><strong>Bond launch</strong><small>Fair curve · graduates at {FAIR_GRADUATION_TARGET_ETH} ETH</small></span>{launchMode === "bond" ? <CheckCircle2 size={17} /> : null}
             </button>
           </div>
           {launchMode === "direct" && !addresses.directLaunchFactory ? <LaunchNotice tone="info">Direct DEX contracts are ready in the codebase but are not configured for {chain.name} yet.</LaunchNotice> : null}
@@ -336,9 +336,9 @@ function LaunchPageContent() {
 
           {step === 2 ? (
             <section className="launch-step-panel" aria-labelledby="launch-step-details">
-              <div className="launch-form-section-head"><span>02</span><div><strong id="launch-step-details">Story & community</strong><small>Optional, but helps traders understand the launch</small></div></div>
+              <div className="launch-form-section-head"><span>02</span><div><strong id="launch-step-details">Project details</strong><small>Optional</small></div></div>
               <div className="project-details-card">
-                <div className="project-details-head"><strong>Project details</strong><span>Shown on the market page</span></div>
+                <div className="project-details-head"><strong>Market profile</strong><span>Public</span></div>
                 <div className="field">
                   <label htmlFor="token-description">Description</label>
                   <textarea id="token-description" maxLength={500} placeholder="What is this token about?" value={description} onChange={(event) => setDescription(event.target.value)} />

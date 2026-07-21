@@ -1,0 +1,349 @@
+/* Final interface refinement layer.
+   Keeps product behavior intact while unifying spacing, hierarchy and shape. */
+
+:root {
+  --ui-radius-xs: 8px;
+  --ui-radius-sm: 11px;
+  --ui-radius-md: 15px;
+  --ui-radius-lg: 20px;
+}
+
+/* Give every screen a calmer frame instead of pressing content to the viewport. */
+.main {
+  padding: clamp(24px, 2.4vw, 38px) clamp(22px, 3vw, 48px) 76px;
+}
+
+.button,
+.network-trigger,
+.wallet-button,
+.wallet-control,
+.topbar-create {
+  border-radius: var(--ui-radius-sm);
+}
+
+.button {
+  min-height: 42px;
+  padding-inline: 17px;
+}
+
+.button.primary {
+  box-shadow: 0 8px 22px color-mix(in srgb, var(--blue) 16%, transparent);
+}
+
+.sidebar-network-note,
+.sidebar-social-link,
+.side-nav a,
+.brand-launchpad-trigger,
+.create-launch-menu-trigger {
+  border-radius: var(--ui-radius-sm);
+}
+
+/* Shared surfaces: soft corners, restrained depth, clear separation. */
+.trending-section,
+.discovery-panel,
+.token-card,
+.launch-intro,
+.launch-form-card,
+.market-header-card,
+.chart-panel,
+.trade-card,
+.graduated-trade-card,
+.side-compact-card,
+.token-chat-card,
+.dashboard-panel,
+.dashboard-wallet-card,
+.launch-dashboard-card,
+.docs-section,
+.docs-model-card,
+.docs-feature-grid > article,
+.docs-network-grid > article {
+  border-radius: var(--ui-radius-lg);
+}
+
+.searchbar,
+.explore-result-count,
+.feed-tabs,
+.market-view-toggle,
+.market-pulse-item,
+.network-metric-row,
+.market-header-stats > div,
+.chart-mode-tabs,
+.chart-interval-tabs,
+.trade-tabs,
+.trade-input-shell,
+.quote-box,
+.quick-grid button,
+.settings-button,
+.market-overview-grid > div {
+  border-radius: var(--ui-radius-sm);
+}
+
+.feed-tab,
+.market-view-toggle button,
+.trusted-badge,
+.token-status,
+.market-route-pill,
+.market-icon-action,
+.pulse-live-label,
+.live-sync {
+  border-radius: 999px;
+}
+
+/* Explore: concise hero and stronger, easier-to-scan market cards. */
+.launchpad-intro.premium-hero {
+  border-radius: 22px;
+  min-height: 200px;
+}
+
+.launchpad-intro.premium-hero::after { display: none; }
+
+.premium-hero .launchpad-intro-copy {
+  padding: 27px 32px;
+}
+
+.premium-hero h1 {
+  font-size: clamp(35px, 3.7vw, 54px);
+  line-height: .96;
+  margin: 15px 0 11px;
+}
+
+.premium-hero .launchpad-intro-copy > p {
+  font-size: 12px;
+  line-height: 1.55;
+  max-width: 470px;
+}
+
+.premium-hero .hero-action,
+.premium-hero .hero-secondary {
+  border-radius: 11px;
+}
+
+.premium-hero .overview-metrics.network-overview {
+  padding: 25px 27px 23px 5px;
+}
+
+.network-metric-row {
+  min-height: 58px;
+  padding-inline: 13px;
+}
+
+.discovery-panel {
+  gap: 14px 18px;
+  padding: 20px;
+}
+
+.token-grid { gap: 16px; }
+
+.token-card,
+.token-card.featured {
+  border-width: 1px;
+  padding: 15px;
+  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.token-card:hover,
+.token-card.featured:hover,
+html[data-theme="dark"] .token-card:hover,
+html[data-theme="dark"] .token-card.featured:hover {
+  box-shadow: 0 14px 34px color-mix(in srgb, var(--text) 8%, transparent);
+  transform: translateY(-2px);
+}
+
+.token-card .token-art,
+.token-card-visual,
+.token-card-visual img {
+  border-radius: 14px;
+}
+
+/* Create: Direct DEX first, concise copy, generous rhythm. */
+.launch-page {
+  gap: clamp(24px, 2.5vw, 36px);
+  grid-template-columns: minmax(300px, .72fr) minmax(520px, 1.28fr);
+  max-width: 1240px;
+}
+
+.launch-page::before { display: none; }
+
+.launch-intro {
+  border: 1px solid var(--line);
+  border-left: 1px solid var(--line);
+  overflow: hidden;
+}
+
+.launch-hero-panel {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+  gap: 18px;
+  padding: clamp(25px, 3vw, 36px);
+}
+
+.launch-hero-panel h1 {
+  font-size: clamp(38px, 4.2vw, 58px);
+  line-height: .94;
+}
+
+.launch-hero-panel > p {
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+.launch-preview-card {
+  border-radius: var(--ui-radius-md);
+  gap: 12px;
+  grid-template-columns: 68px minmax(0, 1fr);
+  padding: 11px;
+}
+
+.launch-preview-card h2 { font-size: 19px; }
+.launch-preview-card p { font-size: 11px; line-height: 1.4; }
+.launch-preview-stat { display: none; }
+
+.launch-feature-grid {
+  gap: 10px;
+  grid-template-columns: 1fr;
+  padding: 0 14px 14px;
+}
+
+.launch-feature-grid > div {
+  border-radius: var(--ui-radius-sm);
+  min-height: 62px;
+  padding: 13px 15px;
+}
+
+.launch-feature-grid strong { font-size: 13px; }
+.launch-feature-grid small { font-size: 9px; }
+
+.launch-form-card {
+  border: 1px solid var(--line);
+  box-shadow: 0 18px 50px color-mix(in srgb, var(--text) 8%, transparent);
+  overflow: hidden;
+  padding: clamp(20px, 2.3vw, 28px);
+}
+
+.launch-form-card .pill {
+  border-radius: 999px;
+  font-family: inherit;
+  font-size: 9px;
+  letter-spacing: .06em;
+  padding: 6px 10px;
+}
+
+.launch-form-header {
+  align-items: center;
+  margin: 0 0 4px;
+  padding: 0 0 18px;
+}
+
+.launch-form-header h2 {
+  font-size: clamp(23px, 2.2vw, 29px);
+  letter-spacing: -.045em;
+  margin-top: 7px;
+}
+
+.launch-form-network { border-radius: 999px; }
+
+.launch-form-card > .form { gap: 18px; }
+
+.launch-mode-picker { gap: 12px; }
+
+.launch-mode-picker > button {
+  align-items: center;
+  border-radius: var(--ui-radius-md);
+  gap: 11px;
+  min-height: 82px;
+  padding: 15px 16px;
+  transition: background 160ms ease, border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.launch-mode-picker > button:hover {
+  border-color: var(--line-strong);
+  transform: translateY(-1px);
+}
+
+.launch-mode-picker > button.active {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--blue) 24%, transparent);
+}
+
+.launch-mode-picker strong { font-size: 14px; }
+.launch-mode-picker small { font-size: 10px; line-height: 1.35; }
+
+.launch-wallet-gate,
+.launch-stepper,
+.project-details-card,
+.launch-review-card,
+.launch-review-total,
+.launch-route-option {
+  border-radius: var(--ui-radius-md);
+}
+
+.launch-stepper {
+  gap: 5px;
+  padding: 5px;
+}
+
+.launch-stepper button { border-radius: 10px; }
+.launch-stepper button > span { border-radius: 999px; }
+
+.launch-form-section-head { margin-top: 3px; }
+.launch-form-section-head > span { border-radius: 9px; box-shadow: none; }
+.launch-form-section-head strong { font-size: 14px; }
+.launch-form-section-head small { font-size: 9px; }
+
+.field input,
+.field textarea,
+.upload-box {
+  border-radius: 12px;
+}
+
+.field input { min-height: 52px; }
+.field textarea { min-height: 82px; }
+
+.field input:focus,
+.field textarea:focus {
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--blue) 10%, transparent);
+}
+
+.upload-box { min-height: 142px; }
+.project-details-card { padding: 15px; }
+.launch-step-actions { padding-top: 2px; }
+.launch-form-card .button.primary { font-size: 14px; min-height: 50px; }
+
+@media (max-width: 1180px) {
+  .launch-page {
+    grid-template-columns: minmax(270px, .62fr) minmax(500px, 1.38fr);
+  }
+  .launch-feature-grid { display: none; }
+}
+
+@media (max-width: 880px) {
+  .main { padding: 18px 18px 84px; }
+  .launchpad-intro.premium-hero,
+  .trending-section,
+  .discovery-panel,
+  .launch-form-card { border-radius: 18px; }
+  .launch-form-card { padding: 20px; }
+  .token-grid.list-view .token-card,
+  .token-grid.list-view .token-card.featured { border-radius: 14px; }
+  .bottom-nav a { border-radius: 10px; }
+}
+
+@media (max-width: 620px) {
+  .main { padding: 13px 12px 84px; }
+  .premium-hero .launchpad-intro-copy { padding: 21px 18px 16px; }
+  .premium-hero h1 { font-size: 34px; }
+  .premium-hero .launchpad-intro-copy > p { display: none; }
+  .launch-form-card { padding: 16px 14px; }
+  .launch-form-header { padding-bottom: 14px; }
+  .launch-mode-picker { grid-template-columns: 1fr; gap: 8px; }
+  .launch-mode-picker > button { min-height: 68px; padding: 12px 13px; }
+  .launch-stepper button { gap: 5px; padding-inline: 5px; }
+  .launch-stepper button small { font-size: 9px; }
+  .launch-field-grid { grid-template-columns: 1fr; }
+  .upload-box { min-height: 124px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .token-card,
+  .launch-mode-picker > button { transition: none; }
+}
