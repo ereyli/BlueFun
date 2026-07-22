@@ -1,10 +1,10 @@
 # BlueFun protocol and operations reference
 
-Status: production vNext active on Base and Robinhood Chain
+Status: production vNext active on Base, Robinhood Chain and Monad
 
-Last reviewed: 16 July 2026
+Last reviewed: 22 July 2026
 
-Canonical deployment catalog: [`contracts/deployments/secure-mainnet.json`](../contracts/deployments/secure-mainnet.json)
+Canonical deployment catalogs: [`contracts/deployments/secure-mainnet.json`](../contracts/deployments/secure-mainnet.json) and [`contracts/deployments/vnext-monad-mainnet.json`](../contracts/deployments/vnext-monad-mainnet.json)
 
 This is the canonical technical and operational reference for BlueFun. Read and update this file before changing contracts, launch economics, deployment addresses, the indexer catalog, staking, or the production web configuration. Historical token support is part of the production system and must not be removed during a future upgrade.
 
@@ -13,7 +13,7 @@ This is the canonical technical and operational reference for BlueFun. Read and 
 When two files disagree, use this order:
 
 1. Deployed contract bytecode and current onchain state.
-2. [`contracts/deployments/secure-mainnet.json`](../contracts/deployments/secure-mainnet.json).
+2. The applicable deployment JSON under `contracts/deployments/`.
 3. `apps/web/src/lib/contracts.ts` and `apps/indexer/src/deployment.ts`.
 4. This document.
 5. User-facing copy and older release notes.
@@ -22,12 +22,13 @@ No private key, RPC secret, database credential, Pinata token, or service-role k
 
 ## 2. Product architecture
 
-BlueFun is a multichain token launch, discovery and trading platform with two active networks:
+BlueFun is a multichain token launch, discovery and trading platform with three active networks:
 
 | Network | Chain ID | Launch token standard | DEX |
 | --- | ---: | --- | --- |
 | Base | 8453 | B20 `ASSET` | Uniswap v4 |
 | Robinhood Chain | 4663 | Fixed-supply ERC-20 | Uniswap v4 |
+| Monad | 143 | Fixed-supply ERC-20 | Uniswap v4 |
 
 Both networks support:
 
@@ -39,7 +40,7 @@ Both networks support:
 - Permanently locked LP principal.
 - A shared vNext fee policy for Bond, Direct and graduated Bond pools.
 
-BLUE staking exists only on Base. Robinhood revenue intended for BLUE staking accumulates in a bridge reserve and is transferred to Base manually.
+BLUE staking exists only on Base. Robinhood revenue intended for BLUE staking accumulates in a bridge reserve and is transferred to Base manually. Monad has zero staking allocation: platform launch and trade revenue remains native MON and is claimable only to the BlueFun Safe.
 
 ## 3. Current launch routes
 
@@ -53,7 +54,7 @@ BLUE staking exists only on Base. Robinhood revenue intended for BLUE staking ac
 6. Remaining tokens and real ETH reserves enter the permanent Uniswap v4 locker.
 7. After graduation, the same vNext hook continues the current fee and burn rules.
 
-Bond constants currently used by both networks:
+Bond constants currently used by Base and Robinhood:
 
 | Parameter | Value |
 | --- | ---: |
@@ -66,6 +67,8 @@ Bond constants currently used by both networks:
 | Anti-sniping duration | 60 seconds |
 | Anti-sniping maximum buy | 500,000,000 tokens |
 | Optional launch-time first buy | 0 to 5 ETH |
+
+Monad intentionally uses separate native-MON parameters: an `80 MON` launch fee, `100,000 MON` virtual reserve, `400,000 MON` gross graduation target and a maximum `400,000 MON` launch-time first buy. Its Direct initial FDV is approximately `700 MON`. The percentage fee and burn rules remain the same.
 
 ### 3.2 Direct DEX launch
 
@@ -183,7 +186,7 @@ UnifiedFeeHook security properties:
 
 ## 8. Governance, pausing and maintenance
 
-Each network has its own seven-day StakingTimelock. Fee and configuration changes execute only after the delay. The guardian may cancel a queued malicious or incorrect operation and may pause new launches. Only delayed governance can unpause new launches.
+Each network has its own seven-day StakingTimelock. Fee and configuration changes execute only after the delay. The guardian may cancel a queued malicious or incorrect operation and may pause new launches. Only delayed governance can unpause new launches. On Monad, the timelock owner is the same 2-of-3 BlueFun Safe used by the other networks and all platform MON revenue resolves to that Safe.
 
 Contract pause and website maintenance are separate controls:
 
@@ -244,6 +247,33 @@ First vNext Direct launch ID: `1`
 | Direct factory | `0x7De3165634679353a36886DCfe35e3521beee4A4` |
 
 All vNext contracts are source-verified on Robinhood Blockscout.
+
+### 9.3 Monad mainnet
+
+Deployment block: `89311403`
+
+Direct deployment block: `89311452`
+
+First vNext Bond launch ID: `1`
+
+First vNext Direct launch ID: `1`
+
+| Component | Address |
+| --- | --- |
+| Treasury Safe (2-of-3) | `0x144A3f70C0bf33124852E3891011e033b909F46d` |
+| Governance timelock | `0x448B856f684ca79CF60Ce24Dc29d1E3467f0551D` |
+| MonadFeePolicy | `0x72aA9A64E74566e5931883f5Bf1fD173bBD572e4` |
+| MonadRevenueRouter | `0xD9f720a6A06BDe325a252C449E700253B30610ff` |
+| UnifiedFeeHook | `0x65aAA8A131B4d4ed7f95C1F88740daeE4e1B20cc` |
+| Bond emergency guardian | `0x4ef366E000DdF8Ff532D02B6357C9c5a5582862C` |
+| BondingCurveMarket | `0xB2a827Da4Bd935902baE6B5640d6384C2ef53821` |
+| Bond LP locker | `0x0488E96d545A977672aA75EF374a385d054AF2cb` |
+| Graduation manager | `0xac03C2d754654015Cc6839625FAa883BB92959f2` |
+| Bond factory | `0x857430A20C3A5087e8f4f292B1573507567fa9cB` |
+| Direct LP locker | `0xb5fAb655a3b7187175Ac339075DA11542e58d81d` |
+| Direct factory | `0x773260193799321547BFeF0616cf57b3D7aa3412` |
+
+The production canaries completed native-MON Bond and Direct buys/sells. The Direct sell sent exactly `4.031251873718212182` tokens to the burn address, creator balances were claimed, and `160.017454624808197361 MON` of platform revenue was claimed to the Safe. Full receipts are in the Monad deployment catalog; operational details are in [`MONAD_LAUNCHPAD.md`](MONAD_LAUNCHPAD.md).
 
 ## 10. Legacy-token compatibility
 

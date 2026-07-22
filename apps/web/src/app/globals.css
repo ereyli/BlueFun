@@ -5453,6 +5453,12 @@ textarea:focus-visible {
   padding: 4px 6px;
 }
 
+.network-icon.monad {
+  background: #f5f2ff;
+  border-color: #d8d0ff;
+  padding: 3px;
+}
+
 .wallet-control {
   border-radius: 14px;
   min-height: 48px;

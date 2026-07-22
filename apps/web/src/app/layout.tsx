@@ -26,7 +26,7 @@ import { BrandLaunchpadMenu } from "@/components/brand-launchpad-menu";
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl("/")),
   title: "BlueFun",
-  description: "Fair multichain token launches on Base and Robinhood Chain.",
+  description: "Fair multichain token launches on Base, Robinhood Chain and Monad.",
   other: {
     "base:app_id": "6a594e1358aaa84e3d06752c"
   },
@@ -57,7 +57,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <section className="maintenance-card" aria-labelledby="maintenance-title">
               <div className="maintenance-brand">
                 <span><Image src="/brand/bluelogo.webp" alt="" width={40} height={40} priority /></span>
-                <div><strong>BlueFun</strong><small>Base + Robinhood</small></div>
+                <div><strong>BlueFun</strong><small>Base + Robinhood + Monad</small></div>
               </div>
               <div className="maintenance-status"><i /> Scheduled pause</div>
               <h1 id="maintenance-title">The launch desk is taking a short break.</h1>
@@ -65,6 +65,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               <div className="maintenance-network-row">
                 <span><NetworkIcon chainId={8453} size={22} /> Base</span>
                 <span><NetworkIcon chainId={4663} size={22} /> Robinhood</span>
+                <span><NetworkIcon chainId={143} size={22} /> Monad</span>
               </div>
               <footer>
                 <span>Onchain contracts continue to operate independently.</span>
@@ -99,8 +100,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               </div>
               <Suspense fallback={null}><SideNav /></Suspense>
               <div className="sidebar-network-note">
-                <span className="sidebar-network-icons"><NetworkIcon chainId={8453} size={25} /><NetworkIcon chainId={4663} size={25} /></span>
-                <span><strong>Multichain</strong><small>Base + Robinhood live</small></span>
+                <span className="sidebar-network-icons"><NetworkIcon chainId={8453} size={25} /><NetworkIcon chainId={4663} size={25} /><NetworkIcon chainId={143} size={25} /></span>
+                <span><strong>Multichain</strong><small>Base + Robinhood + Monad live</small></span>
               </div>
               <a className="sidebar-social-link" href="https://x.com/BluefunLaunch" target="_blank" rel="noreferrer" aria-label="BlueFun on X">
                 <span className="x-icon" aria-hidden="true">X</span>

@@ -9,7 +9,7 @@ export async function GET(request: Request) {
   const token = searchParams.get("token") || "";
   const chainParam = searchParams.get("chain");
   const chainId = chainIdFromParam(chainParam);
-  if (!/^0x[a-fA-F0-9]{40}$/.test(token) || !chainParam || !["base", "robinhood", "8453", "4663"].includes(chainParam.toLowerCase())) {
+  if (!/^0x[a-fA-F0-9]{40}$/.test(token) || !chainParam || !["base", "robinhood", "monad", "8453", "4663", "143"].includes(chainParam.toLowerCase())) {
     return NextResponse.json({ messages: [] });
   }
   try {

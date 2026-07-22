@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound, permanentRedirect } from "next/navigation";
 import { unstable_cache } from "next/cache";
 import { MarketClient } from "@/app/launch/[id]/market-client";
-import { chainIdFromParam } from "@/lib/chain-slug";
+import { chainIdFromParam, chainSlug } from "@/lib/chain-slug";
 import { getDbLaunchByTokenSuffix, getDbTrades } from "@/lib/db-launches";
 import { getDeployedLaunches, getLaunchTrades } from "@/lib/onchain-launches";
 import { getRobinhoodLaunches } from "@/lib/robinhood-launches";
@@ -18,6 +18,7 @@ const getCachedLaunchBySuffix = unstable_cache(
   async (suffix: string, chainId: number) => {
     const indexed = await getDbLaunchByTokenSuffix(suffix, chainId);
     if (indexed) return indexed;
+    if (chainId === 143) return undefined;
     const launches = chainId === 4663 ? await getRobinhoodLaunches() : await getDeployedLaunches();
     const matches = launches.filter((launch) => launch.token.toLowerCase().endsWith(suffix.toLowerCase()));
     return matches.length === 1 ? matches[0] : undefined;
@@ -29,8 +30,8 @@ const getCachedLaunchBySuffix = unstable_cache(
 const getCachedTokenTrades = unstable_cache(
   async (launchId: string, chainId: number, scope?: string) => scope
     ? getDbTrades(launchId, chainId, scope).then((value) => value ?? [])
-    : chainId === 4663
-      ? getDbTrades(launchId, 4663).then((value) => value ?? [])
+    : chainId !== 8453
+      ? getDbTrades(launchId, chainId).then((value) => value ?? [])
       : getLaunchTrades(launchId),
   ["market-token-trades-v1"],
   { revalidate: 10 }
@@ -58,13 +59,13 @@ export default async function TokenMarketPage({ params }: TokenParams) {
   const { chain, slug } = await params;
   const launch = await resolveTokenLaunch(chain, slug);
   if (!launch) notFound();
-  if (slug !== tokenSlug(launch) || chain !== (launch.chainId === 4663 ? "robinhood" : "base")) permanentRedirect(tokenPath(launch));
+  if (slug !== tokenSlug(launch) || chain !== chainSlug(launch.chainId)) permanentRedirect(tokenPath(launch));
   const trades = await getCachedTokenTrades(launch.id, launch.chainId, launch.scope);
   return <MarketClient id={launch.id} launch={launch} trades={trades} />;
 }
 
 async function resolveTokenLaunch(chain: string, slug: string) {
-  if (chain !== "base" && chain !== "robinhood") return undefined;
+  if (chain !== "base" && chain !== "robinhood" && chain !== "monad") return undefined;
   const suffix = tokenSuffixFromSlug(slug);
   if (!suffix) return undefined;
   return getCachedLaunchBySuffix(suffix, chainIdFromParam(chain)).catch(() => undefined);

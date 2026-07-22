@@ -5,6 +5,7 @@ export const DEFAULT_BASE_RPC_URLS = [
 ];
 
 export const DEFAULT_ROBINHOOD_RPC_URLS = ["https://rpc.mainnet.chain.robinhood.com"];
+export const DEFAULT_MONAD_RPC_URLS = ["https://rpc.monad.xyz", "https://rpc1.monad.xyz"];
 
 export function baseRpcUrls() {
   return uniqueUrls([
@@ -19,6 +20,14 @@ export function robinhoodRpcUrls() {
     ...splitRpcUrls(process.env.NEXT_PUBLIC_ROBINHOOD_RPC_URL),
     ...splitRpcUrls(process.env.NEXT_PUBLIC_ROBINHOOD_RPC_FALLBACK_URLS),
     ...DEFAULT_ROBINHOOD_RPC_URLS
+  ]);
+}
+
+export function monadRpcUrls() {
+  return uniqueUrls([
+    ...splitRpcUrls(process.env.NEXT_PUBLIC_MONAD_RPC_URL),
+    ...splitRpcUrls(process.env.NEXT_PUBLIC_MONAD_RPC_FALLBACK_URLS),
+    ...DEFAULT_MONAD_RPC_URLS
   ]);
 }
 

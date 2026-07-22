@@ -67,12 +67,11 @@ const deploymentContexts: DeploymentContext[] = deployments.map((deployment) => 
 }));
 let nftDeployment = nftDeployments[0];
 const v4TickSpacing = 60;
-const vNextBaseHook = "0xf0b8dde19510ee7d6d50be289c4257ecd14c60cc" as const;
 const chunkSize = BigInt(process.env.LOG_CHUNK_SIZE || "1900");
 const nftEventChunkSize = BigInt(process.env.NFT_EVENT_LOG_CHUNK_SIZE || "1900");
 const nftTransferChunkSize = BigInt(process.env.NFT_TRANSFER_LOG_CHUNK_SIZE || "1900");
-const pollMs = Number(process.env.POLL_MS || (chainId === 8453 ? "2500" : "12000"));
-const confirmations = BigInt(process.env.CONFIRMATIONS || (chainId === 8453 ? "1" : "3"));
+const pollMs = Number(process.env.POLL_MS || (chainId === 143 ? "1200" : chainId === 8453 ? "2500" : "12000"));
+const confirmations = BigInt(process.env.CONFIRMATIONS || (chainId === 143 ? "2" : chainId === 8453 ? "1" : "3"));
 const totalSupplyRaw = 1_000_000_000n * 10n ** 18n;
 const q192 = 1n << 192n;
 const pfpListingKey = (listingId: bigint) => -listingId;
@@ -982,7 +981,7 @@ async function handleUniswapV4Swap(
   });
 }
 
-function blueFunV4PoolId(token: `0x${string}`, deployment: ScopeContext & { version?: IndexerDeployment["version"] }) {
+function blueFunV4PoolId(token: `0x${string}`, deployment: ScopeContext & { version?: IndexerDeployment["version"]; feeHook?: `0x${string}` }) {
   const vNext = deployment.version === "vnext";
   const encoded = encodeAbiParameters(
     [
@@ -1004,7 +1003,7 @@ function blueFunV4PoolId(token: `0x${string}`, deployment: ScopeContext & { vers
         currency1: token,
         fee: vNext ? 0x800000 : 3000,
         tickSpacing: v4TickSpacing,
-        hooks: vNext ? vNextBaseHook : zeroAddress
+        hooks: vNext ? deployment.feeHook ?? zeroAddress : zeroAddress
       }
     ]
   );

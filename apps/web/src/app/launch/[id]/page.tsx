@@ -7,13 +7,16 @@ import { getRobinhoodLaunch } from "@/lib/robinhood-launches";
 import { unstable_cache } from "next/cache";
 import { chainIdFromParam } from "@/lib/chain-slug";
 import { tokenPath } from "@/lib/token-url";
+import { getDbLaunch } from "@/lib/db-launches";
 
 export const revalidate = 15;
 
 type LaunchParams = { params: Promise<{ id: string }>; searchParams: Promise<{ chain?: string }> };
 
 const getCachedLaunch = unstable_cache(
-  async (id: string, chainId: number) => chainId === 4663 ? getRobinhoodLaunch(id) : getDeployedLaunch(id),
+  async (id: string, chainId: number) => chainId === 143
+    ? getDbLaunch(id, 143)
+    : chainId === 4663 ? getRobinhoodLaunch(id) : getDeployedLaunch(id),
   ["market-launch-v1"],
   { revalidate: 15 }
 );

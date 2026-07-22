@@ -22,6 +22,7 @@ import {
   feeSharingLockerAbi,
   indexerScopeForLaunch,
   isVNextLiquidityLocker,
+  launchEconomics,
   liquidityLockerPoolAbi,
   permit2Abi,
   universalRouterAbi,
@@ -79,8 +80,10 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
   const { address, isConnected } = useAccount();
   const chainId = useChainId();
   const { switchChainAsync, isPending: isSwitchingChain } = useSwitchChain();
-  const activeChainId = launch?.chainId === 4663 ? 4663 : 8453;
+  const activeChainId = launch?.chainId === 4663 || launch?.chainId === 143 ? launch.chainId : 8453;
   const { addresses, chain, uniswapV4Addresses } = contractsForLaunch(activeChainId, id);
+  const nativeSymbol = chain.nativeCurrency.symbol;
+  const quickBuyAmounts = activeChainId === 143 ? ["50", "100", "500"] : ["0.01", "0.05", "0.1"];
   const wrongNetwork = Boolean(isConnected && chainId && chainId !== activeChainId);
 
   async function switchWalletNetwork() {
@@ -232,13 +235,13 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
   const launchPriceEth = launch && launch.price.trim().toLowerCase() !== "live" && parseDisplayAmount(launch.price) > 0
     ? launch.price
     : undefined;
-  const estimatedCurve = launch && !isGraduated ? estimateCurveSnapshot(launch.raised) : undefined;
+  const estimatedCurve = launch && !isGraduated ? estimateCurveSnapshot(launch.raised, activeChainId) : undefined;
   const displayMarketCap = latestMarketCapEth
-    ? `${latestMarketCapEth} ETH`
+    ? `${latestMarketCapEth} ${nativeSymbol}`
     : launchMarketCapEth ?? estimatedCurve?.marketCap ?? "Live";
   const latestPriceEth = latestMarketCapEth ? parseDisplayAmount(latestMarketCapEth) / TOTAL_SUPPLY : 0;
   const displayPrice = latestPriceEth > 0
-    ? `${decimalStringFromNumber(latestPriceEth.toPrecision(18))} ETH`
+    ? `${decimalStringFromNumber(latestPriceEth.toPrecision(18))} ${nativeSymbol}`
     : launchPriceEth ?? estimatedCurve?.price ?? "Live";
   const isEstimatedCurveData = Boolean(!isGraduated && !latestMarketCapEth && !launchMarketCapEth);
   const displayMarketCapText = latestMarketCapEth
@@ -321,7 +324,7 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
           const row = payload.new as Record<string, unknown> | null;
           const oldRow = payload.old as Record<string, unknown> | null;
           if (row?.scope !== scope && oldRow?.scope !== scope) return;
-          const nextTrade = realtimeTrade(row);
+          const nextTrade = realtimeTrade(row, nativeSymbol);
           if (!nextTrade) return;
           setTrades((current) => {
             const withoutPrevious = current.filter((trade) => !sameTrade(trade, nextTrade));
@@ -338,26 +341,26 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [activeChainId, id, launch?.scope]);
+  }, [activeChainId, id, launch?.scope, nativeSymbol]);
 
   useEffect(() => {
     let active = true;
-    async function loadEthPrice() {
+    async function loadNativePrice() {
       try {
-        const response = await fetch("/api/eth-price", { cache: "no-store" });
-        const payload = await response.json() as { ethUsd?: number | null };
-        if (active && payload.ethUsd) setEthUsd(payload.ethUsd);
+        const response = await fetch(`/api/native-price?chain=${activeChainId}`, { cache: "no-store" });
+        const payload = await response.json() as { nativeUsd?: number | null };
+        if (active && payload.nativeUsd) setEthUsd(payload.nativeUsd);
       } catch {
         if (active) setEthUsd(null);
       }
     }
-    loadEthPrice();
-    const interval = window.setInterval(loadEthPrice, 300_000);
+    loadNativePrice();
+    const interval = window.setInterval(loadNativePrice, 300_000);
     return () => {
       active = false;
       window.clearInterval(interval);
     };
-  }, []);
+  }, [activeChainId]);
 
   useEffect(() => {
     if (!isGraduated || !launch?.token) {
@@ -574,7 +577,7 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
       <section className="market-content-column">
         <div className="chart-panel">
           <div className="curve-state compact">
-            <TradeChart trades={trades} status={launch.status} symbol={launch.symbol} ethUsd={ethUsd} />
+            <TradeChart trades={trades} status={launch.status} symbol={launch.symbol} ethUsd={ethUsd} nativeSymbol={nativeSymbol} />
             <HolderDistribution launch={launch} trades={trades} />
             <RecentTrades trades={trades} symbol={launch.symbol} chainId={launch.chainId} />
             <CommunityBurnCard launch={launch} />
@@ -657,12 +660,12 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
                     ) : null}
                   </div>
                   <div className="swap-asset-main">
-                    <input aria-label={mode === "buy" ? "ETH amount" : `${launch.symbol} amount`} className="swap-amount-input" inputMode="decimal" value={amount} onChange={(event) => setAmount(event.target.value)} />
+                    <input aria-label={mode === "buy" ? `${nativeSymbol} amount` : `${launch.symbol} amount`} className="swap-amount-input" inputMode="decimal" value={amount} onChange={(event) => setAmount(event.target.value)} />
                     <SwapAssetPill chainId={activeChainId} launch={launch} native={mode === "buy"} />
                   </div>
                   <div className={mode === "buy" ? "swap-quick-row" : "swap-quick-row sell-grid"}>
                     {mode === "buy" ? (
-                      <><button type="button" onClick={() => setAmount("0.01")}>0.01</button><button type="button" onClick={() => setAmount("0.05")}>0.05</button><button type="button" onClick={() => setAmount("0.1")}>0.1</button></>
+                      <>{quickBuyAmounts.map((value) => <button key={value} type="button" onClick={() => setAmount(value)}>{value}</button>)}</>
                     ) : (
                       <><button type="button" onClick={() => setSellPercent(25n)}>25%</button><button type="button" onClick={() => setSellPercent(50n)}>50%</button><button type="button" onClick={() => setSellPercent(75n)}>75%</button><button type="button" onClick={() => setSellPercent(100n)}>Max</button></>
                     )}
@@ -676,7 +679,7 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
                     <SwapAssetPill chainId={activeChainId} launch={launch} native={mode === "sell"} />
                   </div>
                   <div className="swap-detail-row">
-                    <span>Minimum <b>{minOut ? formatQuote(minOut, mode === "buy" ? launch.symbol : "ETH") : "-"}</b></span>
+                    <span>Minimum <b>{minOut ? formatQuote(minOut, mode === "buy" ? launch.symbol : nativeSymbol) : "-"}</b></span>
                     <span>Impact <b>{formatPercent(priceImpact)}</b></span>
                   </div>
                 </div>
@@ -707,7 +710,7 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
                 <>
                   <button className="button primary trade-submit buy" disabled={tradeDisabled} onClick={buy}>
                     {isWorking ? <Loader2 className="spin" size={16} /> : <ArrowDownUp size={16} />}
-                    {isPending ? "Confirm in wallet" : receipt.isLoading ? "Buying" : exceedsEthBalance ? "Insufficient ETH" : `Buy $${launch.symbol}`}
+                    {isPending ? "Confirm in wallet" : receipt.isLoading ? "Buying" : exceedsEthBalance ? `Insufficient ${nativeSymbol}` : `Buy $${launch.symbol}`}
                   </button>
                 </>
               ) : (
@@ -751,7 +754,7 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
   );
 }
 
-function realtimeTrade(row: Record<string, unknown> | null): DeployedTrade | undefined {
+function realtimeTrade(row: Record<string, unknown> | null, nativeSymbol: string): DeployedTrade | undefined {
   if (!row?.tx_hash || !row.eth_amount || !row.token_amount) return undefined;
   try {
     return {
@@ -760,7 +763,7 @@ function realtimeTrade(row: Record<string, unknown> | null): DeployedTrade | und
       trader: typeof row.trader === "string" && /^0x[a-fA-F0-9]{40}$/.test(row.trader)
         ? row.trader as `0x${string}`
         : undefined,
-      ethAmount: `${formatRealtimeEth(row.eth_amount)} ETH`,
+      ethAmount: `${formatRealtimeEth(row.eth_amount)} ${nativeSymbol}`,
       tokenAmount: formatRealtimeEth(row.token_amount),
       marketCapEth: row.market_cap_eth ? formatEther(BigInt(String(row.market_cap_eth))) : undefined,
       txHash: String(row.tx_hash),
@@ -992,6 +995,8 @@ function GraduatedTradeCard({
   wrongNetwork: boolean;
 }) {
   const { chain, uniswapChainName } = contractsForChain(launch.chainId);
+  const nativeSymbol = chain.nativeCurrency.symbol;
+  const quickBuyAmounts = launch.chainId === 143 ? ["50", "100", "500"] : ["0.01", "0.05", "0.1"];
   return (
     <section className="graduated-trade-card swap-terminal">
       <div className="trade-card-toolbar graduated-trade-toolbar">
@@ -1032,12 +1037,12 @@ function GraduatedTradeCard({
               ) : null}
             </div>
             <div className="swap-asset-main">
-              <input aria-label={mode === "buy" ? "ETH amount" : `${launch.symbol} amount`} className="swap-amount-input" inputMode="decimal" value={amount} onChange={(event) => setAmount(event.target.value)} />
+              <input aria-label={mode === "buy" ? `${nativeSymbol} amount` : `${launch.symbol} amount`} className="swap-amount-input" inputMode="decimal" value={amount} onChange={(event) => setAmount(event.target.value)} />
               <SwapAssetPill chainId={launch.chainId} launch={launch} native={mode === "buy"} />
             </div>
             <div className={mode === "buy" ? "swap-quick-row" : "swap-quick-row sell-grid"}>
               {mode === "buy" ? (
-                <><button type="button" onClick={() => setAmount("0.01")}>0.01</button><button type="button" onClick={() => setAmount("0.05")}>0.05</button><button type="button" onClick={() => setAmount("0.1")}>0.1</button></>
+                <>{quickBuyAmounts.map((value) => <button key={value} type="button" onClick={() => setAmount(value)}>{value}</button>)}</>
               ) : (
                 <><button type="button" onClick={() => setSellPercent(25n)}>25%</button><button type="button" onClick={() => setSellPercent(50n)}>50%</button><button type="button" onClick={() => setSellPercent(75n)}>75%</button><button type="button" onClick={() => setSellPercent(100n)}>Max</button></>
               )}
@@ -1051,7 +1056,7 @@ function GraduatedTradeCard({
               <SwapAssetPill chainId={launch.chainId} launch={launch} native={mode === "sell"} />
             </div>
             <div className="swap-detail-row">
-              <span>Minimum <b>{minOut ? formatQuote(minOut, mode === "buy" ? launch.symbol : "ETH") : "-"}</b></span>
+              <span>Minimum <b>{minOut ? formatQuote(minOut, mode === "buy" ? launch.symbol : nativeSymbol) : "-"}</b></span>
               <span>Route <b>{quoteFromFallback ? "Indexed price" : "Uniswap v4"}</b></span>
             </div>
           </div>
@@ -1081,7 +1086,7 @@ function GraduatedTradeCard({
           <>
             <button className="button primary wide trade-submit buy" disabled={tradeDisabled} onClick={onBuy} type="button">
               {isWorking ? <Loader2 className="spin" size={16} /> : <ArrowDownUp size={16} />}
-              {isPending ? "Confirm in wallet" : isWorking ? "Buying" : exceedsEthBalance ? "Insufficient ETH" : `Buy $${launch.symbol}`}
+              {isPending ? "Confirm in wallet" : isWorking ? "Buying" : exceedsEthBalance ? `Insufficient ${nativeSymbol}` : `Buy $${launch.symbol}`}
             </button>
           </>
         ) : (
@@ -1264,7 +1269,7 @@ function CommunityBurnCard({ launch }: { launch: DeployedLaunch }) {
     if (!isConnected || !launch.positionId || !launch.liquidityLocker) return;
     setFlowError("");
     try {
-      if (chainId !== launch.chainId) await switchChainAsync({ chainId: launch.chainId as 8453 | 4663 });
+      if (chainId !== launch.chainId) await switchChainAsync({ chainId: launch.chainId as 8453 | 4663 | 143 });
       await writeContractAsync({
         account: address,
         chainId: launch.chainId,
@@ -1456,7 +1461,7 @@ function SwapAssetPill({ chainId, launch, native }: { chainId: number; launch: D
         <TokenAvatar className="swap-token-icon" launch={launch} />
       )}
       <span className="swap-token-copy">
-        <strong>{native ? "ETH" : launch.symbol}</strong>
+        <strong>{native ? chain.nativeCurrency.symbol : launch.symbol}</strong>
         <small>{chain.name}</small>
       </span>
     </span>
@@ -1478,7 +1483,7 @@ function parsePositiveEther(value: string) {
 
 function formatQuote(value: bigint, unit: string) {
   const formatted = formatEther(value);
-  if (unit !== "ETH") return `${compactTokenAmount(formatted)} ${unit}`;
+  if (unit !== "ETH" && unit !== "MON") return `${compactTokenAmount(formatted)} ${unit}`;
   const [whole, fraction = ""] = formatEther(value).split(".");
   const trimmed = fraction.slice(0, 6).replace(/0+$/, "");
   return `${trimmed ? `${whole}.${trimmed}` : whole} ${unit}`;
@@ -1547,19 +1552,20 @@ function decimalStringFromNumber(value: string) {
   return `${digits.slice(0, point)}.${digits.slice(point)}`.replace(/0+$/, "").replace(/\.$/, "") || "0";
 }
 
-function estimateCurveSnapshot(raisedValue: string) {
+function estimateCurveSnapshot(raisedValue: string, chainId: number) {
   const grossRaised = Math.max(0, parseDisplayAmount(raisedValue));
-  const initialVirtualEth = 1.25;
+  const economics = launchEconomics(chainId);
+  const initialVirtualEth = Number(economics.virtualNativeReserve);
   const virtualEth = initialVirtualEth + grossRaised * (1 - CURVE_FEE_RATE);
   const marketCapEth = (virtualEth * virtualEth) / initialVirtualEth;
   const priceEth = marketCapEth / TOTAL_SUPPLY;
   return {
-    marketCap: `${decimalStringFromNumber(marketCapEth.toPrecision(18))} ETH`,
-    price: `${decimalStringFromNumber(priceEth.toPrecision(18))} ETH`
+    marketCap: `${decimalStringFromNumber(marketCapEth.toPrecision(18))} ${economics.nativeSymbol}`,
+    price: `${decimalStringFromNumber(priceEth.toPrecision(18))} ${economics.nativeSymbol}`
   };
 }
 
-function TradeChart({ trades, status, symbol, ethUsd }: { trades: DeployedTrade[]; status: DeployedLaunch["status"]; symbol: string; ethUsd: number | null }) {
+function TradeChart({ trades, status, symbol, ethUsd, nativeSymbol }: { trades: DeployedTrade[]; status: DeployedLaunch["status"]; symbol: string; ethUsd: number | null; nativeSymbol: string }) {
   const chartRef = useRef<HTMLDivElement | null>(null);
   const chartApiRef = useRef<IChartApi | null>(null);
   const candleSeriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
@@ -1759,7 +1765,7 @@ function TradeChart({ trades, status, symbol, ethUsd }: { trades: DeployedTrade[
       {!ethUsd || candles.length === 0 ? (
         <div className="chart-overlay-note">
           <strong>{!ethUsd ? "Loading USD market data." : "USD chart will appear after the first trade."}</strong>
-          <span>{!ethUsd ? "ETH/USD pricing is used for chart and market cap display." : "Candles and volume update live from buy and sell events."}</span>
+          <span>{!ethUsd ? `${nativeSymbol}/USD pricing is used for chart and market cap display.` : "Candles and volume update live from buy and sell events."}</span>
         </div>
       ) : null}
     </div>
@@ -1889,7 +1895,7 @@ function friendlyTradeError(message: string) {
   if (lower.includes("user rejected") || lower.includes("rejected") || lower.includes("denied")) {
     return "Request cancelled in wallet.";
   }
-  if (lower.includes("insufficient funds")) return "Not enough ETH for this order.";
+  if (lower.includes("insufficient funds")) return "Not enough native balance for this order and gas.";
   if (lower.includes("slippage")) return "Price moved. Try again with a smaller amount or higher slippage.";
   return "Order could not be completed. Please check your wallet and try again.";
 }

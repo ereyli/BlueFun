@@ -6,10 +6,11 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Check, ChevronDown } from "lucide-react";
 import { baseChain } from "@/lib/base-chain";
 import { robinhoodChain } from "@/lib/robinhood-chain";
+import { monadChain } from "@/lib/monad-chain";
 import { NetworkIcon, networkMeta } from "@/components/network-icon";
 import { chainIdFromParam, chainSlug, chainSlugFromPath } from "@/lib/chain-slug";
 
-const networks = [baseChain.id, robinhoodChain.id] as const;
+const networks = [baseChain.id, robinhoodChain.id, monadChain.id] as const;
 
 export function NetworkSelector() {
   const { isConnected } = useAccount();
@@ -24,9 +25,7 @@ export function NetworkSelector() {
   const requestedChain = searchParams.get("chain") || chainSlugFromPath(pathname);
   const selectedChainId = requestedChain
     ? chainIdFromParam(requestedChain)
-    : chainId === robinhoodChain.id
-      ? robinhoodChain.id
-      : baseChain.id;
+    : chainId === robinhoodChain.id || chainId === monadChain.id ? chainId : baseChain.id;
   const selectedNetwork = networkMeta(selectedChainId);
 
   useEffect(() => {
@@ -60,7 +59,7 @@ export function NetworkSelector() {
     }
     const params = new URLSearchParams(searchParams.toString());
     params.set("chain", chainSlug(nextChainId));
-    const destination = /^\/launch\/[^/]+$/.test(pathname) || /^\/token\/(base|robinhood)\//.test(pathname) ? "/" : pathname;
+    const destination = /^\/launch\/[^/]+$/.test(pathname) || /^\/token\/(base|robinhood|monad)\//.test(pathname) ? "/" : pathname;
     router.push(`${destination}?${params.toString()}`);
     setOpen(false);
   }
@@ -95,7 +94,7 @@ export function NetworkSelector() {
                 type="button"
               >
                 <NetworkIcon chainId={networkId} size={30} />
-                <span><strong>{network.name}</strong><small>{networkId === 8453 ? "B20 native launches" : "ERC-20 launches"}</small></span>
+                <span><strong>{network.name}</strong><small>{networkId === 8453 ? "B20 native launches" : networkId === 143 ? "MON-native ERC-20 launches" : "ERC-20 launches"}</small></span>
                 {active ? <Check size={17} /> : null}
               </button>
             );

@@ -1,5 +1,6 @@
 import { baseChain } from "@/lib/base-chain";
 import { robinhoodChain } from "@/lib/robinhood-chain";
+import { monadChain } from "@/lib/monad-chain";
 
 export const chain = baseChain;
 
@@ -140,18 +141,45 @@ export const robinhoodAddresses: ContractDeployment = {
   feeHook: "0x4c77a461669c0345960dd33d415747c8932f60cc"
 };
 
+export const monadAddresses: ContractDeployment = {
+  version: "vnext",
+  launchFactory: (process.env.NEXT_PUBLIC_MONAD_LAUNCH_FACTORY
+    || "0x857430A20C3A5087e8f4f292B1573507567fa9cB") as `0x${string}`,
+  bondingCurveMarket: (process.env.NEXT_PUBLIC_MONAD_BONDING_CURVE_MARKET
+    || "0xB2a827Da4Bd935902baE6B5640d6384C2ef53821") as `0x${string}`,
+  graduationManager: (process.env.NEXT_PUBLIC_MONAD_GRADUATION_MANAGER
+    || "0xac03C2d754654015Cc6839625FAa883BB92959f2") as `0x${string}`,
+  liquidityLocker: (process.env.NEXT_PUBLIC_MONAD_LIQUIDITY_LOCKER
+    || "0x0488E96d545A977672aA75EF374a385d054AF2cb") as `0x${string}`,
+  deploymentBlock: BigInt(process.env.NEXT_PUBLIC_MONAD_DEPLOYMENT_BLOCK || "89311403"),
+  firstLaunchId: 1n,
+  directLaunchFactory: (process.env.NEXT_PUBLIC_MONAD_DIRECT_LAUNCH_FACTORY
+    || "0x773260193799321547BFeF0616cf57b3D7aa3412") as `0x${string}`,
+  directLiquidityLocker: (process.env.NEXT_PUBLIC_MONAD_DIRECT_LIQUIDITY_LOCKER
+    || "0xb5fAb655a3b7187175Ac339075DA11542e58d81d") as `0x${string}`,
+  directDeploymentBlock: BigInt(process.env.NEXT_PUBLIC_MONAD_DIRECT_DEPLOYMENT_BLOCK || "89311452"),
+  feeHook: (process.env.NEXT_PUBLIC_MONAD_FEE_HOOK
+    || "0x65aAA8A131B4d4ed7f95C1F88740daeE4e1B20cc") as `0x${string}`
+};
+
+const MONAD_DEPLOYMENT = monadAddresses;
+
 export const legacyBaseAddresses = LEGACY_BASE_DEPLOYMENT;
 export const legacyRobinhoodAddresses = LEGACY_ROBINHOOD_DEPLOYMENT;
 
 export function deploymentsForChain(chainId: number | undefined): ContractDeployment[] {
-  const catalog = chainId === robinhoodChain.id
-    ? [LEGACY_ROBINHOOD_DEPLOYMENT, FEE_SHARING_ROBINHOOD_DEPLOYMENT, MAINNET_ROBINHOOD_DEPLOYMENT, robinhoodAddresses]
-    : [LEGACY_BASE_DEPLOYMENT, FEE_SHARING_BASE_DEPLOYMENT, MAINNET_DEPLOYMENT, VNEXT_BASE_DEPLOYMENT];
+  const catalog = chainId === monadChain.id
+    ? [MONAD_DEPLOYMENT]
+    : chainId === robinhoodChain.id
+      ? [LEGACY_ROBINHOOD_DEPLOYMENT, FEE_SHARING_ROBINHOOD_DEPLOYMENT, MAINNET_ROBINHOOD_DEPLOYMENT, robinhoodAddresses]
+      : [LEGACY_BASE_DEPLOYMENT, FEE_SHARING_BASE_DEPLOYMENT, MAINNET_DEPLOYMENT, VNEXT_BASE_DEPLOYMENT];
   return Array.from(new Map(catalog.map((deployment) => [deployment.bondingCurveMarket, deployment])).values());
 }
 
 function directDeploymentsForChain(chainId: number): ContractDeployment[] {
-  return chainId === robinhoodChain.id
+  return chainId === monadChain.id
+    ? [MONAD_DEPLOYMENT]
+    : chainId === robinhoodChain.id
     ? [MAINNET_ROBINHOOD_DEPLOYMENT, robinhoodAddresses]
     : [MAINNET_DEPLOYMENT, VNEXT_BASE_DEPLOYMENT];
 }
@@ -176,7 +204,24 @@ export const robinhoodUniswapV4Addresses = {
   permit2: "0x000000000022d473030f116ddee9f6b43ac78ba3" as `0x${string}`
 };
 
+export const monadUniswapV4Addresses = {
+  poolManager: "0x188d586ddcf52439676ca21a244753fa19f9ea8e" as `0x${string}`,
+  positionManager: "0x5b7ec4a94ff9bedb700fb82ab09d5846972f4016" as `0x${string}`,
+  quoter: "0xa222dd357a9076d1091ed6aa2e16c9742dd26891" as `0x${string}`,
+  stateView: "0x77395f3b2e73ae90843717371294fa97cc419d64" as `0x${string}`,
+  universalRouter: "0xfdf682f51fe81aa4898f0ae2163d8a55c127fbc7" as `0x${string}`,
+  permit2: "0x000000000022d473030f116ddee9f6b43ac78ba3" as `0x${string}`
+};
+
 export function contractsForChain(chainId: number | undefined) {
+  if (chainId === monadChain.id) {
+    return {
+      chain: monadChain,
+      addresses: MONAD_DEPLOYMENT,
+      uniswapV4Addresses: monadUniswapV4Addresses,
+      uniswapChainName: "monad"
+    };
+  }
   if (chainId === robinhoodChain.id) {
     return {
       chain: robinhoodChain,
@@ -211,7 +256,9 @@ export function indexerScopeForDeployment(chainId: number, deployment: ContractD
 }
 
 export function indexerScopesForChain(chainId: number | undefined) {
-  const resolvedChainId = chainId === robinhoodChain.id ? robinhoodChain.id : baseChain.id;
+  const resolvedChainId = chainId === monadChain.id
+    ? monadChain.id
+    : chainId === robinhoodChain.id ? robinhoodChain.id : baseChain.id;
   const contexts = deploymentsForChain(resolvedChainId).map((deployment) => ({
     scope: indexerScopeForDeployment(resolvedChainId, deployment),
     deployment
@@ -235,20 +282,44 @@ export function indexerScopesForChain(chainId: number | undefined) {
 }
 
 export function indexerScopeForLaunch(chainId: number | undefined, launchId: string | bigint) {
-  const resolvedChainId = chainId === robinhoodChain.id ? robinhoodChain.id : baseChain.id;
+  const resolvedChainId = chainId === monadChain.id
+    ? monadChain.id
+    : chainId === robinhoodChain.id ? robinhoodChain.id : baseChain.id;
   return indexerScopeForDeployment(resolvedChainId, deploymentForLaunch(resolvedChainId, launchId));
 }
 
 export function isVNextLiquidityLocker(chainId: number, locker?: string) {
-  if (!locker || chainId !== baseChain.id) return false;
+  if (!locker) return false;
   const value = locker.toLowerCase();
-  return value === VNEXT_BASE_DEPLOYMENT.liquidityLocker.toLowerCase()
-    || value === VNEXT_BASE_DEPLOYMENT.directLiquidityLocker?.toLowerCase();
+  const deployment = chainId === monadChain.id
+    ? MONAD_DEPLOYMENT
+    : chainId === robinhoodChain.id ? robinhoodAddresses : VNEXT_BASE_DEPLOYMENT;
+  return value === deployment.liquidityLocker.toLowerCase()
+    || value === deployment.directLiquidityLocker?.toLowerCase();
 }
 
 export const FAIR_GRADUATION_TARGET_ETH = "5";
 export const FAIR_LAUNCH_FEE_ETH = "0.001";
 export const DIRECT_LAUNCH_FEE_FALLBACK_ETH = "0.001";
+
+export function launchEconomics(chainId: number | undefined) {
+  if (chainId === monadChain.id) {
+    return {
+      nativeSymbol: "MON",
+      launchFeeFallback: "80",
+      virtualNativeReserve: "100000",
+      graduationTarget: "400000",
+      directInitialFdv: "700"
+    } as const;
+  }
+  return {
+    nativeSymbol: "ETH",
+    launchFeeFallback: FAIR_LAUNCH_FEE_ETH,
+    virtualNativeReserve: "1.25",
+    graduationTarget: FAIR_GRADUATION_TARGET_ETH,
+    directInitialFdv: "0.00873064809737295"
+  } as const;
+}
 
 export const uniswapV4Addresses = {
   poolManager: "0x498581ff718922c3f8e6a244956af099b2652b2b" as `0x${string}`,

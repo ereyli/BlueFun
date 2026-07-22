@@ -11,10 +11,11 @@ import { optimizedTokenImageUrl } from "@/lib/token-metadata";
 import { NetworkIcon, networkMeta } from "@/components/network-icon";
 import { chainSlug } from "@/lib/chain-slug";
 import { tokenPath } from "@/lib/token-url";
+import { launchEconomics } from "@/lib/contracts";
 
 type Filter = "All" | "Volume" | "MarketCap" | "New";
 type ViewMode = "grid" | "list";
-type NetworkMetrics = Partial<Record<8453 | 4663, DbLaunchMetrics>>;
+type NetworkMetrics = Partial<Record<8453 | 4663 | 143, DbLaunchMetrics>>;
 
 export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metrics, networkMetrics, chainId = 8453 }: { launches: DeployedLaunch[]; totalLaunches: number; metrics?: DbLaunchMetrics; networkMetrics?: NetworkMetrics; chainId?: number }) {
   const [launches, setLaunches] = useState(initialLaunches);
@@ -26,7 +27,7 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metri
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState<Filter>("All");
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
-  const [ethUsd, setEthUsd] = useState<number | null>(null);
+  const [nativeUsd, setNativeUsd] = useState<number | null>(null);
   const [dexMarketCaps, setDexMarketCaps] = useState<Map<string, number>>(new Map());
   const [activityByLaunch, setActivityByLaunch] = useState<Map<string, LaunchBuyActivity>>(new Map());
   const [hotLaunchKey, setHotLaunchKey] = useState<string>();
@@ -167,24 +168,24 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metri
 
   useEffect(() => {
     let active = true;
-    async function loadEthPrice() {
+    async function loadNativePrice() {
       try {
-        const response = await fetch("/api/eth-price", { cache: "no-store" });
-        const payload = await response.json() as { ethUsd?: number | null };
-        if (active && payload.ethUsd) setEthUsd(payload.ethUsd);
+        const response = await fetch(`/api/native-price?chain=${chainSlug(chainId)}`, { cache: "no-store" });
+        const payload = await response.json() as { nativeUsd?: number | null };
+        if (active) setNativeUsd(payload.nativeUsd ?? null);
       } catch {
-        if (active) setEthUsd(null);
+        if (active) setNativeUsd(null);
       }
     }
-    loadEthPrice();
-    const interval = window.setInterval(loadEthPrice, 300_000);
+    loadNativePrice();
+    const interval = window.setInterval(loadNativePrice, 300_000);
     return () => {
       active = false;
       window.clearInterval(interval);
     };
-  }, []);
+  }, [chainId]);
 
-  const networkStats = useMemo(() => ([8453, 4663] as const).map((networkChainId) => {
+  const networkStats = useMemo(() => ([8453, 4663, 143] as const).map((networkChainId) => {
     const values = networkMetrics?.[networkChainId] ?? (networkChainId === chainId ? metrics : undefined);
     const activeFallback = networkChainId === chainId;
     return {
@@ -192,9 +193,11 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metri
       name: networkMeta(networkChainId).name,
       tokens: values?.totalTokens ?? (activeFallback ? totalLaunches : 0),
       graduated: values?.totalGraduated ?? (activeFallback ? initialLaunches.filter((launch) => launch.status === "Graduated").length : 0),
-      volume: formatUsdFromEthNumber(values?.totalVolumeEth ?? (activeFallback ? launches.reduce((sum, launch) => sum + parseDisplayAmount(launch.volume), 0) : 0), ethUsd)
+      volume: networkChainId === chainId
+        ? formatUsdFromNativeNumber(values?.totalVolumeEth ?? (activeFallback ? launches.reduce((sum, launch) => sum + parseDisplayAmount(launch.volume), 0) : 0), nativeUsd)
+        : formatNativeNumber(values?.totalVolumeEth ?? 0, networkMeta(networkChainId).symbol)
     };
-  }), [chainId, ethUsd, initialLaunches, launches, metrics, networkMetrics, totalLaunches]);
+  }), [chainId, initialLaunches, launches, metrics, nativeUsd, networkMetrics, totalLaunches]);
 
   const pulseLaunches = useMemo(() => {
     return [...initialLaunches]
@@ -357,10 +360,10 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metri
             const activity = activityByLaunch.get(key);
             const hasMarketCap = launch.marketCap.trim().toLowerCase() !== "live" && parseDisplayAmount(launch.marketCap) > 0;
             const dexMarketCap = dexMarketCaps.get(launch.token.toLowerCase());
-            const marketCapEth = hasMarketCap ? launch.marketCap : direct ? "Live" : estimateCurveMarketCapEth(launch.raised);
-            const marketCap = dexMarketCap ? compactUsd(dexMarketCap) : formatLaunchUsd(marketCapEth, ethUsd);
+            const marketCapNative = hasMarketCap ? launch.marketCap : direct ? "Live" : estimateCurveMarketCap(launch.raised, launch.chainId);
+            const marketCap = dexMarketCap ? compactUsd(dexMarketCap) : formatLaunchUsd(marketCapNative, nativeUsd);
             const marketCapLabel = dexMarketCap || hasMarketCap ? "Market cap" : direct ? "Market data" : "Estimated MC";
-            const volume = formatLaunchUsd(launch.volume, ethUsd);
+            const volume = formatLaunchUsd(launch.volume, nativeUsd);
             return (
             <Link className={`${featured ? "token-card featured" : "token-card"}${isHot ? " activity-hot" : ""}`} href={tokenPath(launch)} key={`${launch.chainId}-${launch.id}-${launch.token}`}>
               <div className="token-card-visual">
@@ -423,9 +426,13 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metri
   }
 }
 
-function formatUsdFromEthNumber(ethValue: number, ethUsd: number | null) {
-  if (!ethUsd || !Number.isFinite(ethValue) || ethValue <= 0) return "$-";
-  return compactUsd(ethValue * ethUsd);
+function formatUsdFromNativeNumber(nativeValue: number, nativeUsd: number | null) {
+  if (!nativeUsd || !Number.isFinite(nativeValue) || nativeValue <= 0) return "$-";
+  return compactUsd(nativeValue * nativeUsd);
+}
+
+function formatNativeNumber(value: number, symbol: string) {
+  return Number.isFinite(value) && value > 0 ? `${value.toLocaleString("en-US", { maximumFractionDigits: 2 })} ${symbol}` : `0 ${symbol}`;
 }
 
 function formatLaunchUsd(value: string, ethUsd: number | null) {
@@ -437,12 +444,13 @@ function formatLaunchUsd(value: string, ethUsd: number | null) {
   return usdValue < 1 ? "<$1" : compactUsd(usdValue);
 }
 
-function estimateCurveMarketCapEth(raisedValue: string) {
+function estimateCurveMarketCap(raisedValue: string, chainId: number) {
   const grossRaised = Math.max(0, parseDisplayAmount(raisedValue));
-  const initialVirtualEth = 1.25;
-  const virtualEth = initialVirtualEth + grossRaised * (1 - 0.01);
-  const marketCapEth = (virtualEth * virtualEth) / initialVirtualEth;
-  return `${marketCapEth.toLocaleString("en-US", { maximumFractionDigits: 4 })} ETH`;
+  const economics = launchEconomics(chainId);
+  const initialVirtual = Number(economics.virtualNativeReserve);
+  const virtualNative = initialVirtual + grossRaised * (1 - 0.01);
+  const marketCapNative = (virtualNative * virtualNative) / initialVirtual;
+  return `${marketCapNative.toLocaleString("en-US", { maximumFractionDigits: 4 })} ${economics.nativeSymbol}`;
 }
 
 function marketCapSortValue(launch: DeployedLaunch, dexMarketCaps: Map<string, number>) {
@@ -450,7 +458,7 @@ function marketCapSortValue(launch: DeployedLaunch, dexMarketCaps: Map<string, n
   if (dexValue) return dexValue;
   const explicitValue = parseDisplayAmount(launch.marketCap);
   if (explicitValue > 0) return explicitValue;
-  return parseDisplayAmount(estimateCurveMarketCapEth(launch.raised));
+  return parseDisplayAmount(estimateCurveMarketCap(launch.raised, launch.chainId));
 }
 
 function formatActivityAge(createdAt: string) {

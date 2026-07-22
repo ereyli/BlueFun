@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getDbLaunchPage, type LaunchPageFilter } from "@/lib/db-launches";
+import { getDbLaunchPage, getDbLaunches, type LaunchPageFilter } from "@/lib/db-launches";
 import { getDeployedLaunches } from "@/lib/onchain-launches";
 import { getRobinhoodLaunches } from "@/lib/robinhood-launches";
 import { chainIdFromParam } from "@/lib/chain-slug";
@@ -15,14 +15,16 @@ export async function GET(request: Request) {
   const requestedFilter = params.get("filter") || "All";
   const normalizedFilter = ["Activity", "Safe"].includes(requestedFilter) ? "All" : requestedFilter;
   const filters: LaunchPageFilter[] = ["All", "New", "Volume", "MarketCap", "Newest", "Direct", "Live", "Ready", "Graduated", "Progress"];
-  if (!chainParam || !["base", "robinhood", "8453", "4663"].includes(chainParam.toLowerCase()) || !Number.isInteger(page) || page < 1 || page > 100_000 || !filters.includes(normalizedFilter as LaunchPageFilter)) {
+  if (!chainParam || !["base", "robinhood", "monad", "8453", "4663", "143"].includes(chainParam.toLowerCase()) || !Number.isInteger(page) || page < 1 || page > 100_000 || !filters.includes(normalizedFilter as LaunchPageFilter)) {
     return NextResponse.json({ launches: [], total: 0, page: 1, totalPages: 0 }, { status: 400 });
   }
   const filter = normalizedFilter as LaunchPageFilter;
   const indexed = await getDbLaunchPage(chainId, { page, pageSize: 21, query, filter });
   if (indexed) return jsonLaunchPage({ ...indexed, page, totalPages: Math.ceil(indexed.total / 21) }, query);
 
-  const all = chainId === 4663 ? await getRobinhoodLaunches() : await getDeployedLaunches();
+  const all = chainId === 143
+    ? await getDbLaunches(143).then((value) => value ?? [])
+    : chainId === 4663 ? await getRobinhoodLaunches() : await getDeployedLaunches();
   const normalized = query.trim().toLowerCase();
   const filtered = all.filter((launch) => {
     const matchesQuery = !normalized || [launch.name, launch.symbol, launch.token, launch.creator].some((value) => value.toLowerCase().includes(normalized));

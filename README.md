@@ -1,6 +1,6 @@
 # BlueFun Launchpad
 
-BlueFun is a multichain launchpad for Base-native B20 `ASSET` tokens and fixed-supply ERC-20 tokens on Robinhood Chain. It supports fair Bond launches and immediate Uniswap v4 Direct DEX launches while retaining read-only compatibility with historical deployments.
+BlueFun is a multichain launchpad for Base-native B20 `ASSET` tokens and fixed-supply ERC-20 tokens on Robinhood Chain and Monad. It supports fair Bond launches and immediate Uniswap v4 Direct DEX launches while retaining read-only compatibility with historical deployments.
 
 ## vNext protocol
 
@@ -14,7 +14,7 @@ BlueFun is a multichain launchpad for Base-native B20 `ASSET` tokens and fixed-s
 - LP principal and position custody are permanent; there is no principal withdrawal or NFT transfer path.
 - Mutable parameters are bounded and controlled by a rotatable two-key, seven-day timelock.
 
-On Base, half of trade platform revenue is routed automatically to native ETH BLUE staking and half to treasury. On Robinhood Chain, the staking half accumulates in a fixed bridge reserve for manual transfer to Base.
+On Base, half of trade platform revenue is routed automatically to native ETH BLUE staking and half to treasury. On Robinhood Chain, the staking half accumulates in a fixed bridge reserve for manual transfer to Base. Monad trades and launch fees use native MON; all platform MON revenue is routed to the BlueFun Safe and no cross-chain staking share is inferred.
 
 ## BLUE staking V2
 
@@ -46,6 +46,18 @@ Robinhood vNext is deployed from block `10703400` and integrated into the active
 - Bond factory: `0x32af28dfE63ff9e84399f0af51d5B84b4f3B3c62`
 - Direct factory: `0x7De3165634679353a36886DCfe35e3521beee4A4`
 
+## Monad mainnet
+
+Monad vNext is deployed from block `89311403` (Direct factory block `89311452`) and uses native MON for gas, launches and trading. Bond and Direct live canaries passed, including exact sell-burn accounting and Safe revenue settlement.
+
+- Governance: `0x448B856f684ca79CF60Ce24Dc29d1E3467f0551D`
+- Fee policy: `0x72aA9A64E74566e5931883f5Bf1fD173bBD572e4`
+- Revenue router: `0xD9f720a6A06BDe325a252C449E700253B30610ff`
+- Unified fee hook: `0x65aAA8A131B4d4ed7f95C1F88740daeE4e1B20cc`
+- Bond factory: `0x857430A20C3A5087e8f4f292B1573507567fa9cB`
+- Direct factory: `0x773260193799321547BFeF0616cf57b3D7aa3412`
+- Treasury Safe: `0x144A3f70C0bf33124852E3891011e033b909F46d`
+
 ## Applications
 
 - `apps/web`: Next.js launch, market, docs, creator dashboard and staking interface.
@@ -72,8 +84,10 @@ Copy `apps/web/.env.example` and `apps/indexer/.env.example`. Never commit deplo
 
 The server-only `SITE_MAINTENANCE_MODE` switch controls the complete web interface. Set it to `true` in the web deployment environment and redeploy to show the maintenance screen on every page; set it back to `false` and redeploy to restore the application. It is intentionally not a public browser variable or unauthenticated HTTP toggle.
 
-Production topology uses one web application plus independent Base and Robinhood indexer workers. Indexer workers expose `/health` on port `3000` and should not receive public domains.
+Production topology uses one web application plus independent Base, Robinhood and Monad indexer workers. Indexer workers expose `/health` on port `3000` and should not receive public domains.
 
 [`docs/PROTOCOL.md`](docs/PROTOCOL.md) is the canonical protocol and operations reference. It contains current rules, every production address, legacy-token compatibility, indexer behavior, deployment evidence, environment guidance and the required change procedure.
 
 [`docs/NFT_LAUNCHPAD.md`](docs/NFT_LAUNCHPAD.md) documents the verified Base mainnet creator-owned ERC-1155 launchpad, fees, allowlists, marketplace, OpenSea compatibility and security controls.
+
+[`docs/MONAD_LAUNCHPAD.md`](docs/MONAD_LAUNCHPAD.md) records Monad-specific economics, governance, external contracts, deployment evidence and operating rules.

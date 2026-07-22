@@ -23,7 +23,7 @@ export async function GET(request: Request, context: { params: Promise<{ token: 
   if (!/^0x[a-fA-F0-9]{40}$/.test(token)) {
     return NextResponse.json({ pair: null }, { status: 400 });
   }
-  if (!chainParam || !["base", "robinhood", "8453", "4663"].includes(chainParam.toLowerCase())) {
+  if (!chainParam || !["base", "robinhood", "monad", "8453", "4663", "143"].includes(chainParam.toLowerCase())) {
     return NextResponse.json({ pair: null }, { status: 400 });
   }
   if (chainId === 4663) {
@@ -32,7 +32,8 @@ export async function GET(request: Request, context: { params: Promise<{ token: 
     return NextResponse.json({ pair: null });
   }
   try {
-    const response = await fetch(`https://api.dexscreener.com/tokens/v1/base/${token}`, {
+    const dexChain = chainId === 143 ? "monad" : "base";
+    const response = await fetch(`https://api.dexscreener.com/tokens/v1/${dexChain}/${token}`, {
       headers: { accept: "application/json" },
       next: { revalidate: 30 }
     });
@@ -41,7 +42,7 @@ export async function GET(request: Request, context: { params: Promise<{ token: 
     const pairs = await response.json() as DexPair[];
     const normalizedToken = token.toLowerCase();
     const pair = pairs
-      .filter((item) => item.chainId === "base" && item.baseToken?.address?.toLowerCase() === normalizedToken)
+      .filter((item) => item.chainId === dexChain && item.baseToken?.address?.toLowerCase() === normalizedToken)
       .sort((a, b) => pairScore(b) - pairScore(a))[0];
 
     if (!pair) return NextResponse.json({ pair: null });

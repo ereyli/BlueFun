@@ -130,7 +130,7 @@ export async function getDbWalletDashboard(wallet: `0x${string}`): Promise<Walle
     const created: DeployedLaunch[] = [];
     const traded: WalletTradeSummary[] = [];
 
-    for (const chainId of [8453, 4663]) {
+    for (const chainId of [8453, 4663, 143]) {
       const context = dbContext(chainId);
       let creatorRows: Array<Record<string, unknown>> = [];
       let tradeRows: Array<Record<string, unknown>> = [];
@@ -599,7 +599,7 @@ export async function getDbTrades(launchId: string, chainId = 8453, launchScope?
       }
 
       if (response.error) throw response.error;
-      return mapTrades(response.data ?? []);
+      return mapTrades(response.data ?? [], chainId);
     }
 
     if (!process.env.DATABASE_URL) return undefined;
@@ -620,7 +620,7 @@ export async function getDbTrades(launchId: string, chainId = 8453, launchScope?
       [context.scope, launchId, context.deploymentBlock]
     ), 300);
 
-    return mapTrades(result.rows);
+    return mapTrades(result.rows, chainId);
   } catch (error) {
     console.error("Failed to read trades from database", error);
     return undefined;
@@ -678,6 +678,7 @@ export async function getDbRecentBuyActivity(chainId = 8453, limit = 80): Promis
 }
 
 async function mapRows(rows: Array<Record<string, unknown>>, chainId: number): Promise<DeployedLaunch[]> {
+  const nativeSymbol = chainId === 143 ? "MON" : "ETH";
   return Promise.all(rows.map(async (row) => {
     const status = toStatus(String(row.status));
     const raised = parseDbBigInt(row.raised_eth);
@@ -709,13 +710,13 @@ async function mapRows(rows: Array<Record<string, unknown>>, chainId: number): P
       positionId: cleanDbText(row.position_id) as `0x${string}` | undefined,
       createdBlock: row.created_block === null || row.created_block === undefined ? undefined : String(row.created_block),
       status,
-      raised: `${trimEth(formatEther(raised))} ETH`,
-      target: `${trimEth(formatEther(target))} ETH`,
+      raised: `${trimEth(formatEther(raised))} ${nativeSymbol}`,
+      target: `${trimEth(formatEther(target))} ${nativeSymbol}`,
       progress: Number(row.progress || 0),
       holders: "indexed",
-      volume: `${trimEth(formatEther(volume))} ETH`,
+      volume: `${trimEth(formatEther(volume))} ${nativeSymbol}`,
       age: formatAge(Number(row.token_created_at || 0)),
-      risk: row.launch_mode === "direct" ? "Direct DEX · LP locked" : status === "Graduated" ? "Adminless" : chainId === 4663 ? "Fixed-supply ERC-20" : "B20 gated",
+      risk: row.launch_mode === "direct" ? "Direct DEX · LP locked" : status === "Graduated" ? "Adminless" : chainId === 8453 ? "B20 gated" : "Fixed-supply ERC-20",
       price: "Live",
       marketCap: "Live"
     };
@@ -756,12 +757,13 @@ function normalizeSearchTerm(value?: string) {
     .trim();
 }
 
-function mapTrades(rows: Array<Record<string, unknown>>): DeployedTrade[] {
+function mapTrades(rows: Array<Record<string, unknown>>, chainId: number): DeployedTrade[] {
+  const nativeSymbol = chainId === 143 ? "MON" : "ETH";
   return rows.slice().reverse().map((row) => ({
     side: row.side === "sell" ? "sell" : "buy",
     source: row.source === "uniswap_v4" ? "uniswap_v4" : "curve",
     trader: row.trader ? getAddress(String(row.trader)) as `0x${string}` : undefined,
-    ethAmount: `${trimEth(formatEther(parseDbBigInt(row.eth_amount)))} ETH`,
+    ethAmount: `${trimEth(formatEther(parseDbBigInt(row.eth_amount)))} ${nativeSymbol}`,
     tokenAmount: trimEth(formatEther(parseDbBigInt(row.token_amount))),
     marketCapEth: row.market_cap_eth ? formatEther(parseDbBigInt(row.market_cap_eth)) : undefined,
     txHash: String(row.tx_hash || ""),

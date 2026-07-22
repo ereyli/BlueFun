@@ -1,0 +1,82 @@
+{
+  "network": "Monad Mainnet",
+  "chainId": 143,
+  "deploymentBlock": 89311403,
+  "directDeploymentBlock": 89311452,
+  "deployer": "0x8DAd925e5DC82e71794B770E3E91162924968421",
+  "safe": "0x144A3f70C0bf33124852E3891011e033b909F46d",
+  "guardian": "0x9d5f55a644eF0eB9FF82dbd14Dd0471de3ff5bfb",
+  "contracts": {
+    "governanceTimelock": "0x448B856f684ca79CF60Ce24Dc29d1E3467f0551D",
+    "feePolicy": "0x72aA9A64E74566e5931883f5Bf1fD173bBD572e4",
+    "revenueRouter": "0xD9f720a6A06BDe325a252C449E700253B30610ff",
+    "unifiedFeeHook": "0x65aAA8A131B4d4ed7f95C1F88740daeE4e1B20cc",
+    "bondEmergencyGuardian": "0x4ef366E000DdF8Ff532D02B6357C9c5a5582862C",
+    "bondingCurveMarket": "0xB2a827Da4Bd935902baE6B5640d6384C2ef53821",
+    "bondLiquidityLocker": "0x0488E96d545A977672aA75EF374a385d054AF2cb",
+    "graduationManager": "0xac03C2d754654015Cc6839625FAa883BB92959f2",
+    "bondLaunchFactory": "0x857430A20C3A5087e8f4f292B1573507567fa9cB",
+    "directLiquidityLocker": "0xb5fAb655a3b7187175Ac339075DA11542e58d81d",
+    "directLaunchFactory": "0x773260193799321547BFeF0616cf57b3D7aa3412"
+  },
+  "uniswapV4": {
+    "poolManager": "0x188d586Ddcf52439676Ca21A244753fA19F9Ea8e",
+    "positionManager": "0x5b7eC4a94fF9beDb700fb82aB09d5846972F4016",
+    "stateView": "0x77395F3b2E73aE90843717371294fa97cC419D64",
+    "universalRouter": "0xFdf682F51FE81Aa4898F0AE2163d8A55c127fbC7",
+    "permit2": "0x000000000022D473030F116dDEE9F6B43aC78BA3"
+  },
+  "economics": {
+    "launchFeeMon": "80",
+    "virtualMonReserve": "100000",
+    "graduationTargetMon": "400000",
+    "directInitialFdvMon": "700",
+    "buyPlatformFeeBps": 70,
+    "buyCreatorFeeBps": 30,
+    "sellPlatformFeeBps": 70,
+    "sellBurnFeeBps": 30,
+    "tradeStakingShareBps": 0,
+    "launchStakingShareBps": 0
+  },
+  "deploymentTransactions": [
+    "0xffa691bad581ea78e2e1d07ef640e6aa986887cee4af21735ca6cb16f217ca56",
+    "0x28e2434a3127cc71960ecdf858298ef147b60d72c860e2afb8a9a6f81f732f7e",
+    "0x822670071151c3170b7fcd94f6427bb5cf77f290cd3fabc216d6b9ed1062ca84",
+    "0x639f38a0a5b8a25cae0009add651bbabb8764e32b0f0c0120977dcfaf8953a79",
+    "0x1991347f74630ab87ba2f5a49d718a42017a5b254d67283180d55eede66d6f4e",
+    "0x3794d3f33fd52fd57449c11e1ea381c6e134c0473affbea320fa5f7658cad8bb",
+    "0x8ffc95eb8bde7304a721266232354dce25a0b664c6db6e7a1d5e59bbe56fed13",
+    "0x82c658d6f979d1f7559a19975fdaba7f221b936198f8fe555cd6b57e9cedc1ee",
+    "0xc4008bff2067e1c70177119d9fc293a1866f6b0c66a089e0473d73046b51e320",
+    "0xb55fd8c330ccf657110041dd9394dd39b102dd3bfc67381bdf3cc839e6f8d223",
+    "0x6865488d013f5adbb682db4e1ec4a44294d7be3996abdee13fcd3d65d1cfedee",
+    "0xeefe2e61c546f10d4858a6034619e50becd45f1a7c4cc9fe9e4ddb77fd04e068",
+    "0x10ee930cbf024bbacbb685d5e64c9e8bfd62b76838213a242da0c326ed8c368a",
+    "0x2e0eb52d6139f497f493eae29cd5a1c19bf47554d3e20f01f944deec4d8fc726",
+    "0x1535150ff9cac5cba6aabc6a0edb37adb2e303854e145fbcf27f4a89bdeb79dc",
+    "0x884cc39e97180cd04d6cc5bcd551cd012ab8d8881eee31bd8a917baee07419d7",
+    "0x90aa723706afe3fb795274d8bc91115a3cc3d983bc63a0d6b21b6c45ed483200",
+    "0xd64eea9ba2a8def66bc38faf6b41025dd83f5c74eae6be70572c73da65489c15",
+    "0x0c1e680a33827d860a644b5d57525e8ed7d9fe37c4820a39c8d62c10dca2f37f"
+  ],
+  "smoke": {
+    "bondLaunchId": 1,
+    "bondToken": "0xfE71f86fC8DeB6334624dB8b6C9c3091e8718eBD",
+    "directLaunchId": 1,
+    "directToken": "0x36E448c2342ba11469CF632DeceA09E81A3478aA",
+    "bondCreateTx": "0xfff2fe6b8a993246cac21e957ef97e6d188f1716181b2c22810dd9a0ae1bbd0e",
+    "bondSellTx": "0x6b808bbe32c47a661cf989445fe2def501e57556b02b8fd6fbf9e0bf331dd411",
+    "directCreateTx": "0x2a090cb6f386f42fb782ca20b1dbbd5a230aea0fa1be364d7e5b4fa3fd33a0e5",
+    "directSellTx": "0x920596c40910702b749340d55680877a8e9f8fdd1c58ab360e05994a5e8bec4f",
+    "safeRevenueClaimTx": "0x051ade5c261389e0c610a0772b2ce27b2117d0ce43ef11a2be671964ed7e1367",
+    "safeRevenueClaimedWei": "160017454624808197361",
+    "deployerSweepTx": "0x2e5737c24859b1b0b8e59a3a15fbabcc360fb2112268dbc2640d0077cde88d22",
+    "deployerSweepWei": "35000000000000000000",
+    "finalSafeBalanceWei": "197412959674976016810",
+    "retainedDeployerGasWei": "1815044683283429608",
+    "failedLowGasTransactions": [
+      "0xee209facbce9af95befbc8222fbdc0f6a681a886fee1d7dd993855a62a6200af",
+      "0xc93a484b42c38641f759564c1cb404ff94ac901a46b69a90efc9d7a73d994a75"
+    ]
+  }
+}
