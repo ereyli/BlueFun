@@ -12,6 +12,8 @@ import { NetworkIcon, networkMeta } from "@/components/network-icon";
 import { chainSlug } from "@/lib/chain-slug";
 import { tokenPath } from "@/lib/token-url";
 import { launchEconomics } from "@/lib/contracts";
+import { indexerScopesForChain } from "@/lib/contracts";
+import { useRealtimeRefresh } from "@/lib/use-realtime-refresh";
 
 type Filter = "All" | "Volume" | "MarketCap" | "New";
 type ViewMode = "grid" | "list";
@@ -115,14 +117,28 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metri
     }
 
     loadActivity();
-    const interval = window.setInterval(loadActivity, 4_000);
+    activityRefreshRef.current = loadActivity;
     return () => {
       active = false;
       controller.abort();
-      window.clearInterval(interval);
       window.clearTimeout(highlightTimer);
+      activityRefreshRef.current = undefined;
     };
   }, [chainId]);
+
+  const activityRefreshRef = useRef<(() => Promise<void>) | undefined>(undefined);
+  const activityScopes = useMemo(() => new Set(indexerScopesForChain(chainId).map((item) => item.scope)), [chainId]);
+  const activityScopeFilter = useMemo(() => `scope=in.(${[...activityScopes].join(",")})`, [activityScopes]);
+  useRealtimeRefresh({
+    table: "trades",
+    filter: activityScopeFilter,
+    fallbackMs: 60_000,
+    onRefresh: () => activityRefreshRef.current?.(),
+    matches: (payload) => {
+      const row = (payload.new || payload.old) as Record<string, unknown>;
+      return row.side === "buy" && activityScopes.has(String(row.scope || ""));
+    }
+  });
 
   useEffect(() => {
     const refreshWhenVisible = () => {

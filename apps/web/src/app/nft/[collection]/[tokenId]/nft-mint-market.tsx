@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { formatEther, parseEther } from "viem";
 import { useAccount, usePublicClient, useReadContract, useWriteContract } from "wagmi";
@@ -16,6 +16,7 @@ import { useNFTMintPhase } from "@/lib/use-nft-mint-phase";
 import { useNFTAllowlistProof } from "@/lib/use-nft-allowlist-proof";
 import { nftMetadataUrl, optimizedTokenImageUrl } from "@/lib/token-metadata";
 import { NFTQuickBuyDialog, type NFTQuickBuyItem } from "../../nft-quick-buy-dialog";
+import { useRealtimeRefresh } from "@/lib/use-realtime-refresh";
 
 export function NFTMintMarket({ collection, tokenId, view = "item", standard, deployment = "current" }: { collection: `0x${string}`; tokenId: bigint; view?: "item" | "collection"; standard?: "ERC721" | "ERC1155"; deployment?: NFTDeployment }) {
   const pfp = useReadContract({ address: collection, abi: bluePFPAbi, functionName: "supportsInterface", args: ["0x80ac58cd"], chainId: 8453, query: { enabled: !standard } });
@@ -117,7 +118,9 @@ type EditionListing = { listingId: string; tokenId: string; unitPrice: string; p
 
 function EditionCollectionGrid({collection}:{collection:`0x${string}`}){
   const [items,setItems]=useState<EditionItem[]>([]);const [listings,setListings]=useState<EditionListing[]>([]);const [selected,setSelected]=useState<NFTQuickBuyItem>();const [status,setStatus]=useState<"all"|"listed"|"unlisted">("all");const [search,setSearch]=useState("");const [sort,setSort]=useState("listed");const [page,setPage]=useState(1);const [view,setView]=useState<"grid"|"list">("grid");const pageSize=view==="grid"?24:50;
-  useEffect(()=>{let active=true;const loadItems=()=>fetch(`/api/nft/items?collection=${collection}&limit=2000`).then((r)=>r.ok?r.json():{items:[]}).then((data:{items?:EditionItem[]})=>{if(active)setItems(data.items||[]);});const loadListings=()=>fetch(`/api/nft/listing?collection=${collection}&limit=2000`).then((r)=>r.ok?r.json():{listings:[]}).then((data:{listings?:EditionListing[]})=>{if(active)setListings((data.listings||[]).filter((item)=>item.standard==="ERC1155"&&item.unitPrice&&item.marketplace));});void Promise.all([loadItems(),loadListings()]);const timer=window.setInterval(loadListings,4_000);return()=>{active=false;window.clearInterval(timer);};},[collection]);
+  const listingRefreshRef=useRef<(()=>Promise<void>)|undefined>(undefined);
+  useEffect(()=>{let active=true;const loadItems=()=>fetch(`/api/nft/items?collection=${collection}&limit=2000`).then((r)=>r.ok?r.json():{items:[]}).then((data:{items?:EditionItem[]})=>{if(active)setItems(data.items||[]);});const loadListings=()=>fetch(`/api/nft/listing?collection=${collection}&limit=2000`).then((r)=>r.ok?r.json():{listings:[]}).then((data:{listings?:EditionListing[]})=>{if(active)setListings((data.listings||[]).filter((item)=>item.standard==="ERC1155"&&item.unitPrice&&item.marketplace));});listingRefreshRef.current=loadListings;void Promise.all([loadItems(),loadListings()]);return()=>{active=false;listingRefreshRef.current=undefined;};},[collection]);
+  useRealtimeRefresh({table:"nft_listings",filter:`collection=eq.${collection.toLowerCase()}`,fallbackMs:60_000,onRefresh:()=>listingRefreshRef.current?.()});
   const listingMap=useMemo(()=>new Map(listings.map((item)=>[String(item.tokenId),item])),[listings]);
   const filtered=useMemo(()=>{const exact=/^#?\d+$/.test(search.trim())?search.trim().replace("#",""):"";const rows=items.filter((item)=>{const listed=listingMap.has(String(item.token_id));return(!exact||String(item.token_id)===exact)&&(status==="all"||status==="listed"&&listed||status==="unlisted"&&!listed);});rows.sort((a,b)=>{const al=listingMap.get(String(a.token_id));const bl=listingMap.get(String(b.token_id));if(sort==="newest")return Number(b.token_id)-Number(a.token_id);if(sort==="oldest")return Number(a.token_id)-Number(b.token_id);if(sort==="listing-new")return new Date(bl?.listedAt||0).getTime()-new Date(al?.listedAt||0).getTime();if(al&&bl&&sort==="price-high")return Number(bl.priceEth)-Number(al.priceEth);if(al&&bl)return Number(al.priceEth)-Number(bl.priceEth);if(al)return -1;if(bl)return 1;return Number(a.token_id)-Number(b.token_id);});return rows;},[items,listingMap,search,sort,status]);
   useEffect(()=>setPage(1),[search,sort,status,view]);const pages=Math.max(1,Math.ceil(filtered.length/pageSize));const safePage=Math.min(page,pages);const visible=filtered.slice((safePage-1)*pageSize,safePage*pageSize);

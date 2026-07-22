@@ -19,6 +19,8 @@ jobs:
       - run: npm run typecheck -w apps/web
       - run: npm run build -w apps/web
       - run: npm run build -w apps/indexer
+      - name: Reject critical production dependency vulnerabilities
+        run: npm audit --omit=dev --audit-level=critical
 
   contracts:
     runs-on: ubuntu-latest

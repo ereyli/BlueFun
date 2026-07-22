@@ -3,6 +3,7 @@ import { getDbLaunchPage, getDbLaunches, type LaunchPageFilter } from "@/lib/db-
 import { getDeployedLaunches } from "@/lib/onchain-launches";
 import { getRobinhoodLaunches } from "@/lib/robinhood-launches";
 import { chainIdFromParam } from "@/lib/chain-slug";
+import { cachedResponse } from "@/lib/server/response-cache";
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +20,13 @@ export async function GET(request: Request) {
     return NextResponse.json({ launches: [], total: 0, page: 1, totalPages: 0 }, { status: 400 });
   }
   const filter = normalizedFilter as LaunchPageFilter;
+  const load = () => loadLaunchPage(chainId, page, query, filter);
+  return query
+    ? load()
+    : cachedResponse(`launch-page:${chainId}:${page}:${filter}`, 5_000, load);
+}
+
+async function loadLaunchPage(chainId: number, page: number, query: string, filter: LaunchPageFilter) {
   const indexed = await getDbLaunchPage(chainId, { page, pageSize: 21, query, filter });
   if (indexed) return jsonLaunchPage({ ...indexed, page, totalPages: Math.ceil(indexed.total / 21) }, query);
 

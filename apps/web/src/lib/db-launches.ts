@@ -121,7 +121,7 @@ export async function getDbBlueStakingOverview(chainId: number, vault: string): 
   }
 }
 
-const launchColumns = "scope, id, token, creator, name, symbol, contract_uri, image_url, description, website_url, twitter_url, telegram_url, discord_url, status, launch_mode, pool_fee, tick_spacing, liquidity_locker, raised_eth, graduation_target_eth, progress, volume_eth, token_created_at, created_block, position_id";
+const launchColumns = "scope, id, token, creator, name, symbol, contract_uri, image_url, description, website_url, twitter_url, telegram_url, discord_url, status, launch_mode, pool_fee, tick_spacing, liquidity_locker, raised_eth, graduation_target_eth, progress, volume_eth, current_market_cap_eth, last_trade_block, token_created_at, created_block, position_id";
 const legacyLaunchColumns = "scope, id, token, creator, name, symbol, contract_uri, status, raised_eth, graduation_target_eth, progress, volume_eth, token_created_at, created_block";
 
 export async function getDbWalletDashboard(wallet: `0x${string}`): Promise<WalletDashboardData | undefined> {
@@ -280,7 +280,7 @@ export async function getDbLaunchPage(
         : filter === "Volume"
           ? query.order("volume_eth", { ascending: false }).order("created_block", { ascending: false })
           : filter === "MarketCap"
-            ? query.order("raised_eth", { ascending: false }).order("created_block", { ascending: false })
+              ? query.order("current_market_cap_eth", { ascending: false, nullsFirst: false }).order("created_block", { ascending: false })
             : filter === "All"
               ? query.order("volume_eth", { ascending: false }).order("raised_eth", { ascending: false }).order("created_block", { ascending: false })
             : query.order("created_block", { ascending: false }).order("id", { ascending: false });
@@ -320,7 +320,7 @@ export async function getDbLaunchPage(
       `select scope, id, token, creator, name, symbol, contract_uri, image_url, description,
               website_url, twitter_url, telegram_url, discord_url, status, launch_mode, pool_fee,
               tick_spacing, liquidity_locker, raised_eth,
-              graduation_target_eth, progress, volume_eth, token_created_at, created_block, position_id,
+              graduation_target_eth, progress, volume_eth, current_market_cap_eth, last_trade_block, token_created_at, created_block, position_id,
               count(*) over() as total_count
        from launches
        where scope = any($1::text[]) and created_block >= $2
@@ -332,7 +332,7 @@ export async function getDbLaunchPage(
          and ($5 <> 'Progress' or launch_mode <> 'direct')
        order by case when $5 = 'Progress' then progress end desc,
                 case when $5 = 'Volume' then volume_eth end desc,
-                case when $5 = 'MarketCap' then raised_eth end desc,
+                case when $5 = 'MarketCap' then current_market_cap_eth end desc nulls last,
                 case when $5 = 'All' then volume_eth end desc,
                 case when $5 = 'All' then raised_eth end desc,
                 created_block desc, id desc
@@ -393,7 +393,7 @@ export async function getDbLaunches(chainId = 8453, options: { cursor?: string; 
       `select scope, id, token, creator, name, symbol, contract_uri, image_url, description,
               website_url, twitter_url, telegram_url, discord_url, status, launch_mode, pool_fee,
               tick_spacing, liquidity_locker, raised_eth,
-              graduation_target_eth, progress, volume_eth, token_created_at, position_id
+              graduation_target_eth, progress, volume_eth, current_market_cap_eth, last_trade_block, token_created_at, position_id
        from launches
        where scope = any($1::text[])
          and created_block >= $2
@@ -442,7 +442,7 @@ export async function getDbLaunch(launchId: string, chainId = 8453): Promise<Dep
       `select scope, id, token, creator, name, symbol, contract_uri, image_url, description,
               website_url, twitter_url, telegram_url, discord_url, status, launch_mode, pool_fee,
               tick_spacing, liquidity_locker, raised_eth,
-              graduation_target_eth, progress, volume_eth, token_created_at, created_block, position_id
+              graduation_target_eth, progress, volume_eth, current_market_cap_eth, last_trade_block, token_created_at, created_block, position_id
        from launches
        where scope = any($1::text[]) and id = $2 and created_block >= $3
        limit 1`,
@@ -490,7 +490,7 @@ export async function getDbLaunchByTokenSuffix(tokenSuffix: string, chainId = 84
         `select scope, id, token, creator, name, symbol, contract_uri, image_url, description,
                 website_url, twitter_url, telegram_url, discord_url, status, launch_mode, pool_fee,
                 tick_spacing, liquidity_locker, raised_eth,
-                graduation_target_eth, progress, volume_eth, token_created_at, created_block, position_id
+                graduation_target_eth, progress, volume_eth, current_market_cap_eth, last_trade_block, token_created_at, created_block, position_id
          from launches
          where scope = any($1::text[])
            and created_block >= $2
@@ -563,7 +563,7 @@ export async function getDbLaunchMetrics(chainId = 8453): Promise<DbLaunchMetric
 
 function isMissingSocialColumnError(error: { message?: string; details?: string }) {
   const text = `${error.message || ""} ${error.details || ""}`.toLowerCase();
-  return ["image_url", "description", "website_url", "twitter_url", "telegram_url", "discord_url", "position_id", "launch_mode", "pool_fee", "tick_spacing", "liquidity_locker"].some((column) => text.includes(column));
+  return ["image_url", "description", "website_url", "twitter_url", "telegram_url", "discord_url", "position_id", "launch_mode", "pool_fee", "tick_spacing", "liquidity_locker", "current_market_cap_eth", "last_trade_block"].some((column) => text.includes(column));
 }
 
 function isMissingTradeColumnError(error: { message?: string; details?: string }) {
@@ -732,7 +732,9 @@ async function mapRows(rows: Array<Record<string, unknown>>, chainId: number): P
       age: formatAge(Number(row.token_created_at || 0)),
       risk: row.launch_mode === "direct" ? "Direct DEX · LP locked" : status === "Graduated" ? "Adminless" : chainId === 8453 ? "B20 gated" : "Fixed-supply ERC-20",
       price: "Live",
-      marketCap: "Live"
+      marketCap: parseDbBigInt(row.current_market_cap_eth) > 0n
+        ? `${trimEth(formatEther(parseDbBigInt(row.current_market_cap_eth)))} ${nativeSymbol}`
+        : "Live"
     };
   }));
 }

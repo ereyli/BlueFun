@@ -17,6 +17,7 @@
     "@rainbow-me/rainbowkit": "^2.2.11"
   },
   "overrides": {
+    "axios": "^1.18.0",
     "viem": "^2.54.1",
     "ws": "^8.21.0"
   }

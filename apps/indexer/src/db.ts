@@ -8,6 +8,8 @@ import WebSocket from "ws";
 let pool = process.env.DATABASE_URL ? new pg.Pool({ connectionString: process.env.DATABASE_URL }) : undefined;
 let supabase: SupabaseClient | undefined;
 
+export const EXPECTED_SCHEMA_VERSION = "20260722_production_hardening";
+
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export async function ensureSchema() {
@@ -182,6 +184,22 @@ export async function insertTrade(scope: string, input: {
   blockNumber?: bigint;
 }) {
   if (hasSupabaseConfig()) {
+    const atomic = await getSupabase().rpc("record_trade", {
+      p_scope: scope,
+      p_launch_id: input.launchId.toString(),
+      p_trader: input.trader,
+      p_side: input.side,
+      p_source: input.source || "curve",
+      p_eth_amount: input.ethAmount.toString(),
+      p_token_amount: input.tokenAmount.toString(),
+      p_market_cap_eth: input.marketCapEth?.toString() ?? null,
+      p_tx_hash: input.txHash,
+      p_block_number: input.blockNumber?.toString() ?? null
+    });
+    if (!atomic.error) return;
+    if (!isMissingRecordTradeFunction(atomic.error)) throw atomic.error;
+
+    // Rolling deploy fallback: keep the old writer alive until the migration is applied.
     const existing = await getSupabase()
       .from("trades")
       .update({
@@ -275,6 +293,12 @@ export async function insertTrade(scope: string, input: {
     ]
   );
   if ((inserted.rowCount ?? 0) > 0) await incrementLaunchVolume(scope, input.launchId, input.ethAmount);
+}
+
+function isMissingRecordTradeFunction(error: unknown) {
+  const value = error as { code?: string; message?: string; details?: string };
+  const text = `${value.code || ""} ${value.message || ""} ${value.details || ""}`.toLowerCase();
+  return text.includes("pgrst202") || (text.includes("record_trade") && text.includes("not find"));
 }
 
 async function incrementLaunchVolume(scope: string, launchId: bigint, amount: bigint) {
@@ -766,6 +790,34 @@ export async function getIndexerState(key: string): Promise<bigint | undefined> 
   return BigInt(result.rows[0].value);
 }
 
+export async function getIndexerTextState(key: string): Promise<string | undefined> {
+  if (hasSupabaseConfig()) {
+    const { data, error } = await getSupabase().from("indexer_state").select("value").eq("key", key).maybeSingle();
+    if (error) throw error;
+    return data?.value ? String(data.value) : undefined;
+  }
+  if (!pool) throw new Error("Database client is not configured");
+  const result = await pool.query("select value from indexer_state where key = $1", [key]);
+  return result.rows[0]?.value ? String(result.rows[0].value) : undefined;
+}
+
+export async function getSchemaVersion(): Promise<string | undefined> {
+  if (hasSupabaseConfig()) {
+    const { data, error } = await getSupabase()
+      .from("app_schema_metadata")
+      .select("version")
+      .eq("component", "indexer")
+      .maybeSingle();
+    if (error) return undefined;
+    return data?.version ? String(data.version) : undefined;
+  }
+  if (!pool) return undefined;
+  const table = await pool.query("select to_regclass('public.app_schema_metadata') as name");
+  if (!table.rows[0]?.name) return undefined;
+  const result = await pool.query("select version from app_schema_metadata where component='indexer'");
+  return result.rows[0]?.version ? String(result.rows[0].version) : undefined;
+}
+
 export async function setIndexerState(key: string, value: bigint) {
   if (hasSupabaseConfig()) {
     await runSupabase(
@@ -782,6 +834,22 @@ export async function setIndexerState(key: string, value: bigint) {
      values ($1, $2, now())
      on conflict (key) do update set value = excluded.value, updated_at = now()`,
     [key, value.toString()]
+  );
+}
+
+export async function setIndexerTextState(key: string, value: string) {
+  if (hasSupabaseConfig()) {
+    await runSupabase(getSupabase().from("indexer_state").upsert(
+      { key, value, updated_at: new Date().toISOString() },
+      { onConflict: "key" }
+    ));
+    return;
+  }
+  if (!pool) throw new Error("Database client is not configured");
+  await pool.query(
+    `insert into indexer_state(key,value,updated_at) values($1,$2,now())
+     on conflict(key) do update set value=excluded.value,updated_at=now()`,
+    [key, value]
   );
 }
 

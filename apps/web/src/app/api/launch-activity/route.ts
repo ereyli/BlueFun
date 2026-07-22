@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getDbRecentBuyActivity } from "@/lib/db-launches";
 import { chainIdFromParam } from "@/lib/chain-slug";
+import { cachedResponse } from "@/lib/server/response-cache";
 
 export const dynamic = "force-dynamic";
 
@@ -11,8 +12,10 @@ export async function GET(request: Request) {
   }
   const chainId = chainIdFromParam(chainParam);
 
-  const activity = await getDbRecentBuyActivity(chainId);
-  return NextResponse.json({ activity: activity ?? [] }, {
-    headers: { "cache-control": "public, s-maxage=2, stale-while-revalidate=4" }
+  return cachedResponse(`launch-activity:${chainId}`, 2_000, async () => {
+    const activity = await getDbRecentBuyActivity(chainId);
+    return NextResponse.json({ activity: activity ?? [] }, {
+      headers: { "cache-control": "public, s-maxage=2, stale-while-revalidate=4" }
+    });
   });
 }

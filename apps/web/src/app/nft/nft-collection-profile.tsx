@@ -7,7 +7,6 @@ import { NFTCollectionShareDialog } from "./nft-collection-share-dialog";
 
 type MarketSummary = { floorPrice: string | null; totalVolume: string; sales: number; mints: number; listed: number; owners: number };
 type Offer = { priceWeth?: string };
-type Listing = { unitPrice?: string };
 
 export function NFTCollectionProfile({
   collection, name, symbol, description, image, creator, standard, supply, minted, royaltyBps, status, socials, mintPanel
@@ -23,16 +22,9 @@ export function NFTCollectionProfile({
   useEffect(() => {
     Promise.all([
       fetch(`/api/nft/activity?collection=${collection}`, { cache: "no-store" }).then((response) => response.ok ? response.json() : undefined),
-      fetch(`/api/nft/offers?collection=${collection}`, { cache: "no-store" }).then((response) => response.ok ? response.json() : undefined),
-      fetch(`/api/nft/listing?collection=${collection}&limit=2000`, { cache: "no-store" }).then((response) => response.ok ? response.json() : undefined)
-    ]).then(([activity, offerPayload, listingPayload]) => {
-      const listings = Array.isArray(listingPayload?.listings) ? listingPayload.listings as Listing[] : [];
-      const floorPrice = listings.reduce<string | null>((floor, listing) => {
-        if (!listing.unitPrice || !/^\d+$/.test(listing.unitPrice)) return floor;
-        return floor === null || BigInt(listing.unitPrice) < BigInt(floor) ? listing.unitPrice : floor;
-      }, null);
-      if (activity?.summary) setSummary({ ...activity.summary, floorPrice, listed: listings.length });
-      else setSummary((current) => ({ ...current, floorPrice, listed: listings.length }));
+      fetch(`/api/nft/offers?collection=${collection}`, { cache: "no-store" }).then((response) => response.ok ? response.json() : undefined)
+    ]).then(([activity, offerPayload]) => {
+      if (activity?.summary) setSummary(activity.summary);
       setOffers(Array.isArray(offerPayload?.offers) ? offerPayload.offers : []);
     }).catch(() => undefined);
   }, [collection]);

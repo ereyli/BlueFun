@@ -37,6 +37,9 @@ import {
   closeDatabase,
   getGraduatedLaunches,
   getIndexerState,
+  getIndexerTextState,
+  getSchemaVersion,
+  EXPECTED_SCHEMA_VERSION,
   getNFTCollectionAddresses,
   getNFTCollectionStandards,
   insertNFTMint,
@@ -45,6 +48,7 @@ import {
   insertTrade,
   markGraduated,
   setIndexerState,
+  setIndexerTextState,
   updateLaunchState,
   upsertNFTCollection,
   upsertNFTItem,
@@ -80,6 +84,10 @@ let nextPollDelayMs = pollMs;
 let lastSuccessfulPollAt = 0;
 let lastIndexedBlock = 0n;
 let lastPollError = "";
+let lastPollDurationMs = 0;
+let consecutiveFailures = 0;
+let chainHeadBlock = 0n;
+let confirmedHeadBlock = 0n;
 let stopped = false;
 let pollTimer: ReturnType<typeof setTimeout> | undefined;
 const startedAt = Date.now();
@@ -102,6 +110,12 @@ const client = createPublicClient({
 });
 
 await ensureSchema();
+const schemaVersion = await getSchemaVersion();
+const schemaReady = schemaVersion === EXPECTED_SCHEMA_VERSION;
+if (!schemaReady) {
+  console.warn("Indexer database migration is behind", { expected: EXPECTED_SCHEMA_VERSION, actual: schemaVersion || null });
+  if (process.env.REQUIRE_SCHEMA_VERSION === "true") throw new Error(`Database schema ${EXPECTED_SCHEMA_VERSION} is required`);
+}
 const healthServer = createServer((request, response) => {
   const ageMs = lastSuccessfulPollAt ? Date.now() - lastSuccessfulPollAt : Date.now() - startedAt;
   const healthy = lastSuccessfulPollAt > 0
@@ -116,7 +130,13 @@ const healthServer = createServer((request, response) => {
       ...nftDeployments.map((deployment) => deployment.scope)
     ],
     isPolling,
+    schema: { ready: schemaReady, expected: EXPECTED_SCHEMA_VERSION, actual: schemaVersion || null },
+    chainHeadBlock: chainHeadBlock.toString(),
+    confirmedHeadBlock: confirmedHeadBlock.toString(),
     lastIndexedBlock: lastIndexedBlock.toString(),
+    indexedLagBlocks: confirmedHeadBlock > lastIndexedBlock ? (confirmedHeadBlock - lastIndexedBlock).toString() : "0",
+    lastPollDurationMs,
+    consecutiveFailures,
     lastSuccessfulPollAt: lastSuccessfulPollAt ? new Date(lastSuccessfulPollAt).toISOString() : null,
     lastError: lastPollError || null
   });
@@ -167,12 +187,15 @@ function uniqueUrls(urls: string[]) {
 async function runIndexerPoll() {
   if (isPolling) return;
   isPolling = true;
+  const pollStartedAt = Date.now();
   try {
     await backfillLoop();
     lastSuccessfulPollAt = Date.now();
     lastPollError = "";
+    consecutiveFailures = 0;
     nextPollDelayMs = pollMs;
   } catch (error) {
+    consecutiveFailures += 1;
     lastPollError = error instanceof Error ? error.message.slice(0, 500) : String(error).slice(0, 500);
     const rateLimited = isRateLimitError(error);
     nextPollDelayMs = rateLimited
@@ -180,15 +203,18 @@ async function runIndexerPoll() {
       : pollMs;
     console.error(rateLimited ? "Indexer RPC rate limited; backing off" : "Indexer poll failed", error);
   } finally {
+    lastPollDurationMs = Date.now() - pollStartedAt;
     isPolling = false;
   }
 }
 
 async function backfillLoop() {
   const head = await client.getBlockNumber();
+  chainHeadBlock = head;
   if (head <= confirmations) return;
   const latest = head - confirmations;
-  lastIndexedBlock = latest;
+  confirmedHeadBlock = latest;
+  await verifyCanonicalCheckpoint(latest);
   if (chainId === 8453) {
     const { stakingStartBlock, updateStakingSnapshot } = await import("./staking-indexer.js");
     if (latest >= stakingStartBlock) {
@@ -226,6 +252,35 @@ async function backfillLoop() {
     if (latest < directDeployment.startBlock) continue;
     await backfillDirectLaunches(directDeployment, latest);
     await backfillUniswapV4Swaps(directDeployment, latest);
+  }
+  lastIndexedBlock = latest;
+  const checkpoint = await client.getBlock({ blockNumber: latest });
+  await setIndexerTextState(canonicalStateKey(), JSON.stringify({ block: latest.toString(), hash: checkpoint.hash }));
+}
+
+function canonicalStateKey() {
+  return `chain:${chainId}:canonical_checkpoint`;
+}
+
+async function verifyCanonicalCheckpoint(latest: bigint) {
+  const stored = await getIndexerTextState(canonicalStateKey());
+  if (!stored) return;
+  let checkpointBlock: bigint;
+  let checkpointHash: string;
+  try {
+    const checkpoint = JSON.parse(stored) as { block?: string; hash?: string };
+    checkpointBlock = BigInt(checkpoint.block || "");
+    checkpointHash = checkpoint.hash || "";
+  } catch {
+    throw new Error("Canonical checkpoint is malformed; manual reconciliation is required");
+  }
+  if (!checkpointHash) throw new Error("Canonical checkpoint hash is missing");
+  if (checkpointBlock > latest) {
+    throw new Error(`RPC confirmed head ${latest} is behind canonical checkpoint ${checkpointBlock}`);
+  }
+  const block = await client.getBlock({ blockNumber: checkpointBlock });
+  if (block.hash.toLowerCase() !== checkpointHash.toLowerCase()) {
+    throw new Error(`REORG_DETECTED at block ${checkpointBlock}; manual reconciliation is required`);
   }
 }
 

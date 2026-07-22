@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { formatEther, parseEther } from "viem";
 import { useAccount, usePublicClient, useReadContract, useWriteContract } from "wagmi";
@@ -15,6 +15,7 @@ import { useNFTMintPhase } from "@/lib/use-nft-mint-phase";
 import { useNFTAllowlistProof } from "@/lib/use-nft-allowlist-proof";
 import { nftMetadataUrl, optimizedTokenImageUrl } from "@/lib/token-metadata";
 import { NFTQuickBuyDialog, type NFTQuickBuyItem } from "../../nft-quick-buy-dialog";
+import { useRealtimeRefresh } from "@/lib/use-realtime-refresh";
 
 export function PFPMintMarket({ collection, tokenId, view = "item", deployment = "current" }: { collection: `0x${string}`; tokenId: bigint; view?: "item" | "collection"; deployment?: NFTDeployment }) {
   const { address, isConnected } = useAccount(); const { writeContractAsync, isPending } = useWriteContract();
@@ -143,12 +144,14 @@ type MarketListing = { listingId: string; tokenId: string; unitPrice: string; pr
 function PFPTokenGrid({ collection, count }: { collection: `0x${string}`; count: number }) {
   const [listings, setListings] = useState<MarketListing[]>([]); const [status, setStatus] = useState<"all" | "listed" | "unlisted">("all");
   const [selected, setSelected] = useState<NFTQuickBuyItem>(); const [sort, setSort] = useState("listed"); const [search, setSearch] = useState(""); const [page, setPage] = useState(1); const [view, setView] = useState<"grid" | "list">("grid"); const pageSize = view === "grid" ? 24 : 50;
+  const listingRefreshRef = useRef<(() => Promise<void>) | undefined>(undefined);
   useEffect(() => {
     let active = true;
     const refresh = () => fetch(`/api/nft/listing?collection=${collection}&limit=2000`).then((response) => response.ok ? response.json() : { listings: [] }).then((data: { listings?: MarketListing[] }) => { if (active) setListings((data.listings || []).filter((item) => item.unitPrice && item.marketplace)); }).catch(() => undefined);
-    void refresh(); const timer = window.setInterval(refresh, 4_000);
-    return () => { active = false; window.clearInterval(timer); };
+    listingRefreshRef.current = refresh; void refresh();
+    return () => { active = false; listingRefreshRef.current = undefined; };
   }, [collection]);
+  useRealtimeRefresh({ table: "nft_listings", filter: `collection=eq.${collection.toLowerCase()}`, fallbackMs: 60_000, onRefresh: () => listingRefreshRef.current?.() });
   const listingMap = useMemo(() => new Map(listings.map((listing) => [Number(listing.tokenId), listing])), [listings]);
   const tokens = useMemo(() => {
     const exact = /^#?\d+$/.test(search.trim()) ? Number(search.trim().replace("#", "")) : 0;
