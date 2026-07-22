@@ -23,6 +23,7 @@ export type LaunchBuyActivity = {
   launchId: string;
   blockNumber: string;
   createdAt: string;
+  marketCapNative?: string;
 };
 
 export type LaunchPageFilter = "All" | "New" | "Volume" | "MarketCap" | "Newest" | "Direct" | "Live" | "Ready" | "Graduated" | "Progress";
@@ -637,7 +638,7 @@ export async function getDbRecentBuyActivity(chainId = 8453, limit = 80): Promis
     if (hasSupabaseConfig()) {
       const response = await getSupabase()
         .from("trades")
-        .select("scope, launch_id, block_number, created_at")
+        .select("scope, launch_id, source, eth_amount, token_amount, market_cap_eth, block_number, created_at")
         .in("scope", context.scopes)
         .eq("side", "buy")
         .gte("block_number", context.deploymentBlock)
@@ -650,7 +651,7 @@ export async function getDbRecentBuyActivity(chainId = 8453, limit = 80): Promis
       if (!process.env.DATABASE_URL) return undefined;
       pool ??= new pg.Pool({ connectionString: process.env.DATABASE_URL, connectionTimeoutMillis: 500, idleTimeoutMillis: 1_000, max: 2 });
       const result = await withTimeout(pool.query(
-        `select scope, launch_id, block_number, created_at
+        `select scope, launch_id, source, eth_amount, token_amount, market_cap_eth, block_number, created_at
          from trades
          where scope = any($1::text[])
            and side = 'buy'
@@ -669,7 +670,20 @@ export async function getDbRecentBuyActivity(chainId = 8453, limit = 80): Promis
       const activityKey = `${scope}:${launchId}`;
       if (!scope || !launchId || seen.has(activityKey)) return [];
       seen.add(activityKey);
-      return [{ scope, launchId, blockNumber: String(row.block_number || "0"), createdAt: String(row.created_at || "") }];
+      const indexedMarketCap = parseDbBigInt(row.market_cap_eth);
+      const tokenAmount = parseDbBigInt(row.token_amount);
+      const estimatedMarketCap = indexedMarketCap > 0n
+        ? indexedMarketCap
+        : row.source === "uniswap_v4" && tokenAmount > 0n
+          ? (parseDbBigInt(row.eth_amount) * 1_000_000_000n * 10n ** 18n) / tokenAmount
+          : 0n;
+      return [{
+        scope,
+        launchId,
+        blockNumber: String(row.block_number || "0"),
+        createdAt: String(row.created_at || ""),
+        marketCapNative: estimatedMarketCap > 0n ? formatEther(estimatedMarketCap) : undefined
+      }];
     });
   } catch (error) {
     console.error("Failed to read recent buy activity", error);

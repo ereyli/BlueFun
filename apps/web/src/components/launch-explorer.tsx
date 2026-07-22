@@ -359,10 +359,13 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metri
             const isHot = hotLaunchKey === key;
             const activity = activityByLaunch.get(key);
             const hasMarketCap = launch.marketCap.trim().toLowerCase() !== "live" && parseDisplayAmount(launch.marketCap) > 0;
+            const indexedMarketCap = activity?.marketCapNative && parseDisplayAmount(activity.marketCapNative) > 0
+              ? `${activity.marketCapNative} ${launchEconomics(launch.chainId).nativeSymbol}`
+              : undefined;
             const dexMarketCap = dexMarketCaps.get(launch.token.toLowerCase());
-            const marketCapNative = hasMarketCap ? launch.marketCap : direct ? "Live" : estimateCurveMarketCap(launch.raised, launch.chainId);
+            const marketCapNative = hasMarketCap ? launch.marketCap : indexedMarketCap ?? (direct ? "Live" : estimateCurveMarketCap(launch.raised, launch.chainId));
             const marketCap = dexMarketCap ? compactUsd(dexMarketCap) : formatLaunchUsd(marketCapNative, nativeUsd);
-            const marketCapLabel = dexMarketCap || hasMarketCap ? "Market cap" : direct ? "Market data" : "Estimated MC";
+            const marketCapLabel = dexMarketCap || hasMarketCap || indexedMarketCap ? "Market cap" : direct ? "Market data" : "Estimated MC";
             const volume = formatLaunchUsd(launch.volume, nativeUsd);
             return (
             <Link className={`${featured ? "token-card featured" : "token-card"}${isHot ? " activity-hot" : ""}`} href={tokenPath(launch)} key={`${launch.chainId}-${launch.id}-${launch.token}`}>
@@ -436,7 +439,7 @@ function formatNativeNumber(value: number, symbol: string) {
 }
 
 function formatLaunchUsd(value: string, ethUsd: number | null) {
-  if (value.trim().toLowerCase() === "live") return "Indexing";
+  if (value.trim().toLowerCase() === "live") return "Awaiting first trade";
   const ethValue = parseDisplayAmount(value);
   if (!Number.isFinite(ethValue) || ethValue <= 0) return "$0";
   if (!ethUsd) return value;
