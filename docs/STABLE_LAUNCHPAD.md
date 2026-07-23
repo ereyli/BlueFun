@@ -87,13 +87,21 @@ The Safe does not need to have code at deployment time. Funds sent to its
 counterfactual address remain at that address and become controllable when the
 same Safe is deployed on Stable.
 
-After the Safe is deployed and its owners/threshold are verified:
+The Safe is deployed with the expected three owners, a 2-of-3 threshold and no
+enabled modules. The timelock ownership proposal was scheduled in transaction
+`0x5c9b6d40eedcd1500b3c2f254018dfc8c81c004f22270155c5802ad330f28ff6`.
+Operation
+`0x85abed474455ca59f0c073846a016ff63bdfbb32024141727c02eb754fb77dc2`
+is executable from `2026-07-30 18:01:26 UTC`.
 
-1. The deployer schedules `governance.proposeOwner(SAFE)` through the timelock.
-2. Anyone executes the exact scheduled operation after seven days.
-3. The Safe executes `governance.acceptOwner()`.
-4. Confirm `owner() == SAFE` and `pendingOwner() == address(0)`.
-5. Retire the deployer after sweeping only unused operational gas.
+After the delay:
+
+1. Anyone executes the exact scheduled operation.
+2. Confirm `pendingOwner() == SAFE`.
+3. Import `docs/safe-transactions/stable-timelock-safe-accept.json`.
+4. Collect two Safe signatures and execute `governance.acceptOwner()`.
+5. Confirm `owner() == SAFE` and `pendingOwner() == address(0)`.
+6. Retire the deployer after sweeping only unused operational gas.
 
 The guardian is separate from both deployer and Safe. It can pause new
 launches and cancel queued governance actions; it cannot withdraw LP

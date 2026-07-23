@@ -46,16 +46,22 @@ Current guardians:
 
 Stable Direct revenue and permanent LP fee recipients already point to the
 counterfactual Safe address `0x144A3f70C0bf33124852E3891011e033b909F46d`.
+The Safe is deployed on Stable with the same three expected owners, a 2-of-3
+threshold and no enabled modules.
+
 The governance timelock at
 `0x55b000e7645313de1715dc58a8952d93993b10d2` remains temporarily owned by
-the Stable deployer. Its fee policy, revenue administration and Direct factory
-are therefore covered by the seven-day delay before the Safe migration.
+the Stable deployer until the scheduled migration completes:
 
-Do not transfer timelock ownership until the same Safe is deployed on Stable,
-its three expected owners are verified and its threshold is confirmed as
-2-of-3. Then schedule the timelock self-call
-`proposeOwner(0x144A3f70C0bf33124852E3891011e033b909F46d)`, execute it after seven
-days, and have the Safe call `acceptOwner()`.
+| Scheduled action | Transaction | Operation ID | Executable from |
+| --- | --- | --- | --- |
+| Propose Safe as timelock owner | `0x5c9b6d40eedcd1500b3c2f254018dfc8c81c004f22270155c5802ad330f28ff6` | `0x85abed474455ca59f0c073846a016ff63bdfbb32024141727c02eb754fb77dc2` | 2026-07-30 18:01:26 UTC |
+
+After the delay, execute the scheduled self-call with salt
+`0x033354deeb876255496d8f95405d962b685058e53700a9e030081e2b3283a76e`,
+confirm `pendingOwner()` is the Safe, then import
+`docs/safe-transactions/stable-timelock-safe-accept.json` and execute it with
+two Safe signatures.
 
 ## NFT V4 production deployment
 
@@ -182,6 +188,7 @@ After the delay:
 - [ ] Timelock operations executed after 2026-07-26 12:13:33 UTC
 - [ ] Safe accepted timelock ownership on Base
 - [ ] Safe accepted timelock ownership on Robinhood
-- [ ] Safe deployed and verified as 2-of-3 on Stable
+- [x] Safe deployed and verified as 2-of-3 on Stable
+- [x] Stable timelock owner migration scheduled
 - [ ] Safe accepted Stable timelock ownership
 - [ ] Final authority and revenue-destination audit completed
