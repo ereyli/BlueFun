@@ -14,7 +14,8 @@ import {
   nftOffersAbi,
   nftPFPFactoryAbi,
   nftPFPMarketplaceAbi,
-  poolManagerAbi
+  poolManagerAbi,
+  uniswapV3PoolAbi
 } from "./abi.js";
 import {
   chainDefinition,
@@ -25,6 +26,7 @@ import {
   nftDeployments,
   poolManager,
   scopeForDeployment,
+  stableQuoteToken,
   type IndexerDeployment
 } from "./deployment.js";
 import {
@@ -71,11 +73,11 @@ const deploymentContexts: DeploymentContext[] = deployments.map((deployment) => 
 }));
 let nftDeployment = nftDeployments[0];
 const v4TickSpacing = 60;
-const chunkSize = BigInt(process.env.LOG_CHUNK_SIZE || "1900");
+const chunkSize = BigInt(process.env.LOG_CHUNK_SIZE || (chainId === 988 ? "450" : "1900"));
 const nftEventChunkSize = BigInt(process.env.NFT_EVENT_LOG_CHUNK_SIZE || "1900");
 const nftTransferChunkSize = BigInt(process.env.NFT_TRANSFER_LOG_CHUNK_SIZE || "1900");
-const pollMs = Number(process.env.POLL_MS || (chainId === 143 ? "1200" : chainId === 8453 ? "2500" : "12000"));
-const confirmations = BigInt(process.env.CONFIRMATIONS || (chainId === 143 ? "2" : chainId === 8453 ? "1" : "3"));
+const pollMs = Number(process.env.POLL_MS || (chainId === 988 || chainId === 143 ? "1200" : chainId === 8453 ? "2500" : "12000"));
+const confirmations = BigInt(process.env.CONFIRMATIONS || (chainId === 988 || chainId === 143 ? "2" : chainId === 8453 ? "1" : "3"));
 const totalSupplyRaw = 1_000_000_000n * 10n ** 18n;
 const q192 = 1n << 192n;
 const pfpListingKey = (listingId: bigint) => -listingId;
@@ -93,7 +95,9 @@ let pollTimer: ReturnType<typeof setTimeout> | undefined;
 const startedAt = Date.now();
 const healthPort = Number(process.env.HEALTH_PORT || "3000");
 
-if (deploymentContexts.length === 0) throw new Error("At least one deployment must be configured");
+if (deploymentContexts.length === 0 && directDeployments.length === 0) {
+  throw new Error("At least one Bond or Direct deployment must be configured");
+}
 
 type LaunchMetadata = {
   image?: string;
@@ -159,7 +163,7 @@ console.log("BlueFun indexer starting", {
   chunkSize: chunkSize.toString(),
   confirmations: confirmations.toString(),
   rpcEndpoints: rpcUrls.length.toString(),
-  scopes: deploymentContexts.length
+  scopes: deploymentContexts.length + directDeployments.length + nftDeployments.length
 });
 
 await runIndexerPoll();
@@ -251,7 +255,8 @@ async function backfillLoop() {
   for (const directDeployment of directDeployments) {
     if (latest < directDeployment.startBlock) continue;
     await backfillDirectLaunches(directDeployment, latest);
-    await backfillUniswapV4Swaps(directDeployment, latest);
+    if (directDeployment.dexVersion === "v3") await backfillUniswapV3Swaps(directDeployment, latest);
+    else await backfillUniswapV4Swaps(directDeployment, latest);
   }
   lastIndexedBlock = latest;
   const checkpoint = await client.getBlock({ blockNumber: latest });
@@ -768,6 +773,47 @@ async function backfillUniswapV4Swaps(deployment: ScopeContext, latest: bigint) 
   }
 }
 
+async function backfillUniswapV3Swaps(deployment: ScopeContext, latest: bigint) {
+  const launched = await getGraduatedLaunches(deployment.scope);
+  if (launched.length === 0) return;
+
+  const poolMap = new Map<string, { launchId: bigint; token: `0x${string}` }>();
+  let firstLaunchBlock = latest;
+  for (const launch of launched) {
+    if (!launch.poolId) continue;
+    const pool = getAddress(`0x${launch.poolId.slice(-40)}`);
+    poolMap.set(pool.toLowerCase(), {
+      launchId: launch.launchId,
+      token: getAddress(launch.token) as `0x${string}`
+    });
+    if (launch.blockNumber && launch.blockNumber < firstLaunchBlock) firstLaunchBlock = launch.blockNumber;
+  }
+  if (poolMap.size === 0) return;
+
+  let fromBlock =
+    (await getIndexerState(stateKey(deployment, "uniswap_v3_swaps_last_block"))) ?? firstLaunchBlock;
+  if (fromBlock < firstLaunchBlock) fromBlock = firstLaunchBlock;
+  if (fromBlock > latest) return;
+
+  while (fromBlock <= latest) {
+    const toBlock = fromBlock + chunkSize > latest ? latest : fromBlock + chunkSize;
+    const logs = await client.getContractEvents({
+      address: Array.from(poolMap.keys()) as `0x${string}`[],
+      abi: uniswapV3PoolAbi,
+      eventName: "Swap",
+      fromBlock,
+      toBlock
+    });
+    for (const log of logs) {
+      const launch = poolMap.get(log.address.toLowerCase());
+      if (!launch) continue;
+      await handleUniswapV3Swap(deployment, log, launch);
+    }
+    await setIndexerState(stateKey(deployment, "uniswap_v3_swaps_last_block"), toBlock + 1n);
+    fromBlock = toBlock + 1n;
+  }
+}
+
 function stateKey(deployment: ScopeContext, key: string) {
   return `${deployment.scope}:${key}`;
 }
@@ -1029,6 +1075,41 @@ async function handleUniswapV4Swap(
     side,
     source: "uniswap_v4",
     ethAmount,
+    tokenAmount,
+    marketCapEth,
+    txHash: log.transactionHash,
+    blockNumber: log.blockNumber
+  });
+}
+
+async function handleUniswapV3Swap(
+  deployment: ScopeContext,
+  log: Awaited<ReturnType<typeof client.getContractEvents<typeof uniswapV3PoolAbi, "Swap">>>[number],
+  launch: { launchId: bigint; token: `0x${string}` }
+) {
+  const amount0 = log.args.amount0!;
+  const amount1 = log.args.amount1!;
+  if (amount0 === 0n || amount1 === 0n) return;
+
+  const quoteIsToken0 = stableQuoteToken.toLowerCase() < launch.token.toLowerCase();
+  const quoteDelta = quoteIsToken0 ? amount0 : amount1;
+  const tokenDelta = quoteIsToken0 ? amount1 : amount0;
+  const side = quoteDelta > 0n ? "buy" : "sell";
+  const quoteAmount18 = absBigInt(quoteDelta) * 1_000_000_000_000n;
+  const tokenAmount = absBigInt(tokenDelta);
+  const trader = await readTransactionSender(log.transactionHash).catch(() => log.args.sender!);
+  const sqrtPrice = log.args.sqrtPriceX96!;
+  const sqrtSquared = sqrtPrice * sqrtPrice;
+  const marketCapEth = quoteIsToken0
+    ? (q192 * 10n ** 39n) / sqrtSquared
+    : (sqrtSquared * 10n ** 39n) / q192;
+
+  await insertTrade(deployment.scope, {
+    launchId: launch.launchId,
+    trader,
+    side,
+    source: "uniswap_v3",
+    ethAmount: quoteAmount18,
     tokenAmount,
     marketCapEth,
     txHash: log.transactionHash,

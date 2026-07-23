@@ -17,7 +17,7 @@ import { useRealtimeRefresh } from "@/lib/use-realtime-refresh";
 
 type Filter = "All" | "Volume" | "MarketCap" | "New";
 type ViewMode = "grid" | "list";
-type NetworkMetrics = Partial<Record<8453 | 4663 | 143, DbLaunchMetrics>>;
+type NetworkMetrics = Partial<Record<8453 | 4663 | 143 | 988, DbLaunchMetrics>>;
 
 export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metrics, networkMetrics, chainId = 8453 }: { launches: DeployedLaunch[]; totalLaunches: number; metrics?: DbLaunchMetrics; networkMetrics?: NetworkMetrics; chainId?: number }) {
   const [launches, setLaunches] = useState(initialLaunches);
@@ -201,7 +201,7 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metri
     };
   }, [chainId]);
 
-  const networkStats = useMemo(() => ([8453, 4663, 143] as const).map((networkChainId) => {
+  const networkStats = useMemo(() => ([8453, 4663, 143, 988] as const).map((networkChainId) => {
     const values = networkMetrics?.[networkChainId] ?? (networkChainId === chainId ? metrics : undefined);
     const activeFallback = networkChainId === chainId;
     return {

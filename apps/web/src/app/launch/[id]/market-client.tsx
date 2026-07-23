@@ -26,7 +26,9 @@ import {
   liquidityLockerPoolAbi,
   permit2Abi,
   universalRouterAbi,
-  uniswapV4QuoterAbi
+  uniswapV4QuoterAbi,
+  uniswapV3QuoterAbi,
+  uniswapV3SwapRouterAbi
 } from "@/lib/contracts";
 import {
   CURVE_FEE_RATE,
@@ -80,10 +82,11 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
   const { address, isConnected } = useAccount();
   const chainId = useChainId();
   const { switchChainAsync, isPending: isSwitchingChain } = useSwitchChain();
-  const activeChainId = launch?.chainId === 4663 || launch?.chainId === 143 ? launch.chainId : 8453;
-  const { addresses, chain, uniswapV4Addresses } = contractsForLaunch(activeChainId, id);
+  const activeChainId = launch?.chainId === 4663 || launch?.chainId === 143 || launch?.chainId === 988 ? launch.chainId : 8453;
+  const { addresses, chain, dexVersion, stableUniswapV3Addresses, uniswapV4Addresses } = contractsForLaunch(activeChainId, id);
+  const isStableV3 = dexVersion === "v3";
   const nativeSymbol = chain.nativeCurrency.symbol;
-  const quickBuyAmounts = activeChainId === 143 ? ["50", "100", "500"] : ["0.01", "0.05", "0.1"];
+  const quickBuyAmounts = activeChainId === 143 ? ["50", "100", "500"] : activeChainId === 988 ? ["1", "5", "10"] : ["0.01", "0.05", "0.1"];
   const wrongNetwork = Boolean(isConnected && chainId && chainId !== activeChainId);
 
   async function switchWalletNetwork() {
@@ -108,13 +111,13 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
     address: liquidityLockerAddress,
     abi: liquidityLockerPoolAbi,
     functionName: "initializationGuard",
-    query: { enabled: Boolean(isGraduated && isDirect && liquidityLockerAddress) }
+    query: { enabled: Boolean(!isStableV3 && isGraduated && isDirect && liquidityLockerAddress) }
   });
   const graduatedPoolHook = useReadContract({
     address: liquidityLockerAddress,
     abi: liquidityLockerPoolAbi,
     functionName: "hooks",
-    query: { enabled: Boolean(isGraduated && !isDirect && liquidityLockerAddress) }
+    query: { enabled: Boolean(!isStableV3 && isGraduated && !isDirect && liquidityLockerAddress) }
   });
   const poolHooks = isDirect ? directPoolHook.data : graduatedPoolHook.data;
   const v4PoolConfig = { fee: launch?.poolFee, tickSpacing: launch?.tickSpacing, hooks: poolHooks };
@@ -157,7 +160,7 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
     functionName: "allowance",
     args: [address ?? zeroAddress, uniswapV4Addresses.permit2],
     query: {
-      enabled: Boolean(isGraduated && mode === "sell" && launch?.token && address),
+      enabled: Boolean(!isStableV3 && isGraduated && mode === "sell" && launch?.token && address),
       refetchInterval: mode === "sell" ? 4_000 : false,
       refetchOnWindowFocus: true
     }
@@ -168,7 +171,7 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
     functionName: "allowance",
     args: [address ?? zeroAddress, launch?.token ?? zeroAddress, uniswapV4Addresses.universalRouter],
     query: {
-      enabled: Boolean(isGraduated && mode === "sell" && launch?.token && address),
+      enabled: Boolean(!isStableV3 && isGraduated && mode === "sell" && launch?.token && address),
       refetchInterval: mode === "sell" ? 4_000 : false,
       refetchOnWindowFocus: true
     }
@@ -186,10 +189,44 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
       }
     ],
     query: {
-      enabled: Boolean(isGraduated && launch?.token && poolHooks && parsedAmount > 0n),
+      enabled: Boolean(!isStableV3 && isGraduated && launch?.token && poolHooks && parsedAmount > 0n),
       refetchOnWindowFocus: false,
       retry: 1,
       staleTime: 8_000
+    }
+  });
+  const stableInputToken = mode === "buy" ? stableUniswapV3Addresses.quoteToken : launch?.token ?? zeroAddress;
+  const stableOutputToken = mode === "buy" ? launch?.token ?? zeroAddress : stableUniswapV3Addresses.quoteToken;
+  const stableAmountIn = mode === "buy" ? parsedAmount / 1_000_000_000_000n : parsedAmount;
+  const stableAllowance = useReadContract({
+    chainId: 988,
+    address: stableInputToken,
+    abi: b20TokenAbi,
+    functionName: "allowance",
+    args: [address ?? zeroAddress, stableUniswapV3Addresses.swapRouter],
+    query: {
+      enabled: Boolean(isStableV3 && isGraduated && launch?.token && address && parsedAmount > 0n),
+      refetchInterval: 4_000,
+      refetchOnWindowFocus: true
+    }
+  });
+  const stableQuote = useReadContract({
+    chainId: 988,
+    address: stableUniswapV3Addresses.quoter,
+    abi: uniswapV3QuoterAbi,
+    functionName: "quoteExactInputSingle",
+    args: [{
+      tokenIn: stableInputToken,
+      tokenOut: stableOutputToken,
+      amountIn: stableAmountIn,
+      fee: launch?.poolFee ?? 10_000,
+      sqrtPriceLimitX96: 0n
+    }],
+    query: {
+      enabled: Boolean(isStableV3 && isGraduated && launch?.token && stableAmountIn > 0n),
+      refetchOnWindowFocus: false,
+      retry: 1,
+      staleTime: 4_000
     }
   });
   const quotedOut = mode === "buy" ? buyQuote.data?.[0] : sellQuote.data?.[0];
@@ -197,7 +234,12 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
   const quoteLoading = mode === "buy" ? buyQuote.isLoading : sellQuote.isLoading;
   const fallbackGraduatedQuote = useMemo(() => estimateGraduatedQuoteFromTrades(trades, mode, parsedAmount), [mode, parsedAmount, trades]);
   const quoteFromFallback = Boolean(!graduatedQuote.data?.[0] && graduatedQuote.error && fallbackGraduatedQuote);
-  const graduatedQuotedOut = graduatedQuote.data?.[0] ?? (quoteFromFallback ? fallbackGraduatedQuote : undefined);
+  const stableQuotedOut = stableQuote.data?.[0] === undefined
+    ? undefined
+    : mode === "sell" ? stableQuote.data[0] * 1_000_000_000_000n : stableQuote.data[0];
+  const graduatedQuotedOut = isStableV3
+    ? stableQuotedOut
+    : graduatedQuote.data?.[0] ?? (quoteFromFallback ? fallbackGraduatedQuote : undefined);
   const graduatedMinOut = graduatedQuotedOut ? applySlippage(graduatedQuotedOut, slippageBps) : 0n;
   const isWorking = isPending || receipt.isLoading || isSigningPermit;
   const sellBalance = tokenBalance.data ?? 0n;
@@ -217,9 +259,14 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
   const tradeDisabled = !addresses.bondingCurveMarket || !isConnected || wrongNetwork || isWorking || parsedAmount === 0n || exceedsEthBalance || exceedsSellBalance || (!needsSellApproval && minOut === 0n);
   const permit2Amount = graduatedPermit2RouterAllowance.data?.[0] ?? 0n;
   const permit2Expiration = graduatedPermit2RouterAllowance.data?.[1] ?? 0;
-  const needsGraduatedTokenApproval = Boolean(isGraduated && mode === "sell" && parsedAmount > 0n && (graduatedTokenPermit2Allowance.data ?? 0n) < parsedAmount);
-  const needsGraduatedPermit2Signature = Boolean(isGraduated && mode === "sell" && parsedAmount > 0n && !needsGraduatedTokenApproval && (permit2Amount < parsedAmount || BigInt(permit2Expiration) <= BigInt(Math.floor(Date.now() / 1000) + 900)));
-  const graduatedApprovalLoading = Boolean(mode === "sell" && (graduatedTokenPermit2Allowance.isLoading || graduatedPermit2RouterAllowance.isLoading));
+  const stableNeedsApproval = Boolean(isStableV3 && parsedAmount > 0n && (stableAllowance.data ?? 0n) < stableAmountIn);
+  const needsGraduatedTokenApproval = isStableV3
+    ? stableNeedsApproval
+    : Boolean(isGraduated && mode === "sell" && parsedAmount > 0n && (graduatedTokenPermit2Allowance.data ?? 0n) < parsedAmount);
+  const needsGraduatedPermit2Signature = Boolean(!isStableV3 && isGraduated && mode === "sell" && parsedAmount > 0n && !needsGraduatedTokenApproval && (permit2Amount < parsedAmount || BigInt(permit2Expiration) <= BigInt(Math.floor(Date.now() / 1000) + 900)));
+  const graduatedApprovalLoading = isStableV3
+    ? stableAllowance.isLoading
+    : Boolean(mode === "sell" && (graduatedTokenPermit2Allowance.isLoading || graduatedPermit2RouterAllowance.isLoading));
   const graduatedBuyDisabled = !launch || !isConnected || wrongNetwork || isWorking || mode !== "buy" || parsedAmount === 0n || exceedsEthBalance || graduatedMinOut === 0n;
   const graduatedSellDisabled = !launch || !isConnected || wrongNetwork || isWorking || graduatedApprovalLoading || mode !== "sell" || parsedAmount === 0n || exceedsSellBalance || (!needsGraduatedTokenApproval && graduatedMinOut === 0n);
   const latestMarketCapEth = useMemo(() => {
@@ -258,11 +305,14 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
   refreshTradeStateRef.current = () => {
     const refreshes: Promise<unknown>[] = [tokenBalance.refetch()];
     if (isGraduated) {
-      refreshes.push(
-        graduatedTokenPermit2Allowance.refetch(),
-        graduatedPermit2RouterAllowance.refetch(),
-        graduatedQuote.refetch()
-      );
+      if (isStableV3) refreshes.push(stableAllowance.refetch(), stableQuote.refetch());
+      else {
+        refreshes.push(
+          graduatedTokenPermit2Allowance.refetch(),
+          graduatedPermit2RouterAllowance.refetch(),
+          graduatedQuote.refetch()
+        );
+      }
     } else {
       refreshes.push(tokenAllowance.refetch(), buyQuote.refetch(), sellQuote.refetch());
     }
@@ -413,7 +463,25 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
   }
 
   function buyGraduated() {
-    if (!launch || parsedAmount === 0n || graduatedMinOut === 0n) return;
+    if (!launch || !address || parsedAmount === 0n || graduatedMinOut === 0n) return;
+    if (isStableV3) {
+      writeContract({
+        chainId: 988,
+        address: stableUniswapV3Addresses.swapRouter,
+        abi: uniswapV3SwapRouterAbi,
+        functionName: "exactInputSingle",
+        args: [{
+          tokenIn: stableUniswapV3Addresses.quoteToken,
+          tokenOut: launch.token,
+          fee: launch.poolFee ?? 10_000,
+          recipient: address,
+          amountIn: stableAmountIn,
+          amountOutMinimum: graduatedMinOut,
+          sqrtPriceLimitX96: 0n
+        }]
+      });
+      return;
+    }
     const swap = buildV4EthToTokenSwap({
       amountIn: parsedAmount,
       amountOutMinimum: graduatedMinOut,
@@ -435,6 +503,16 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
 
   function approveGraduatedTokenPermit2() {
     if (!launch || parsedAmount === 0n) return;
+    if (isStableV3) {
+      writeContract({
+        chainId: 988,
+        address: stableInputToken,
+        abi: b20TokenAbi,
+        functionName: "approve",
+        args: [stableUniswapV3Addresses.swapRouter, maxUint256]
+      });
+      return;
+    }
     writeContract({
       chainId: activeChainId,
       address: launch.token,
@@ -448,6 +526,24 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
     if (!launch || !address || parsedAmount === 0n || graduatedMinOut === 0n) return;
     setTradeFlowError("");
     try {
+      if (isStableV3) {
+        writeContract({
+          chainId: 988,
+          address: stableUniswapV3Addresses.swapRouter,
+          abi: uniswapV3SwapRouterAbi,
+          functionName: "exactInputSingle",
+          args: [{
+            tokenIn: launch.token,
+            tokenOut: stableUniswapV3Addresses.quoteToken,
+            fee: launch.poolFee ?? 10_000,
+            recipient: address,
+            amountIn: parsedAmount,
+            amountOutMinimum: graduatedMinOut / 1_000_000_000_000n,
+            sqrtPriceLimitX96: 0n
+          }]
+        });
+        return;
+      }
       const now = Math.floor(Date.now() / 1000);
       const permit = needsGraduatedPermit2Signature ? await createPermit2Signature({
         account: address,
@@ -609,8 +705,8 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
             onSwitchNetwork={switchWalletNetwork}
             onSell={sellGraduated}
             quote={graduatedQuotedOut}
-            quoteFromFallback={quoteFromFallback}
-            quoteLoading={(graduatedQuote.isLoading || graduatedQuote.isFetching) && !graduatedQuotedOut}
+            quoteFromFallback={!isStableV3 && quoteFromFallback}
+            quoteLoading={(isStableV3 ? stableQuote.isLoading || stableQuote.isFetching : graduatedQuote.isLoading || graduatedQuote.isFetching) && !graduatedQuotedOut}
             receiptSuccess={Boolean(receipt.isSuccess)}
             sellBalance={sellBalance}
             setAmount={setAmount}
@@ -994,13 +1090,14 @@ function GraduatedTradeCard({
   updateSlippage: (value: bigint) => void;
   wrongNetwork: boolean;
 }) {
-  const { chain, uniswapChainName } = contractsForChain(launch.chainId);
+  const { chain, dexVersion, uniswapChainName, stableUniswapV3Addresses } = contractsForChain(launch.chainId);
+  const isStableV3 = dexVersion === "v3";
   const nativeSymbol = chain.nativeCurrency.symbol;
-  const quickBuyAmounts = launch.chainId === 143 ? ["50", "100", "500"] : ["0.01", "0.05", "0.1"];
+  const quickBuyAmounts = launch.chainId === 143 ? ["50", "100", "500"] : launch.chainId === 988 ? ["1", "5", "10"] : ["0.01", "0.05", "0.1"];
   return (
     <section className="graduated-trade-card swap-terminal">
       <div className="trade-card-toolbar graduated-trade-toolbar">
-        <div><strong>Swap</strong><span>{launch.launchMode === "direct" ? "Direct Uniswap v4" : "Uniswap v4"}</span></div>
+        <div><strong>Swap</strong><span>{launch.launchMode === "direct" ? `Direct Uniswap ${dexVersion}` : `Uniswap ${dexVersion}`}</span></div>
         <button className={settingsOpen ? "swap-settings-trigger active" : "swap-settings-trigger"} onClick={() => setSettingsOpen((open) => !open)} type="button" aria-label="Trade settings">
           <Settings size={17} />
           <span>{Number(slippageBps) / 100}%</span>
@@ -1057,7 +1154,7 @@ function GraduatedTradeCard({
             </div>
             <div className="swap-detail-row">
               <span>Minimum <b>{minOut ? formatQuote(minOut, mode === "buy" ? launch.symbol : nativeSymbol) : "-"}</b></span>
-              <span>Route <b>{quoteFromFallback ? "Indexed price" : "Uniswap v4"}</b></span>
+              <span>Route <b>{quoteFromFallback ? "Indexed price" : `Uniswap ${dexVersion}`}</b></span>
             </div>
           </div>
         </div>
@@ -1081,13 +1178,14 @@ function GraduatedTradeCard({
             </div>
           </div>
         ) : null}
-        <div className="trade-meta-line"><span><NetworkIcon chainId={launch.chainId} size={14} />{chain.name}</span><i />Uniswap v4<i />Locked liquidity</div>
+        <div className="trade-meta-line"><span><NetworkIcon chainId={launch.chainId} size={14} />{chain.name}</span><i />Uniswap {dexVersion}<i />Locked liquidity</div>
         {mode === "buy" ? (
           <>
-            <button className="button primary wide trade-submit buy" disabled={tradeDisabled} onClick={onBuy} type="button">
+            <button className="button primary wide trade-submit buy" disabled={tradeDisabled} onClick={needsTokenApproval ? onApproveToken : onBuy} type="button">
               {isWorking ? <Loader2 className="spin" size={16} /> : <ArrowDownUp size={16} />}
-              {isPending ? "Confirm in wallet" : isWorking ? "Buying" : exceedsEthBalance ? `Insufficient ${nativeSymbol}` : `Buy $${launch.symbol}`}
+              {isPending ? "Confirm in wallet" : isWorking ? needsTokenApproval ? "Approving" : "Buying" : exceedsEthBalance ? `Insufficient ${nativeSymbol}` : needsTokenApproval ? `Approve ${nativeSymbol}` : `Buy $${launch.symbol}`}
             </button>
+            {needsTokenApproval ? <span className="trade-helper">One-time approval lets the Uniswap v3 router spend the selected USDT0 amount.</span> : null}
           </>
         ) : (
           <>
@@ -1116,10 +1214,10 @@ function GraduatedTradeCard({
             </button>
             <span className="trade-helper">
               {needsTokenApproval
-                ? "One-time approval lets Permit2 access this token. This is the only onchain approval."
+                ? dexVersion === "v3" ? "One-time approval lets the Uniswap v3 router access this token." : "One-time approval lets Permit2 access this token. This is the only onchain approval."
                 : needsPermit2Signature
                   ? "A gasless Permit2 signature enables selling for 30 days and is bundled into this sale. No second approval transaction."
-                  : "Selling routes through the locked Uniswap v4 pool."}
+                  : `Selling routes through the locked Uniswap ${dexVersion} pool.`}
             </span>
           </>
         )}
@@ -1128,18 +1226,28 @@ function GraduatedTradeCard({
           {!receiptSuccess && error ? <TradeStatus tone="danger">{friendlyTradeError(error)}</TradeStatus> : null}
         </div>
       </div>
-      <a className="button wide trade-external-link" href={uniswapSwapUrl(launch.token, uniswapChainName)} target="_blank" rel="noreferrer">
+      <a className="button wide trade-external-link" href={uniswapSwapUrl(
+        launch.token,
+        uniswapChainName,
+        isStableV3 ? stableUniswapV3Addresses.quoteToken : undefined
+      )} target="_blank" rel="noreferrer">
         <ExternalLink size={16} />
         Trade on Uniswap
       </a>
-      {launch.launchMode === "direct" ? <span className="trade-helper external-route-note">New v4 hook pools may take time to appear in Uniswap Labs routing. BlueFun quotes this pool directly onchain.</span> : null}
+      {launch.launchMode === "direct" && dexVersion === "v4" ? <span className="trade-helper external-route-note">New v4 hook pools may take time to appear in Uniswap Labs routing. BlueFun quotes this pool directly onchain.</span> : null}
     </section>
   );
 }
 
-function uniswapSwapUrl(token: `0x${string}`, chainName: string, direction: "buy" | "sell" = "buy") {
-  const inputCurrency = direction === "buy" ? "ETH" : token;
-  const outputCurrency = direction === "buy" ? token : "ETH";
+function uniswapSwapUrl(
+  token: `0x${string}`,
+  chainName: string,
+  quoteToken?: `0x${string}`,
+  direction: "buy" | "sell" = "buy"
+) {
+  const quoteCurrency = quoteToken ?? "ETH";
+  const inputCurrency = direction === "buy" ? quoteCurrency : token;
+  const outputCurrency = direction === "buy" ? token : quoteCurrency;
   return `https://app.uniswap.org/swap?chain=${chainName}&inputCurrency=${inputCurrency}&outputCurrency=${outputCurrency}`;
 }
 

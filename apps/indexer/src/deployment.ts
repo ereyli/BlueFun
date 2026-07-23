@@ -3,9 +3,12 @@ import { defineChain } from "viem";
 export const chainId = Number(process.env.CHAIN_ID || "8453");
 const robinhood = chainId === 4663;
 const monad = chainId === 143;
+const stable = chainId === 988;
 const base = chainId === 8453;
-export const defaultRpcUrl = monad ? "https://rpc.monad.xyz" : robinhood ? "https://rpc.mainnet.chain.robinhood.com" : "https://mainnet.base.org";
-export const defaultRpcUrls = monad
+export const defaultRpcUrl = stable ? "https://rpc.stable.xyz" : monad ? "https://rpc.monad.xyz" : robinhood ? "https://rpc.mainnet.chain.robinhood.com" : "https://mainnet.base.org";
+export const defaultRpcUrls = stable
+  ? [defaultRpcUrl, ...splitRpcUrls(process.env.STABLE_RPC_FALLBACK_URLS)]
+  : monad
   ? [defaultRpcUrl, "https://rpc1.monad.xyz", ...splitRpcUrls(process.env.MONAD_RPC_FALLBACK_URLS)]
   : robinhood
   ? [defaultRpcUrl, ...splitRpcUrls(process.env.ROBINHOOD_RPC_FALLBACK_URLS)]
@@ -26,6 +29,7 @@ export type DirectIndexerDeployment = {
   liquidityLocker: `0x${string}`;
   startBlock: bigint;
   scope: string;
+  dexVersion: "v3" | "v4";
 };
 
 export type NFTIndexerDeployment = {
@@ -41,7 +45,7 @@ export type NFTIndexerDeployment = {
   scope: string;
 };
 
-export const legacyDeployment: IndexerDeployment | undefined = monad ? undefined : robinhood ? {
+export const legacyDeployment: IndexerDeployment | undefined = stable || monad ? undefined : robinhood ? {
   version: "legacy",
   launchFactory: "0x6a05304638bed7c96b78f420c612e84111fad4d1" as `0x${string}`,
   bondingCurveMarket: "0xab7597fecaf3357101a3a4331f512031ef3238f0" as `0x${string}`,
@@ -57,7 +61,7 @@ export const legacyDeployment: IndexerDeployment | undefined = monad ? undefined
   startBlock: 48379352n
 };
 
-export const feeSharingDeployment: IndexerDeployment | undefined = monad ? undefined : robinhood ? {
+export const feeSharingDeployment: IndexerDeployment | undefined = stable || monad ? undefined : robinhood ? {
   version: "fee-sharing-v1",
   launchFactory: "0x128a32ed2af1787a3fab261bc6158400e2f649c9",
   bondingCurveMarket: "0x795fe5649a78496f51c1594a7b435941fb20adb8",
@@ -73,7 +77,7 @@ export const feeSharingDeployment: IndexerDeployment | undefined = monad ? undef
   startBlock: 48451170n
 };
 
-export const mainnetDeployment: IndexerDeployment | undefined = monad ? undefined : robinhood ? {
+export const mainnetDeployment: IndexerDeployment | undefined = stable || monad ? undefined : robinhood ? {
   version: "current",
   launchFactory: "0xb880ea1d3453968243722b9c1529870c796b060f",
   bondingCurveMarket: "0x2d6d77652facbbcae05c0dc3aed792b94cd61fa8",
@@ -89,7 +93,7 @@ export const mainnetDeployment: IndexerDeployment | undefined = monad ? undefine
   startBlock: 48642000n
 };
 
-export const vNextDeployment: IndexerDeployment | undefined = monad ? configuredMonadBondDeployment() : robinhood ? {
+export const vNextDeployment: IndexerDeployment | undefined = stable ? undefined : monad ? configuredMonadBondDeployment() : robinhood ? {
   version: "vnext",
   launchFactory: "0x32af28dfe63ff9e84399f0af51d5b84b4f3b3c62",
   bondingCurveMarket: "0x2f46a783c1314e160d673f927464d85b7364d807",
@@ -114,15 +118,15 @@ export const deployments = Array.from(
 );
 
 const configuredDirectFactory = (process.env.DIRECT_LAUNCH_FACTORY
-  || (monad ? "0x773260193799321547BFeF0616cf57b3D7aa3412" : robinhood
+  || (stable ? "0xc2c29581179111aa94ba12affd3486879e42090c" : monad ? "0x773260193799321547BFeF0616cf57b3D7aa3412" : robinhood
     ? "0x7de3165634679353a36886dcfe35e3521beee4a4"
     : "0x0246688cef66734c1cada909cfd202e1448ba275")) as `0x${string}`;
 const configuredDirectLocker = (process.env.DIRECT_LIQUIDITY_LOCKER
-  || (monad ? "0xb5fAb655a3b7187175Ac339075DA11542e58d81d" : robinhood
+  || (stable ? "0x8d51017c392552333a679ccb60b5df84314c64cd" : monad ? "0xb5fAb655a3b7187175Ac339075DA11542e58d81d" : robinhood
     ? "0x8550c8f626993ffb58a884cb4e9b5b8a9ee2bdf6"
     : "0x2e83029d88d0af58ba55b31980dc709920fab941")) as `0x${string}`;
 const configuredDirectStartBlock = BigInt(
-  process.env.DIRECT_DEPLOYMENT_BLOCK || (monad ? "89311452" : robinhood ? "10703400" : "48647525")
+  process.env.DIRECT_DEPLOYMENT_BLOCK || (stable ? "32827109" : monad ? "89311452" : robinhood ? "10703400" : "48647525")
 );
 const configuredDirectDeployment: DirectIndexerDeployment | undefined =
   configuredDirectFactory && configuredDirectLocker && configuredDirectStartBlock > 0n
@@ -130,32 +134,37 @@ const configuredDirectDeployment: DirectIndexerDeployment | undefined =
         launchFactory: configuredDirectFactory,
         liquidityLocker: configuredDirectLocker,
         startBlock: configuredDirectStartBlock,
-        scope: `${chainId}:direct:${configuredDirectFactory.toLowerCase()}:${configuredDirectStartBlock.toString()}`
+        scope: `${chainId}:direct:${configuredDirectFactory.toLowerCase()}:${configuredDirectStartBlock.toString()}`,
+        dexVersion: stable ? "v3" : "v4"
       }
     : undefined;
 
-const legacyCurrentDirectDeployment: DirectIndexerDeployment | undefined = monad ? undefined : robinhood ? {
+const legacyCurrentDirectDeployment: DirectIndexerDeployment | undefined = stable || monad ? undefined : robinhood ? {
   launchFactory: "0x9d0e5d76ca2d79ca6ab0c800763eb8e5c39a5079",
   liquidityLocker: "0xe0158cb5c659e95e0ef461e1f7518c4f3b557e81",
   startBlock: 10283960n,
-  scope: `${chainId}:direct:0x9d0e5d76ca2d79ca6ab0c800763eb8e5c39a5079:10283960`
+  scope: `${chainId}:direct:0x9d0e5d76ca2d79ca6ab0c800763eb8e5c39a5079:10283960`,
+  dexVersion: "v4"
 } : {
   launchFactory: "0x0246688cef66734c1cada909cfd202e1448ba275",
   liquidityLocker: "0x2e83029d88d0af58ba55b31980dc709920fab941",
   startBlock: 48647525n,
-  scope: `${chainId}:direct:0x0246688cef66734c1cada909cfd202e1448ba275:48647525`
+  scope: `${chainId}:direct:0x0246688cef66734c1cada909cfd202e1448ba275:48647525`,
+  dexVersion: "v4"
 };
 
-const vNextDirectDeployment: DirectIndexerDeployment | undefined = monad ? undefined : robinhood ? {
+const vNextDirectDeployment: DirectIndexerDeployment | undefined = stable || monad ? undefined : robinhood ? {
   launchFactory: "0x7de3165634679353a36886dcfe35e3521beee4a4",
   liquidityLocker: "0x8550c8f626993ffb58a884cb4e9b5b8a9ee2bdf6",
   startBlock: 10703400n,
-  scope: `${chainId}:direct:0x7de3165634679353a36886dcfe35e3521beee4a4:10703400`
+  scope: `${chainId}:direct:0x7de3165634679353a36886dcfe35e3521beee4a4:10703400`,
+  dexVersion: "v4"
 } : {
   launchFactory: "0x394c5d0244b49e1eed533cd3505583e504589157",
   liquidityLocker: "0x857f7d11474235d8cafd79826d4d2e0d2b7dabd7",
   startBlock: 48678791n,
-  scope: `${chainId}:direct:0x394c5d0244b49e1eed533cd3505583e504589157:48678791`
+  scope: `${chainId}:direct:0x394c5d0244b49e1eed533cd3505583e504589157:48678791`,
+  dexVersion: "v4"
 };
 
 export const directDeployments = Array.from(new Map(
@@ -164,21 +173,27 @@ export const directDeployments = Array.from(new Map(
     .map((deployment) => [deployment.scope, deployment])
 ).values());
 
-const nftFactory = (process.env.NFT_COLLECTION_FACTORY
-  || (base ? "0xd8cf5150a4d789cab4b03855d3ff536c78fd4b33" : undefined)) as `0x${string}` | undefined;
-const nftController = (process.env.NFT_DROP_CONTROLLER
-  || (base ? "0xf7fc2f208b936a5858f9ae7f7750147c8284a2c6" : undefined)) as `0x${string}` | undefined;
-const nftMarketplace = (process.env.NFT_MARKETPLACE
-  || (base ? "0x5be0b302e32031378fdbdea3e5bb3d487e345761" : undefined)) as `0x${string}` | undefined;
-const nftStartBlock = BigInt(process.env.NFT_DEPLOYMENT_BLOCK || (base ? "48886053" : "0"));
-const nftPFPFactory = (process.env.NFT_PFP_FACTORY
-  || (base ? "0x022742905a07f4534f9794ceb8c42be23a1c6815" : undefined)) as `0x${string}` | undefined;
-const nftPFPMarketplace = (process.env.NFT_PFP_MARKETPLACE
-  || (base ? "0x8a777d7d590b658ab07b0aee90ccc51b79c2981d" : undefined)) as `0x${string}` | undefined;
-const nftPFPStartBlock = BigInt(process.env.NFT_PFP_DEPLOYMENT_BLOCK || (base ? "48886056" : "0"));
-const nftOffers = (process.env.NFT_OFFERS
-  || (base ? "0xdfb2ae739446fc8ffc57793005e687ce695dda64" : undefined)) as `0x${string}` | undefined;
-const nftOffersStartBlock = BigInt(process.env.NFT_OFFERS_DEPLOYMENT_BLOCK || (base ? "48886061" : "0"));
+const nftFactory = (base
+  ? process.env.NFT_COLLECTION_FACTORY || "0xd8cf5150a4d789cab4b03855d3ff536c78fd4b33"
+  : undefined) as `0x${string}` | undefined;
+const nftController = (base
+  ? process.env.NFT_DROP_CONTROLLER || "0xf7fc2f208b936a5858f9ae7f7750147c8284a2c6"
+  : undefined) as `0x${string}` | undefined;
+const nftMarketplace = (base
+  ? process.env.NFT_MARKETPLACE || "0x5be0b302e32031378fdbdea3e5bb3d487e345761"
+  : undefined) as `0x${string}` | undefined;
+const nftStartBlock = BigInt(base ? process.env.NFT_DEPLOYMENT_BLOCK || "48886053" : "0");
+const nftPFPFactory = (base
+  ? process.env.NFT_PFP_FACTORY || "0x022742905a07f4534f9794ceb8c42be23a1c6815"
+  : undefined) as `0x${string}` | undefined;
+const nftPFPMarketplace = (base
+  ? process.env.NFT_PFP_MARKETPLACE || "0x8a777d7d590b658ab07b0aee90ccc51b79c2981d"
+  : undefined) as `0x${string}` | undefined;
+const nftPFPStartBlock = BigInt(base ? process.env.NFT_PFP_DEPLOYMENT_BLOCK || "48886056" : "0");
+const nftOffers = (base
+  ? process.env.NFT_OFFERS || "0xdfb2ae739446fc8ffc57793005e687ce695dda64"
+  : undefined) as `0x${string}` | undefined;
+const nftOffersStartBlock = BigInt(base ? process.env.NFT_OFFERS_DEPLOYMENT_BLOCK || "48886061" : "0");
 export const nftDeployment: NFTIndexerDeployment | undefined =
   nftFactory && nftController && nftMarketplace && nftStartBlock > 0n
     ? {
@@ -200,10 +215,10 @@ export const nftDeployments = [nftDeployment]
 
 export const chainDefinition = defineChain({
   id: chainId,
-  name: monad ? "Monad" : robinhood ? "Robinhood Chain" : "Base",
-  nativeCurrency: monad ? { name: "Monad", symbol: "MON", decimals: 18 } : { name: "Ether", symbol: "ETH", decimals: 18 },
+  name: stable ? "Stable" : monad ? "Monad" : robinhood ? "Robinhood Chain" : "Base",
+  nativeCurrency: stable ? { name: "USDT0", symbol: "USDT0", decimals: 18 } : monad ? { name: "Monad", symbol: "MON", decimals: 18 } : { name: "Ether", symbol: "ETH", decimals: 18 },
   rpcUrls: { default: { http: defaultRpcUrls } },
-  blockExplorers: { default: { name: monad ? "MonadVision" : robinhood ? "Robinhood Explorer" : "BaseScan", url: monad ? "https://monadvision.com" : robinhood ? "https://robinhoodchain.blockscout.com" : "https://basescan.org" } },
+  blockExplorers: { default: { name: stable ? "Stablescan" : monad ? "MonadVision" : robinhood ? "Robinhood Explorer" : "BaseScan", url: stable ? "https://stablescan.xyz" : monad ? "https://monadvision.com" : robinhood ? "https://robinhoodchain.blockscout.com" : "https://basescan.org" } },
   contracts: !base ? undefined : {
     multicall3: {
       address: "0xca11bde05977b3631167028862be2a173976ca11",
@@ -216,6 +231,8 @@ export const poolManager = robinhood
   ? "0x8366a39cc670b4001a1121b8f6a443a643e40951" as const
   : monad ? "0x188d586ddcf52439676ca21a244753fa19f9ea8e" as const
   : "0x498581ff718922c3f8e6a244956af099b2652b2b" as const;
+
+export const stableQuoteToken = "0x779Ded0c9e1022225f8E0630b35a9b54bE713736" as const;
 
 export function deploymentScope() {
   if (!mainnetDeployment?.launchFactory || !mainnetDeployment.bondingCurveMarket || mainnetDeployment.startBlock === 0n) return "";

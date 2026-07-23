@@ -31,8 +31,8 @@ export async function POST(request: Request) {
   const symbol = cleanText(form.get("symbol"), 20).toUpperCase();
   const chainId = Number(cleanText(form.get("chainId"), 8));
   const launchMode = cleanText(form.get("launchMode"), 10) === "direct" ? "direct" : "bond";
-  const network = chainId === 143 ? "Monad" : chainId === 4663 ? "Robinhood Chain" : chainId === 8453 ? "Base" : "";
-  const standard = chainId === 8453 ? "B20" : chainId === 143 || chainId === 4663 ? "ERC-20" : "";
+  const network = chainId === 988 ? "Stable" : chainId === 143 ? "Monad" : chainId === 4663 ? "Robinhood Chain" : chainId === 8453 ? "Base" : "";
+  const standard = chainId === 8453 ? "B20" : chainId === 988 || chainId === 143 || chainId === 4663 ? "ERC-20" : "";
   const description = cleanText(form.get("description"), 500);
   const website = cleanUrl(form.get("website"));
   const twitter = cleanUrl(form.get("twitter"));

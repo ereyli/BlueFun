@@ -1,0 +1,81 @@
+{
+  "network": "Stable Mainnet",
+  "chainId": 988,
+  "deploymentBlock": 32823562,
+  "directDeploymentBlock": 32827109,
+  "deployer": "0xC4e56A3F2D971F419af63b768A275714758a3797",
+  "safe": "0x144A3f70C0bf33124852E3891011e033b909F46d",
+  "guardian": "0x9d5f55a644eF0eB9FF82dbd14Dd0471de3ff5bfb",
+  "contracts": {
+    "governanceTimelock": "0x55b000e7645313de1715dc58a8952d93993b10d2",
+    "feePolicy": "0x7a6287fae63992eadfd7adf414e441561fb221a7",
+    "revenueRouter": "0xf218baf4061b3c2ca6256305b449a130778e0c04",
+    "directLiquidityLocker": "0x8d51017c392552333a679ccb60b5df84314c64cd",
+    "directLaunchFactory": "0xc2c29581179111aa94ba12affd3486879e42090c"
+  },
+  "deprecatedContracts": [
+    {
+      "directLiquidityLocker": "0x88fe62578d8b3584ba7261e4d45d5933a42788b7",
+      "directLaunchFactory": "0x603fb652a14faef1439ccaa9a55cf9f16950b0b5",
+      "reason": "Replaced before activation after mainnet simulation exposed transaction-settlement timing for native/ERC-20 USDT0."
+    },
+    {
+      "directLiquidityLocker": "0x58e10ec20f5089d42d7a2e7f9c5ba71165f2fa5a",
+      "directLaunchFactory": "0x58b443dca7c22d8507c8459015bc4c613650256d",
+      "reason": "Replaced before public release because its first executable v3 tick implied approximately 182,000 USDT0 FDV instead of the intended approximately 4,000 USDT0."
+    }
+  ],
+  "uniswapV3": {
+    "usdt0": "0x779Ded0c9e1022225f8E0630b35a9b54bE713736",
+    "factory": "0x88F0a512eF09175D456bc9547f914f48C013E4aA",
+    "positionManager": "0x3BdC3437405f7D801b6036532713fc1F179136a6",
+    "swapRouter02": "0x32eaf9B5d5F2CD7361c5012890C943D7de84C22a",
+    "quoterV2": "0xb070179E7032CdA868b53e6C1742F80c9e940d1A",
+    "poolFee": 10000
+  },
+  "economics": {
+    "launchFeeNativeWei": "1000000000000000",
+    "initialFdvUSDT0": "4009",
+    "buyPlatformFeeBps": 70,
+    "buyCreatorFeeBps": 30,
+    "sellPlatformFeeBps": 70,
+    "sellBurnFeeBps": 30,
+    "maximumCreatorInitialBuyBpsOfSupply": 500
+  },
+  "verification": {
+    "provider": "Sourcify",
+    "status": "exact_match",
+    "contracts": [
+      "governanceTimelock",
+      "feePolicy",
+      "revenueRouter",
+      "directLiquidityLocker",
+      "directLaunchFactory"
+    ]
+  },
+  "deploymentTransactions": [
+    "0x29a3d6de95916876e1b85f95fbdcb1bb0ca3b11b7d0d61000b0d538c0a6ee0f0",
+    "0x6b1f3786dd018e148d765d12d2dbbd08fb0ebf95329257a709cafebd9dc2babf",
+    "0xe5bce9c3b2aa6bacc4e2edfd4e25b375b535d375dce3b920703b9a021253ff46",
+    "0x283a0dec06e7794b80d045b5dcabf8b05a16f6138152939ea6a81d9a55db9674"
+  ],
+  "smoke": {
+    "launchId": 1,
+    "token": "0x0e90519fEBda151576c3ee199aC00aDC5C67494E",
+    "pool": "0x5E364DEE62e4d929dbd215BF4f8E992Ff00978E3",
+    "positionTokenId": 375,
+    "marketCapUSDT0AfterCanaryTrades": "4010.754896147185449292",
+    "approvalTx": "0x70b739c5a69de7b16087d3fbc15c3307441cc66b010f9bd688c07823bfd41b43",
+    "launchAndBuyTx": "0x15dba4cc64a9765d0ef12dc8398e9a3e3c8cabe12ad501f649569bec52a94a4c",
+    "sellTx": "0x6b9f659cd0540d5f2a85df89452c8221e8fb4c6b8868812767f8de7676a103fa",
+    "collectTx": "0x6cf708145d15e94c2b0586c8eddd836b5e095ab51d030d6e58e7f30519de6ab7",
+    "creatorClaimTx": "0x2d567a3f42d51672114ed05d6ce7d80f1613fbdc4ce139f0aaf4d422d451f39c",
+    "safeQuoteSweepTx": "0xe3a074499b7980bed36a1eb05ede5ba927017390a12dd21026cc1db510fbd744",
+    "safeTokenSweepTx": "0x4a3c2249245e166240e613fcb0f466b794f0bbda81c6da3e2874bee80f6573af",
+    "safeLaunchRevenueClaimTx": "0x0cdcaac3fc253d3fabd8ce94dbb226522adac699edcb61155056ab4a55dd8643",
+    "safeUSDT0UnitsReceived": "6999",
+    "safeLaunchTokenWeiReceived": "172819646188940930421",
+    "launchTokenWeiBurned": "74065562652403255896",
+    "lpNftOwner": "0x8d51017c392552333a679ccb60b5df84314c64cd"
+  }
+}

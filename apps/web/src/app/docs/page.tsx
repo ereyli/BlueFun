@@ -101,7 +101,7 @@ export default async function DocsPage() {
       <div className="docs-hero-copy">
         <span className="docs-kicker"><BookOpen size={14} />BlueFun documentation</span>
         <h1>Launch onchain markets with a model users can understand.</h1>
-        <p>BlueFun is a multichain token launchpad for fair bonding-curve launches and immediate, permanently locked Uniswap v4 markets on Base, Robinhood Chain and Monad.</p>
+        <p>BlueFun is a multichain token launchpad for fair bonding-curve launches and immediate, permanently locked markets. Stable adds a Direct-only Uniswap v3 route paid in USDT0.</p>
         <div className="docs-hero-actions">
           <Link className="button primary" href="/launch">Create a token <ArrowRight size={15} /></Link>
           <Link className="button" href="/">Explore markets</Link>
@@ -111,7 +111,7 @@ export default async function DocsPage() {
         <span>Protocol snapshot</span>
         <strong>Two launch paths. One transparent interface.</strong>
         <dl>
-          <div><dt>Networks</dt><dd>3 configured</dd></div>
+          <div><dt>Networks</dt><dd>4 configured</dd></div>
           <div><dt>Supply</dt><dd>1B fixed</dd></div>
           <div><dt>Launch fee</dt><dd>0.001 ETH</dd></div>
           <div><dt>LP custody</dt><dd>Permanent</dd></div>
@@ -131,7 +131,7 @@ export default async function DocsPage() {
           <SectionTitle eyebrow="Product" title="What BlueFun provides" description="A complete launch, discovery, trading and creator-revenue experience built around verifiable onchain state." />
           <div className="docs-feature-grid">
             <Feature icon={<Rocket />} title="Create" text="Deploy a 1B-supply token through a Bond or Direct DEX route, with metadata and an optional creator first buy." />
-            <Feature icon={<Gauge />} title="Explore" text="Discover newest, bonding, graduated and direct markets across both supported networks." />
+            <Feature icon={<Gauge />} title="Explore" text="Discover newest, bonding, graduated and direct markets across every supported network." />
             <Feature icon={<BarChart3 />} title="Trade" text="Buy and sell from the token page with quotes, minimum received, slippage controls and onchain activity." />
             <Feature icon={<LayoutDashboard />} title="Dashboard" text="Track created tokens, held assets, trading activity and claimable creator revenue from one wallet view." />
             <Feature icon={<LockKeyhole />} title="Locked liquidity" text="Production LP positions remain in protocol custody without a principal-withdrawal or NFT-transfer path." />
@@ -141,11 +141,12 @@ export default async function DocsPage() {
         </section>
 
         <section className="docs-section" id="networks">
-          <SectionTitle eyebrow="Multichain" title="Networks and token standards" description="The product experience is shared, while each network uses its native launch standard and Uniswap v4 deployment." />
+          <SectionTitle eyebrow="Multichain" title="Networks and token standards" description="The product experience is shared while each network uses its native launch standard and canonical DEX deployment." />
           <div className="docs-network-grid">
             <article><span className="docs-chain-dot base" /><div><strong>Base</strong><small>Chain ID 8453</small></div><p>Launches use the Base-native B20 <code>ASSET</code> standard. BLUE also lives on Base.</p></article>
             <article><span className="docs-chain-dot robinhood" /><div><strong>Robinhood Chain</strong><small>Chain ID 4663</small></div><p>Launches use fixed-supply ERC-20 tokens and the network&apos;s official Uniswap v4 stack.</p></article>
             <article><span className="docs-chain-dot monad" /><div><strong>Monad</strong><small>Chain ID 143 · native MON</small></div><p>Bond and Direct launches use fixed-supply ERC-20 tokens. Launches, trades and gas are paid in MON.</p></article>
+            <article><span className="docs-chain-dot stable" /><div><strong>Stable</strong><small>Chain ID 988 · native USDT0</small></div><p>Direct-only launches use fixed-supply ERC-20 tokens and canonical Uniswap v3. Launches, trades and gas use USDT0.</p></article>
           </div>
         </section>
 
@@ -175,6 +176,7 @@ export default async function DocsPage() {
           </div>
           <Callout tone="info" title="Direct markets begin token-only">A new Direct DEX pool may not support a sell until buys have added sufficient native-currency depth. The interface displays an estimate before launch, and the contract rejects a creator first buy that would receive more than 50 million tokens.</Callout>
           <Callout tone="info" title="Monad uses MON-denominated parameters">Monad launches cost 80 MON, Bond uses a 100,000 virtual MON reserve and graduates at 400,000 gross MON. Direct begins near a 700 MON FDV. These values are independent from ETH-network parameters.</Callout>
+          <Callout tone="info" title="Stable is Direct-only">Stable has no Bond route. The full supply enters a permanently locked one-sided Uniswap v3 position automatically and begins near a 4,000 USDT0 FDV.</Callout>
         </section>
 
         <section className="docs-section" id="fees">
@@ -185,6 +187,7 @@ export default async function DocsPage() {
             <article><span>Sell</span><strong>1% total</strong><p>0.7% platform in ETH and 0.3% of token input sent to the dead address.</p></article>
             <article><span>Base platform share</span><strong>50 / 50</strong><p>Trade platform revenue is split automatically between BLUE staking and treasury.</p></article>
             <article><span>Monad platform share</span><strong>100% Safe</strong><p>Platform MON revenue accrues to the BlueFun Safe treasury; no implicit bridge or Base staking allocation exists.</p></article>
+            <article><span>Stable creator share</span><strong>Buy USDT0 only</strong><p>Buy LP fees split 0.7% to the Safe and 0.3% to the creator. Sell LP fees split 0.7% token to the Safe and 0.3% token to burn.</p></article>
           </div>
 
           <div className="docs-table-wrap">

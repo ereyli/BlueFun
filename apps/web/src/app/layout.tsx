@@ -26,7 +26,7 @@ import { BrandLaunchpadMenu } from "@/components/brand-launchpad-menu";
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl("/")),
   title: "BlueFun",
-  description: "Fair multichain token launches on Base, Robinhood Chain and Monad.",
+  description: "Fair multichain token launches on Base, Robinhood Chain, Monad and Stable.",
   other: {
     "base:app_id": "6a594e1358aaa84e3d06752c"
   },
@@ -57,7 +57,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <section className="maintenance-card" aria-labelledby="maintenance-title">
               <div className="maintenance-brand">
                 <span><Image src="/brand/bluelogo.webp" alt="" width={40} height={40} priority /></span>
-                <div><strong>BlueFun</strong><small>Base + Robinhood + Monad</small></div>
+                <div><strong>BlueFun</strong><small>Base + Robinhood + Monad + Stable</small></div>
               </div>
               <div className="maintenance-status"><i /> Scheduled pause</div>
               <h1 id="maintenance-title">The launch desk is taking a short break.</h1>
@@ -66,6 +66,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 <span><NetworkIcon chainId={8453} size={22} /> Base</span>
                 <span><NetworkIcon chainId={4663} size={22} /> Robinhood</span>
                 <span><NetworkIcon chainId={143} size={22} /> Monad</span>
+                <span><NetworkIcon chainId={988} size={22} /> Stable</span>
               </div>
               <footer>
                 <span>Onchain contracts continue to operate independently.</span>

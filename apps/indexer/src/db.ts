@@ -176,7 +176,7 @@ export async function insertTrade(scope: string, input: {
   launchId: bigint;
   trader: string;
   side: "buy" | "sell";
-  source?: "curve" | "uniswap_v4";
+  source?: "curve" | "uniswap_v3" | "uniswap_v4";
   ethAmount: bigint;
   tokenAmount: bigint;
   marketCapEth?: bigint;

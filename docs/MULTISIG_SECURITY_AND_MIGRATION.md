@@ -40,6 +40,22 @@ Current guardians:
 - Base timelock and staking vault: `0xd5bc4D80797ddAEBd91282659Eb79ABaf659B47C`
 - Robinhood timelock: `0x9d5f55a644eF0eB9FF82dbd14Dd0471de3ff5bfb`
 - NFT V4 policy: `0x144A3f70C0bf33124852E3891011e033b909F46d`
+- Stable timelock and fee policy: `0x9d5f55a644eF0eB9FF82dbd14Dd0471de3ff5bfb`
+
+### Stable mainnet
+
+Stable Direct revenue and permanent LP fee recipients already point to the
+counterfactual Safe address `0x144A3f70C0bf33124852E3891011e033b909F46d`.
+The governance timelock at
+`0x55b000e7645313de1715dc58a8952d93993b10d2` remains temporarily owned by
+the Stable deployer. Its fee policy, revenue administration and Direct factory
+are therefore covered by the seven-day delay before the Safe migration.
+
+Do not transfer timelock ownership until the same Safe is deployed on Stable,
+its three expected owners are verified and its threshold is confirmed as
+2-of-3. Then schedule the timelock self-call
+`proposeOwner(0x144A3f70C0bf33124852E3891011e033b909F46d)`, execute it after seven
+days, and have the Safe call `acceptOwner()`.
 
 ## NFT V4 production deployment
 
@@ -142,7 +158,7 @@ After the delay:
 ## Operational rules
 
 1. Never lower the Safe threshold to 1-of-N for convenience.
-2. Verify chain ID before signing: Base `8453`, Robinhood `4663`.
+2. Verify chain ID before signing: Base `8453`, Robinhood `4663`, Monad `143`, Stable `988`.
 3. Never blind-sign. Decode every Safe transaction and confirm target, value and method.
 4. Keep signer seeds independent. Multiple accounts from the same seed are one failure domain.
 5. Keep only operational gas on signer EOAs; protocol revenue belongs in the Safe.
@@ -166,4 +182,6 @@ After the delay:
 - [ ] Timelock operations executed after 2026-07-26 12:13:33 UTC
 - [ ] Safe accepted timelock ownership on Base
 - [ ] Safe accepted timelock ownership on Robinhood
+- [ ] Safe deployed and verified as 2-of-3 on Stable
+- [ ] Safe accepted Stable timelock ownership
 - [ ] Final authority and revenue-destination audit completed

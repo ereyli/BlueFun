@@ -5,8 +5,11 @@ export const revalidate = 30;
 
 export async function GET(request: Request) {
   const chainId = chainIdFromParam(new URL(request.url).searchParams.get("chain"));
-  const symbol = chainId === 143 ? "MON" : "ETH";
+  const symbol = chainId === 988 ? "USDT0" : chainId === 143 ? "MON" : "ETH";
   try {
+    if (chainId === 988) {
+      return NextResponse.json({ nativeUsd: 1, symbol, currency: "USD" });
+    }
     if (chainId === 143) {
       const response = await fetch("https://api.coingecko.com/api/v3/simple/price?ids=monad&vs_currencies=usd", {
         headers: { accept: "application/json" },

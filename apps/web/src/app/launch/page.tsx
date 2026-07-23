@@ -2,8 +2,8 @@
 
 import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { decodeEventLog, formatEther, parseEther, keccak256, toBytes, zeroAddress } from "viem";
-import { useAccount, useReadContract, useWaitForTransactionReceipt, useWriteContract } from "wagmi";
+import { decodeEventLog, erc20Abi, formatEther, parseEther, keccak256, toBytes, zeroAddress } from "viem";
+import { useAccount, usePublicClient, useReadContract, useWaitForTransactionReceipt, useWriteContract } from "wagmi";
 import { Check, CheckCircle2, ChevronLeft, ChevronRight, Coins, Copy, ExternalLink, ImagePlus, Info, LayoutDashboard, Loader2, LockKeyhole, Rocket, TimerReset, UploadCloud, X, Zap } from "lucide-react";
 import { contractsForChain, directLaunchFactoryAbi, launchEconomics, launchFactoryAbi } from "@/lib/contracts";
 import { useSearchParams } from "next/navigation";
@@ -30,6 +30,7 @@ function LaunchPageContent() {
   const [uploadError, setUploadError] = useState("");
   const [isImageUploading, setIsImageUploading] = useState(false);
   const [isMetadataUploading, setIsMetadataUploading] = useState(false);
+  const [isStableApprovalLoading, setIsStableApprovalLoading] = useState(false);
   const [initialBuy, setInitialBuy] = useState("0");
   const [launchMode, setLaunchMode] = useState<"bond" | "direct">("bond");
   const [confirmedLaunchId, setConfirmedLaunchId] = useState("");
@@ -38,14 +39,16 @@ function LaunchPageContent() {
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const { isConnected, chainId } = useAccount();
   const requestedChain = useSearchParams().get("chain");
-  const activeChainId = requestedChain ? chainIdFromParam(requestedChain) : chainId === 4663 || chainId === 143 ? chainId : 8453;
-  const { addresses, chain } = contractsForChain(activeChainId);
+  const activeChainId = requestedChain ? chainIdFromParam(requestedChain) : chainId === 4663 || chainId === 143 || chainId === 988 ? chainId : 8453;
+  const { addresses, chain, bondEnabled, dexVersion, stableUniswapV3Addresses } = contractsForChain(activeChainId);
   const economics = launchEconomics(activeChainId);
   const nativeSymbol = economics.nativeSymbol;
   const isErc20 = chain.id !== 8453;
   const selectedFactory = launchMode === "direct" ? addresses.directLaunchFactory : addresses.launchFactory;
   const selectedFactoryReady = Boolean(selectedFactory && selectedFactory !== zeroAddress);
   const { data: hash, error, writeContract, isPending } = useWriteContract();
+  const stableApproval = useWriteContract();
+  const publicClient = usePublicClient({ chainId: activeChainId });
   const receipt = useWaitForTransactionReceipt({ hash });
   const directLaunchFee = useReadContract({
     chainId: activeChainId,
@@ -77,7 +80,9 @@ function LaunchPageContent() {
     return estimateDirectInitialBuyTokens(initialBuyEth, directLaunchConfig.data[2], directLaunchConfig.data[3]);
   }, [directLaunchConfig.data, initialBuyEth, launchMode]);
   const initialBuyError = launchMode === "direct"
-    ? estimatedInitialTokens > parseEther("50000000") ? "Creator first buy is limited to 50M tokens (5%)." : ""
+    ? activeChainId === 988 && initialBuyEth % 1_000_000_000_000n !== 0n
+      ? "Stable first buys use USDT0 precision: enter no more than 6 decimal places."
+      : activeChainId !== 988 && estimatedInitialTokens > parseEther("50000000") ? "Creator first buy is limited to 50M tokens (5%)." : ""
     : initialBuyEth > parseEther(economics.graduationTarget) ? `Creator first buy must be ${economics.graduationTarget} ${nativeSymbol} or less.` : "";
   const metadataKey = imageUri
     ? `${name.trim()}:${symbol.trim()}:${imageUri}:${description.trim()}:${website.trim()}:${twitter.trim()}:${telegram.trim()}:${discord.trim()}`
@@ -93,7 +98,8 @@ function LaunchPageContent() {
     initialBuyError,
     isConnected
   });
-  const isWorking = isImageUploading || isMetadataUploading || isPending || receipt.isLoading;
+  const isWorking = isImageUploading || isMetadataUploading || isStableApprovalLoading
+    || stableApproval.isPending || isPending || receipt.isLoading;
   const launchFeeEth = launchMode === "direct"
     ? directLaunchFee.data ?? parseEther(economics.launchFeeFallback)
     : parseEther(economics.launchFeeFallback);
@@ -118,6 +124,10 @@ function LaunchPageContent() {
   useEffect(() => {
     if (receipt.isSuccess) setShowSuccess(true);
   }, [receipt.isSuccess]);
+
+  useEffect(() => {
+    if (!bondEnabled && launchMode !== "direct") setLaunchMode("direct");
+  }, [bondEnabled, launchMode]);
 
   useEffect(() => {
     if (!receipt.isSuccess || !receipt.data?.logs.length || confirmedLaunchId) return;
@@ -166,15 +176,42 @@ function LaunchPageContent() {
     if (launchMode === "direct") {
       if (!directLaunchConfigHash.data) return;
       const deadline = BigInt(Math.floor(Date.now() / 1000) + 20 * 60);
+      const isStableInitialBuy = activeChainId === 988 && initialBuyEth > 0n;
+      const initialBuyUSDT0 = initialBuyEth / 1_000_000_000_000n;
+      if (isStableInitialBuy) {
+        if (!publicClient) {
+          setUploadError("Stable RPC client is not ready.");
+          return;
+        }
+        try {
+          setIsStableApprovalLoading(true);
+          const approvalHash = await stableApproval.writeContractAsync({
+            chainId: activeChainId,
+            address: stableUniswapV3Addresses.quoteToken,
+            abi: erc20Abi,
+            functionName: "approve",
+            args: [selectedFactory, initialBuyUSDT0]
+          });
+          const approvalReceipt = await publicClient.waitForTransactionReceipt({ hash: approvalHash });
+          if (approvalReceipt.status !== "success") throw new Error("USDT0 approval failed.");
+        } catch (approvalError) {
+          setUploadError(approvalError instanceof Error ? approvalError.message : "USDT0 approval failed.");
+          return;
+        } finally {
+          setIsStableApprovalLoading(false);
+        }
+      }
       writeContract({
         chainId: activeChainId,
         address: selectedFactory,
         abi: directLaunchFactoryAbi,
         functionName: initialBuyEth > 0n ? "createLaunchWithInitialBuy" : "createLaunch",
         args: initialBuyEth > 0n
-          ? [metadata, directLaunchConfigHash.data, deadline, 0n]
+          ? activeChainId === 988
+            ? [metadata, directLaunchConfigHash.data, deadline, initialBuyUSDT0, 0n]
+            : [metadata, directLaunchConfigHash.data, deadline, 0n]
           : [metadata, directLaunchConfigHash.data, deadline],
-        value: totalLaunchValue
+        value: activeChainId === 988 ? launchFeeEth : totalLaunchValue
       });
       return;
     }
@@ -243,7 +280,7 @@ function LaunchPageContent() {
           <h1>Issue a market.<br />Not a promise.</h1>
           <p className="muted">
             {launchMode === "direct"
-              ? "Create the token and its permanently locked Uniswap v4 market in one transaction."
+              ? `Create the token and its permanently locked Uniswap ${dexVersion} market in one transaction.`
               : "Add metadata, choose an optional first buy, and publish directly to the bonding curve."}
           </p>
           <div className="launch-preview-card">
@@ -257,7 +294,7 @@ function LaunchPageContent() {
             </div>
             <div className="launch-preview-stat">
               <span>{launchMode === "direct" ? "Route" : "Target"}</span>
-              <strong>{launchMode === "direct" ? "Uniswap v4" : `${economics.graduationTarget} ${nativeSymbol}`}</strong>
+              <strong>{launchMode === "direct" ? `Uniswap ${dexVersion}` : `${economics.graduationTarget} ${nativeSymbol}`}</strong>
             </div>
           </div>
         </div>
@@ -284,12 +321,13 @@ function LaunchPageContent() {
           ) : null}
           <div className="launch-mode-picker" role="radiogroup" aria-label="Launch route">
             <button aria-checked={launchMode === "direct"} className={launchMode === "direct" ? "active" : ""} disabled={isWorking} onClick={() => setLaunchMode("direct")} role="radio" type="button">
-              <Zap size={19} /><span><strong>Direct DEX launch</strong><small>Uniswap v4 market · LP locked</small></span>{launchMode === "direct" ? <CheckCircle2 size={17} /> : null}
+              <Zap size={19} /><span><strong>Direct DEX launch</strong><small>Uniswap {dexVersion} market · LP locked</small></span>{launchMode === "direct" ? <CheckCircle2 size={17} /> : null}
             </button>
-            <button aria-checked={launchMode === "bond"} className={launchMode === "bond" ? "active" : ""} disabled={isWorking} onClick={() => setLaunchMode("bond")} role="radio" type="button">
+            <button aria-checked={launchMode === "bond"} className={launchMode === "bond" ? "active" : ""} disabled={isWorking || !bondEnabled} onClick={() => setLaunchMode("bond")} role="radio" type="button">
               <TimerReset size={19} /><span><strong>Bond launch</strong><small>Fair curve · graduates at {economics.graduationTarget} {nativeSymbol}</small></span>{launchMode === "bond" ? <CheckCircle2 size={17} /> : null}
             </button>
           </div>
+          {!bondEnabled ? <LaunchNotice tone="info">Stable launches are Direct DEX only. The complete supply is added automatically as one-sided Uniswap v3 liquidity and the position NFT remains permanently locked.</LaunchNotice> : null}
           {launchMode === "direct" && addresses.directLaunchFactory === zeroAddress ? <LaunchNotice tone="info">Direct DEX contracts are ready in the codebase but are not configured for {chain.name} yet.</LaunchNotice> : null}
           <div className="launch-stepper" aria-label="Launch progress">
             {([1, 2, 3] as const).map((item) => {

@@ -10,20 +10,23 @@ import { useEffect, useState } from "react";
 import { baseChain } from "@/lib/base-chain";
 import { robinhoodChain } from "@/lib/robinhood-chain";
 import { monadChain } from "@/lib/monad-chain";
-import { baseRpcUrls, monadRpcUrls, robinhoodRpcUrls } from "@/lib/rpc";
+import { stableChain } from "@/lib/stable-chain";
+import { baseRpcUrls, monadRpcUrls, robinhoodRpcUrls, stableRpcUrls } from "@/lib/rpc";
 import { BLUEFUN_DATA_SUFFIX } from "@/lib/base-builder-code";
 
 const baseTransports = baseRpcUrls().map((url) => http(url, { timeout: 6_000, retryCount: 0 }));
 const robinhoodTransport = fallback(robinhoodRpcUrls().map((url) => http(url, { timeout: 6_000, retryCount: 0 })), { rank: true, retryCount: 1 });
 const monadTransport = fallback(monadRpcUrls().map((url) => http(url, { timeout: 6_000, retryCount: 0 })), { rank: true, retryCount: 1 });
+const stableTransport = fallback(stableRpcUrls().map((url) => http(url, { timeout: 6_000, retryCount: 0 })), { rank: true, retryCount: 1 });
 
 const walletConnectProjectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID;
 const sharedConfig = {
-  chains: [baseChain, robinhoodChain, monadChain] as const,
+  chains: [baseChain, robinhoodChain, monadChain, stableChain] as const,
   transports: {
     [baseChain.id]: fallback(baseTransports, { rank: true, retryCount: 1 }),
     [robinhoodChain.id]: robinhoodTransport,
-    [monadChain.id]: monadTransport
+    [monadChain.id]: monadTransport,
+    [stableChain.id]: stableTransport
   },
   batch: { multicall: true },
   ssr: true

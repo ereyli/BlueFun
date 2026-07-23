@@ -131,7 +131,7 @@ export async function getDbWalletDashboard(wallet: `0x${string}`): Promise<Walle
     const created: DeployedLaunch[] = [];
     const traded: WalletTradeSummary[] = [];
 
-    for (const chainId of [8453, 4663, 143]) {
+    for (const chainId of [8453, 4663, 143, 988]) {
       const context = dbContext(chainId);
       let creatorRows: Array<Record<string, unknown>> = [];
       let tradeRows: Array<Record<string, unknown>> = [];
@@ -692,7 +692,7 @@ export async function getDbRecentBuyActivity(chainId = 8453, limit = 80): Promis
 }
 
 async function mapRows(rows: Array<Record<string, unknown>>, chainId: number): Promise<DeployedLaunch[]> {
-  const nativeSymbol = chainId === 143 ? "MON" : "ETH";
+  const nativeSymbol = chainId === 988 ? "USDT0" : chainId === 143 ? "MON" : "ETH";
   return Promise.all(rows.map(async (row) => {
     const status = toStatus(String(row.status));
     const raised = parseDbBigInt(row.raised_eth);
@@ -774,7 +774,7 @@ function normalizeSearchTerm(value?: string) {
 }
 
 function mapTrades(rows: Array<Record<string, unknown>>, chainId: number): DeployedTrade[] {
-  const nativeSymbol = chainId === 143 ? "MON" : "ETH";
+  const nativeSymbol = chainId === 988 ? "USDT0" : chainId === 143 ? "MON" : "ETH";
   return rows.slice().reverse().map((row) => ({
     side: row.side === "sell" ? "sell" : "buy",
     source: row.source === "uniswap_v4" ? "uniswap_v4" : "curve",

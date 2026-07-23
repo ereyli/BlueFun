@@ -3,7 +3,8 @@ import Image from "next/image";
 const NETWORKS = {
   8453: { name: "Base", symbol: "ETH", icon: "/networks/base.svg", tone: "base" },
   4663: { name: "Robinhood", symbol: "ETH", icon: "/networks/robinhood.svg", tone: "robinhood" },
-  143: { name: "Monad", symbol: "MON", icon: "/networks/monad.svg", tone: "monad" }
+  143: { name: "Monad", symbol: "MON", icon: "/networks/monad.svg", tone: "monad" },
+  988: { name: "Stable", symbol: "USDT0", icon: "/networks/stable.svg", tone: "stable" }
 } as const;
 
 export type SupportedChainId = keyof typeof NETWORKS;

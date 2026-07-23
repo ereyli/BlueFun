@@ -1,6 +1,6 @@
 # BlueFun protocol and operations reference
 
-Status: production vNext active on Base, Robinhood Chain and Monad
+Status: production vNext active on Base, Robinhood Chain and Monad; Stable Direct deployment pending
 
 Last reviewed: 22 July 2026
 
@@ -29,6 +29,7 @@ BlueFun is a multichain token launch, discovery and trading platform with three 
 | Base | 8453 | B20 `ASSET` | Uniswap v4 |
 | Robinhood Chain | 4663 | Fixed-supply ERC-20 | Uniswap v4 |
 | Monad | 143 | Fixed-supply ERC-20 | Uniswap v4 |
+| Stable | 988 | Fixed-supply ERC-20 | Uniswap v3 |
 
 Both networks support:
 
@@ -41,6 +42,10 @@ Both networks support:
 - A shared vNext fee policy for Bond, Direct and graduated Bond pools.
 
 BLUE staking exists only on Base. Robinhood revenue intended for BLUE staking accumulates in a bridge reserve and is transferred to Base manually. Monad has zero staking allocation: platform launch and trade revenue remains native MON and is claimable only to the BlueFun Safe.
+
+Stable is Direct-only. Launches and gas use USDT0, pools use canonical Uniswap
+v3, and no Stable Bond contracts are deployed. Stable platform revenue has
+zero staking allocation and resolves to the deterministic BlueFun Safe.
 
 ## 3. Current launch routes
 

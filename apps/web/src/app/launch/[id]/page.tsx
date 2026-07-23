@@ -14,8 +14,8 @@ export const revalidate = 15;
 type LaunchParams = { params: Promise<{ id: string }>; searchParams: Promise<{ chain?: string }> };
 
 const getCachedLaunch = unstable_cache(
-  async (id: string, chainId: number) => chainId === 143
-    ? getDbLaunch(id, 143)
+  async (id: string, chainId: number) => chainId === 143 || chainId === 988
+    ? getDbLaunch(id, chainId)
     : chainId === 4663 ? getRobinhoodLaunch(id) : getDeployedLaunch(id),
   ["market-launch-v1"],
   { revalidate: 15 }

@@ -2,7 +2,9 @@ import { NextResponse, type NextRequest } from "next/server";
 
 const legacyChainNames: Record<string, string> = {
   "8453": "base",
-  "4663": "robinhood"
+  "4663": "robinhood",
+  "143": "monad",
+  "988": "stable"
 };
 
 export function middleware(request: NextRequest) {

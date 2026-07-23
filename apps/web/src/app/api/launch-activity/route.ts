@@ -7,7 +7,7 @@ export const dynamic = "force-dynamic";
 
 export async function GET(request: Request) {
   const chainParam = new URL(request.url).searchParams.get("chain");
-  if (!chainParam || !["base", "robinhood", "monad", "8453", "4663", "143"].includes(chainParam.toLowerCase())) {
+  if (!chainParam || !["base", "robinhood", "monad", "stable", "8453", "4663", "143", "988"].includes(chainParam.toLowerCase())) {
     return NextResponse.json({ activity: [] }, { status: 400 });
   }
   const chainId = chainIdFromParam(chainParam);

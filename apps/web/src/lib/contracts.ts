@@ -1,6 +1,7 @@
 import { baseChain } from "@/lib/base-chain";
 import { robinhoodChain } from "@/lib/robinhood-chain";
 import { monadChain } from "@/lib/monad-chain";
+import { stableChain } from "@/lib/stable-chain";
 
 export const chain = baseChain;
 
@@ -163,12 +164,30 @@ export const monadAddresses: ContractDeployment = {
 };
 
 const MONAD_DEPLOYMENT = monadAddresses;
+const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000" as const;
+
+export const stableAddresses: ContractDeployment = {
+  version: "vnext",
+  launchFactory: ZERO_ADDRESS,
+  bondingCurveMarket: ZERO_ADDRESS,
+  graduationManager: ZERO_ADDRESS,
+  liquidityLocker: ZERO_ADDRESS,
+  deploymentBlock: 0n,
+  firstLaunchId: 1n,
+  directLaunchFactory: (process.env.NEXT_PUBLIC_STABLE_DIRECT_LAUNCH_FACTORY
+    || "0xc2c29581179111aa94ba12affd3486879e42090c") as `0x${string}`,
+  directLiquidityLocker: (process.env.NEXT_PUBLIC_STABLE_DIRECT_LIQUIDITY_LOCKER
+    || "0x8d51017c392552333a679ccb60b5df84314c64cd") as `0x${string}`,
+  directDeploymentBlock: BigInt(process.env.NEXT_PUBLIC_STABLE_DIRECT_DEPLOYMENT_BLOCK || "32827109")
+};
 
 export const legacyBaseAddresses = LEGACY_BASE_DEPLOYMENT;
 export const legacyRobinhoodAddresses = LEGACY_ROBINHOOD_DEPLOYMENT;
 
 export function deploymentsForChain(chainId: number | undefined): ContractDeployment[] {
-  const catalog = chainId === monadChain.id
+  const catalog = chainId === stableChain.id
+    ? []
+    : chainId === monadChain.id
     ? [MONAD_DEPLOYMENT]
     : chainId === robinhoodChain.id
       ? [LEGACY_ROBINHOOD_DEPLOYMENT, FEE_SHARING_ROBINHOOD_DEPLOYMENT, MAINNET_ROBINHOOD_DEPLOYMENT, robinhoodAddresses]
@@ -177,7 +196,9 @@ export function deploymentsForChain(chainId: number | undefined): ContractDeploy
 }
 
 function directDeploymentsForChain(chainId: number): ContractDeployment[] {
-  return chainId === monadChain.id
+  return chainId === stableChain.id
+    ? [stableAddresses]
+    : chainId === monadChain.id
     ? [MONAD_DEPLOYMENT]
     : chainId === robinhoodChain.id
     ? [MAINNET_ROBINHOOD_DEPLOYMENT, robinhoodAddresses]
@@ -185,6 +206,7 @@ function directDeploymentsForChain(chainId: number): ContractDeployment[] {
 }
 
 export function deploymentForLaunch(chainId: number | undefined, launchId: string | bigint) {
+  if (chainId === stableChain.id) return stableAddresses;
   const id = typeof launchId === "bigint" ? launchId : BigInt(launchId);
   return deploymentsForChain(chainId)
     .filter((deployment) => deployment.firstLaunchId <= id)
@@ -213,13 +235,35 @@ export const monadUniswapV4Addresses = {
   permit2: "0x000000000022d473030f116ddee9f6b43ac78ba3" as `0x${string}`
 };
 
+export const stableUniswapV3Addresses = {
+  quoteToken: "0x779Ded0c9e1022225f8E0630b35a9b54bE713736" as `0x${string}`,
+  factory: "0x88F0a512eF09175D456bc9547f914f48C013E4aA" as `0x${string}`,
+  positionManager: "0x3BdC3437405f7D801b6036532713fc1F179136a6" as `0x${string}`,
+  swapRouter: "0x32eaf9B5d5F2CD7361c5012890C943D7de84C22a" as `0x${string}`,
+  quoter: "0xb070179E7032CdA868b53e6C1742F80c9e940d1A" as `0x${string}`
+};
+
 export function contractsForChain(chainId: number | undefined) {
+  if (chainId === stableChain.id) {
+    return {
+      chain: stableChain,
+      addresses: stableAddresses,
+      uniswapV4Addresses,
+      stableUniswapV3Addresses,
+      uniswapChainName: "stable",
+      dexVersion: "v3" as const,
+      bondEnabled: false
+    };
+  }
   if (chainId === monadChain.id) {
     return {
       chain: monadChain,
       addresses: MONAD_DEPLOYMENT,
       uniswapV4Addresses: monadUniswapV4Addresses,
-      uniswapChainName: "monad"
+      stableUniswapV3Addresses,
+      uniswapChainName: "monad",
+      dexVersion: "v4" as const,
+      bondEnabled: true
     };
   }
   if (chainId === robinhoodChain.id) {
@@ -227,10 +271,21 @@ export function contractsForChain(chainId: number | undefined) {
       chain: robinhoodChain,
       addresses: robinhoodAddresses,
       uniswapV4Addresses: robinhoodUniswapV4Addresses,
-      uniswapChainName: "robinhood"
+      stableUniswapV3Addresses,
+      uniswapChainName: "robinhood",
+      dexVersion: "v4" as const,
+      bondEnabled: true
     };
   }
-  return { chain: baseChain, addresses, uniswapV4Addresses, uniswapChainName: "base" };
+  return {
+    chain: baseChain,
+    addresses,
+    uniswapV4Addresses,
+    stableUniswapV3Addresses,
+    uniswapChainName: "base",
+    dexVersion: "v4" as const,
+    bondEnabled: true
+  };
 }
 
 export function contractsForLaunch(chainId: number | undefined, launchId: string | bigint) {
@@ -256,7 +311,9 @@ export function indexerScopeForDeployment(chainId: number, deployment: ContractD
 }
 
 export function indexerScopesForChain(chainId: number | undefined) {
-  const resolvedChainId = chainId === monadChain.id
+  const resolvedChainId = chainId === stableChain.id
+    ? stableChain.id
+    : chainId === monadChain.id
     ? monadChain.id
     : chainId === robinhoodChain.id ? robinhoodChain.id : baseChain.id;
   const contexts = deploymentsForChain(resolvedChainId).map((deployment) => ({
@@ -282,7 +339,9 @@ export function indexerScopesForChain(chainId: number | undefined) {
 }
 
 export function indexerScopeForLaunch(chainId: number | undefined, launchId: string | bigint) {
-  const resolvedChainId = chainId === monadChain.id
+  const resolvedChainId = chainId === stableChain.id
+    ? stableChain.id
+    : chainId === monadChain.id
     ? monadChain.id
     : chainId === robinhoodChain.id ? robinhoodChain.id : baseChain.id;
   return indexerScopeForDeployment(resolvedChainId, deploymentForLaunch(resolvedChainId, launchId));
@@ -291,7 +350,9 @@ export function indexerScopeForLaunch(chainId: number | undefined, launchId: str
 export function isVNextLiquidityLocker(chainId: number, locker?: string) {
   if (!locker) return false;
   const value = locker.toLowerCase();
-  const deployment = chainId === monadChain.id
+  const deployment = chainId === stableChain.id
+    ? stableAddresses
+    : chainId === monadChain.id
     ? MONAD_DEPLOYMENT
     : chainId === robinhoodChain.id ? robinhoodAddresses : VNEXT_BASE_DEPLOYMENT;
   return value === deployment.liquidityLocker.toLowerCase()
@@ -303,6 +364,15 @@ export const FAIR_LAUNCH_FEE_ETH = "0.001";
 export const DIRECT_LAUNCH_FEE_FALLBACK_ETH = "0.001";
 
 export function launchEconomics(chainId: number | undefined) {
+  if (chainId === stableChain.id) {
+    return {
+      nativeSymbol: "USDT0",
+      launchFeeFallback: "0.001",
+      virtualNativeReserve: "0",
+      graduationTarget: "0",
+      directInitialFdv: "4000"
+    } as const;
+  }
   if (chainId === monadChain.id) {
     return {
       nativeSymbol: "MON",
@@ -372,7 +442,7 @@ export const launchFactoryAbi = [
   {
     type: "function",
     name: "claimLaunchFees",
-    stateMutability: "nonpayable",
+    stateMutability: "view",
     inputs: [],
     outputs: [{ name: "amount", type: "uint256" }]
   },
@@ -496,6 +566,33 @@ export const directLaunchFactoryAbi = [
       },
       { name: "expectedConfigHash", type: "bytes32" },
       { name: "deadline", type: "uint256" }
+    ],
+    outputs: [
+      { name: "launchId", type: "uint256" },
+      { name: "token", type: "address" },
+      { name: "poolId", type: "bytes32" },
+      { name: "positionId", type: "bytes32" }
+    ]
+  },
+  {
+    type: "function",
+    name: "createLaunchWithInitialBuy",
+    stateMutability: "payable",
+    inputs: [
+      {
+        name: "metadata",
+        type: "tuple",
+        components: [
+          { name: "name", type: "string" },
+          { name: "symbol", type: "string" },
+          { name: "contractURI", type: "string" },
+          { name: "salt", type: "bytes32" }
+        ]
+      },
+      { name: "expectedConfigHash", type: "bytes32" },
+      { name: "deadline", type: "uint256" },
+      { name: "initialBuyUSDT0", type: "uint256" },
+      { name: "minimumTokensOut", type: "uint256" }
     ],
     outputs: [
       { name: "launchId", type: "uint256" },
@@ -702,6 +799,53 @@ export const b20TokenAbi = [
       { name: "spender", type: "address" }
     ],
     outputs: [{ name: "", type: "uint256" }]
+  }
+] as const;
+
+export const uniswapV3QuoterAbi = [
+  {
+    type: "function",
+    name: "quoteExactInputSingle",
+    stateMutability: "view",
+    inputs: [{
+      name: "params",
+      type: "tuple",
+      components: [
+        { name: "tokenIn", type: "address" },
+        { name: "tokenOut", type: "address" },
+        { name: "amountIn", type: "uint256" },
+        { name: "fee", type: "uint24" },
+        { name: "sqrtPriceLimitX96", type: "uint160" }
+      ]
+    }],
+    outputs: [
+      { name: "amountOut", type: "uint256" },
+      { name: "sqrtPriceX96After", type: "uint160" },
+      { name: "initializedTicksCrossed", type: "uint32" },
+      { name: "gasEstimate", type: "uint256" }
+    ]
+  }
+] as const;
+
+export const uniswapV3SwapRouterAbi = [
+  {
+    type: "function",
+    name: "exactInputSingle",
+    stateMutability: "payable",
+    inputs: [{
+      name: "params",
+      type: "tuple",
+      components: [
+        { name: "tokenIn", type: "address" },
+        { name: "tokenOut", type: "address" },
+        { name: "fee", type: "uint24" },
+        { name: "recipient", type: "address" },
+        { name: "amountIn", type: "uint256" },
+        { name: "amountOutMinimum", type: "uint256" },
+        { name: "sqrtPriceLimitX96", type: "uint160" }
+      ]
+    }],
+    outputs: [{ name: "amountOut", type: "uint256" }]
   }
 ] as const;
 

@@ -33,11 +33,11 @@ export async function POST(request: Request) {
   const wallet = String(body.wallet || "").toLowerCase();
   const text = normalizeChatText(String(body.text || ""));
   const timestamp = Number(body.timestamp);
-  if ((chainId !== 8453 && chainId !== 4663 && chainId !== 143) || !/^\d{1,32}$/.test(launchId) || !/^0x[a-fA-F0-9]{40}$/.test(token) || !/^0x[a-fA-F0-9]{40}$/.test(wallet) || !text || !Number.isFinite(timestamp) || Math.abs(Date.now() - timestamp) > 120_000 || !body.signature) {
+  if ((chainId !== 8453 && chainId !== 4663 && chainId !== 143 && chainId !== 988) || !/^\d{1,32}$/.test(launchId) || !/^0x[a-fA-F0-9]{40}$/.test(token) || !/^0x[a-fA-F0-9]{40}$/.test(wallet) || !text || !Number.isFinite(timestamp) || Math.abs(Date.now() - timestamp) > 120_000 || !body.signature) {
     return NextResponse.json({ error: "Invalid signed message." }, { status: 400 });
   }
-  const launch = chainId === 143
-    ? await getDbLaunch(launchId, 143)
+  const launch = chainId === 143 || chainId === 988
+    ? await getDbLaunch(launchId, chainId)
     : chainId === 4663
     ? await getRobinhoodLaunch(launchId)
     : await getDeployedLaunch(launchId);

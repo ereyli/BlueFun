@@ -1,6 +1,6 @@
 # BlueFun Launchpad
 
-BlueFun is a multichain launchpad for Base-native B20 `ASSET` tokens and fixed-supply ERC-20 tokens on Robinhood Chain and Monad. It supports fair Bond launches and immediate Uniswap v4 Direct DEX launches while retaining read-only compatibility with historical deployments.
+BlueFun is a multichain launchpad for Base-native B20 `ASSET` tokens and fixed-supply ERC-20 tokens on Robinhood Chain, Monad and Stable. Base, Robinhood and Monad support fair Bond and immediate Uniswap v4 Direct DEX launches. Stable is Direct-only and uses canonical Uniswap v3 with USDT0.
 
 ## vNext protocol
 
@@ -84,10 +84,12 @@ Copy `apps/web/.env.example` and `apps/indexer/.env.example`. Never commit deplo
 
 The server-only `SITE_MAINTENANCE_MODE` switch controls the complete web interface. Set it to `true` in the web deployment environment and redeploy to show the maintenance screen on every page; set it back to `false` and redeploy to restore the application. It is intentionally not a public browser variable or unauthenticated HTTP toggle.
 
-Production topology uses one web application plus independent Base, Robinhood and Monad indexer workers. Indexer workers expose `/health` on port `3000` and should not receive public domains.
+Production topology uses one web application plus independent Base, Robinhood, Monad and Stable indexer workers. Indexer workers expose `/health` on port `3000` and should not receive public domains.
 
 [`docs/PROTOCOL.md`](docs/PROTOCOL.md) is the canonical protocol and operations reference. It contains current rules, every production address, legacy-token compatibility, indexer behavior, deployment evidence, environment guidance and the required change procedure.
 
 [`docs/NFT_LAUNCHPAD.md`](docs/NFT_LAUNCHPAD.md) documents the verified Base mainnet creator-owned ERC-1155 launchpad, fees, allowlists, marketplace, OpenSea compatibility and security controls.
 
 [`docs/MONAD_LAUNCHPAD.md`](docs/MONAD_LAUNCHPAD.md) records Monad-specific economics, governance, external contracts, deployment evidence and operating rules.
+
+[`docs/STABLE_LAUNCHPAD.md`](docs/STABLE_LAUNCHPAD.md) records the Stable Direct-only Uniswap v3 design, USDT0 accounting, fee routing, governance migration and verification gates.

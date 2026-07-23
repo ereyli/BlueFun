@@ -23,10 +23,10 @@ export async function GET(request: Request, context: { params: Promise<{ token: 
   if (!/^0x[a-fA-F0-9]{40}$/.test(token)) {
     return NextResponse.json({ pair: null }, { status: 400 });
   }
-  if (!chainParam || !["base", "robinhood", "monad", "8453", "4663", "143"].includes(chainParam.toLowerCase())) {
+  if (!chainParam || !["base", "robinhood", "monad", "stable", "8453", "4663", "143", "988"].includes(chainParam.toLowerCase())) {
     return NextResponse.json({ pair: null }, { status: 400 });
   }
-  if (chainId === 4663) {
+  if (chainId === 4663 || chainId === 988) {
     // DexScreener does not expose Robinhood Chain pairs through the Base endpoint.
     // Robinhood graduated pricing is sourced from indexed Uniswap v4 swaps instead.
     return NextResponse.json({ pair: null });
