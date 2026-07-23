@@ -7,7 +7,7 @@ const stable = chainId === 988;
 const base = chainId === 8453;
 export const defaultRpcUrl = stable ? "https://rpc.stable.xyz" : monad ? "https://rpc.monad.xyz" : robinhood ? "https://rpc.mainnet.chain.robinhood.com" : "https://mainnet.base.org";
 export const defaultRpcUrls = stable
-  ? [defaultRpcUrl, ...splitRpcUrls(process.env.STABLE_RPC_FALLBACK_URLS)]
+  ? [defaultRpcUrl, "https://lb.routeme.sh/rpc/evm/988", ...splitRpcUrls(process.env.STABLE_RPC_FALLBACK_URLS)]
   : monad
   ? [defaultRpcUrl, "https://rpc1.monad.xyz", ...splitRpcUrls(process.env.MONAD_RPC_FALLBACK_URLS)]
   : robinhood

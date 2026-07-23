@@ -6,7 +6,10 @@ export const DEFAULT_BASE_RPC_URLS = [
 
 export const DEFAULT_ROBINHOOD_RPC_URLS = ["https://rpc.mainnet.chain.robinhood.com"];
 export const DEFAULT_MONAD_RPC_URLS = ["https://rpc.monad.xyz", "https://rpc1.monad.xyz"];
-export const DEFAULT_STABLE_RPC_URLS = ["https://rpc.stable.xyz"];
+export const DEFAULT_STABLE_RPC_URLS = [
+  "https://rpc.stable.xyz",
+  "https://lb.routeme.sh/rpc/evm/988"
+];
 
 export function baseRpcUrls() {
   return uniqueUrls([
