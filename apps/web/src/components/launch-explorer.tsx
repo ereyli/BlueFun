@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, useTransition, type ReactNode } from "react";
 import Link from "next/link";
-import { Activity, BarChart3, Clock3, Coins, LayoutGrid, Layers3, List, LockKeyhole, Rocket, Search, Sparkles, Trophy, TrendingUp, Zap } from "lucide-react";
+import { Activity, BarChart3, ChevronDown, Clock3, Coins, LayoutGrid, Layers3, List, LockKeyhole, Rocket, Search, Sparkles, Trophy, TrendingUp, Zap } from "lucide-react";
 import { isFeaturedLaunch, isOfficialBlue } from "@/lib/featured-launches";
 import { compactUsd, parseDisplayAmount } from "@/lib/market-math";
 import type { DbLaunchMetrics, LaunchBuyActivity } from "@/lib/db-launches";
@@ -33,7 +33,7 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metri
   const [dexMarketCaps, setDexMarketCaps] = useState<Map<string, number>>(new Map());
   const [activityByLaunch, setActivityByLaunch] = useState<Map<string, LaunchBuyActivity>>(new Map());
   const [hotLaunchKey, setHotLaunchKey] = useState<string>();
-  const [isPending, startTransition] = useTransition();
+  const [, startTransition] = useTransition();
   const tokensRef = useRef<HTMLDivElement>(null);
   const activityBlocksRef = useRef<Map<string, bigint>>(new Map());
   const activityReadyRef = useRef(false);
@@ -214,6 +214,14 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metri
         : formatNativeNumber(values?.totalVolumeEth ?? 0, networkMeta(networkChainId).symbol)
     };
   }), [chainId, initialLaunches, launches, metrics, nativeUsd, networkMetrics, totalLaunches]);
+  const heroNetworkStats = useMemo(() => [
+    ...networkStats.filter((network) => network.chainId === chainId),
+    ...networkStats.filter((network) => network.chainId !== chainId)
+  ].slice(0, 4), [chainId, networkStats]);
+  const additionalNetworkStats = useMemo(
+    () => networkStats.filter((network) => !heroNetworkStats.some((visible) => visible.chainId === network.chainId)),
+    [heroNetworkStats, networkStats]
+  );
 
   const pulseLaunches = useMemo(() => {
     return [...initialLaunches]
@@ -245,11 +253,11 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metri
     <section className="explorer-shell">
       <section className="launchpad-intro launchpad-overview premium-hero">
         <div className="launchpad-intro-copy">
-          <div className="launchpad-eyebrow"><NetworkIcon chainId={chainId} size={20} /><span>{activeNetwork.name}</span><i>Live tape</i></div>
-          <h1>Launch it.<span>Lock it. Let it trade.</span></h1>
-          <p>One billion tokens, visible rules and liquidity that stays put.</p>
+          <div className="launchpad-eyebrow"><NetworkIcon chainId={chainId} size={20} /><span>{activeNetwork.name}</span></div>
+          <h1>Launch.<span>Lock. Trade.</span></h1>
+          <p>Fair markets. Permanent liquidity. Clear rules.</p>
           <div className="launchpad-intro-actions">
-            <Link className="button primary hero-action" href={`/launch?chain=${chainSlug(chainId)}`}><Rocket size={17} />Open launch studio</Link>
+            <Link className="button primary hero-action" href={`/launch?chain=${chainSlug(chainId)}`}><Rocket size={17} />Create token</Link>
             <button
               className="button hero-secondary"
               onClick={() => {
@@ -259,15 +267,25 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metri
               }}
               type="button"
             >
-              <Activity size={16} />Browse markets
+              <Activity size={16} />Explore markets
             </button>
+            {additionalNetworkStats.length ? <details className="network-overflow-menu">
+              <summary>+{additionalNetworkStats.length} networks <ChevronDown aria-hidden="true" size={13}/></summary>
+              <div>
+                {additionalNetworkStats.map((network) => (
+                  <Link href={`/?chain=${chainSlug(network.chainId)}`} key={`more-${network.chainId}`}>
+                    <NetworkIcon chainId={network.chainId} size={18}/><span><strong>{network.name}</strong><small>{network.tokens} tokens</small></span>
+                  </Link>
+                ))}
+              </div>
+            </details> : null}
           </div>
         </div>
         <div className="overview-metrics network-overview" aria-label="Network launch metrics">
           <div className="network-overview-head"><span>Network tape</span><small>Indexed onchain</small></div>
-          {networkStats.map((network) => (
+          {heroNetworkStats.map((network) => (
             <Link className={network.chainId === chainId ? "network-metric-row active" : "network-metric-row"} href={`/?chain=${chainSlug(network.chainId)}`} key={network.chainId}>
-              <div className="network-metric-name"><NetworkIcon chainId={network.chainId} size={22} /><strong>{network.name}</strong>{network.chainId === chainId ? <i>Viewing</i> : null}</div>
+              <div className="network-metric-name"><NetworkIcon chainId={network.chainId} size={22} /><strong>{network.name}</strong></div>
               <MetricCompact icon={<Coins size={14} />} label="Tokens" value={network.tokens.toLocaleString("en-US")} />
               <MetricCompact icon={<Trophy size={14} />} label="LP locked" value={network.graduated.toLocaleString("en-US")} />
               <MetricCompact icon={<BarChart3 size={14} />} label="Volume" value={network.volume} />
@@ -276,51 +294,43 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metri
         </div>
       </section>
 
-      <div className="trending-section market-pulse-section">
-        <div className="section-row">
-          <div>
-            <div className="section-title"><Zap size={17} />Onchain tape</div>
-            <p className="section-subtitle">Latest confirmed buys · {activeNetwork.name}</p>
+      <section className="market-command-center">
+        <div className="trending-section market-pulse-section">
+          <div className="section-row">
+            <div>
+              <div className="section-title"><Zap size={17} />Onchain tape</div>
+            </div>
           </div>
-          <span className="pulse-live-label"><i />Live</span>
+          {pulseLaunches.length === 0 ? (
+            <div className="empty compact-empty"><Sparkles size={18} /><span>Fresh market activity will appear here.</span></div>
+          ) : (
+            <div className="market-pulse-rail">
+              {pulseLaunches.map((launch) => {
+                const officialBlue = isOfficialBlue(launch);
+                const key = activityKey(launch);
+                const activity = activityByLaunch.get(key);
+                const isHot = hotLaunchKey === key;
+                return (
+                <Link className={isHot ? "market-pulse-item hot" : "market-pulse-item"} href={tokenPath(launch)} key={`pulse-${launch.id}-${launch.token}`}>
+                  <TokenAvatar launch={launch} hot={isHot} />
+                  <div className="market-pulse-copy">
+                    <strong>${launch.symbol}{officialBlue ? <span>Official</span> : null}</strong>
+                    <small>{activity ? `Buy ${formatActivityAge(activity.createdAt)}` : `Launched ${launch.age}`}</small>
+                  </div>
+                  <div className="market-pulse-value">
+                    <span>{launch.launchMode === "direct" ? "Direct DEX" : launch.status === "Graduated" ? "DEX live" : `${launch.progress}% bond`}</span>
+                    <strong>{launch.launchMode === "direct" ? "LP locked" : launch.raised}</strong>
+                  </div>
+                </Link>
+                );
+              })}
+            </div>
+          )}
         </div>
-        {pulseLaunches.length === 0 ? (
-          <div className="empty compact-empty"><Sparkles size={18} /><span>Fresh market activity will appear here.</span></div>
-        ) : (
-          <div className="market-pulse-rail">
-            {pulseLaunches.map((launch) => {
-              const officialBlue = isOfficialBlue(launch);
-              const key = activityKey(launch);
-              const activity = activityByLaunch.get(key);
-              const isHot = hotLaunchKey === key;
-              return (
-              <Link className={isHot ? "market-pulse-item hot" : "market-pulse-item"} href={tokenPath(launch)} key={`pulse-${launch.id}-${launch.token}`}>
-                <TokenAvatar launch={launch} hot={isHot} />
-                <div className="market-pulse-copy">
-                  <strong>${launch.symbol}{officialBlue ? <span>Official</span> : null}</strong>
-                  <small>{activity ? `Buy ${formatActivityAge(activity.createdAt)}` : `Launched ${launch.age}`}</small>
-                </div>
-                <div className="market-pulse-value">
-                  <span>{launch.launchMode === "direct" ? "Direct DEX" : launch.status === "Graduated" ? "DEX live" : `${launch.progress}% bond`}</span>
-                  <strong>{launch.launchMode === "direct" ? "LP locked" : launch.raised}</strong>
-                </div>
-              </Link>
-              );
-            })}
-          </div>
-        )}
-      </div>
 
-      <section className="discovery-panel" ref={tokensRef}>
+        <section className="discovery-panel market-directory-panel" ref={tokensRef}>
         <div className="discovery-heading">
-          <div>
-            <span>Launches</span>
-            <h2>Market directory</h2>
-          </div>
-          <div className={isPending || isPageLoading ? "live-sync syncing" : "live-sync"}>
-            <span className="dot green" />
-            {isPending || isPageLoading ? "Updating" : "Live data"}
-          </div>
+          <h2>Markets</h2>
         </div>
         <div className="explore-toolbar market-directory-toolbar">
           <div className="searchbar">
@@ -344,6 +354,7 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metri
             </div>
           </div>
         </div>
+        </section>
       </section>
 
       {loadError ? (

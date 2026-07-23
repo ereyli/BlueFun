@@ -347,3 +347,506 @@ html[data-theme="dark"] .token-card.featured:hover {
   .token-card,
   .launch-mode-picker > button { transition: none; }
 }
+
+/* Compact home command surface: every network remains visible without a rail. */
+.launchpad-intro.premium-hero {
+  grid-template-columns: minmax(290px, .55fr) minmax(0, 1.45fr);
+  min-height: 0;
+}
+
+.premium-hero .launchpad-intro-copy {
+  align-content: center;
+  padding: 18px 22px;
+}
+
+.premium-hero h1 {
+  font-size: clamp(29px, 2.6vw, 39px);
+  margin: 9px 0 7px;
+}
+
+.premium-hero h1 span {
+  display: block;
+  margin: 2px 0 0;
+}
+
+.premium-hero .launchpad-intro-copy > p { font-size: 10px; }
+.premium-hero .launchpad-intro-actions { margin-top: 11px; }
+
+.premium-hero .overview-metrics.network-overview {
+  align-content: center;
+  display: grid;
+  gap: 7px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  min-width: 0;
+  overflow: visible;
+  padding: 12px 14px 12px 0;
+}
+
+.network-overview .network-metric-row {
+  align-content: center;
+  gap: 5px;
+  grid-template-columns: minmax(82px, 1.1fr) repeat(3, minmax(0, .7fr));
+  min-height: 68px;
+  padding: 9px 10px;
+}
+
+.network-overview .network-metric-name {
+  min-width: 0;
+}
+
+.network-overview .network-metric-name strong {
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.network-overview .network-metric-value {
+  align-items: flex-start;
+  border-left: 1px solid color-mix(in srgb, var(--line) 82%, transparent);
+  gap: 3px;
+  min-width: 0;
+  padding-left: 7px;
+}
+
+.network-overview .network-metric-value:nth-child(2) {
+  border-left: 0;
+  padding-left: 0;
+}
+
+.network-overview .network-metric-value > svg { display: none; }
+.network-overview .network-metric-value span { font-size: 6px; }
+.network-overview .network-metric-value strong {
+  font-size: 10px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.market-command-center {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--ui-radius-lg);
+  box-shadow: 0 12px 34px color-mix(in srgb, var(--text) 5%, transparent);
+  overflow: hidden;
+}
+
+.market-command-center .market-pulse-section,
+.market-command-center .market-directory-panel {
+  background: transparent;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.market-command-center .market-pulse-section { padding: 13px 16px; }
+
+.market-command-center .market-directory-panel {
+  align-items: center;
+  border-top: 1px solid var(--line);
+  gap: 14px;
+  grid-template-columns: 150px minmax(0, 1fr);
+  padding: 13px 16px;
+}
+
+.market-command-center .discovery-heading {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  justify-content: flex-start;
+}
+
+.market-command-center .discovery-heading h2 {
+  font-size: 18px;
+  letter-spacing: -.035em;
+  margin: 0;
+}
+
+.market-command-center .live-sync {
+  font-size: 7px;
+  min-height: 25px;
+  padding-inline: 8px;
+}
+
+.market-command-center .market-directory-toolbar {
+  grid-template-columns: minmax(220px, 1fr) auto !important;
+}
+
+.market-command-center .searchbar { min-height: 40px; }
+.market-command-center .feed-tab { min-height: 32px; }
+.market-command-center .market-view-toggle button { height: 30px; }
+
+html[data-theme="dark"] .market-command-center {
+  background: #0b0d11;
+  box-shadow: 0 18px 46px rgba(0, 0, 0, .2);
+}
+
+@media (max-width: 1080px) {
+  .launchpad-intro.premium-hero {
+    grid-template-columns: minmax(260px, .62fr) minmax(0, 1.38fr);
+  }
+  .network-overview .network-metric-row {
+    grid-template-columns: minmax(0, 1fr) repeat(3, minmax(0, .58fr));
+  }
+  .network-overview .network-metric-name { grid-column: 1 / -1; }
+  .market-command-center .market-directory-panel { grid-template-columns: 120px minmax(0, 1fr); }
+}
+
+@media (max-width: 880px) {
+  .launchpad-intro.premium-hero { grid-template-columns: 1fr; }
+  .premium-hero .overview-metrics.network-overview { padding: 0 16px 14px; }
+  .network-overview .network-metric-row {
+    grid-template-columns: minmax(86px, 1.05fr) repeat(3, minmax(0, .65fr));
+    min-height: 58px;
+  }
+  .network-overview .network-metric-name { grid-column: auto; }
+  .market-command-center { border-radius: 18px; }
+  .market-command-center .market-pulse-rail {
+    display: flex;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .market-command-center .market-pulse-item { flex: 0 0 220px; }
+  .market-command-center .market-directory-panel { grid-template-columns: 1fr; }
+  .market-command-center .discovery-heading { justify-content: space-between; }
+}
+
+@media (max-width: 620px) {
+  .premium-hero .launchpad-intro-copy { padding: 15px 14px 12px; }
+  .premium-hero h1 { font-size: 29px; }
+  .premium-hero .launchpad-intro-copy > p { display: none; }
+  .premium-hero .launchpad-intro-actions {
+    display: grid;
+    gap: 6px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .premium-hero .hero-action,
+  .premium-hero .hero-secondary {
+    font-size: 10px;
+    justify-content: center;
+    min-width: 0;
+    padding-inline: 8px;
+    width: 100%;
+  }
+  .premium-hero .overview-metrics.network-overview {
+    gap: 6px;
+    padding: 0 10px 10px;
+  }
+  .network-overview .network-metric-row {
+    gap: 6px 4px;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    min-height: 72px;
+    padding: 8px;
+  }
+  .network-overview .network-metric-name { grid-column: 1 / -1; }
+  .market-command-center .market-pulse-section,
+  .market-command-center .market-directory-panel { padding: 12px; }
+  .market-command-center .market-directory-toolbar { grid-template-columns: 1fr !important; }
+  .market-command-center .market-directory-actions {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+}
+
+/* Product switcher: compact, anchored and native to both themes. */
+.brand-launchpad-menu > button {
+  background: color-mix(in srgb, var(--panel) 92%, var(--blue) 8%);
+  border-color: color-mix(in srgb, var(--line) 84%, var(--blue) 16%);
+  border-radius: 10px;
+  box-shadow: none;
+  color: var(--text);
+  min-height: 34px;
+  padding: 0 9px 0 6px;
+}
+
+.brand-launchpad-menu > button:hover,
+.brand-launchpad-menu.open > button {
+  background: color-mix(in srgb, var(--panel-2) 90%, var(--blue) 10%);
+  border-color: color-mix(in srgb, var(--line) 55%, var(--blue) 45%);
+  box-shadow: 0 8px 22px color-mix(in srgb, var(--text) 9%, transparent);
+  color: var(--text);
+}
+
+.brand-launchpad-menu > button > i {
+  background: color-mix(in srgb, var(--blue) 12%, var(--panel));
+  border-color: color-mix(in srgb, var(--blue) 38%, var(--line));
+  border-radius: 8px;
+  color: var(--blue);
+  height: 23px;
+  width: 23px;
+}
+
+.brand-launchpad-menu > button > i.nft {
+  background: color-mix(in srgb, var(--green) 12%, var(--panel));
+  border-color: color-mix(in srgb, var(--green) 35%, var(--line));
+  color: var(--green);
+}
+
+.brand-launchpad-popover {
+  background: color-mix(in srgb, var(--panel) 96%, var(--blue) 4%);
+  border-color: color-mix(in srgb, var(--line) 88%, var(--blue) 12%);
+  border-radius: 14px;
+  box-shadow: 0 22px 55px color-mix(in srgb, var(--text) 18%, transparent);
+  gap: 4px;
+  padding: 7px;
+  top: 76px;
+  width: min(248px, calc(100vw - 28px));
+}
+
+.brand-launchpad-popover::before { display: none; }
+
+.brand-launchpad-popover a {
+  border-radius: 10px;
+  color: var(--text);
+  gap: 9px;
+  grid-template-columns: 34px minmax(0, 1fr) 18px;
+  min-height: 50px;
+  padding: 7px;
+}
+
+.brand-launchpad-popover a:hover,
+.brand-launchpad-popover a:focus-visible {
+  background: var(--panel-2);
+  border-color: var(--line);
+  transform: none;
+}
+
+.brand-launchpad-popover a.active {
+  background: color-mix(in srgb, var(--blue) 9%, var(--panel));
+  border-color: color-mix(in srgb, var(--blue) 38%, var(--line));
+}
+
+.brand-launchpad-popover a > i {
+  background: color-mix(in srgb, var(--blue) 11%, var(--panel));
+  border-color: color-mix(in srgb, var(--blue) 35%, var(--line));
+  border-radius: 9px;
+  color: var(--blue);
+  height: 32px;
+  width: 32px;
+}
+
+.brand-launchpad-popover a > i.nft {
+  background: color-mix(in srgb, var(--green) 11%, var(--panel));
+  border-color: color-mix(in srgb, var(--green) 32%, var(--line));
+  color: var(--green);
+}
+
+.brand-launchpad-popover strong { color: var(--text); font-size: 10px; }
+.brand-launchpad-popover a small { color: var(--muted); font-size: 7px; }
+.brand-launchpad-popover em { color: var(--muted); justify-content: center; }
+.brand-launchpad-popover a.active em { color: var(--green); }
+
+/* Future networks never increase hero height: four stay visible, the rest use this menu. */
+.network-overflow-menu { position: relative; }
+
+.network-overflow-menu summary {
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--muted);
+  cursor: pointer;
+  display: flex;
+  font-size: 9px;
+  font-weight: 800;
+  gap: 5px;
+  min-height: 34px;
+  padding: 0 10px;
+  user-select: none;
+}
+
+.network-overflow-menu summary::-webkit-details-marker { display: none; }
+.network-overflow-menu[open] summary svg { transform: rotate(180deg); }
+
+.network-overflow-menu > div {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: 0 18px 44px color-mix(in srgb, var(--text) 16%, transparent);
+  display: grid;
+  gap: 4px;
+  left: 0;
+  min-width: 200px;
+  padding: 6px;
+  position: absolute;
+  top: calc(100% + 7px);
+  z-index: 20;
+}
+
+.network-overflow-menu a {
+  align-items: center;
+  border-radius: 8px;
+  color: var(--text);
+  display: flex;
+  gap: 8px;
+  padding: 7px;
+}
+
+.network-overflow-menu a:hover { background: var(--panel-2); }
+.network-overflow-menu a span { display: grid; gap: 2px; }
+.network-overflow-menu a strong { font-size: 9px; }
+.network-overflow-menu a small { color: var(--muted); font-size: 7px; }
+
+/* Dense market command bar: one useful label, no explanatory filler. */
+.market-command-center .market-pulse-section {
+  align-items: center;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: 118px minmax(0, 1fr);
+  padding: 8px 10px;
+}
+
+.market-command-center .market-pulse-section .section-title {
+  font-size: 13px;
+  gap: 6px;
+  letter-spacing: -.025em;
+  white-space: nowrap;
+}
+
+.market-command-center .market-pulse-section .section-title svg {
+  height: 14px;
+  width: 14px;
+}
+
+.market-command-center .market-pulse-rail { gap: 5px; }
+
+.market-command-center .market-pulse-item {
+  gap: 5px;
+  grid-template-columns: 30px minmax(0, 1fr) auto;
+  min-height: 44px;
+  padding: 5px;
+}
+
+.market-command-center .market-pulse-item .token-art {
+  border-radius: 8px;
+  height: 30px;
+  width: 30px;
+}
+
+.market-command-center .market-pulse-copy strong { font-size: 9px; }
+.market-command-center .market-pulse-copy small,
+.market-command-center .market-pulse-value span { font-size: 6px; }
+.market-command-center .market-pulse-value strong { font-size: 8px; }
+
+.market-command-center .market-directory-panel {
+  gap: 10px;
+  grid-template-columns: 108px minmax(0, 1fr);
+  padding: 8px 10px;
+}
+
+.market-command-center .discovery-heading h2 { font-size: 15px; }
+.market-command-center .searchbar { min-height: 34px; }
+.market-command-center .feed-tab { min-height: 28px; padding-inline: 8px; }
+.market-command-center .market-view-toggle button { height: 27px; width: 27px; }
+
+@media (max-width: 880px) {
+  .market-command-center .market-pulse-section {
+    grid-template-columns: 104px minmax(0, 1fr);
+  }
+
+  .market-command-center .market-pulse-item { flex-basis: 190px; }
+
+  .market-command-center .market-directory-panel {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 620px) {
+  .market-command-center .market-pulse-section,
+  .market-command-center .market-directory-panel { padding: 8px; }
+
+  .market-command-center .market-pulse-section {
+    gap: 7px;
+    grid-template-columns: 98px minmax(0, 1fr);
+  }
+
+  .market-command-center .market-pulse-section .section-title { font-size: 11px; }
+  .market-command-center .market-pulse-item { flex-basis: 176px; }
+}
+
+/* Product switcher belongs to the global header, not inside the brand lockup. */
+.topbar .brand-launchpad-menu { z-index: 110; }
+
+.topbar .brand-launchpad-menu > button {
+  font-size: 9px;
+  letter-spacing: .04em;
+  min-height: 42px;
+  padding: 0 11px 0 7px;
+  text-transform: none;
+}
+
+.topbar .launchpad-product-mark {
+  align-items: center;
+  display: flex;
+  height: 27px;
+  justify-content: center;
+  overflow: hidden;
+  width: 27px;
+}
+
+.topbar .launchpad-product-mark img {
+  height: 100%;
+  object-fit: contain;
+  width: 100%;
+}
+
+.topbar .launchpad-product-mark.nft {
+  border-radius: 7px;
+}
+
+.topbar .launchpad-product-mark.nft img { object-fit: cover; }
+
+.topbar .brand-launchpad-popover {
+  left: 0;
+  position: absolute;
+  top: calc(100% + 10px);
+}
+
+@media (max-width: 760px) {
+  .topbar .mobile-brand { display: none; }
+  .topbar .topbar-actions {
+    gap: 5px;
+    justify-content: space-between;
+    width: 100%;
+  }
+
+  .topbar .brand-launchpad-menu > button {
+    justify-content: center;
+    min-height: 38px;
+    padding: 0;
+    width: 38px;
+  }
+
+  .topbar .brand-launchpad-menu > button > span,
+  .topbar .brand-launchpad-menu > button > svg { display: none; }
+
+  .topbar .brand-launchpad-menu > button > .launchpad-product-mark {
+    display: flex;
+    height: 30px;
+    width: 30px;
+  }
+
+  .topbar .brand-launchpad-popover {
+    display: grid;
+    left: 10px;
+    position: fixed;
+    top: 64px;
+  }
+}
+
+.brand-launchpad-popover .launchpad-product-preview {
+  align-items: center;
+  border-radius: 9px;
+  display: flex;
+  height: 34px;
+  justify-content: center;
+  overflow: hidden;
+  width: 34px;
+}
+
+.brand-launchpad-popover .launchpad-product-preview img {
+  height: 100%;
+  object-fit: contain;
+  width: 100%;
+}
+
+.brand-launchpad-popover .launchpad-product-preview.nft img { object-fit: cover; }

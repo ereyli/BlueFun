@@ -97,13 +97,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   </span>
                   <span className="brand-wordmark"><strong>BlueFun</strong><small>onchain launch desk</small></span>
                 </ChainLink></Suspense>
-                <BrandLaunchpadMenu />
               </div>
               <Suspense fallback={null}><SideNav /></Suspense>
-              <div className="sidebar-network-note">
-                <span className="sidebar-network-icons"><NetworkIcon chainId={8453} size={25} /><NetworkIcon chainId={4663} size={25} /><NetworkIcon chainId={143} size={25} /></span>
-                <span><strong>Multichain</strong><small>Base + Robinhood + Monad live</small></span>
-              </div>
               <a className="sidebar-social-link" href="https://x.com/BluefunLaunch" target="_blank" rel="noreferrer" aria-label="BlueFun on X">
                 <span className="x-icon" aria-hidden="true">X</span>
                 <span>@BluefunLaunch</span>
@@ -115,7 +110,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                   <Image src="/brand/bluelogo.webp" alt="" width={32} height={32} priority />
                 </Link>
                 <div className="topbar-actions">
-                  <span className="topbar-live"><i />Protocol live</span>
+                  <BrandLaunchpadMenu />
                   <CreateLaunchMenu />
                   <Suspense fallback={null}><NetworkSelector /></Suspense>
                   <ThemeToggle />
