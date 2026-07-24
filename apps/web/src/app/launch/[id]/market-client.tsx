@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 import { formatEther, maxUint256, parseEther, zeroAddress } from "viem";
 import { useAccount, useBalance, useChainId, useReadContract, useReadContracts, useSignMessage, useSignTypedData, useSimulateContract, useSwitchChain, useWaitForTransactionReceipt, useWriteContract } from "wagmi";
-import { ArrowDownUp, Copy, ExternalLink, Flame, Loader2, LockKeyhole, RotateCcw, Settings, ShieldCheck } from "lucide-react";
+import { ArrowDownUp, Copy, ExternalLink, Flame, Loader2, LockKeyhole, RotateCcw, Settings, Share2, ShieldCheck } from "lucide-react";
 import type {
   CandlestickData,
   HistogramData,
@@ -45,12 +45,11 @@ import {
 import { isOfficialBlue } from "@/lib/featured-launches";
 import type { DeployedLaunch, DeployedTrade } from "@/lib/onchain-launches";
 import { chainSlug } from "@/lib/chain-slug";
-import { tokenPath } from "@/lib/token-url";
-import { siteUrl } from "@/lib/site-url";
 import { optimizedTokenImageUrl } from "@/lib/token-metadata";
 import { blueFunV4PoolKey, buildV4EthToTokenSwap, buildV4TokenToEthSwap } from "@/lib/uniswap-v4-swap";
 import { NetworkIcon } from "@/components/network-icon";
 import { chatMessageToSign } from "@/lib/chat-auth";
+import { TokenShareDialog } from "@/components/token-share-dialog";
 
 const MAX_UINT160 = (1n << 160n) - 1n;
 const PERMIT2_SESSION_SECONDS = 30 * 24 * 60 * 60;
@@ -77,6 +76,7 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
   const [realtimeStatus, setRealtimeStatus] = useState<RealtimeStatus>("connecting");
   const [chainSwitchError, setChainSwitchError] = useState("");
   const [tradeFlowError, setTradeFlowError] = useState("");
+  const [shareOpen, setShareOpen] = useState(false);
   const lastRefreshedReceiptHash = useRef<`0x${string}` | undefined>(undefined);
   const refreshTradeStateRef = useRef<() => void>(() => undefined);
   const { address, isConnected } = useAccount();
@@ -643,9 +643,9 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
               {launch.description ? <p className="market-description">{launch.description}</p> : null}
             </div>
             <div className="market-actions">
-              <a className="market-icon-action x-share-button" aria-label="Share on X" title="Share on X" href={xShareUrl(launch)} target="_blank" rel="noreferrer">
-                <span className="x-share-icon">X</span>
-              </a>
+              <button className="market-icon-action market-share-card-button" aria-label="Create social share card" title="Create social share card" onClick={() => setShareOpen(true)} type="button">
+                <Share2 size={15}/><span>Share card</span>
+              </button>
               <a className="market-icon-action" aria-label="Open token explorer" title={chain.name === "Base" ? "BaseScan" : "Explorer"} href={`${chain.blockExplorers.default.url}/token/${launch.token}`} target="_blank" rel="noreferrer">
                 <ExternalLink size={16} />
               </a>
@@ -669,6 +669,7 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
         </div>
 
       </section>
+      <TokenShareDialog launch={launch} open={shareOpen} onClose={() => setShareOpen(false)} />
 
       <section className="market-content-column">
         <div className="chart-panel">
@@ -1011,12 +1012,6 @@ function TokenChat({
 
 function TradeStatus({ children, tone }: { children: React.ReactNode; tone: "info" | "success" | "danger" }) {
   return <div className={`trade-status ${tone}`}>{children}</div>;
-}
-
-function xShareUrl(launch: DeployedLaunch) {
-  const text = `Trade ${launch.name} ($${launch.symbol}) on BlueFun`;
-  const url = siteUrl(tokenPath(launch));
-  return `https://x.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`;
 }
 
 function GraduatedTradeCard({

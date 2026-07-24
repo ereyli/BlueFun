@@ -7,7 +7,6 @@ import { getDbLaunchByTokenSuffix, getDbTrades } from "@/lib/db-launches";
 import { getDeployedLaunches, getLaunchTrades } from "@/lib/onchain-launches";
 import { getRobinhoodLaunches } from "@/lib/robinhood-launches";
 import { siteUrl } from "@/lib/site-url";
-import { ipfsToGatewayUrl } from "@/lib/token-metadata";
 import { tokenPath, tokenSlug, tokenSuffixFromSlug } from "@/lib/token-url";
 
 export const revalidate = 15;
@@ -45,12 +44,12 @@ export async function generateMetadata({ params }: TokenParams): Promise<Metadat
   const title = `${launch.name} ($${launch.symbol}) on BlueFun`;
   const description = launch.description || `Trade $${launch.symbol} on the BlueFun bonding curve.`;
   const url = siteUrl(tokenPath(launch));
-  const image = ipfsToGatewayUrl(launch.imageURI) || siteUrl("/brand/bluelogo.webp");
+  const image = siteUrl(`/api/token/share-card?chain=${launch.chainId}&token=${encodeURIComponent(launch.token)}`);
   return {
     title,
     description,
     alternates: { canonical: url },
-    openGraph: { title, description, url, siteName: "BlueFun", type: "website", images: [{ url: image, width: 1200, height: 630, alt: `${launch.name} token logo` }] },
+    openGraph: { title, description, url, siteName: "BlueFun", type: "website", images: [{ url: image, width: 1200, height: 630, alt: `${launch.name} social share card` }] },
     twitter: { card: "summary_large_image", site: "@BluefunLaunch", creator: "@BluefunLaunch", title, description, images: [image] }
   };
 }
