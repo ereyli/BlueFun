@@ -511,6 +511,56 @@ export async function getDbLaunchByTokenSuffix(tokenSuffix: string, chainId = 84
   }
 }
 
+export async function getDbLaunchByToken(token: string, chainId = 8453): Promise<DeployedLaunch | undefined> {
+  if (process.env.POSTGRES_INDEXER_ENABLED !== "true" || !/^0x[a-fA-F0-9]{40}$/.test(token)) return undefined;
+  const context = dbContext(chainId);
+
+  try {
+    let rows: Array<Record<string, unknown>>;
+    if (hasSupabaseConfig()) {
+      let response: { data: Array<Record<string, unknown>> | null; error: { message?: string; details?: string } | null } = await getSupabase()
+        .from("launches")
+        .select(launchColumns)
+        .in("scope", context.scopes)
+        .gte("created_block", context.deploymentBlock)
+        .ilike("token", token)
+        .limit(1);
+      if (response.error && isMissingSocialColumnError(response.error)) {
+        response = await getSupabase()
+          .from("launches")
+          .select(legacyLaunchColumns)
+          .in("scope", context.scopes)
+          .gte("created_block", context.deploymentBlock)
+          .ilike("token", token)
+          .limit(1);
+      }
+      if (response.error) throw response.error;
+      rows = (response.data ?? []) as Array<Record<string, unknown>>;
+    } else {
+      if (!process.env.DATABASE_URL) return undefined;
+      pool ??= new pg.Pool({ connectionString: process.env.DATABASE_URL, connectionTimeoutMillis: 750, idleTimeoutMillis: 5_000, max: 5 });
+      const result = await withTimeout(pool.query(
+        `select ${launchColumns}
+         from launches
+         where scope = any($1::text[])
+           and created_block >= $2
+           and lower(token) = lower($3)
+         limit 1`,
+        [context.scopes, context.deploymentBlock, token]
+      ), 1_500);
+      rows = result.rows;
+    }
+
+    const row = rows.find((item) => String(item.token || "").toLowerCase() === token.toLowerCase());
+    if (!row) return undefined;
+    const launch = (await mapRows([row], context.chainId))[0];
+    return launch ? await attachGraduationPosition(launch, context.scopes) : undefined;
+  } catch (error) {
+    console.error("Failed to read launch by token", error);
+    return undefined;
+  }
+}
+
 export async function getDbLaunchMetrics(chainId = 8453): Promise<DbLaunchMetrics | undefined> {
   if (process.env.POSTGRES_INDEXER_ENABLED !== "true") return undefined;
   const context = dbContext(chainId);

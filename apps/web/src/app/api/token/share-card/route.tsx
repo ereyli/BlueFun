@@ -1,4 +1,6 @@
 import { ImageResponse } from "next/og";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
 import sharp from "sharp";
 import { getDbLaunchPage, getDbLaunches } from "@/lib/db-launches";
 import { getDeployedLaunches } from "@/lib/onchain-launches";
@@ -172,14 +174,10 @@ function safeFileName(value: string) {
 async function shareImageDataUrl(value: string | undefined, requestUrl: string, size: number) {
   if (!value) return "";
   try {
-    const normalized = value.startsWith("ipfs://")
-      ? `https://gateway.pinata.cloud/ipfs/${value.slice(7)}`
-      : new URL(value, requestUrl).toString();
-    const response = await fetch(normalized, { next: { revalidate: 300 } });
-    if (!response.ok) return "";
-    const declared = Number(response.headers.get("content-length") || "0");
-    if (declared > 6 * 1024 * 1024) return "";
-    const input = Buffer.from(await response.arrayBuffer());
+    const localAsset = value === "/brand/bluelogo.webp" || value.startsWith("/networks/");
+    const input = localAsset
+      ? await readPublicShareAsset(value)
+      : await fetchShareImage(value, requestUrl);
     if (input.byteLength > 6 * 1024 * 1024) return "";
     const png = await sharp(input, { limitInputPixels: 24_000_000 })
       .rotate()
@@ -190,4 +188,32 @@ async function shareImageDataUrl(value: string | undefined, requestUrl: string, 
   } catch {
     return "";
   }
+}
+
+async function readPublicShareAsset(value: string) {
+  const assetPath = value.replace(/^\//, "");
+  const candidates = [
+    path.join(process.cwd(), "apps/web/public", assetPath),
+    path.join(process.cwd(), "public", assetPath)
+  ];
+  let lastError: unknown;
+  for (const candidate of candidates) {
+    try {
+      return await readFile(candidate);
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  throw lastError;
+}
+
+async function fetchShareImage(value: string, requestUrl: string) {
+  const normalized = value.startsWith("ipfs://")
+    ? `https://gateway.pinata.cloud/ipfs/${value.slice(7)}`
+    : new URL(value, requestUrl).toString();
+  const response = await fetch(normalized, { next: { revalidate: 300 } });
+  if (!response.ok) throw new Error("Image request failed");
+  const declared = Number(response.headers.get("content-length") || "0");
+  if (declared > 6 * 1024 * 1024) throw new Error("Image is too large");
+  return Buffer.from(await response.arrayBuffer());
 }

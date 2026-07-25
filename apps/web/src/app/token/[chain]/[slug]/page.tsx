@@ -1,13 +1,12 @@
 import type { Metadata } from "next";
 import { notFound, permanentRedirect } from "next/navigation";
 import { unstable_cache } from "next/cache";
-import { MarketClient } from "@/app/launch/[id]/market-client";
-import { chainIdFromParam, chainSlug } from "@/lib/chain-slug";
-import { getDbLaunchByTokenSuffix, getDbTrades } from "@/lib/db-launches";
-import { getDeployedLaunches, getLaunchTrades } from "@/lib/onchain-launches";
+import { chainIdFromParam } from "@/lib/chain-slug";
+import { getDbLaunchByTokenSuffix } from "@/lib/db-launches";
+import { getDeployedLaunches } from "@/lib/onchain-launches";
 import { getRobinhoodLaunches } from "@/lib/robinhood-launches";
 import { siteUrl } from "@/lib/site-url";
-import { tokenPath, tokenSlug, tokenSuffixFromSlug } from "@/lib/token-url";
+import { tokenPath, tokenSuffixFromSlug } from "@/lib/token-url";
 
 export const revalidate = 15;
 
@@ -24,16 +23,6 @@ const getCachedLaunchBySuffix = unstable_cache(
   },
   ["market-launch-token-v1"],
   { revalidate: 15 }
-);
-
-const getCachedTokenTrades = unstable_cache(
-  async (launchId: string, chainId: number, scope?: string) => scope
-    ? getDbTrades(launchId, chainId, scope).then((value) => value ?? [])
-    : chainId !== 8453
-      ? getDbTrades(launchId, chainId).then((value) => value ?? [])
-      : getLaunchTrades(launchId),
-  ["market-token-trades-v1"],
-  { revalidate: 10 }
 );
 
 export async function generateMetadata({ params }: TokenParams): Promise<Metadata> {
@@ -58,9 +47,7 @@ export default async function TokenMarketPage({ params }: TokenParams) {
   const { chain, slug } = await params;
   const launch = await resolveTokenLaunch(chain, slug);
   if (!launch) notFound();
-  if (slug !== tokenSlug(launch) || chain !== chainSlug(launch.chainId)) permanentRedirect(tokenPath(launch));
-  const trades = await getCachedTokenTrades(launch.id, launch.chainId, launch.scope);
-  return <MarketClient id={launch.id} launch={launch} trades={trades} />;
+  permanentRedirect(tokenPath(launch));
 }
 
 async function resolveTokenLaunch(chain: string, slug: string) {

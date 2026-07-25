@@ -36,17 +36,13 @@ export function TokenShareDialog({
   }, [open, onClose]);
 
   const tokenUrl = origin ? `${origin}${tokenPath(launch)}` : "";
-  // X caches link cards by their exact canonical URL. Keep the normal token URL
-  // for copying/native sharing, but give X a stable card-versioned URL so a
-  // previously failed image scrape never suppresses a later share card.
-  const xShareTokenUrl = tokenUrl ? `${tokenUrl}?share=card-v2` : "";
   const cardUrl = `/api/token/share-card?chain=${launch.chainId}&token=${encodeURIComponent(launch.token)}&v=${cacheKey}`;
   const shareText = useMemo(() => {
     const route = launch.launchMode === "direct" ? "Direct DEX · LP locked" : `${launch.status} · Bond curve`;
-    return `${launch.name} ($${launch.symbol}) is live on BlueFun.\n${network.name} · ${route}\nDiscover the story and trade onchain 👇`;
-  }, [launch.launchMode, launch.name, launch.status, launch.symbol, network.name]);
+    return `${launch.name} ($${launch.symbol}) is live on BlueFun.\n${network.name} · ${route}\nCA: ${launch.token}\nDiscover the story and trade onchain 👇`;
+  }, [launch.launchMode, launch.name, launch.status, launch.symbol, launch.token, network.name]);
   const xUrl = tokenUrl
-    ? `https://x.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(xShareTokenUrl)}`
+    ? `https://x.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(tokenUrl)}`
     : "#";
 
   async function copyLink() {
