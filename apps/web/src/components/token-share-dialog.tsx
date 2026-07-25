@@ -36,13 +36,14 @@ export function TokenShareDialog({
   }, [open, onClose]);
 
   const tokenUrl = origin ? `${origin}${tokenPath(launch)}` : "";
+  const xShareUrl = tokenUrl ? `${tokenUrl}?ref=x-card-v3` : "";
   const cardUrl = `/api/token/share-card?chain=${launch.chainId}&token=${encodeURIComponent(launch.token)}&v=${cacheKey}`;
   const shareText = useMemo(() => {
     const route = launch.launchMode === "direct" ? "Direct DEX · LP locked" : `${launch.status} · Bond curve`;
     return `${launch.name} ($${launch.symbol}) is live on BlueFun.\n${network.name} · ${route}\nCA: ${launch.token}\nDiscover the story and trade onchain 👇`;
   }, [launch.launchMode, launch.name, launch.status, launch.symbol, launch.token, network.name]);
   const xUrl = tokenUrl
-    ? `https://x.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(tokenUrl)}`
+    ? `https://x.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(xShareUrl)}`
     : "#";
 
   async function copyLink() {

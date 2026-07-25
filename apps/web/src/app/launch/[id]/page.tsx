@@ -34,7 +34,7 @@ export async function generateMetadata({ params, searchParams }: LaunchParams): 
   const title = `${launch.name} ($${launch.symbol}) on BlueFun`;
   const description = launch.description || `Trade $${launch.symbol} on the BlueFun bonding curve.`;
   const url = siteUrl(tokenPath(launch));
-  const image = siteUrl(`/api/token/share-card?chain=${launch.chainId}&token=${encodeURIComponent(launch.token)}`);
+  const image = siteUrl(`/api/token/share-card?chain=${launch.chainId}&token=${encodeURIComponent(launch.token)}&v=20260725-3`);
 
   return {
     title,
@@ -46,7 +46,7 @@ export async function generateMetadata({ params, searchParams }: LaunchParams): 
       url,
       siteName: "BlueFun",
       type: "website",
-      images: [{ url: image, width: 1200, height: 630, alt: `${launch.name} social share card` }]
+      images: [{ url: image, type: "image/png", width: 1200, height: 630, alt: `${launch.name} social share card` }]
     },
     twitter: {
       card: "summary_large_image",
@@ -54,7 +54,7 @@ export async function generateMetadata({ params, searchParams }: LaunchParams): 
       creator: "@BluefunLaunch",
       title,
       description,
-      images: [image]
+      images: [{ url: image, alt: `${launch.name} social share card` }]
     }
   };
 }
