@@ -1,12 +1,14 @@
 import { ImageResponse } from "next/og";
 import sharp from "sharp";
-import { chainSlug } from "@/lib/chain-slug";
+import { getDbLaunchPage, getDbLaunches } from "@/lib/db-launches";
+import { getDeployedLaunches } from "@/lib/onchain-launches";
+import { getRobinhoodLaunches } from "@/lib/robinhood-launches";
 
 export const runtime = "nodejs";
 
 type ShareLaunch = {
   chainId: number;
-  launchMode: "bond" | "direct";
+  launchMode?: "bond" | "direct";
   token: string;
   creator: string;
   name: string;
@@ -35,13 +37,7 @@ export async function GET(request: Request) {
     return new Response("Invalid token", { status: 400 });
   }
 
-  const apiUrl = new URL("/api/launches", request.url);
-  apiUrl.searchParams.set("chain", chainSlug(chainId));
-  apiUrl.searchParams.set("q", token);
-  const payload = await fetch(apiUrl, { next: { revalidate: 10 } })
-    .then((response) => response.ok ? response.json() : undefined)
-    .catch(() => undefined) as { launches?: ShareLaunch[] } | undefined;
-  const launch = payload?.launches?.find((item) => item.token.toLowerCase() === token.toLowerCase());
+  const launch = await getShareLaunch(chainId, token);
   if (!launch) return new Response("Token not found", { status: 404 });
 
   const [tokenImage, networkIcon, brandIcon] = await Promise.all([
@@ -133,6 +129,19 @@ export async function GET(request: Request) {
       }
     }
   );
+}
+
+async function getShareLaunch(chainId: number, token: string): Promise<ShareLaunch | undefined> {
+  const indexed = await getDbLaunchPage(chainId, { query: token, pageSize: 21 }).catch(() => undefined);
+  const indexedMatch = indexed?.launches.find((item) => item.token.toLowerCase() === token.toLowerCase());
+  if (indexedMatch) return indexedMatch;
+
+  const launches = chainId === 4663
+    ? await getRobinhoodLaunches().catch(() => [])
+    : chainId === 143 || chainId === 988
+      ? await getDbLaunches(chainId).then((items) => items ?? []).catch(() => [])
+      : await getDeployedLaunches().catch(() => []);
+  return launches.find((item) => item.token.toLowerCase() === token.toLowerCase());
 }
 
 function ShareBadge({ accent, value }: { accent: string; value: string }) {
