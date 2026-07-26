@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { encodeAbiParameters, formatEther, getAddress, isAddress, keccak256, parseEther, zeroAddress, type Address, type Hex } from "viem";
 import { usePublicClient, useReadContract, useWriteContract } from "wagmi";
-import { CalendarClock, CircleDollarSign, Gift, Loader2, Plus, RefreshCw, Trash2 } from "lucide-react";
+import { CalendarClock, CircleDollarSign, Gift, Loader2, Plus, RefreshCw, Trash2 } from "@/components/bluefun-icons";
 import { blueEditionAbi, bluePFPAbi, bluePFPV3RevealAbi, nftControllerForDeployment, nftDeploymentForFactory, nftDropControllerAbi, nftProtocolVersion } from "@/lib/nft-contracts";
 import { buildAllowlistTree, parseAllowlistCSV } from "@/lib/nft-allowlist";
 import { CreatorCollectionSettings } from "./creator-collection-settings";

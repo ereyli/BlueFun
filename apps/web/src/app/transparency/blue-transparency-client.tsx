@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Image from "next/image";
-import { CheckCircle2, Copy, ExternalLink, LoaderCircle, LockKeyhole, RefreshCw, ShieldCheck } from "lucide-react";
+import { CheckCircle2, Copy, ExternalLink, LoaderCircle, LockKeyhole, RefreshCw, ShieldCheck } from "@/components/bluefun-icons";
 import type { BlueTransparencyData } from "@/lib/blue-transparency";
 import { BlueStakingPanel } from "@/components/blue-staking-panel";
 

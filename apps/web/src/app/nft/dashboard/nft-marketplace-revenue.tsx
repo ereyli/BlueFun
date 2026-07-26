@@ -1,6 +1,6 @@
 "use client";
 
-import { CircleDollarSign, ShieldCheck } from "lucide-react";
+import { CircleDollarSign, ShieldCheck } from "@/components/bluefun-icons";
 
 export function NFTMarketplaceRevenue() {
   return <section className="nft-market-earnings">

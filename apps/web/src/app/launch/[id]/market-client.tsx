@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 import { formatEther, maxUint256, parseEther, zeroAddress } from "viem";
 import { useAccount, useBalance, useChainId, useReadContract, useReadContracts, useSignMessage, useSignTypedData, useSimulateContract, useSwitchChain, useWaitForTransactionReceipt, useWriteContract } from "wagmi";
-import { ArrowDownUp, Copy, ExternalLink, Flame, Loader2, LockKeyhole, RotateCcw, Settings, Share2, ShieldCheck } from "lucide-react";
+import { ArrowDownUp, Copy, ExternalLink, Flame, Loader2, LockKeyhole, RotateCcw, Settings, Share2, ShieldCheck } from "@/components/bluefun-icons";
 import type {
   CandlestickData,
   HistogramData,
@@ -50,6 +50,7 @@ import { blueFunV4PoolKey, buildV4EthToTokenSwap, buildV4TokenToEthSwap } from "
 import { NetworkIcon } from "@/components/network-icon";
 import { chatMessageToSign } from "@/lib/chat-auth";
 import { TokenShareDialog } from "@/components/token-share-dialog";
+import { BlueFunState } from "@/components/bluefun-state";
 
 const MAX_UINT160 = (1n << 160n) - 1n;
 const PERMIT2_SESSION_SECONDS = 30 * 24 * 60 * 60;
@@ -618,7 +619,7 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
   }
 
   if (!launch) {
-    return <div className="empty">Loading market...</div>;
+    return <BlueFunState title="Opening market desk" text="Loading the latest token, liquidity and trade state." variant="loading" />;
   }
 
   const officialBlue = isOfficialBlue(launch);
@@ -1731,26 +1732,28 @@ function TradeChart({ trades, status, symbol, ethUsd, nativeSymbol }: { trades: 
       autoSize: true,
       height: 340,
       layout: {
-        background: { type: ColorType.Solid, color: darkChart ? "#080809" : "#f8faff" },
-        textColor: darkChart ? "#b8bdc9" : "#5f6f95",
-        fontFamily: "Inter, ui-sans-serif, system-ui"
+        background: { type: ColorType.Solid, color: darkChart ? "#08090d" : "#fbfcff" },
+        textColor: darkChart ? "#9ca6b8" : "#63718d",
+        fontFamily: "\"Helvetica Neue\", Inter, ui-sans-serif, system-ui"
       },
       grid: {
-        vertLines: { color: darkChart ? "rgba(255, 255, 255, 0.075)" : "rgba(184, 198, 230, 0.45)" },
-        horzLines: { color: darkChart ? "rgba(255, 255, 255, 0.075)" : "rgba(184, 198, 230, 0.45)" }
+        vertLines: { color: darkChart ? "rgba(126, 145, 184, 0.09)" : "rgba(112, 132, 174, 0.13)" },
+        horzLines: { color: darkChart ? "rgba(126, 145, 184, 0.09)" : "rgba(112, 132, 174, 0.13)" }
       },
       rightPriceScale: {
-        borderColor: darkChart ? "#29292f" : "#d8e0f3",
+        borderColor: darkChart ? "#252a34" : "#dfe5f1",
         scaleMargins: { top: 0.12, bottom: 0.28 }
       },
       timeScale: {
-        borderColor: darkChart ? "#29292f" : "#d8e0f3",
+        barSpacing: 14,
+        borderColor: darkChart ? "#252a34" : "#dfe5f1",
+        rightOffset: 3,
         timeVisible: true,
         secondsVisible: false
       },
       crosshair: {
-        vertLine: { color: "rgba(0, 0, 255, 0.28)" },
-        horzLine: { color: "rgba(0, 0, 255, 0.28)" }
+        vertLine: { color: "rgba(66, 217, 255, 0.42)", labelBackgroundColor: "#315cff" },
+        horzLine: { color: "rgba(66, 217, 255, 0.42)", labelBackgroundColor: "#315cff" }
       },
       localization: {
         priceFormatter: (price: number) => chartMode === "marketCap" ? compactUsd(price) : formatUsdPrice(price)
@@ -1760,12 +1763,12 @@ function TradeChart({ trades, status, symbol, ethUsd, nativeSymbol }: { trades: 
       chartApiRef.current = createdChart;
 
       const candleSeries = createdChart.addSeries(CandlestickSeries, {
-      upColor: "#17b26a",
-      downColor: "#e5484d",
-      borderUpColor: "#17b26a",
-      borderDownColor: "#e5484d",
-      wickUpColor: "#17b26a",
-      wickDownColor: "#e5484d",
+      upColor: "#25d39f",
+      downColor: "#ff6570",
+      borderUpColor: "#25d39f",
+      borderDownColor: "#ff6570",
+      wickUpColor: "#25d39f",
+      wickDownColor: "#ff6570",
       priceFormat: {
         type: "custom",
         formatter: (price: number) => chartMode === "marketCap" ? compactUsd(price) : formatUsdPrice(price),
@@ -1777,7 +1780,7 @@ function TradeChart({ trades, status, symbol, ethUsd, nativeSymbol }: { trades: 
       const volumeSeries = createdChart.addSeries(HistogramSeries, {
       priceFormat: { type: "volume" },
       priceScaleId: "volume",
-      color: "rgba(0, 0, 255, 0.18)",
+      color: "rgba(49, 92, 255, 0.22)",
       lastValueVisible: false,
       priceLineVisible: false
     });
@@ -1977,7 +1980,7 @@ function buildChartData(
   const volume = sorted.map(([time, bucket]) => ({
     time: time as UTCTimestamp,
     value: bucket.volume,
-    color: bucket.side === "buy" ? "rgba(23, 178, 106, 0.38)" : "rgba(229, 72, 77, 0.34)"
+    color: bucket.side === "buy" ? "rgba(37, 211, 159, 0.42)" : "rgba(255, 101, 112, 0.38)"
   }));
 
   return {

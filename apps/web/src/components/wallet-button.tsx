@@ -1,7 +1,7 @@
 "use client";
 
 import { ConnectButton } from "@rainbow-me/rainbowkit";
-import { ChevronDown, Wallet } from "lucide-react";
+import { ChevronDown, Wallet } from "@/components/bluefun-icons";
 
 export function WalletButton() {
   return (
@@ -14,7 +14,8 @@ export function WalletButton() {
           return (
             <button className="button primary wallet-control" disabled={!ready} onClick={openConnectModal} type="button">
               <Wallet size={17} />
-              <span>Connect Wallet</span>
+              <span className="wallet-label-wide">Connect Wallet</span>
+              <span className="wallet-label-compact">Connect</span>
             </button>
           );
         }

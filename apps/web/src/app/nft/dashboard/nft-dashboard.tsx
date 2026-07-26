@@ -5,7 +5,7 @@ import Link from "next/link";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { formatEther, type Address } from "viem";
 import { useAccount, usePublicClient, useReadContract, useWriteContract } from "wagmi";
-import { Activity, ArrowDownLeft, ArrowUpRight, ChevronRight, ExternalLink, Gavel, Images, LayoutDashboard, Loader2, Plus, ShoppingBag, Sparkles, Trash2, Wallet } from "lucide-react";
+import { Activity, ArrowDownLeft, ArrowUpRight, ChevronRight, ExternalLink, Gavel, Images, LayoutDashboard, Loader2, Plus, ShoppingBag, Sparkles, Trash2, Wallet } from "@/components/bluefun-icons";
 import { blueEditionAbi, bluePFPAbi, nftMarketplaceAbi, nftPFPMarketplaceAbi } from "@/lib/nft-contracts";
 import { NFTWalletOffers } from "./nft-wallet-offers";
 import { NFTAssetDialog, type DashboardNFT } from "./nft-asset-dialog";

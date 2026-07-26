@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, useTransition, type ReactNode } from "react";
 import Link from "next/link";
-import { Activity, BarChart3, ChevronDown, Clock3, Coins, LayoutGrid, Layers3, List, LockKeyhole, Rocket, Search, Sparkles, Trophy, TrendingUp, Zap } from "lucide-react";
+import { Activity, BarChart3, ChevronDown, Clock3, Coins, LayoutGrid, Layers3, List, LockKeyhole, Rocket, Search, Sparkles, Trophy, TrendingUp, Zap } from "@/components/bluefun-icons";
 import { isFeaturedLaunch, isOfficialBlue } from "@/lib/featured-launches";
 import { compactUsd, parseDisplayAmount } from "@/lib/market-math";
 import type { DbLaunchMetrics, LaunchBuyActivity } from "@/lib/db-launches";
@@ -14,6 +14,7 @@ import { tokenPath } from "@/lib/token-url";
 import { launchEconomics } from "@/lib/contracts";
 import { indexerScopesForChain } from "@/lib/contracts";
 import { useRealtimeRefresh } from "@/lib/use-realtime-refresh";
+import { BlueFunState } from "@/components/bluefun-state";
 
 type Filter = "All" | "Volume" | "MarketCap" | "New";
 type ViewMode = "grid" | "list";
@@ -358,19 +359,22 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metri
       </section>
 
       {loadError ? (
-        <div className="explore-data-warning" role="status">
-          Live data could not be refreshed. Showing the last successful results.
-          <button type="button" onClick={() => setRefreshNonce((value) => value + 1)}>Try again</button>
-        </div>
+        <BlueFunState
+          action={<button className="button compact" type="button" onClick={() => setRefreshNonce((value) => value + 1)}>Try again</button>}
+          compact
+          text="Showing the last successful market snapshot while the live feed reconnects."
+          title="Market data is reconnecting"
+          variant="offline"
+        />
       ) : null}
 
       {launches.length === 0 && !isPageLoading ? (
-        <div className="empty premium-empty">
-          <div className="empty-orb"><Rocket size={27} /></div>
-          <strong>{totalLaunches === 0 ? `Be first on ${activeNetwork.name}` : "No matching launches"}</strong>
-          <span>{totalLaunches === 0 ? "Create the first fair token and start the market." : "Try another search or filter."}</span>
-          {totalLaunches === 0 ? <Link className="button primary compact" href={`/launch?chain=${chainSlug(chainId)}`}>Launch a token</Link> : null}
-        </div>
+        <BlueFunState
+          action={totalLaunches === 0 ? <Link className="button primary compact" href={`/launch?chain=${chainSlug(chainId)}`}>Launch a token</Link> : null}
+          text={totalLaunches === 0 ? "Create the first fair token and start the market." : "Try another search term or clear the active filter."}
+          title={totalLaunches === 0 ? `Be first on ${activeNetwork.name}` : "No matching launches"}
+          variant="empty"
+        />
       ) : (
         <div className={`token-grid ${viewMode === "list" ? "list-view" : "grid-view"}${isPageLoading ? " page-loading" : ""}`} aria-busy={isPageLoading}>
           {viewMode === "list" ? (
@@ -398,12 +402,12 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metri
             <Link className={`${featured ? "token-card featured" : "token-card"}${isHot ? " activity-hot" : ""}`} href={tokenPath(launch)} key={`${launch.chainId}-${launch.id}-${launch.token}`}>
               <div className="token-card-visual">
                 <TokenAvatar launch={launch} hot={isHot || index === 0} />
-                <div className="token-card-visual-badges">
-                  <span className={direct ? "token-status direct" : launch.status === "Live" ? "token-status live" : "token-status"}>{direct ? "Direct DEX" : isHot ? "Active buy" : launch.status === "Live" ? "Bonding" : launch.status === "Graduated" ? "Graduated" : "Bonded"}</span>
-                  <span className="token-chain-badge"><NetworkIcon chainId={launch.chainId} size={15} />{networkMeta(launch.chainId).name}</span>
-                </div>
               </div>
               <div className="token-card-content">
+                <div className="token-card-visual-badges">
+                  <span className={direct ? "token-status direct" : launch.status === "Live" ? "token-status live" : "token-status"}>{direct ? "Direct DEX" : isHot ? "Active buy" : launch.status === "Live" ? "Bonding" : launch.status === "Graduated" ? "Graduated" : "Bonded"}</span>
+                  <span className="token-chain-badge"><NetworkIcon chainId={launch.chainId} size={12} />{networkMeta(launch.chainId).name}</span>
+                </div>
                 <div className="token-card-identity">
                   <div className="token-title">{launch.name}{officialBlue ? <span>Official BLUE</span> : null}</div>
                   <div className="token-symbol">${launch.symbol}<span className={activity ? "token-activity-signal active" : "token-activity-signal"}><i />{activity ? `Buy ${formatActivityAge(activity.createdAt)}` : launch.age}</span></div>

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
-import { BadgeCheck, ExternalLink, Globe2, Layers3, Radio, Send, Share2, ShieldCheck } from "lucide-react";
+import { BadgeCheck, ExternalLink, Globe2, Layers3, Radio, Send, Share2, ShieldCheck } from "@/components/bluefun-icons";
 import { formatEther } from "viem";
 import { NFTCollectionShareDialog } from "./nft-collection-share-dialog";
 

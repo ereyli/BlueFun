@@ -1,0 +1,1236 @@
+/*
+ * BlueFun Experience System
+ * Final brand, motion and responsive layer shared by token, trade and create flows.
+ */
+
+:root {
+  --bf-radius-control: 12px;
+  --bf-radius-card: 18px;
+  --bf-radius-panel: 22px;
+  --bf-ease-out: cubic-bezier(.2,.78,.2,1);
+  --bf-ease-spring: cubic-bezier(.2,1.05,.35,1);
+  --bf-motion-fast: 150ms;
+  --bf-motion: 240ms;
+  --bf-cobalt: #315cff;
+  --bf-cyan: #42d9ff;
+  --bf-mint: #35d6ae;
+  --bf-coral: #ff6570;
+  --bf-surface-glow: 0 18px 48px color-mix(in srgb, var(--blue) 9%, transparent);
+}
+
+html[data-theme="dark"] {
+  --bf-surface-glow: 0 22px 60px rgba(0,0,0,.42);
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  text-rendering: optimizeLegibility;
+}
+
+.main {
+  isolation: isolate;
+  max-width: 1720px;
+  width: 100%;
+}
+
+.button,
+.market-icon-action,
+.feed-tab,
+.market-view-toggle button,
+.network-trigger,
+.swap-settings-trigger,
+.swap-quick-row button,
+.trade-tabs button,
+.bottom-nav a,
+.side-nav a {
+  transition:
+    background-color var(--bf-motion-fast) ease,
+    border-color var(--bf-motion-fast) ease,
+    box-shadow var(--bf-motion) var(--bf-ease-out),
+    color var(--bf-motion-fast) ease,
+    opacity var(--bf-motion-fast) ease,
+    transform var(--bf-motion) var(--bf-ease-spring);
+}
+
+.button:not(:disabled):active,
+.market-icon-action:not(:disabled):active,
+.feed-tab:not(:disabled):active,
+.swap-quick-row button:not(:disabled):active {
+  transform: scale(.97);
+}
+
+.button:focus-visible,
+.market-icon-action:focus-visible,
+.feed-tab:focus-visible,
+.swap-quick-row button:focus-visible,
+.trade-tabs button:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--bf-cyan) 72%, var(--blue));
+  outline-offset: 2px;
+}
+
+.button.primary:not(:disabled):hover {
+  box-shadow: 0 10px 30px color-mix(in srgb, var(--blue) 26%, transparent);
+  transform: translateY(-1px);
+}
+
+/* Branded loading and empty states */
+.bluefun-state {
+  align-items: center;
+  background:
+    radial-gradient(circle at 20% 15%, color-mix(in srgb, var(--bf-cyan) 10%, transparent), transparent 34%),
+    var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--bf-radius-panel);
+  display: grid;
+  gap: 20px;
+  grid-template-columns: 164px minmax(0,1fr);
+  min-height: 210px;
+  overflow: hidden;
+  padding: 24px clamp(24px,4vw,44px);
+  position: relative;
+}
+
+.bluefun-state::after {
+  background-image: radial-gradient(circle, color-mix(in srgb,var(--blue) 22%,transparent) 1px, transparent 1px);
+  background-size: 17px 17px;
+  content: "";
+  inset: 0 0 0 58%;
+  mask-image: linear-gradient(90deg,transparent,#000);
+  opacity: .4;
+  pointer-events: none;
+  position: absolute;
+}
+
+.bluefun-state-art {
+  align-items: center;
+  display: flex;
+  justify-content: center;
+  min-height: 150px;
+  position: relative;
+  z-index: 1;
+}
+
+.bluefun-state-art img {
+  height: auto;
+  object-fit: contain;
+  position: relative;
+  width: min(150px,100%);
+  z-index: 2;
+}
+
+.bluefun-state-orbit {
+  border: 1px solid color-mix(in srgb,var(--bf-cyan) 30%,transparent);
+  border-radius: 50%;
+  height: 126px;
+  position: absolute;
+  width: 126px;
+}
+
+.bluefun-state.loading .bluefun-state-orbit {
+  animation: bfOrbit 2.4s linear infinite;
+  border-color: color-mix(in srgb,var(--bf-cyan) 55%,transparent) transparent;
+}
+
+.bluefun-state.success {
+  background:
+    radial-gradient(circle at 14% 22%, color-mix(in srgb,var(--bf-mint) 17%,transparent), transparent 34%),
+    var(--panel);
+}
+
+.bluefun-state.offline {
+  background:
+    radial-gradient(circle at 14% 22%, color-mix(in srgb,var(--bf-coral) 10%,transparent), transparent 34%),
+    var(--panel);
+}
+
+.bluefun-state-copy {
+  display: grid;
+  gap: 8px;
+  position: relative;
+  z-index: 1;
+}
+
+.bluefun-state-copy > strong {
+  font-size: clamp(20px,2vw,28px);
+  letter-spacing: -.045em;
+}
+
+.bluefun-state-copy > span {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.6;
+  max-width: 560px;
+}
+
+.bluefun-state-action {
+  display: flex;
+  margin-top: 7px;
+}
+
+.bluefun-state.compact {
+  border-radius: var(--bf-radius-card);
+  gap: 12px;
+  grid-template-columns: 74px minmax(0,1fr);
+  min-height: 92px;
+  padding: 9px 16px 9px 10px;
+}
+
+.bluefun-state.compact::after {
+  display: none;
+}
+
+.bluefun-state.compact .bluefun-state-art {
+  min-height: 72px;
+}
+
+.bluefun-state.compact .bluefun-state-art img {
+  width: 72px;
+}
+
+.bluefun-state.compact .bluefun-state-orbit {
+  height: 58px;
+  width: 58px;
+}
+
+.bluefun-state.compact .bluefun-state-copy {
+  gap: 3px;
+}
+
+.bluefun-state.compact .bluefun-state-copy > strong {
+  font-size: 13px;
+  letter-spacing: -.015em;
+}
+
+.bluefun-state.compact .bluefun-state-copy > span {
+  font-size: 9px;
+  line-height: 1.45;
+}
+
+/* Route feedback is a precise signal, not an animated color bar. */
+.route-progress {
+  background: transparent !important;
+  height: 3px;
+}
+
+.route-progress::before {
+  background: var(--bf-cyan);
+  border-radius: 99px;
+  box-shadow: 0 0 14px color-mix(in srgb,var(--bf-cyan) 65%,transparent);
+  content: "";
+  height: 3px;
+  left: 50%;
+  opacity: 0;
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%) scaleX(.2);
+  transition: opacity 120ms ease, transform 420ms var(--bf-ease-out);
+  width: min(180px,38vw);
+}
+
+.route-progress.active::before {
+  opacity: 1;
+  transform: translateX(-50%) scaleX(1);
+}
+
+/* Explore and token discovery */
+.launchpad-intro.premium-hero,
+.market-command-center,
+.token-card,
+.market-header-card,
+.chart-panel,
+.trade-card,
+.graduated-trade-card,
+.launch-intro,
+.launch-form-card {
+  box-shadow: var(--bf-surface-glow);
+}
+
+.launchpad-intro.premium-hero {
+  background:
+    radial-gradient(circle at 15% 8%, rgba(66,217,255,.12),transparent 32%),
+    linear-gradient(140deg,#07090e 0%,#090b12 58%,#0b1020 100%);
+  border-color: color-mix(in srgb,var(--line) 74%,var(--blue));
+}
+
+.premium-hero h1 span {
+  background: linear-gradient(105deg,#7790ff 8%,#4bcfff 52%,#45dfb5);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.market-command-center {
+  border: 1px solid var(--line);
+  border-radius: var(--bf-radius-panel);
+  overflow: hidden;
+}
+
+.market-pulse-section,
+.market-directory-panel {
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.market-pulse-item {
+  border-color: color-mix(in srgb,var(--line) 88%,var(--blue));
+  min-height: 66px;
+}
+
+.market-pulse-item:hover {
+  border-color: color-mix(in srgb,var(--blue) 48%,var(--line));
+  box-shadow: 0 12px 26px color-mix(in srgb,var(--blue) 8%,transparent);
+  transform: translateY(-2px);
+}
+
+.market-pulse-item.hot {
+  animation: bfFreshTrade 850ms var(--bf-ease-out) 2;
+  border-color: color-mix(in srgb,var(--bf-mint) 62%,var(--line));
+}
+
+.token-grid.grid-view {
+  align-items: stretch;
+}
+
+.token-card,
+.token-card.featured {
+  background:
+    linear-gradient(155deg,color-mix(in srgb,var(--panel) 96%,var(--blue)),var(--panel));
+  border-color: color-mix(in srgb,var(--line) 86%,var(--blue));
+  display: grid;
+  grid-template-rows: auto 1fr;
+  overflow: hidden;
+  padding: 10px;
+}
+
+html[data-theme="dark"] .token-card,
+html[data-theme="dark"] .token-card.featured {
+  background:
+    radial-gradient(circle at 85% 0,rgba(49,92,255,.08),transparent 35%),
+    #0d0f14;
+  border-color: #282d38;
+}
+
+.token-card:hover,
+.token-card.featured:hover,
+html[data-theme="dark"] .token-card:hover,
+html[data-theme="dark"] .token-card.featured:hover {
+  border-color: color-mix(in srgb,var(--blue) 58%,var(--line));
+  box-shadow: 0 22px 52px color-mix(in srgb,var(--blue) 14%,transparent);
+  transform: translateY(-4px);
+}
+
+.token-card-visual {
+  aspect-ratio: 1.35;
+  background:
+    radial-gradient(circle at 48% 35%,color-mix(in srgb,var(--blue) 13%,transparent),transparent 48%),
+    var(--panel-2);
+  min-height: 0;
+  overflow: hidden;
+  position: relative;
+}
+
+.token-card-visual .token-art,
+.token-card-visual .token-image {
+  height: 100%;
+  width: 100%;
+}
+
+.token-card-visual .token-image {
+  object-fit: cover;
+  transition: transform 500ms var(--bf-ease-out);
+}
+
+.token-card:hover .token-image {
+  transform: scale(1.035);
+}
+
+.token-card-visual::after {
+  background: linear-gradient(180deg,transparent 68%,rgba(3,5,10,.28));
+  content: "";
+  inset: 0;
+  pointer-events: none;
+  position: absolute;
+}
+
+.token-card-visual-badges {
+  align-items: center;
+  inset: auto;
+  min-height: 20px;
+  position: static;
+  z-index: auto;
+}
+
+.token-card-visual-badges .token-status,
+.token-card-visual-badges .token-chain-badge {
+  backdrop-filter: none;
+  border-color: color-mix(in srgb,var(--line) 82%,transparent);
+  border-radius: 7px;
+  box-shadow: none;
+  font-size: 7px;
+  gap: 4px;
+  letter-spacing: .045em;
+  min-height: 20px;
+  padding: 0 6px;
+  text-transform: uppercase;
+}
+
+.token-card-content {
+  align-content: start;
+  gap: 13px;
+  padding: 15px 5px 5px;
+}
+
+.token-title {
+  font-size: 17px;
+  letter-spacing: -.035em;
+}
+
+.token-symbol {
+  font-size: 10px;
+}
+
+.token-market-row {
+  background: color-mix(in srgb,var(--panel-2) 82%,transparent);
+  border: 1px solid color-mix(in srgb,var(--line) 82%,transparent);
+  border-radius: 13px;
+  gap: 0;
+  overflow: hidden;
+}
+
+.token-market-row > div {
+  min-width: 0;
+  padding: 10px 11px;
+}
+
+.token-market-row > div + div {
+  border-left: 1px solid var(--line);
+}
+
+.token-market-row span {
+  font-size: 7px;
+  letter-spacing: .075em;
+  text-transform: uppercase;
+}
+
+.token-market-row strong {
+  display: block;
+  font-size: 13px;
+  margin-top: 5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.token-card-progress {
+  background: color-mix(in srgb,var(--line) 72%,transparent);
+  height: 6px;
+}
+
+.token-card-progress > span,
+.progress.bonding > span {
+  background: linear-gradient(90deg,var(--bf-cobalt),var(--bf-cyan));
+  box-shadow: 0 0 14px color-mix(in srgb,var(--bf-cyan) 28%,transparent);
+}
+
+.token-card-progress.graduated > span,
+.progress.graduated > span {
+  background: linear-gradient(90deg,var(--bf-mint),#71efc9);
+}
+
+.token-card.activity-hot {
+  animation: bfFreshCard 900ms var(--bf-ease-out) 2;
+}
+
+.token-activity-signal.active i {
+  animation: bfSignalPulse 1.3s ease-in-out infinite;
+}
+
+.token-grid.page-loading .token-card {
+  animation: bfLoadingBreath 1.15s ease-in-out infinite;
+  opacity: .58;
+  pointer-events: none;
+}
+
+.token-grid.page-loading .token-card::after {
+  content: none;
+}
+
+/* Market page header and branded trading desk */
+.trade-layout {
+  gap: 18px;
+}
+
+.market-header-card {
+  background:
+    radial-gradient(circle at 0 0,color-mix(in srgb,var(--bf-cyan) 9%,transparent),transparent 32%),
+    var(--panel);
+  border-color: color-mix(in srgb,var(--line) 84%,var(--blue));
+  padding: 18px;
+}
+
+.market-header-main {
+  align-items: center;
+  grid-template-columns: 78px minmax(0,1fr) auto;
+}
+
+.market-header-main .profile-art {
+  border-radius: 16px;
+  box-shadow: 0 10px 28px color-mix(in srgb,var(--blue) 14%,transparent);
+  height: 78px;
+  width: 78px;
+}
+
+.market-title-row h1 {
+  font-size: clamp(27px,3vw,39px);
+}
+
+.market-description {
+  max-width: 720px;
+}
+
+.market-header-stats {
+  gap: 8px;
+}
+
+.market-header-stats > div {
+  background: color-mix(in srgb,var(--panel-2) 86%,transparent);
+  border: 1px solid color-mix(in srgb,var(--line) 85%,transparent);
+  padding: 12px 14px;
+}
+
+.market-header-stats > div strong {
+  font-size: 15px;
+}
+
+.trade-box {
+  align-self: start;
+  position: sticky;
+  top: 86px;
+}
+
+.swap-terminal {
+  background:
+    radial-gradient(circle at 90% 0,color-mix(in srgb,var(--bf-cyan) 8%,transparent),transparent 28%),
+    var(--panel);
+  border-color: color-mix(in srgb,var(--line) 82%,var(--blue));
+  border-radius: var(--bf-radius-panel);
+  overflow: hidden;
+  padding: 0;
+}
+
+.trade-card-toolbar {
+  align-items: center;
+  border-bottom: 1px solid var(--line);
+  min-height: 64px;
+  padding: 13px 16px;
+}
+
+.trade-card-toolbar > div {
+  gap: 3px;
+}
+
+.trade-card-toolbar strong {
+  font-size: 17px;
+  letter-spacing: -.025em;
+}
+
+.trade-card-toolbar span {
+  color: var(--muted);
+  font-size: 8px;
+}
+
+.swap-terminal > .form,
+.graduated-swap-form {
+  gap: 12px;
+  padding: 14px;
+}
+
+.trade-tabs {
+  background: color-mix(in srgb,var(--panel-2) 88%,transparent);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  gap: 4px;
+  padding: 4px;
+}
+
+.trade-tabs button {
+  border: 0;
+  border-radius: 10px;
+  min-height: 46px;
+}
+
+.trade-tabs button:first-child.active {
+  background: linear-gradient(135deg,#18b980,#2bd5a0);
+  box-shadow: 0 8px 24px rgba(24,185,128,.22);
+  color: #04150f;
+}
+
+.trade-tabs button:last-child.active {
+  background: linear-gradient(135deg,#e95461,#ff7780);
+  box-shadow: 0 8px 24px rgba(233,84,97,.2);
+  color: #1a0507;
+}
+
+.swap-settings-trigger {
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  min-height: 34px;
+  padding: 0 10px;
+}
+
+.swap-settings-trigger:hover,
+.swap-settings-trigger.active {
+  border-color: color-mix(in srgb,var(--blue) 55%,var(--line));
+  color: var(--blue);
+}
+
+.swap-asset-stack {
+  gap: 8px;
+}
+
+.swap-asset-panel {
+  background:
+    linear-gradient(145deg,color-mix(in srgb,var(--panel-2) 92%,var(--blue)),var(--panel-2));
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 14px;
+}
+
+.swap-asset-panel:focus-within {
+  border-color: color-mix(in srgb,var(--blue) 66%,var(--line));
+  box-shadow: 0 0 0 3px color-mix(in srgb,var(--blue) 10%,transparent);
+}
+
+.swap-panel-label {
+  min-height: 20px;
+}
+
+.swap-panel-label > span {
+  font-size: 8px;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.swap-asset-main {
+  gap: 12px;
+  min-height: 66px;
+}
+
+.swap-amount-input,
+.swap-quote-value {
+  font-size: clamp(27px,3.1vw,38px);
+  letter-spacing: -.055em;
+}
+
+.swap-token-pill {
+  background: color-mix(in srgb,var(--panel) 88%,transparent);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 6px 9px 6px 6px;
+}
+
+.swap-token-icon {
+  height: 31px;
+  width: 31px;
+}
+
+.swap-quick-row {
+  gap: 6px;
+  margin-top: 7px;
+}
+
+.swap-quick-row button {
+  background: color-mix(in srgb,var(--panel) 72%,transparent);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  min-height: 31px;
+}
+
+.swap-quick-row button:hover {
+  border-color: color-mix(in srgb,var(--blue) 48%,var(--line));
+  color: var(--blue);
+  transform: translateY(-1px);
+}
+
+.swap-direction-button {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: 0 7px 18px rgba(0,0,0,.12);
+  height: 36px;
+  margin: -22px auto;
+  position: relative;
+  width: 36px;
+  z-index: 3;
+}
+
+.swap-direction-button:hover {
+  border-color: color-mix(in srgb,var(--blue) 58%,var(--line));
+  color: var(--blue);
+  transform: rotate(180deg);
+}
+
+.swap-detail-row {
+  border-top: 1px solid color-mix(in srgb,var(--line) 76%,transparent);
+  gap: 8px;
+  margin-top: 9px;
+  padding-top: 10px;
+}
+
+.swap-detail-row span {
+  background: transparent;
+  border: 0;
+  padding: 0;
+}
+
+.trade-meta-line {
+  color: var(--muted);
+  font-size: 8px;
+  justify-content: center;
+}
+
+.trade-submit {
+  border: 0;
+  border-radius: 14px;
+  font-size: 13px;
+  min-height: 52px;
+}
+
+.trade-submit.buy,
+.trade-submit.buy:not(:disabled) {
+  background: linear-gradient(135deg,#16b77c,#2ad39c);
+  box-shadow: 0 12px 28px rgba(20,185,124,.2);
+  color: #03140e;
+}
+
+.trade-submit.sell,
+.trade-submit.sell:not(:disabled) {
+  background: linear-gradient(135deg,#e6525f,#ff757f);
+  box-shadow: 0 12px 28px rgba(230,82,95,.2);
+  color: #190406;
+}
+
+.trade-submit:disabled {
+  box-shadow: none;
+  filter: saturate(.55);
+  opacity: .5;
+}
+
+.trade-settings-panel {
+  animation: bfPanelIn var(--bf-motion) var(--bf-ease-out);
+  background: color-mix(in srgb,var(--panel-2) 88%,transparent);
+  border: 1px solid var(--line);
+  border-radius: 13px;
+}
+
+.trade-status {
+  align-items: center;
+  animation: bfPanelIn var(--bf-motion) var(--bf-ease-out);
+  border-radius: 11px;
+  display: flex;
+  gap: 8px;
+  min-height: 38px;
+}
+
+.trade-status.success::before {
+  background: url("/illustrations/bluefun/success.webp") center/contain no-repeat;
+  content: "";
+  flex: 0 0 auto;
+  height: 30px;
+  width: 30px;
+}
+
+.trade-status.danger::before {
+  background: url("/illustrations/bluefun/offline.webp") center/contain no-repeat;
+  content: "";
+  flex: 0 0 auto;
+  height: 28px;
+  width: 28px;
+}
+
+/* Chart becomes part of the desk instead of a generic embedded widget. */
+.chart-panel,
+.tv-chart-wrap {
+  background: var(--panel);
+  border-radius: var(--bf-radius-panel);
+}
+
+.tv-chart-header {
+  background:
+    linear-gradient(90deg,color-mix(in srgb,var(--panel-2) 76%,transparent),transparent);
+  border-bottom: 1px solid var(--line);
+  gap: 14px;
+  min-height: 66px;
+  padding: 10px 14px;
+}
+
+.chart-activity-strip {
+  background: transparent;
+  border: 0;
+  gap: 6px;
+}
+
+.chart-activity-strip > span {
+  background: color-mix(in srgb,var(--panel-2) 82%,transparent);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  min-width: 72px;
+  padding: 7px 9px;
+}
+
+.chart-activity-strip > span:first-child {
+  border-bottom-color: color-mix(in srgb,var(--bf-mint) 70%,var(--line));
+}
+
+.chart-activity-strip > span:nth-child(2) {
+  border-bottom-color: color-mix(in srgb,var(--bf-coral) 70%,var(--line));
+}
+
+.chart-mode-tabs,
+.chart-interval-tabs {
+  background: color-mix(in srgb,var(--panel-2) 88%,transparent);
+  border: 1px solid var(--line);
+  border-radius: 11px;
+}
+
+.chart-mode-tabs button,
+.chart-interval-tabs button {
+  border-radius: 8px;
+}
+
+.chart-mode-tabs button.active,
+.chart-interval-tabs button.active {
+  background: var(--panel);
+  box-shadow: 0 5px 14px color-mix(in srgb,var(--text) 8%,transparent);
+  color: var(--blue);
+}
+
+.tv-chart {
+  min-height: 330px;
+}
+
+.chart-overlay-note {
+  align-items: center;
+  background: color-mix(in srgb,var(--panel) 93%,transparent);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--line);
+  border-radius: 15px;
+  box-shadow: 0 18px 44px rgba(0,0,0,.15);
+  gap: 2px;
+  grid-template-columns: 58px minmax(0,1fr);
+  max-width: 430px;
+  padding: 10px 14px 10px 8px;
+}
+
+.chart-overlay-note::before {
+  background: url("/illustrations/bluefun/loading.webp") center/contain no-repeat;
+  content: "";
+  grid-row: 1/3;
+  height: 54px;
+  width: 54px;
+}
+
+.chart-overlay-note strong,
+.chart-overlay-note span {
+  text-align: left;
+}
+
+/* Create flow shares the same product language. */
+.launch-intro,
+.launch-form-card {
+  border-color: color-mix(in srgb,var(--line) 84%,var(--blue));
+}
+
+.launch-form-card {
+  background:
+    radial-gradient(circle at 100% 0,color-mix(in srgb,var(--bf-cyan) 7%,transparent),transparent 28%),
+    var(--panel);
+}
+
+.launch-mode-picker > button {
+  border-radius: 15px;
+  transition: border-color var(--bf-motion-fast) ease, box-shadow var(--bf-motion) ease, transform var(--bf-motion) var(--bf-ease-spring);
+}
+
+.launch-mode-picker > button:hover {
+  border-color: color-mix(in srgb,var(--blue) 48%,var(--line));
+  transform: translateY(-2px);
+}
+
+.launch-mode-picker > button.active {
+  box-shadow: 0 12px 30px color-mix(in srgb,var(--blue) 13%,transparent);
+}
+
+.launch-success-mascot {
+  align-items: center;
+  display: flex;
+  height: 116px;
+  justify-content: center;
+  margin: -14px auto 2px;
+  width: 132px;
+}
+
+.launch-success-mascot img {
+  animation: bfSuccessIn 500ms var(--bf-ease-spring);
+  height: 100%;
+  object-fit: contain;
+  width: 100%;
+}
+
+.launch-stepper {
+  border-radius: 14px;
+}
+
+.field input,
+.field textarea,
+.launch-upload {
+  transition: border-color var(--bf-motion-fast) ease, box-shadow var(--bf-motion-fast) ease, background-color var(--bf-motion-fast) ease;
+}
+
+.field input:focus,
+.field textarea:focus,
+.launch-upload:focus-within {
+  border-color: color-mix(in srgb,var(--blue) 60%,var(--line));
+  box-shadow: 0 0 0 3px color-mix(in srgb,var(--blue) 10%,transparent);
+}
+
+/* Mobile is an intentionally separate interaction mode. */
+@media (max-width: 900px) {
+  .trade-layout {
+    display: grid;
+    gap: 12px;
+  }
+
+  .trade-box {
+    position: static;
+  }
+
+  .market-header-card,
+  .chart-panel,
+  .swap-terminal {
+    border-radius: 18px;
+  }
+
+  .market-header-main .profile-art {
+    height: 64px;
+    width: 64px;
+  }
+}
+
+@media (max-width: 680px) {
+  .main {
+    padding: 12px 10px calc(92px + env(safe-area-inset-bottom));
+  }
+
+  .topbar {
+    backdrop-filter: blur(20px) saturate(135%);
+    background: color-mix(in srgb,var(--bg) 92%,transparent);
+    min-height: calc(58px + env(safe-area-inset-top));
+    padding: env(safe-area-inset-top) 9px 0;
+  }
+
+  .topbar-actions {
+    gap: 5px;
+  }
+
+  .bottom-nav {
+    backdrop-filter: blur(20px) saturate(140%);
+    background: color-mix(in srgb,var(--panel) 93%,transparent);
+    border: 1px solid color-mix(in srgb,var(--line) 88%,var(--blue));
+    border-bottom: 0;
+    border-radius: 18px 18px 0 0;
+    bottom: 0;
+    box-shadow: 0 -12px 34px rgba(0,0,0,.15);
+    gap: 4px;
+    left: 6px;
+    padding: 6px 6px calc(7px + env(safe-area-inset-bottom));
+    right: 6px;
+  }
+
+  .bottom-nav a {
+    border-radius: 12px;
+    min-height: 54px;
+    padding: 5px 2px;
+  }
+
+  .bottom-nav a[aria-current="page"] {
+    background:
+      linear-gradient(145deg,color-mix(in srgb,var(--blue) 16%,var(--panel)),color-mix(in srgb,var(--bf-cyan) 7%,var(--panel)));
+    box-shadow: inset 0 0 0 1px color-mix(in srgb,var(--blue) 24%,transparent);
+  }
+
+  .bottom-nav .nav-index {
+    display: none;
+  }
+
+  .launchpad-intro.premium-hero {
+    border-radius: 18px;
+  }
+
+  .premium-hero .launchpad-intro-copy {
+    padding: 20px 16px 10px;
+  }
+
+  .premium-hero h1 {
+    font-size: clamp(34px,11vw,48px);
+  }
+
+  .premium-hero .overview-metrics.network-overview {
+    padding: 8px 12px 14px;
+  }
+
+  .market-command-center {
+    border-radius: 18px;
+  }
+
+  .market-directory-toolbar {
+    align-items: stretch;
+  }
+
+  .market-directory-actions {
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .market-sort-tabs {
+    flex: 1 0 max-content;
+  }
+
+  .token-grid.grid-view {
+    grid-template-columns: repeat(2,minmax(0,1fr));
+  }
+
+  .token-card,
+  .token-card.featured {
+    border-radius: 15px;
+    padding: 7px;
+  }
+
+  .token-card-visual {
+    aspect-ratio: 1;
+    border-radius: 11px;
+  }
+
+  .token-card-content {
+    gap: 9px;
+    padding: 10px 3px 3px;
+  }
+
+  .token-title {
+    font-size: 14px;
+  }
+
+  .token-market-row {
+    display: grid;
+    grid-template-columns: 1fr;
+  }
+
+  .token-market-row > div {
+    padding: 8px;
+  }
+
+  .token-market-row > div + div {
+    border-left: 0;
+    border-top: 1px solid var(--line);
+  }
+
+  .token-market-row strong {
+    font-size: 11px;
+  }
+
+  .token-foot {
+    display: none;
+  }
+
+  .market-header-card {
+    padding: 12px;
+  }
+
+  .market-header-main {
+    align-items: start;
+    grid-template-columns: 58px minmax(0,1fr) !important;
+  }
+
+  .market-header-main .profile-art {
+    border-radius: 13px;
+    height: 58px;
+    width: 58px;
+  }
+
+  .market-actions {
+    grid-column: 1/-1;
+    justify-content: flex-end;
+    margin-top: 4px;
+  }
+
+  .market-title-row h1 {
+    font-size: 24px;
+  }
+
+  .market-description {
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+  }
+
+  .market-header-stats {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .market-header-stats > div:last-child {
+    grid-column: 1/-1;
+  }
+
+  .tv-chart-header {
+    align-items: stretch;
+    display: grid;
+  }
+
+  .chart-activity-strip {
+    display: grid;
+    grid-template-columns: repeat(3,1fr);
+  }
+
+  .chart-activity-strip > span {
+    min-width: 0;
+  }
+
+  .chart-controls {
+    justify-content: space-between;
+  }
+
+  .tv-chart {
+    min-height: 260px;
+  }
+
+  .chart-overlay-note {
+    grid-template-columns: 48px minmax(0,1fr);
+    left: 12px;
+    max-width: none;
+    right: 12px;
+    transform: translateY(-50%);
+  }
+
+  .chart-overlay-note::before {
+    height: 46px;
+    width: 46px;
+  }
+
+  .trade-box {
+    margin-inline: -2px;
+  }
+
+  .swap-terminal {
+    border-radius: 18px;
+  }
+
+  .trade-card-toolbar {
+    min-height: 57px;
+    padding: 10px 12px;
+  }
+
+  .swap-terminal > .form,
+  .graduated-swap-form {
+    padding: 11px;
+  }
+
+  .swap-asset-panel {
+    padding: 12px;
+  }
+
+  .swap-asset-main {
+    min-height: 59px;
+  }
+
+  .swap-amount-input,
+  .swap-quote-value {
+    font-size: 27px;
+  }
+
+  .bluefun-state {
+    gap: 6px;
+    grid-template-columns: 1fr;
+    justify-items: center;
+    padding: 18px;
+    text-align: center;
+  }
+
+  .bluefun-state-art {
+    min-height: 116px;
+  }
+
+  .bluefun-state-art img {
+    width: 116px;
+  }
+
+  .bluefun-state-orbit {
+    height: 98px;
+    width: 98px;
+  }
+
+  .bluefun-state-copy {
+    justify-items: center;
+  }
+
+  .bluefun-state.compact {
+    grid-template-columns: 64px minmax(0,1fr);
+    justify-items: stretch;
+    text-align: left;
+  }
+
+  .bluefun-state.compact .bluefun-state-copy {
+    justify-items: start;
+  }
+}
+
+@keyframes bfOrbit {
+  to { transform: rotate(360deg); }
+}
+
+@keyframes bfFreshTrade {
+  0%,100% { box-shadow: 0 0 0 0 color-mix(in srgb,var(--bf-mint) 0%,transparent); }
+  45% { box-shadow: 0 0 0 4px color-mix(in srgb,var(--bf-mint) 14%,transparent); }
+}
+
+@keyframes bfFreshCard {
+  0%,100% { transform: translateY(0); }
+  45% { transform: translateY(-4px); }
+}
+
+@keyframes bfSignalPulse {
+  0%,100% { box-shadow: 0 0 0 0 color-mix(in srgb,var(--bf-mint) 0%,transparent); opacity: .72; }
+  50% { box-shadow: 0 0 0 5px color-mix(in srgb,var(--bf-mint) 14%,transparent); opacity: 1; }
+}
+
+@keyframes bfPanelIn {
+  from { opacity: 0; transform: translateY(-5px) scale(.99); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+@keyframes bfLoadingBreath {
+  0%,100% { opacity: .58; }
+  50% { opacity: .38; }
+}
+
+@keyframes bfSuccessIn {
+  from { opacity: 0; transform: translateY(10px) scale(.82) rotate(-5deg); }
+  to { opacity: 1; transform: translateY(0) scale(1) rotate(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  *,
+  *::before,
+  *::after {
+    animation-duration: .01ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-duration: .01ms !important;
+  }
+}

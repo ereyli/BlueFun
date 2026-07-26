@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, ImagePlus } from "lucide-react";
+import { ArrowRight, ImagePlus } from "@/components/bluefun-icons";
 import { NFTCollectionDirectory, NFTLiveMints } from "./nft-collection-directory";
 import { getNFTCollections } from "@/lib/nft-collections";
 

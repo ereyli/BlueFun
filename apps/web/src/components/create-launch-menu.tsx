@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { ChevronDown, Coins, Images } from "lucide-react";
+import { ChevronDown, Coins, Images } from "@/components/bluefun-icons";
 
 export function CreateLaunchMenu() {
   const pathname = usePathname();

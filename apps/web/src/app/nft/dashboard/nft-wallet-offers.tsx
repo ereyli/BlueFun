@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { formatEther, type Address, type Hex } from "viem";
 import { useAccount, usePublicClient, useWriteContract } from "wagmi";
-import { Check, ExternalLink, Gavel, Loader2, Tag } from "lucide-react";
+import { Check, ExternalLink, Gavel, Loader2, Tag } from "@/components/bluefun-icons";
 import { blueEditionAbi, bluePFPAbi, nftAddresses, nftFeePolicyAbi, nftOffersAbi, nftOffersEnabled, nftProtocolVersion } from "@/lib/nft-contracts";
 
 type WalletOffer = {

@@ -19,7 +19,7 @@ import {
   ShieldCheck,
   Sparkles,
   WalletCards
-} from "lucide-react";
+} from "@/components/bluefun-icons";
 import { getBlueTransparency, OFFICIAL_BLUE_TOKEN } from "@/lib/blue-transparency";
 import { addresses, blueStakingAddresses, monadAddresses, robinhoodAddresses } from "@/lib/contracts";
 

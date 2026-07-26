@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { getAddress, parseEther, zeroAddress, type Address } from "viem";
 import { useAccount, usePublicClient, useWriteContract } from "wagmi";
-import { RefreshCw, X } from "lucide-react";
+import { RefreshCw, X } from "@/components/bluefun-icons";
 import { nftAddresses, nftDropControllerAbi } from "@/lib/nft-contracts";
 import { buildAllowlistTree, type AllowlistInput } from "@/lib/nft-allowlist";
 

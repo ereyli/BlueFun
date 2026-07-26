@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Check, Copy, Share2, X } from "lucide-react";
+import { Check, Copy, Share2, X } from "@/components/bluefun-icons";
 
 type ShareDialogProps = {
   collection: string;

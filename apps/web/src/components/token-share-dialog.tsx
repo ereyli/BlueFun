@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Check, Copy, Download, Share2, X } from "lucide-react";
+import { Check, Copy, Download, Share2, X } from "@/components/bluefun-icons";
 import type { DeployedLaunch } from "@/lib/onchain-launches";
 import { chainSlug } from "@/lib/chain-slug";
 import { tokenPath } from "@/lib/token-url";

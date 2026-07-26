@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { getAddress, isAddress, zeroAddress, type Hex } from "viem";
 import { useAccount, usePublicClient, useReadContract, useWriteContract } from "wagmi";
-import { BadgeCheck, Eye, FileKey2, ImagePlus, Loader2, LockKeyhole, Settings2, ShieldCheck, UserRoundCog } from "lucide-react";
+import { BadgeCheck, Eye, FileKey2, ImagePlus, Loader2, LockKeyhole, Settings2, ShieldCheck, UserRoundCog } from "@/components/bluefun-icons";
 import { blueEditionAbi, bluePFPAbi } from "@/lib/nft-contracts";
 
 type Collection = { collection: string; factory?: string; name: string; symbol: string; standard: "ERC721" | "ERC1155" };

@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useAccount, useChainId, useSwitchChain } from "wagmi";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Check, ChevronDown } from "lucide-react";
+import { Check, ChevronDown } from "@/components/bluefun-icons";
 import { baseChain } from "@/lib/base-chain";
 import { robinhoodChain } from "@/lib/robinhood-chain";
 import { monadChain } from "@/lib/monad-chain";

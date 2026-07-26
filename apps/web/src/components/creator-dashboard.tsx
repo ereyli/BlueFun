@@ -5,13 +5,14 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { formatEther, formatUnits, zeroAddress } from "viem";
 import { useAccount, useReadContracts, useSwitchChain, useWriteContract } from "wagmi";
-import { ArrowUpRight, BarChart3, Coins, ExternalLink, Flame, Layers3, Loader2, LockKeyhole, RefreshCw, Rocket, Sparkles, Wallet, WalletCards } from "lucide-react";
+import { ArrowUpRight, BarChart3, Coins, ExternalLink, Flame, Layers3, Loader2, LockKeyhole, RefreshCw, Rocket, Sparkles, Wallet, WalletCards } from "@/components/bluefun-icons";
 import { NetworkIcon, networkMeta } from "@/components/network-icon";
 import { b20TokenAbi, bondingCurveAbi, deploymentsForChain, feeSharingLockerAbi, indexerScopeForDeployment, isVNextLiquidityLocker, stableUniswapV3Addresses, unifiedFeeHookAbi } from "@/lib/contracts";
 import type { WalletDashboardData, WalletTradeSummary } from "@/lib/dashboard-types";
 import type { DeployedLaunch } from "@/lib/onchain-launches";
 import { optimizedTokenImageUrl } from "@/lib/token-metadata";
 import { tokenPath } from "@/lib/token-url";
+import { BlueFunState } from "@/components/bluefun-state";
 
 type DashboardTab = "overview" | "launches" | "holdings";
 type ActionState = { key: string; message?: string; error?: string };
@@ -190,7 +191,7 @@ export function CreatorDashboard() {
         </button>
       </nav>
 
-      {loadError ? <div className="dashboard-notice error">{loadError}</div> : null}
+      {loadError ? <BlueFunState action={<button className="button compact" onClick={() => void loadDashboard()} type="button">Try again</button>} compact text={loadError} title="Dashboard data is reconnecting" variant="offline" /> : null}
       {!data.indexed ? <div className="dashboard-notice">Indexer data is temporarily unavailable. Onchain fee balances remain visible.</div> : null}
       {action.message ? <div className="dashboard-notice success">{action.message}</div> : null}
       {action.error ? <div className="dashboard-notice error">{action.error}</div> : null}
@@ -319,11 +320,13 @@ function TokenAvatar({ launch }: { launch: DeployedLaunch }) {
 }
 
 function EmptyCompact({ action, icon, text, title }: { action?: React.ReactNode; icon: React.ReactNode; text: string; title: string }) {
-  return <div className="dashboard-empty compact"><div>{icon}</div><strong>{title}</strong><span>{text}</span>{action}</div>;
+  void icon;
+  return <BlueFunState action={action} compact text={text} title={title} variant="empty" />;
 }
 
 function EmptyLarge({ action, icon, text, title }: { action: React.ReactNode; icon: React.ReactNode; text: string; title: string }) {
-  return <div className="dashboard-empty large"><div>{icon}</div><h3>{title}</h3><p>{text}</p>{action}</div>;
+  void icon;
+  return <BlueFunState action={action} text={text} title={title} variant="empty" />;
 }
 
 function LoadingRows() { return <div className="dashboard-loading"><span /><span /><span /></div>; }

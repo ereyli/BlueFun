@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowRight, ChevronLeft, ChevronRight, Clock3, Grid2X2, ImageOff, List as ListIcon, Search, Sparkles } from "lucide-react";
+import { ArrowRight, ChevronLeft, ChevronRight, Clock3, Grid2X2, ImageOff, List as ListIcon, Search, Sparkles } from "@/components/bluefun-icons";
 import type { NFTCollectionSummary } from "@/lib/nft-collections";
 import { optimizedTokenImageUrl } from "@/lib/token-metadata";
 

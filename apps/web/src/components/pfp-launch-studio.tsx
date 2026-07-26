@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { unzip } from "fflate";
 import { decodeEventLog, encodeAbiParameters, formatEther, keccak256, parseEther, toBytes, zeroAddress } from "viem";
 import { useAccount, usePublicClient, useReadContract, useWriteContract } from "wagmi";
-import { ArrowLeft, BadgeCheck, CheckCircle2, FileArchive, FolderOpen, ImagePlus, Images, Layers3, Loader2, LockKeyhole, ShieldCheck, Sparkles, UploadCloud, WalletCards } from "lucide-react";
+import { ArrowLeft, BadgeCheck, CheckCircle2, FileArchive, FolderOpen, ImagePlus, Images, Layers3, Loader2, LockKeyhole, ShieldCheck, Sparkles, UploadCloud, WalletCards } from "@/components/bluefun-icons";
 import { bluePFPAbi, nftAddresses, nftDropControllerAbi, nftFeePolicyAbi, nftPFPFactoryAbi, nftProtocolVersion, pfpLaunchpadEnabled } from "@/lib/nft-contracts";
 import { defaultMintSchedule, emptyMintSchedule, mintScheduleIsValid, MintScheduleFields, resolveMintSchedule } from "@/components/nft-mint-schedule";
 import { buildAllowlistTree, parseAllowlistCSV } from "@/lib/nft-allowlist";

@@ -11,6 +11,7 @@ import "./nft-catalog.css";
 import "./create-launch-menu.css";
 import "./interface-refinement.css";
 import "./token-share.css";
+import "./bluefun-experience.css";
 import { Providers } from "@/components/providers";
 import { WalletButton } from "@/components/wallet-button";
 import { RouteFeedback } from "@/components/route-feedback";

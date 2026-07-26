@@ -5911,6 +5911,18 @@ textarea:focus-visible {
     display: none;
   }
 
+  .wallet-control .bluefun-icon:first-child {
+    display: none;
+  }
+
+  .wallet-label-wide {
+    display: none;
+  }
+
+  .wallet-label-compact {
+    display: inline;
+  }
+
   .launchpad-intro {
     border-radius: 21px;
   }
@@ -6876,5 +6888,27 @@ body {
 @media (max-width: 680px) {
   .launch-mode-picker {
     grid-template-columns: 1fr;
+  }
+}
+.bluefun-icon {
+  display: inline-block;
+  flex: 0 0 auto;
+  object-fit: contain;
+  transform: rotate(var(--bluefun-icon-rotation, 0deg));
+  user-select: none;
+  vertical-align: -0.18em;
+}
+
+.wallet-label-compact {
+  display: none;
+}
+
+@media (max-width: 560px) {
+  .wallet-control .wallet-label-wide {
+    display: none;
+  }
+
+  .wallet-control .wallet-label-compact {
+    display: inline;
   }
 }

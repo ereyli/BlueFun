@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Activity, ArrowDownToLine, CheckCircle2, Clock3, Coins, ExternalLink, Flame, LoaderCircle, LockKeyhole, RefreshCw, RotateCcw, Users } from "lucide-react";
+import { Activity, ArrowDownToLine, CheckCircle2, Clock3, Coins, ExternalLink, Flame, LoaderCircle, LockKeyhole, RefreshCw, RotateCcw, Users } from "@/components/bluefun-icons";
 import { formatEther, maxUint256, parseEther, zeroAddress } from "viem";
 import { useAccount, useChainId, usePublicClient, useReadContracts, useSwitchChain, useWriteContract } from "wagmi";
 import { baseChain } from "@/lib/base-chain";

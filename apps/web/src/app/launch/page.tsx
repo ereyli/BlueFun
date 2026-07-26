@@ -4,15 +4,16 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { decodeEventLog, erc20Abi, formatEther, parseEther, keccak256, toBytes, zeroAddress } from "viem";
 import { useAccount, usePublicClient, useReadContract, useWaitForTransactionReceipt, useWriteContract } from "wagmi";
-import { Check, CheckCircle2, ChevronLeft, ChevronRight, Coins, Copy, ExternalLink, ImagePlus, Info, LayoutDashboard, Loader2, LockKeyhole, Rocket, TimerReset, UploadCloud, X, Zap } from "lucide-react";
+import { Check, CheckCircle2, ChevronLeft, ChevronRight, Coins, Copy, ExternalLink, ImagePlus, Info, LayoutDashboard, Loader2, LockKeyhole, Rocket, TimerReset, UploadCloud, X, Zap } from "@/components/bluefun-icons";
 import { contractsForChain, directLaunchFactoryAbi, launchEconomics, launchFactoryAbi } from "@/lib/contracts";
 import { useSearchParams } from "next/navigation";
 import { NetworkIcon } from "@/components/network-icon";
 import { chainIdFromParam } from "@/lib/chain-slug";
 import { tokenPath } from "@/lib/token-url";
+import { BlueFunState } from "@/components/bluefun-state";
 
 export default function LaunchPage() {
-  return <Suspense fallback={<div className="empty">Loading launch form...</div>}><LaunchPageContent /></Suspense>;
+  return <Suspense fallback={<BlueFunState title="Preparing launch studio" text="Loading the selected network and market configuration." variant="loading" />}><LaunchPageContent /></Suspense>;
 }
 
 function LaunchPageContent() {
@@ -506,7 +507,7 @@ function LaunchSuccessModal({
       <section aria-labelledby="launch-success-title" aria-modal="true" className="launch-success-modal" role="dialog">
         <button aria-label="Close launch result" className="launch-success-close" onClick={onClose} type="button"><X size={18} /></button>
         <header className="launch-success-hero">
-          <div className="launch-success-mark"><Check size={29} /></div>
+          <div className="launch-success-mascot"><img alt="" src="/illustrations/bluefun/success.webp" /></div>
           <span>Launch confirmed</span>
           <h2 id="launch-success-title">Your market is live.</h2>
           <p>{launchMode === "direct" ? "The token and permanently locked Uniswap v4 market are live." : "The token and bonding curve are active. Trading can begin immediately."}</p>

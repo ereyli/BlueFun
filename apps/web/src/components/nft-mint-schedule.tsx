@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarClock, Infinity as InfinityIcon, ShieldCheck } from "lucide-react";
+import { CalendarClock, Infinity as InfinityIcon, ShieldCheck } from "@/components/bluefun-icons";
 
 export type MintSchedule = {
   allowlistStart: string;

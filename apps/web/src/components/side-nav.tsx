@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { BookOpen, Home, ImagePlus, Images, LayoutDashboard, ShieldCheck, WalletCards, type LucideIcon } from "lucide-react";
+import { BookOpen, Home, ImagePlus, Images, LayoutDashboard, ShieldCheck, WalletCards, type LucideIcon } from "@/components/bluefun-icons";
 import { chainSlugFromPath, namedChainParam } from "@/lib/chain-slug";
 
 type NavItem = { href: string; label: string; icon: LucideIcon; shortLabel?: string; desktopOnly?: boolean; exact?: boolean };

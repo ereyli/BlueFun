@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { decodeEventLog, formatEther, keccak256, parseEther, toBytes, zeroAddress } from "viem";
 import { useAccount, usePublicClient, useReadContract, useWriteContract } from "wagmi";
-import { ArrowLeft, BadgeCheck, CheckCircle2, ImagePlus, Layers3, Loader2, LockKeyhole, ShieldCheck, Sparkles, WalletCards } from "lucide-react";
+import { ArrowLeft, BadgeCheck, CheckCircle2, ImagePlus, Layers3, Loader2, LockKeyhole, ShieldCheck, Sparkles, WalletCards } from "@/components/bluefun-icons";
 import { nftAddresses, nftCollectionFactoryAbi, nftDropControllerAbi, nftFeePolicyAbi, nftLaunchpadEnabled } from "@/lib/nft-contracts";
 import { PFPLaunchStudio } from "@/components/pfp-launch-studio";
 import { defaultMintSchedule, emptyMintSchedule, mintScheduleIsValid, MintScheduleFields, resolveMintSchedule } from "@/components/nft-mint-schedule";

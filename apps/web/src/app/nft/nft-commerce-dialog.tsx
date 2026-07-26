@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect } from "react";
-import { BadgeCheck, Clock3, ShieldCheck, ShoppingBag, Tag, X } from "lucide-react";
+import { BadgeCheck, Clock3, ShieldCheck, ShoppingBag, Tag, X } from "@/components/bluefun-icons";
 import { formatEther } from "viem";
 
 type CommerceDialogProps = {

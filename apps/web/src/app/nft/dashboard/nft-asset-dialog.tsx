@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { formatEther, parseEther, type Address } from "viem";
 import { useAccount, useReadContract, useWriteContract } from "wagmi";
-import { ExternalLink, ImageIcon, Loader2, ShieldCheck, ShoppingBag, Sparkles, Tag, X } from "lucide-react";
+import { ExternalLink, ImageIcon, Loader2, ShieldCheck, ShoppingBag, Sparkles, Tag, X } from "@/components/bluefun-icons";
 import { blueEditionAbi, bluePFPAbi, nftDeploymentForFactory, nftMarketplaceForDeployment, nftMarketplaceAbi, nftPFPMarketplaceAbi } from "@/lib/nft-contracts";
 import { NFTOffersPanel } from "../nft-offers-panel";
 import { nftMetadataUrl, optimizedTokenImageUrl } from "@/lib/token-metadata";

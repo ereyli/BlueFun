@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Activity, ArrowDownToLine, BarChart3, ExternalLink, Gavel, Images, Loader2, ShoppingBag, Tag, WalletCards } from "lucide-react";
+import { Activity, ArrowDownToLine, BarChart3, ExternalLink, Gavel, Images, Loader2, ShoppingBag, Tag, WalletCards } from "@/components/bluefun-icons";
 import { formatEther } from "viem";
 
 type ActivityRow = { id: string; type: "mint" | "listing" | "sale" | "transfer"; tokenId: string; quantity: string; amount?: string; wallet?: string; counterparty?: string; txHash?: string; createdAt: string };
