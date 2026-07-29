@@ -350,7 +350,7 @@ function LaunchPageContent() {
           </div>
           {!bondEnabled ? <LaunchNotice tone="info">{chain.name} launches are Direct DEX only. The complete supply is added automatically as one-sided Uniswap v3 liquidity and the position NFT remains permanently locked.</LaunchNotice> : null}
           {launchMode === "direct" && addresses.directLaunchFactory === zeroAddress ? <LaunchNotice tone="info">Direct DEX contracts are ready in the codebase but are not configured for {chain.name} yet.</LaunchNotice> : null}
-          {isArc && arcLaunchesPaused ? <LaunchNotice tone="info">Arc contracts and locked Uniswap v3 liquidity are deployed. Launching unlocks automatically after the scheduled timelock activation.</LaunchNotice> : null}
+          {isArc && arcLaunchesPaused ? <LaunchNotice tone="info">Arc launch availability could not be confirmed from the live policy contract. Try again shortly or switch RPC before submitting.</LaunchNotice> : null}
           <div className="launch-stepper" aria-label="Launch progress">
             {([1, 2, 3] as const).map((item) => {
               const complete = item === 1 ? identityReady : item === 2 ? step === 3 : receipt.isSuccess;

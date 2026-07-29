@@ -7,7 +7,7 @@ import { formatEther, formatUnits, zeroAddress } from "viem";
 import { useAccount, useReadContracts, useSwitchChain, useWriteContract } from "wagmi";
 import { ArrowUpRight, BarChart3, Coins, ExternalLink, Flame, Layers3, Loader2, LockKeyhole, RefreshCw, Rocket, Sparkles, Wallet, WalletCards } from "@/components/bluefun-icons";
 import { NetworkIcon, networkMeta } from "@/components/network-icon";
-import { b20TokenAbi, bondingCurveAbi, deploymentsForChain, feeSharingLockerAbi, indexerScopeForDeployment, isVNextLiquidityLocker, stableUniswapV3Addresses, unifiedFeeHookAbi } from "@/lib/contracts";
+import { arcUniswapV3Addresses, b20TokenAbi, bondingCurveAbi, deploymentsForChain, feeSharingLockerAbi, indexerScopeForDeployment, isVNextLiquidityLocker, stableUniswapV3Addresses, unifiedFeeHookAbi } from "@/lib/contracts";
 import type { WalletDashboardData, WalletTradeSummary } from "@/lib/dashboard-types";
 import type { DeployedLaunch } from "@/lib/onchain-launches";
 import { optimizedTokenImageUrl } from "@/lib/token-metadata";
@@ -78,7 +78,11 @@ export function CreatorDashboard() {
       return [{
         chainId: launch.chainId,
         address: launch.liquidityLocker,
-        currency: launch.chainId === 988 || launch.chainId === 5042 ? stableUniswapV3Addresses.quoteToken : zeroAddress
+        currency: launch.chainId === 5042
+          ? arcUniswapV3Addresses.quoteToken
+          : launch.chainId === 988
+            ? stableUniswapV3Addresses.quoteToken
+            : zeroAddress
       }];
     });
   }, [data.created]);

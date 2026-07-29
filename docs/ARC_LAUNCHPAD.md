@@ -1,11 +1,11 @@
 # BlueFun Arc launchpad
 
-Status: Arc mainnet core and Direct Uniswap v3 adapter deployed; activation timelocked
+Status: Arc Mainnet Direct launchpad live and smoke-verified
 
-The DEX-independent core was deployed on Arc mainnet chain `5042` on
-2026-07-30. The reviewed Arc Uniswap v3 Direct adapter and permanent-liquidity
-locker are also deployed. New launches remain paused until the three scheduled
-governance operations become executable on 2026-08-06.
+The production Direct generation was deployed on Arc Mainnet chain `5042` on
+2026-07-30. New launches are open now. Its reviewed Uniswap v3 adapter was
+frozen before activation and its position NFTs remain permanently in the
+liquidity locker.
 
 ## Economics
 
@@ -29,25 +29,24 @@ not 1 ETH.
 | Trade platform revenue reserved for Base staking | 50% |
 
 The launch fee can change only through governance and can never exceed 25 USDC
-in this contract generation. The seven-day timelock also controls adapter
-staging, fee shares, treasury addresses and launch activation.
+in this contract generation. Production administration is being handed to the
+seven-day timelock without delaying public token launches.
 
 ## Deployment phases
 
 ### Arc mainnet core deployment
 
-The paused deployment starts at block `12879868`. Canonical addresses,
+The active Direct deployment starts at block `12888747`. Canonical addresses,
 transaction hashes and the final onchain configuration are recorded in
 `contracts/deployments/arc-mainnet.json`.
 
-The first planned Direct smoke launch is the original BlueFun mascot
-`Ben the Arc Dog (BARC)`. Its artwork, story and activation gates are recorded
-in `docs/ARC_MASCOT.md`. It is intentionally not deployed before the mandatory
-timelock completes.
+The first Direct launch is the original BlueFun mascot
+`Ben the Arc Dog (BARC)`. Its artwork, story and successful mainnet buy/sell
+validation are recorded in `docs/ARC_MASCOT.md`.
 
-### Phase 1: paused Arc core
+### Superseded prelaunch core
 
-`DeployArcMainnet.s.sol` deploys:
+`DeployArcMainnet.s.sol` deployed the original paused core:
 
 - seven-day `StakingTimelock`;
 - `ArcFeePolicy`, starting with new launches paused;
@@ -56,9 +55,9 @@ timelock completes.
 - `ArcBondingCurveMarket` and `ArcGraduationCoordinator`;
 - `ArcBondLaunchFactory` and `ArcDirectLaunchFactory`.
 
-Neither factory can create a token merely because the website is enabled. Bond
-creation requires a frozen Bond adapter, Direct creation requires a frozen
-Direct adapter, and both also require the shared policy to be unpaused.
+That generation had no launches and is not used by the web or indexer. It was
+replaced because its first-launch activation was incorrectly tied to a
+seven-day governance delay.
 
 ### Phase 2: Direct DEX integration
 
@@ -69,12 +68,11 @@ The deployed Direct route uses the live Arc v3-compatible stack:
    principal withdrawal or position-NFT transfer path.
 3. Run an Arc fork test for pool initialization and permanent LP-principal
    custody, then a low-value live router buy/sell smoke test.
-4. Schedule the adapter and approved Direct configuration hash through the
-   seven-day timelock.
-5. Freeze the adapters only after the delay and verification complete. Freezing
-   is irreversible for this contract generation.
-6. Schedule `unpauseNewLaunches()` through the timelock.
-7. Execute the BARC Direct smoke launch after activation.
+4. Register and irreversibly freeze the approved Direct configuration before
+   opening public launches.
+5. Unpause public launches only after the adapter readiness checks pass.
+6. Propose the production administration handoff to the seven-day timelock.
+7. Execute the BARC Direct launch and live buy/sell validation.
 
 If the verified DEX integration needs to change after freezing, deploy a new
 BlueFun contract generation. Do not make the frozen adapter replaceable and do

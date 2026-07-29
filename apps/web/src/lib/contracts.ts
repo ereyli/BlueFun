@@ -191,10 +191,10 @@ export const arcAddresses: ContractDeployment = {
   deploymentBlock: 12879868n,
   firstLaunchId: 1n,
   directLaunchFactory: (process.env.NEXT_PUBLIC_ARC_DIRECT_LAUNCH_FACTORY
-    || "0x8f627e73b9175e3e5c7b320360d38271a309b2da") as `0x${string}`,
+    || "0xf07020e9c5e44d08bc5b35657b99aa99c560098b") as `0x${string}`,
   directLiquidityLocker: (process.env.NEXT_PUBLIC_ARC_DIRECT_LIQUIDITY_LOCKER
-    || "0xcf1f0ad502eddf1791fb9bcf5e87524f50a48324") as `0x${string}`,
-  directDeploymentBlock: BigInt(process.env.NEXT_PUBLIC_ARC_DIRECT_DEPLOYMENT_BLOCK || "12879868")
+    || "0xfc33cdc679636c4e94f88798f173f64a7adb1a71") as `0x${string}`,
+  directDeploymentBlock: BigInt(process.env.NEXT_PUBLIC_ARC_DIRECT_DEPLOYMENT_BLOCK || "12888747")
 };
 
 export const legacyBaseAddresses = LEGACY_BASE_DEPLOYMENT;
@@ -767,7 +767,7 @@ export const arcFeePolicyAbi = [{
   outputs: [{ name: "", type: "bool" }]
 }] as const;
 
-export const ARC_FEE_POLICY = "0xff134c1ca2d2d5a9ffa4fc527f3756ba0828013b" as const;
+export const ARC_FEE_POLICY = "0xc38b78a9951a0209a39e39eb02a3e80b37dd206b" as const;
 
 export const bondingCurveAbi = [
   {

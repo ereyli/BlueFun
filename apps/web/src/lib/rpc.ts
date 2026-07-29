@@ -10,7 +10,10 @@ export const DEFAULT_STABLE_RPC_URLS = [
   "https://rpc.stable.xyz",
   "https://lb.routeme.sh/rpc/evm/988"
 ];
-export const DEFAULT_ARC_RPC_URLS = ["https://5042.rpc.thirdweb.com"];
+export const DEFAULT_ARC_RPC_URLS = [
+  "https://5042.rpc.thirdweb.com",
+  "https://rpc.blockdaemon.mainnet.arc.io"
+];
 
 export function baseRpcUrls() {
   return uniqueUrls([

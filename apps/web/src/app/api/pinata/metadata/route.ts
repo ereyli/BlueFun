@@ -98,7 +98,9 @@ export async function POST(request: Request) {
         { trait_type: "Launchpad", value: "BlueFun" },
         { trait_type: "Launch Route", value: launchMode === "direct" ? "Direct DEX" : "Bonding Curve" },
         launchMode === "direct"
-          ? { trait_type: "Liquidity", value: "Permanently locked Uniswap v4" }
+          ? { trait_type: "Liquidity", value: chainId === 5042 || chainId === 988
+              ? "Permanently locked Uniswap v3"
+              : "Permanently locked Uniswap v4" }
           : { trait_type: "Graduation Target", value: chainId === 143 ? "400,000 MON" : "5 ETH" }
       ]
     };

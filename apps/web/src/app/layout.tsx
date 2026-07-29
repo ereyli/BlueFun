@@ -28,7 +28,7 @@ import { BrandLaunchpadMenu } from "@/components/brand-launchpad-menu";
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl("/")),
   title: "BlueFun",
-  description: "Fair multichain token launches on Base, Robinhood Chain, Monad and Stable.",
+  description: "Fair multichain token launches on Base, Robinhood Chain, Monad, Stable and Arc.",
   other: {
     "base:app_id": "6a594e1358aaa84e3d06752c"
   },

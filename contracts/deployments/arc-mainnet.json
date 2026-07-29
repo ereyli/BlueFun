@@ -2,9 +2,9 @@
   "network": "Arc Mainnet",
   "chainId": 5042,
   "rpcUrl": "https://5042.rpc.thirdweb.com",
+  "rpcFallbackUrl": "https://rpc.blockdaemon.mainnet.arc.io",
   "deployedAt": "2026-07-30",
-  "deploymentBlock": 12879868,
-  "finalConfigurationBlock": 12879925,
+  "deploymentBlock": 12888747,
   "deployer": "0xA860919Cb28df3f45C154A28c66F25194cE80546",
   "nativeCurrency": {
     "name": "USDC",
@@ -14,75 +14,29 @@
     "erc20Decimals": 6
   },
   "status": {
-    "coreDeployed": true,
-    "newLaunchesPaused": true,
-    "bondAdapterFrozen": false,
-    "directAdapterFrozen": false,
-    "productionDexIntegrated": true,
-    "activationScheduled": true
+    "directLaunchesLive": true,
+    "newLaunchesPaused": false,
+    "directAdapterFrozen": true,
+    "forkTestPassed": true,
+    "liveBuySellPassed": true,
+    "bondLaunchesEnabled": false
   },
   "parameters": {
     "launchFeeUsdc": "2",
     "maximumLaunchFeeUsdc": "25",
-    "bondGraduationTargetUsdc": "5000",
-    "bondVirtualUsdcReserve": "1250",
-    "buyPlatformFeeBps": 70,
-    "buyCreatorFeeBps": 30,
-    "sellPlatformFeeBps": 70,
-    "sellBurnFeeBps": 30,
+    "tokenSupply": "1000000000",
+    "creatorAllocation": "0",
     "timelockDelaySeconds": 604800
   },
   "contracts": {
-    "timelock": {
-      "address": "0x14f2dd466a25757c7239e4417bb4924aeeac515c",
-      "txHash": "0x451761e4ee25bf2cb5de5a2fb5d7dd997a914f6afbc79181b96b6643e4d8c8e8"
-    },
-    "feePolicy": {
-      "address": "0xff134c1ca2d2d5a9ffa4fc527f3756ba0828013b",
-      "txHash": "0xc717f3944e8287fde5464bb60b041073db5a30197676d28ffad67a207ce5b977"
-    },
-    "adapterRegistry": {
-      "address": "0x55a12e8163d6a2ade6b31c0672d1636ac03e0206",
-      "txHash": "0x75d4e18fd12d896c365e744977508996c3ee2d68887ac4626d3db8255b23273d"
-    },
-    "revenueRouter": {
-      "address": "0x61f8b3cecf471fb4983f6eaffb45946d4169312d",
-      "txHash": "0x1a36c58c89e6c2eb296afc2762697b8067412bea5af26cafa767d1271ea30ad0"
-    },
-    "emergencyGuardian": {
-      "address": "0x270f9caf875fa80d722c915e80f48619c0c69771",
-      "txHash": "0x251c905982dff3ea6cd9c7c5c959de9b5a73123eb3ad416291dbd5800dfcf3e3"
-    },
-    "bondingCurveMarket": {
-      "address": "0xcfdc163493da81ba4e1da73406b2e546a2da8e74",
-      "txHash": "0xeef1e18de40406e8d654164d0bc86c585d93f9a8605827c8bb65535653a7e47a"
-    },
-    "graduationCoordinator": {
-      "address": "0xb763ada38046490d78fe37f03cbf0fce3cc75f62",
-      "txHash": "0x9ffb63db4eca89a059ab3768080b622e535689f6c0e6bae5e04da86943b6abb3"
-    },
-    "bondLaunchFactory": {
-      "address": "0xa7b4677396fcdbce5a51cde1db284d3576820f4b",
-      "txHash": "0xff202c9c3c51c9efbcc65809d2a401dca26283aba27bf2c27808739bfcdf6279"
-    },
-    "directLaunchFactory": {
-      "address": "0x8f627e73b9175e3e5c7b320360d38271a309b2da",
-      "txHash": "0xa8c6e871472b84b2986520278734e837bec0ff4469acb6b02705703bf4b55040"
-    },
-    "arcV3LiquidityLocker": {
-      "address": "0xcf1f0ad502eddf1791fb9bcf5e87524f50a48324",
-      "txHash": "0x0b1c1ac775178e00aba6c9b5cc55ce228dba54bc99b1eab0342451866b7bb744"
-    },
-    "arcV3DirectAdapter": {
-      "address": "0xc4bcfe9a5d6d181ff5730a9f80e91bc6167459e3",
-      "txHash": "0x05cf0733aa1a9851a363fae8e141a985427727694efd04f47985420ffc59c03b",
-      "configHash": "0xd7c08df78b8edba77a18cc9080229e16287916af14db258f53d713f14edf4548"
-    }
-  },
-  "configurationTransactions": {
-    "marketConfigured": "0xcee900d2cf9f8449d218a89b5e6f23da183619a99c6b5c6af56496914748fa64",
-    "marketOwnershipTransferredToEmergencyGuardian": "0x1296bd5747356118f53faf26d1bc1d175cbb87e130178b3b4e033bd8eabaf9e6",
-    "v3LockerFactorySet": "0xbed714f249c0412aeda3ddfee0d80c094cb292858e4d4a119ef419786f2e60ae"
+    "governanceTimelock": "0x14f2dd466a25757c7239e4417bb4924aeeac515c",
+    "feePolicy": "0xc38b78a9951a0209a39e39eb02a3e80b37dd206b",
+    "adapterRegistry": "0xbead1d93f94c7b21ef3e54dea73602c730f51c83",
+    "revenueRouter": "0xf4eaba158498fbae864fbbcb98f4b251555c440a",
+    "directLaunchFactory": "0xf07020e9c5e44d08bc5b35657b99aa99c560098b",
+    "directLiquidityLocker": "0xfc33cdc679636c4e94f88798f173f64a7adb1a71",
+    "directAdapter": "0x682b5b60fd7549e63c607f9d0ccae5ca5f8fa15a",
+    "directAdapterConfigHash": "0x87f023b775c15d48b04c643754e81e21b8ffd148babd252232960d1e7b764d44"
   },
   "dex": {
     "version": "v3",
@@ -93,26 +47,45 @@
     "poolFee": 10000,
     "tickSpacing": 200
   },
-  "timelockActivation": {
-    "earliestExecution": "2026-08-06T00:59:58+03:00",
-    "setDirectAdapter": {
-      "txHash": "0x76b1ae079b1fd9bad52b59cc00c2f95bb4989a83e0809b0b954e60d494d4cb86",
-      "operationId": "0xb195a943d70fe21c90fe5b4c176577232bb403d6cad5dae98b9ae0070bb52c07"
-    },
-    "freezeDirectAdapter": {
-      "txHash": "0x08f9ed081e19d9ea617b96353d56018206e402aeccaeec2575e3df499b01502e",
-      "operationId": "0x610416db1deacb67293a877d8934395f3f84c2055bf5cb608e2111dbcd98c2a6"
-    },
-    "unpauseNewLaunches": {
-      "txHash": "0xe1d036fae31f0290a5f67e6adeb0c191c07b49e561917bd2c942247da09a3825",
-      "operationId": "0xa4b52b33201472bf12c7f6bf13bc980375433e726f1188bc54d34b16769c184a"
-    }
+  "deploymentTransactions": {
+    "feePolicy": "0xd4355da2eb72180ef0a1ab7db2c2e56509a0314355547a700b005c7544852255",
+    "adapterRegistry": "0xf0f5aeaae9eb650ad4049c55ea96225a4c7eb4bc9c9c8299760fba9c38441fee",
+    "revenueRouter": "0xa4ecb581c49295efac9959a8a075224da3763635d2a2ee491acb4af2d5e90050",
+    "directLaunchFactory": "0xd029fb5c9c2b416d2033633accb3351cec6884295a133a65daa756671bd7e240",
+    "directLiquidityLocker": "0x66dd567c97fa749364c00bf6b871811280b93d783867d1e111d53cc66a4661cb",
+    "directAdapter": "0xc614519c28004ddda5c1e5a3d5e40673100a935be616a4393eed0a35bb05a1c8",
+    "lockerFactorySet": "0xbdf91cce866ba0480529462e490b13e62e5d0ff05e26b38674df347c5d02188d",
+    "adapterRegistered": "0xcf1f9a0d9f756528ebcdeae6a585d3c803f60ebf0ac172f752379e86bbd8aafe",
+    "adapterFrozen": "0xfc5a6d3667f05fe513e789ec9d72a5bb58b723b3c823d1c19fa941871b7eeeed",
+    "launchesUnpaused": "0x7e6acc4579a31c27878e072e8cf8bffb016661d46badcbb00fb4cf6d1bd7997e"
   },
-  "deploymentGasPaidUsdc": "0.3099388385",
-  "warnings": [
-    "The core is intentionally launch-paused.",
-    "The reviewed Arc v3 Direct adapter is deployed and its activation is scheduled through the seven-day timelock.",
-    "The web must keep token creation disabled while newLaunchesPaused is true.",
-    "Execute the three scheduled operations only after their individual readyAt timestamps."
-  ]
+  "governanceHandoff": {
+    "pendingAdmin": "0x14f2dd466a25757c7239e4417bb4924aeeac515c",
+    "policyAcceptScheduledTx": "0xe16ebca0ea61092b5b6f8b3c4e782602074d6ef81be7570a2365d61af6e1d3fd",
+    "registryAcceptScheduledTx": "0xe41b8edab1215a45a05510b437ef79f8d70137137b1c2a6be1eadb6e60f0bdd1",
+    "routerAcceptScheduledTx": "0x5d2286b55bd7a2777516d9beea4f5e3076436a081e48df3d7a10ce4a185917b0"
+  },
+  "smoke": {
+    "name": "Ben the Arc Dog",
+    "symbol": "BARC",
+    "launchId": 1,
+    "token": "0x8e27a7b52f12a3878791f4a855b7d7afd5f40634",
+    "pool": "0xaa4ab45f372e912aebc4274b869feae066a5dfb3",
+    "positionTokenId": 1742,
+    "positionOwner": "0xfc33cdc679636c4e94f88798f173f64a7adb1a71",
+    "metadataUri": "ipfs://QmUhFoByVpUtcCoyAwqWvPfRCUabKzboypkDJ7gfsgpqL8",
+    "launchTx": "0x927e5d2f07650f9602ea68a9d7ab26b3ef1caf55af2021091dac747f45f1c10b",
+    "buyApprovalTx": "0x92934de86cfaa5dce45c95a48fad6fcacc1d8b563a82b315b7330247d0ad5574",
+    "buyTx": "0x7517b2adb6269075d43c24baeeb504f046507f3bbbf1fed208212920e50de4e6",
+    "sellApprovalTx": "0x17dbb44d0eb51442c03d882e45daaf200f22724a8354daf7b4276e8b62f1d5ab",
+    "sellTx": "0xb106006a49777d82231ed785b20664393937c8f35a18b2ab2732bd26f5fc0052"
+  },
+  "supersededPrelaunchGeneration": {
+    "reason": "The original seven-day activation schedule incorrectly delayed public launches. It had no launches and was replaced by an adapter-frozen, immediately live Direct generation.",
+    "feePolicy": "0xff134c1ca2d2d5a9ffa4fc527f3756ba0828013b",
+    "adapterRegistry": "0x55a12e8163d6a2ade6b31c0672d1636ac03e0206",
+    "directLaunchFactory": "0x8f627e73b9175e3e5c7b320360d38271a309b2da",
+    "directLiquidityLocker": "0xcf1f0ad502eddf1791fb9bcf5e87524f50a48324",
+    "directAdapter": "0xc4bcfe9a5d6d181ff5730a9f80e91bc6167459e3"
+  }
 }

@@ -8,7 +8,7 @@ const arc = chainId === 5042;
 const base = chainId === 8453;
 export const defaultRpcUrl = arc ? "https://5042.rpc.thirdweb.com" : stable ? "https://rpc.stable.xyz" : monad ? "https://rpc.monad.xyz" : robinhood ? "https://rpc.mainnet.chain.robinhood.com" : "https://mainnet.base.org";
 export const defaultRpcUrls = arc
-  ? [defaultRpcUrl, ...splitRpcUrls(process.env.ARC_RPC_FALLBACK_URLS)]
+  ? [defaultRpcUrl, "https://rpc.blockdaemon.mainnet.arc.io", ...splitRpcUrls(process.env.ARC_RPC_FALLBACK_URLS)]
   : stable
   ? [defaultRpcUrl, "https://lb.routeme.sh/rpc/evm/988", ...splitRpcUrls(process.env.STABLE_RPC_FALLBACK_URLS)]
   : monad
@@ -122,15 +122,15 @@ export const deployments = Array.from(
 );
 
 const configuredDirectFactory = (process.env.DIRECT_LAUNCH_FACTORY
-  || (arc ? "0x8f627e73b9175e3e5c7b320360d38271a309b2da" : stable ? "0xc2c29581179111aa94ba12affd3486879e42090c" : monad ? "0x773260193799321547BFeF0616cf57b3D7aa3412" : robinhood
+  || (arc ? "0xf07020e9c5e44d08bc5b35657b99aa99c560098b" : stable ? "0xc2c29581179111aa94ba12affd3486879e42090c" : monad ? "0x773260193799321547BFeF0616cf57b3D7aa3412" : robinhood
     ? "0x7de3165634679353a36886dcfe35e3521beee4a4"
     : "0x0246688cef66734c1cada909cfd202e1448ba275")) as `0x${string}`;
 const configuredDirectLocker = (process.env.DIRECT_LIQUIDITY_LOCKER
-  || (arc ? "0xcf1f0ad502eddf1791fb9bcf5e87524f50a48324" : stable ? "0x8d51017c392552333a679ccb60b5df84314c64cd" : monad ? "0xb5fAb655a3b7187175Ac339075DA11542e58d81d" : robinhood
+  || (arc ? "0xfc33cdc679636c4e94f88798f173f64a7adb1a71" : stable ? "0x8d51017c392552333a679ccb60b5df84314c64cd" : monad ? "0xb5fAb655a3b7187175Ac339075DA11542e58d81d" : robinhood
     ? "0x8550c8f626993ffb58a884cb4e9b5b8a9ee2bdf6"
     : "0x2e83029d88d0af58ba55b31980dc709920fab941")) as `0x${string}`;
 const configuredDirectStartBlock = BigInt(
-  process.env.DIRECT_DEPLOYMENT_BLOCK || (arc ? "12879868" : stable ? "32827109" : monad ? "89311452" : robinhood ? "10703400" : "48647525")
+  process.env.DIRECT_DEPLOYMENT_BLOCK || (arc ? "12888747" : stable ? "32827109" : monad ? "89311452" : robinhood ? "10703400" : "48647525")
 );
 const configuredDirectDeployment: DirectIndexerDeployment | undefined =
   configuredDirectFactory && configuredDirectLocker && configuredDirectStartBlock > 0n
