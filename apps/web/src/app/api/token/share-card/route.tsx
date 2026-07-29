@@ -27,7 +27,8 @@ const NETWORKS = {
   8453: { name: "BASE", symbol: "ETH", accent: "#315cff", glow: "#244ee8", icon: "/networks/base.svg" },
   4663: { name: "ROBINHOOD", symbol: "ETH", accent: "#b7ef33", glow: "#6d9e09", icon: "/networks/robinhood.svg" },
   143: { name: "MONAD", symbol: "MON", accent: "#8b7cff", glow: "#6253df", icon: "/networks/monad.svg" },
-  988: { name: "STABLE", symbol: "USDT0", accent: "#55dfb4", glow: "#158d70", icon: "/networks/stable.svg" }
+  988: { name: "STABLE", symbol: "USDT0", accent: "#55dfb4", glow: "#158d70", icon: "/networks/stable.svg" },
+  5042: { name: "ARC", symbol: "USDC", accent: "#ffffff", glow: "#1b3158", icon: "/networks/arc.svg" }
 } as const;
 
 export async function GET(request: Request) {
@@ -140,7 +141,7 @@ async function getShareLaunch(chainId: number, token: string): Promise<ShareLaun
 
   const launches = chainId === 4663
     ? await getRobinhoodLaunches().catch(() => [])
-    : chainId === 143 || chainId === 988
+    : chainId === 143 || chainId === 988 || chainId === 5042
       ? await getDbLaunches(chainId).then((items) => items ?? []).catch(() => [])
       : await getDeployedLaunches().catch(() => []);
   return launches.find((item) => item.token.toLowerCase() === token.toLowerCase());

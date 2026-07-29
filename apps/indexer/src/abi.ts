@@ -34,6 +34,25 @@ export const directLaunchFactoryAbi = [
   }
 ] as const;
 
+export const arcDirectLaunchFactoryAbi = [
+  {
+    type: "event",
+    name: "ArcDirectLaunchCreated",
+    inputs: [
+      { indexed: true, name: "launchId", type: "uint256" },
+      { indexed: true, name: "token", type: "address" },
+      { indexed: true, name: "creator", type: "address" },
+      { indexed: false, name: "adapter", type: "address" },
+      { indexed: false, name: "poolId", type: "bytes32" },
+      { indexed: false, name: "positionId", type: "bytes32" },
+      { indexed: false, name: "configHash", type: "bytes32" },
+      { indexed: false, name: "name", type: "string" },
+      { indexed: false, name: "symbol", type: "string" },
+      { indexed: false, name: "contractURI", type: "string" }
+    ]
+  }
+] as const;
+
 export const nftCollectionFactoryAbi = [
   {
     type: "event",

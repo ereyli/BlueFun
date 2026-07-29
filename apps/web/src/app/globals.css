@@ -5465,6 +5465,12 @@ textarea:focus-visible {
   padding: 3px;
 }
 
+.network-icon.arc {
+  background: #1b3158;
+  border-color: #304b79;
+  padding: 2px;
+}
+
 .wallet-control {
   border-radius: 14px;
   min-height: 48px;

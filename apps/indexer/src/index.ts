@@ -4,6 +4,7 @@ import { createPublicClient, encodeAbiParameters, fallback, getAddress, http, ke
 import {
   blueEdition1155Abi,
   bluePFP721Abi,
+  arcDirectLaunchFactoryAbi,
   directLaunchFactoryAbi,
   graduationAbi,
   launchFactoryAbi,
@@ -73,11 +74,11 @@ const deploymentContexts: DeploymentContext[] = deployments.map((deployment) => 
 }));
 let nftDeployment = nftDeployments[0];
 const v4TickSpacing = 60;
-const chunkSize = BigInt(process.env.LOG_CHUNK_SIZE || (chainId === 988 ? "450" : "1900"));
+const chunkSize = BigInt(process.env.LOG_CHUNK_SIZE || (chainId === 988 || chainId === 5042 ? "450" : "1900"));
 const nftEventChunkSize = BigInt(process.env.NFT_EVENT_LOG_CHUNK_SIZE || "1900");
 const nftTransferChunkSize = BigInt(process.env.NFT_TRANSFER_LOG_CHUNK_SIZE || "1900");
-const pollMs = Number(process.env.POLL_MS || (chainId === 988 || chainId === 143 ? "1200" : chainId === 8453 ? "2500" : "12000"));
-const confirmations = BigInt(process.env.CONFIRMATIONS || (chainId === 988 || chainId === 143 ? "2" : chainId === 8453 ? "1" : "3"));
+const pollMs = Number(process.env.POLL_MS || (chainId === 988 || chainId === 143 || chainId === 5042 ? "1200" : chainId === 8453 ? "2500" : "12000"));
+const confirmations = BigInt(process.env.CONFIRMATIONS || (chainId === 988 || chainId === 143 || chainId === 5042 ? "2" : chainId === 8453 ? "1" : "3"));
 const totalSupplyRaw = 1_000_000_000n * 10n ** 18n;
 const q192 = 1n << 192n;
 const pfpListingKey = (listingId: bigint) => -listingId;
@@ -353,7 +354,7 @@ async function backfillLaunchCreated(deployment: DeploymentContext, latest: bigi
 }
 
 async function backfillDirectLaunches(
-  deployment: ScopeContext & { launchFactory: `0x${string}`; liquidityLocker: `0x${string}` },
+  deployment: ScopeContext & { launchFactory: `0x${string}`; liquidityLocker: `0x${string}`; eventKind?: "standard" | "arc" },
   latest: bigint
 ) {
   let fromBlock = (await getIndexerState(stateKey(deployment, "direct_launches_last_block"))) ?? deployment.startBlock;
@@ -362,6 +363,19 @@ async function backfillDirectLaunches(
 
   while (fromBlock <= latest) {
     const toBlock = fromBlock + chunkSize > latest ? latest : fromBlock + chunkSize;
+    if (deployment.eventKind === "arc") {
+      const logs = await client.getContractEvents({
+        address: deployment.launchFactory,
+        abi: arcDirectLaunchFactoryAbi,
+        eventName: "ArcDirectLaunchCreated",
+        fromBlock,
+        toBlock
+      });
+      for (const log of logs) await handleArcDirectLaunchCreated(deployment, log);
+      await setIndexerState(stateKey(deployment, "direct_launches_last_block"), toBlock + 1n);
+      fromBlock = toBlock + 1n;
+      continue;
+    }
     const logs = await client.getContractEvents({
       address: deployment.launchFactory,
       abi: directLaunchFactoryAbi,
@@ -373,6 +387,54 @@ async function backfillDirectLaunches(
     await setIndexerState(stateKey(deployment, "direct_launches_last_block"), toBlock + 1n);
     fromBlock = toBlock + 1n;
   }
+}
+
+async function handleArcDirectLaunchCreated(
+  deployment: ScopeContext & { liquidityLocker: `0x${string}` },
+  log: Awaited<ReturnType<typeof client.getContractEvents<typeof arcDirectLaunchFactoryAbi, "ArcDirectLaunchCreated">>>[number]
+) {
+  const metadata: LaunchMetadata = await readLaunchMetadata(log.args.contractURI || "").catch(() => ({}));
+  const cdnImage = metadata.image
+    ? await mirrorTokenImage(metadata.image, chainId, log.args.token!).catch(() => undefined)
+    : undefined;
+  await upsertLaunch(deployment.scope, {
+    id: log.args.launchId!,
+    token: log.args.token!,
+    creator: log.args.creator!,
+    name: log.args.name!,
+    symbol: log.args.symbol!,
+    contractURI: log.args.contractURI!,
+    imageUri: cdnImage || metadata.image,
+    description: metadata.description,
+    website: metadata.website,
+    twitter: metadata.twitter,
+    telegram: metadata.telegram,
+    discord: metadata.discord,
+    launchMode: "direct",
+    poolFee: 10_000,
+    tickSpacing: 200,
+    liquidityLocker: deployment.liquidityLocker,
+    txHash: log.transactionHash,
+    blockNumber: log.blockNumber
+  });
+  await markGraduated(deployment.scope, {
+    launchId: log.args.launchId!,
+    token: log.args.token!,
+    positionId: log.args.positionId!,
+    poolId: log.args.poolId!,
+    txHash: log.transactionHash,
+    blockNumber: log.blockNumber
+  });
+  const block = await client.getBlock({ blockNumber: log.blockNumber });
+  await updateLaunchState(deployment.scope, {
+    id: log.args.launchId!,
+    status: "graduated",
+    raisedEth: 0n,
+    graduationTargetEth: 0n,
+    progress: 100,
+    creatorAllocation: 0n,
+    tokenCreatedAt: block.timestamp
+  });
 }
 
 async function backfillNFTCollections(latest: bigint) {

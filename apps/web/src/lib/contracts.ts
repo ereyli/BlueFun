@@ -2,6 +2,7 @@ import { baseChain } from "@/lib/base-chain";
 import { robinhoodChain } from "@/lib/robinhood-chain";
 import { monadChain } from "@/lib/monad-chain";
 import { stableChain } from "@/lib/stable-chain";
+import { arcChain } from "@/lib/arc-chain";
 
 export const chain = baseChain;
 
@@ -181,11 +182,28 @@ export const stableAddresses: ContractDeployment = {
   directDeploymentBlock: BigInt(process.env.NEXT_PUBLIC_STABLE_DIRECT_DEPLOYMENT_BLOCK || "32827109")
 };
 
+export const arcAddresses: ContractDeployment = {
+  version: "vnext",
+  launchFactory: "0xa7b4677396fcdbce5a51cde1db284d3576820f4b",
+  bondingCurveMarket: "0xcfdc163493da81ba4e1da73406b2e546a2da8e74",
+  graduationManager: "0xb763ada38046490d78fe37f03cbf0fce3cc75f62",
+  liquidityLocker: ZERO_ADDRESS,
+  deploymentBlock: 12879868n,
+  firstLaunchId: 1n,
+  directLaunchFactory: (process.env.NEXT_PUBLIC_ARC_DIRECT_LAUNCH_FACTORY
+    || "0x8f627e73b9175e3e5c7b320360d38271a309b2da") as `0x${string}`,
+  directLiquidityLocker: (process.env.NEXT_PUBLIC_ARC_DIRECT_LIQUIDITY_LOCKER
+    || "0xcf1f0ad502eddf1791fb9bcf5e87524f50a48324") as `0x${string}`,
+  directDeploymentBlock: BigInt(process.env.NEXT_PUBLIC_ARC_DIRECT_DEPLOYMENT_BLOCK || "12879868")
+};
+
 export const legacyBaseAddresses = LEGACY_BASE_DEPLOYMENT;
 export const legacyRobinhoodAddresses = LEGACY_ROBINHOOD_DEPLOYMENT;
 
 export function deploymentsForChain(chainId: number | undefined): ContractDeployment[] {
-  const catalog = chainId === stableChain.id
+  const catalog = chainId === arcChain.id
+    ? []
+    : chainId === stableChain.id
     ? []
     : chainId === monadChain.id
     ? [MONAD_DEPLOYMENT]
@@ -196,7 +214,9 @@ export function deploymentsForChain(chainId: number | undefined): ContractDeploy
 }
 
 function directDeploymentsForChain(chainId: number): ContractDeployment[] {
-  return chainId === stableChain.id
+  return chainId === arcChain.id
+    ? [arcAddresses]
+    : chainId === stableChain.id
     ? [stableAddresses]
     : chainId === monadChain.id
     ? [MONAD_DEPLOYMENT]
@@ -206,6 +226,7 @@ function directDeploymentsForChain(chainId: number): ContractDeployment[] {
 }
 
 export function deploymentForLaunch(chainId: number | undefined, launchId: string | bigint) {
+  if (chainId === arcChain.id) return arcAddresses;
   if (chainId === stableChain.id) return stableAddresses;
   const id = typeof launchId === "bigint" ? launchId : BigInt(launchId);
   return deploymentsForChain(chainId)
@@ -243,7 +264,26 @@ export const stableUniswapV3Addresses = {
   quoter: "0xb070179E7032CdA868b53e6C1742F80c9e940d1A" as `0x${string}`
 };
 
+export const arcUniswapV3Addresses = {
+  quoteToken: "0x3600000000000000000000000000000000000000" as `0x${string}`,
+  factory: "0xf0db7b58379503491d857dB50AC9ece64c653918" as `0x${string}`,
+  positionManager: "0x39654A85A4C05127f5Fd6ED22CAeC077A0fB1377" as `0x${string}`,
+  swapRouter: "0x53BF6B0684Ec7eF91e1387Da3D1a1769bC5A6F77" as `0x${string}`,
+  quoter: "0x7dfd4f31be6814d2906bde155c3e1b146eac1468" as `0x${string}`
+};
+
 export function contractsForChain(chainId: number | undefined) {
+  if (chainId === arcChain.id) {
+    return {
+      chain: arcChain,
+      addresses: arcAddresses,
+      uniswapV4Addresses,
+      stableUniswapV3Addresses: arcUniswapV3Addresses,
+      uniswapChainName: "arc",
+      dexVersion: "v3" as const,
+      bondEnabled: false
+    };
+  }
   if (chainId === stableChain.id) {
     return {
       chain: stableChain,
@@ -311,7 +351,9 @@ export function indexerScopeForDeployment(chainId: number, deployment: ContractD
 }
 
 export function indexerScopesForChain(chainId: number | undefined) {
-  const resolvedChainId = chainId === stableChain.id
+  const resolvedChainId = chainId === arcChain.id
+    ? arcChain.id
+    : chainId === stableChain.id
     ? stableChain.id
     : chainId === monadChain.id
     ? monadChain.id
@@ -339,7 +381,9 @@ export function indexerScopesForChain(chainId: number | undefined) {
 }
 
 export function indexerScopeForLaunch(chainId: number | undefined, launchId: string | bigint) {
-  const resolvedChainId = chainId === stableChain.id
+  const resolvedChainId = chainId === arcChain.id
+    ? arcChain.id
+    : chainId === stableChain.id
     ? stableChain.id
     : chainId === monadChain.id
     ? monadChain.id
@@ -350,7 +394,9 @@ export function indexerScopeForLaunch(chainId: number | undefined, launchId: str
 export function isVNextLiquidityLocker(chainId: number, locker?: string) {
   if (!locker) return false;
   const value = locker.toLowerCase();
-  const deployment = chainId === stableChain.id
+  const deployment = chainId === arcChain.id
+    ? arcAddresses
+    : chainId === stableChain.id
     ? stableAddresses
     : chainId === monadChain.id
     ? MONAD_DEPLOYMENT
@@ -364,6 +410,15 @@ export const FAIR_LAUNCH_FEE_ETH = "0.001";
 export const DIRECT_LAUNCH_FEE_FALLBACK_ETH = "0.001";
 
 export function launchEconomics(chainId: number | undefined) {
+  if (chainId === arcChain.id) {
+    return {
+      nativeSymbol: "USDC",
+      launchFeeFallback: "2",
+      virtualNativeReserve: "0",
+      graduationTarget: "0",
+      directInitialFdv: "4000"
+    } as const;
+  }
   if (chainId === stableChain.id) {
     return {
       nativeSymbol: "USDT0",
@@ -628,6 +683,91 @@ export const directLaunchFactoryAbi = [
     ]
   }
 ] as const;
+
+export const arcDirectLaunchFactoryAbi = [
+  {
+    type: "event",
+    name: "ArcDirectLaunchCreated",
+    inputs: [
+      { indexed: true, name: "launchId", type: "uint256" },
+      { indexed: true, name: "token", type: "address" },
+      { indexed: true, name: "creator", type: "address" },
+      { indexed: false, name: "adapter", type: "address" },
+      { indexed: false, name: "poolId", type: "bytes32" },
+      { indexed: false, name: "positionId", type: "bytes32" },
+      { indexed: false, name: "configHash", type: "bytes32" },
+      { indexed: false, name: "name", type: "string" },
+      { indexed: false, name: "symbol", type: "string" },
+      { indexed: false, name: "contractURI", type: "string" }
+    ]
+  },
+  {
+    type: "function",
+    name: "launchFee",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "uint256" }]
+  },
+  {
+    type: "function",
+    name: "createLaunch",
+    stateMutability: "payable",
+    inputs: [
+      {
+        name: "metadata",
+        type: "tuple",
+        components: [
+          { name: "name", type: "string" },
+          { name: "symbol", type: "string" },
+          { name: "contractURI", type: "string" },
+          { name: "salt", type: "bytes32" }
+        ]
+      },
+      { name: "deadline", type: "uint256" }
+    ],
+    outputs: [
+      { name: "launchId", type: "uint256" },
+      { name: "token", type: "address" },
+      { name: "poolId", type: "bytes32" },
+      { name: "positionId", type: "bytes32" }
+    ]
+  },
+  {
+    type: "function",
+    name: "createLaunchWithInitialBuy",
+    stateMutability: "payable",
+    inputs: [
+      {
+        name: "metadata",
+        type: "tuple",
+        components: [
+          { name: "name", type: "string" },
+          { name: "symbol", type: "string" },
+          { name: "contractURI", type: "string" },
+          { name: "salt", type: "bytes32" }
+        ]
+      },
+      { name: "deadline", type: "uint256" },
+      { name: "minimumTokensOut", type: "uint256" }
+    ],
+    outputs: [
+      { name: "launchId", type: "uint256" },
+      { name: "token", type: "address" },
+      { name: "poolId", type: "bytes32" },
+      { name: "positionId", type: "bytes32" }
+    ]
+  }
+] as const;
+
+export const arcFeePolicyAbi = [{
+  type: "function",
+  name: "newLaunchesPaused",
+  stateMutability: "view",
+  inputs: [],
+  outputs: [{ name: "", type: "bool" }]
+}] as const;
+
+export const ARC_FEE_POLICY = "0xff134c1ca2d2d5a9ffa4fc527f3756ba0828013b" as const;
 
 export const bondingCurveAbi = [
   {

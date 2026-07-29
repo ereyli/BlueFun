@@ -4,7 +4,8 @@ const legacyChainNames: Record<string, string> = {
   "8453": "base",
   "4663": "robinhood",
   "143": "monad",
-  "988": "stable"
+  "988": "stable",
+  "5042": "arc"
 };
 
 export function middleware(request: NextRequest) {

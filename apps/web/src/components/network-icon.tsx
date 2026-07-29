@@ -4,7 +4,8 @@ const NETWORKS = {
   8453: { name: "Base", symbol: "ETH", icon: "/networks/base.svg", tone: "base" },
   4663: { name: "Robinhood", symbol: "ETH", icon: "/networks/robinhood.svg", tone: "robinhood" },
   143: { name: "Monad", symbol: "MON", icon: "/networks/monad.svg", tone: "monad" },
-  988: { name: "Stable", symbol: "USDT0", icon: "/networks/stable.svg", tone: "stable" }
+  988: { name: "Stable", symbol: "USDT0", icon: "/networks/stable.svg", tone: "stable" },
+  5042: { name: "Arc", symbol: "USDC", icon: "/networks/arc.svg", tone: "arc" }
 } as const;
 
 export type SupportedChainId = keyof typeof NETWORKS;

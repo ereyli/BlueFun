@@ -5,9 +5,9 @@ export const revalidate = 30;
 
 export async function GET(request: Request) {
   const chainId = chainIdFromParam(new URL(request.url).searchParams.get("chain"));
-  const symbol = chainId === 988 ? "USDT0" : chainId === 143 ? "MON" : "ETH";
+  const symbol = chainId === 5042 ? "USDC" : chainId === 988 ? "USDT0" : chainId === 143 ? "MON" : "ETH";
   try {
-    if (chainId === 988) {
+    if (chainId === 988 || chainId === 5042) {
       return NextResponse.json({ nativeUsd: 1, symbol, currency: "USD" });
     }
     if (chainId === 143) {

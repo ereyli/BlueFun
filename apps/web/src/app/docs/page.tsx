@@ -147,6 +147,7 @@ export default async function DocsPage() {
             <article><span className="docs-chain-dot robinhood" /><div><strong>Robinhood Chain</strong><small>Chain ID 4663</small></div><p>Launches use fixed-supply ERC-20 tokens and the network&apos;s official Uniswap v4 stack.</p></article>
             <article><span className="docs-chain-dot monad" /><div><strong>Monad</strong><small>Chain ID 143 · native MON</small></div><p>Bond and Direct launches use fixed-supply ERC-20 tokens. Launches, trades and gas are paid in MON.</p></article>
             <article><span className="docs-chain-dot stable" /><div><strong>Stable</strong><small>Chain ID 988 · native USDT0</small></div><p>Direct-only launches use fixed-supply ERC-20 tokens and canonical Uniswap v3. Launches, trades and gas use USDT0.</p></article>
+            <article><span className="docs-chain-dot arc" /><div><strong>Arc</strong><small>Chain ID 5042 · native USDC</small></div><p>Direct-only launches use fixed-supply ERC-20 tokens and permanently locked Uniswap v3 liquidity. Launches, trades and gas use USDC.</p></article>
           </div>
         </section>
 

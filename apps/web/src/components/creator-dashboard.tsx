@@ -78,7 +78,7 @@ export function CreatorDashboard() {
       return [{
         chainId: launch.chainId,
         address: launch.liquidityLocker,
-        currency: launch.chainId === 988 ? stableUniswapV3Addresses.quoteToken : zeroAddress
+        currency: launch.chainId === 988 || launch.chainId === 5042 ? stableUniswapV3Addresses.quoteToken : zeroAddress
       }];
     });
   }, [data.created]);
@@ -117,7 +117,7 @@ export function CreatorDashboard() {
     contracts: data.traded.map(({ launch }) => ({ chainId: launch.chainId, address: launch.token, abi: b20TokenAbi, functionName: "balanceOf", args: [address!] })),
     query: { enabled: Boolean(address && data.traded.length) }
   });
-  const revenueLaunches = useMemo(() => data.created.filter((launch) => launch.positionId && launch.liquidityLocker && (launch.chainId === 988 || !isVNextLiquidityLocker(launch.chainId, launch.liquidityLocker))), [data.created]);
+  const revenueLaunches = useMemo(() => data.created.filter((launch) => launch.positionId && launch.liquidityLocker && (launch.chainId === 988 || launch.chainId === 5042 || !isVNextLiquidityLocker(launch.chainId, launch.liquidityLocker))), [data.created]);
   const feeRevenue = useReadContracts({
     contracts: revenueLaunches.map((launch) => ({ chainId: launch.chainId, address: launch.liquidityLocker!, abi: feeSharingLockerAbi, functionName: "feeRevenue", args: [launch.positionId!] })),
     query: { enabled: Boolean(revenueLaunches.length) }
@@ -134,7 +134,7 @@ export function CreatorDashboard() {
   const pendingBond = sumReadResults(bondFees.data);
   const pendingLpNative = lockerSources.reduce((sum, source, index) => {
     const amount = readBigInt(lockerNativeFees.data?.[index]);
-    return sum + (source.chainId === 988 ? amount * 1_000_000_000_000n : amount);
+    return sum + (source.chainId === 988 || source.chainId === 5042 ? amount * 1_000_000_000_000n : amount);
   }, 0n);
   const pendingHookCreator = sumReadResults(hookCreatorFees.data);
   const totalPending = pendingBond + pendingLpNative + pendingHookCreator;
@@ -148,7 +148,7 @@ export function CreatorDashboard() {
   async function submitAction(key: string, chainId: number, request: Parameters<typeof writeContractAsync>[0]) {
     setAction({ key });
     try {
-      await switchChainAsync({ chainId: chainId as 8453 | 4663 | 143 | 988 });
+      await switchChainAsync({ chainId: chainId as 8453 | 4663 | 143 | 988 | 5042 });
       const hash = await writeContractAsync(request);
       setAction({ key: "", message: `Transaction submitted · ${shortAddress(hash)}` });
       window.setTimeout(() => {
@@ -220,7 +220,7 @@ export function CreatorDashboard() {
                   const amount = readBigInt(lockerNativeFees.data?.[index]);
                   if (amount === 0n) return null;
                   const key = `locker:${source.chainId}:${source.address}`;
-                  const displayAmount = source.chainId === 988 ? amount * 1_000_000_000_000n : amount;
+                  const displayAmount = source.chainId === 988 || source.chainId === 5042 ? amount * 1_000_000_000_000n : amount;
                   return <FeeRow key={key} chainId={source.chainId} label="DEX LP fees" detail="Creator share · native currency" amount={`${formatNative(displayAmount)} ${networkMeta(source.chainId).symbol}`} pending={action.key === key} onClaim={() => submitAction(key, source.chainId, { chainId: source.chainId, address: source.address, abi: feeSharingLockerAbi, functionName: "claimFees", args: [source.currency] })} />;
                 })}
                 {hookSources.map((source, index) => {
@@ -258,10 +258,11 @@ export function CreatorDashboard() {
               const pendingTokenAmount = revenueIndex >= 0 ? readBigInt(tokenPending.data?.[revenueIndex]) : 0n;
               const key = `collect:${launch.chainId}:${launch.positionId}`;
               const claimTokenKey = `claim-token:${launch.chainId}:${launch.token}`;
-              const vNext = launch.chainId !== 988 && isVNextLiquidityLocker(launch.chainId, launch.liquidityLocker);
-              const creatorNative = launch.chainId === 988 ? (revenue?.[4] ?? 0n) * 1_000_000_000_000n : revenue?.[4] ?? 0n;
-              const creatorToken = launch.chainId === 988 ? 0n : revenue?.[5] ?? 0n;
-              const totalBurned = launch.chainId === 988 ? revenue?.[5] ?? 0n : revenue?.[1] ?? 0n;
+              const v3 = launch.chainId === 988 || launch.chainId === 5042;
+              const vNext = !v3 && isVNextLiquidityLocker(launch.chainId, launch.liquidityLocker);
+              const creatorNative = v3 ? (revenue?.[4] ?? 0n) * 1_000_000_000_000n : revenue?.[4] ?? 0n;
+              const creatorToken = v3 ? 0n : revenue?.[5] ?? 0n;
+              const totalBurned = v3 ? revenue?.[5] ?? 0n : revenue?.[1] ?? 0n;
               return <LaunchDashboardCard key={`${launch.chainId}:${launch.scope}:${launch.id}`} launch={launch} creatorNative={creatorNative} creatorToken={creatorToken} totalBurned={totalBurned} pendingToken={pendingTokenAmount} collecting={action.key === key} claimingToken={action.key === claimTokenKey} onCollect={!vNext && launch.positionId && launch.liquidityLocker ? () => submitAction(key, launch.chainId, { chainId: launch.chainId, address: launch.liquidityLocker!, abi: feeSharingLockerAbi, functionName: "collectFees", args: [launch.positionId!] }) : undefined} onClaimToken={!vNext && pendingTokenAmount > 0n && launch.liquidityLocker ? () => submitAction(claimTokenKey, launch.chainId, { chainId: launch.chainId, address: launch.liquidityLocker!, abi: feeSharingLockerAbi, functionName: "claimFees", args: [launch.token] }) : undefined} />;
             })}
           </div>

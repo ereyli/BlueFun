@@ -83,11 +83,11 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
   const { address, isConnected } = useAccount();
   const chainId = useChainId();
   const { switchChainAsync, isPending: isSwitchingChain } = useSwitchChain();
-  const activeChainId = launch?.chainId === 4663 || launch?.chainId === 143 || launch?.chainId === 988 ? launch.chainId : 8453;
+  const activeChainId = launch?.chainId === 4663 || launch?.chainId === 143 || launch?.chainId === 988 || launch?.chainId === 5042 ? launch.chainId : 8453;
   const { addresses, chain, dexVersion, stableUniswapV3Addresses, uniswapV4Addresses } = contractsForLaunch(activeChainId, id);
   const isStableV3 = dexVersion === "v3";
   const nativeSymbol = chain.nativeCurrency.symbol;
-  const quickBuyAmounts = activeChainId === 143 ? ["50", "100", "500"] : activeChainId === 988 ? ["1", "5", "10"] : ["0.01", "0.05", "0.1"];
+  const quickBuyAmounts = activeChainId === 143 ? ["50", "100", "500"] : activeChainId === 988 || activeChainId === 5042 ? ["1", "5", "10"] : ["0.01", "0.05", "0.1"];
   const wrongNetwork = Boolean(isConnected && chainId && chainId !== activeChainId);
 
   async function switchWalletNetwork() {
@@ -200,7 +200,7 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
   const stableOutputToken = mode === "buy" ? launch?.token ?? zeroAddress : stableUniswapV3Addresses.quoteToken;
   const stableAmountIn = mode === "buy" ? parsedAmount / 1_000_000_000_000n : parsedAmount;
   const stableAllowance = useReadContract({
-    chainId: 988,
+    chainId: activeChainId,
     address: stableInputToken,
     abi: b20TokenAbi,
     functionName: "allowance",
@@ -212,7 +212,7 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
     }
   });
   const stableQuote = useReadContract({
-    chainId: 988,
+    chainId: activeChainId,
     address: stableUniswapV3Addresses.quoter,
     abi: uniswapV3QuoterAbi,
     functionName: "quoteExactInputSingle",
@@ -467,7 +467,7 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
     if (!launch || !address || parsedAmount === 0n || graduatedMinOut === 0n) return;
     if (isStableV3) {
       writeContract({
-        chainId: 988,
+        chainId: activeChainId,
         address: stableUniswapV3Addresses.swapRouter,
         abi: uniswapV3SwapRouterAbi,
         functionName: "exactInputSingle",
@@ -506,7 +506,7 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
     if (!launch || parsedAmount === 0n) return;
     if (isStableV3) {
       writeContract({
-        chainId: 988,
+        chainId: activeChainId,
         address: stableInputToken,
         abi: b20TokenAbi,
         functionName: "approve",
@@ -529,7 +529,7 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
     try {
       if (isStableV3) {
         writeContract({
-          chainId: 988,
+          chainId: activeChainId,
           address: stableUniswapV3Addresses.swapRouter,
           abi: uniswapV3SwapRouterAbi,
           functionName: "exactInputSingle",
@@ -1089,7 +1089,7 @@ function GraduatedTradeCard({
   const { chain, dexVersion, uniswapChainName, stableUniswapV3Addresses } = contractsForChain(launch.chainId);
   const isStableV3 = dexVersion === "v3";
   const nativeSymbol = chain.nativeCurrency.symbol;
-  const quickBuyAmounts = launch.chainId === 143 ? ["50", "100", "500"] : launch.chainId === 988 ? ["1", "5", "10"] : ["0.01", "0.05", "0.1"];
+  const quickBuyAmounts = launch.chainId === 143 ? ["50", "100", "500"] : launch.chainId === 988 || launch.chainId === 5042 ? ["1", "5", "10"] : ["0.01", "0.05", "0.1"];
   return (
     <section className="graduated-trade-card swap-terminal">
       <div className="trade-card-toolbar graduated-trade-toolbar">

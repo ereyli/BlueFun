@@ -14,7 +14,7 @@ type CoinParams = { params: Promise<{ token: string }> };
 
 const getCachedCoinLaunch = unstable_cache(
   async (token: string) => {
-    const indexed = await Promise.all([8453, 4663, 143, 988].map((chainId) => getDbLaunchByToken(token, chainId)));
+    const indexed = await Promise.all([8453, 4663, 143, 988, 5042].map((chainId) => getDbLaunchByToken(token, chainId)));
     const indexedMatch = indexed.find(Boolean);
     if (indexedMatch) return indexedMatch;
 

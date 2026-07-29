@@ -4,9 +4,12 @@ export const chainId = Number(process.env.CHAIN_ID || "8453");
 const robinhood = chainId === 4663;
 const monad = chainId === 143;
 const stable = chainId === 988;
+const arc = chainId === 5042;
 const base = chainId === 8453;
-export const defaultRpcUrl = stable ? "https://rpc.stable.xyz" : monad ? "https://rpc.monad.xyz" : robinhood ? "https://rpc.mainnet.chain.robinhood.com" : "https://mainnet.base.org";
-export const defaultRpcUrls = stable
+export const defaultRpcUrl = arc ? "https://5042.rpc.thirdweb.com" : stable ? "https://rpc.stable.xyz" : monad ? "https://rpc.monad.xyz" : robinhood ? "https://rpc.mainnet.chain.robinhood.com" : "https://mainnet.base.org";
+export const defaultRpcUrls = arc
+  ? [defaultRpcUrl, ...splitRpcUrls(process.env.ARC_RPC_FALLBACK_URLS)]
+  : stable
   ? [defaultRpcUrl, "https://lb.routeme.sh/rpc/evm/988", ...splitRpcUrls(process.env.STABLE_RPC_FALLBACK_URLS)]
   : monad
   ? [defaultRpcUrl, "https://rpc1.monad.xyz", ...splitRpcUrls(process.env.MONAD_RPC_FALLBACK_URLS)]
@@ -30,6 +33,7 @@ export type DirectIndexerDeployment = {
   startBlock: bigint;
   scope: string;
   dexVersion: "v3" | "v4";
+  eventKind?: "standard" | "arc";
 };
 
 export type NFTIndexerDeployment = {
@@ -45,7 +49,7 @@ export type NFTIndexerDeployment = {
   scope: string;
 };
 
-export const legacyDeployment: IndexerDeployment | undefined = stable || monad ? undefined : robinhood ? {
+export const legacyDeployment: IndexerDeployment | undefined = arc || stable || monad ? undefined : robinhood ? {
   version: "legacy",
   launchFactory: "0x6a05304638bed7c96b78f420c612e84111fad4d1" as `0x${string}`,
   bondingCurveMarket: "0xab7597fecaf3357101a3a4331f512031ef3238f0" as `0x${string}`,
@@ -61,7 +65,7 @@ export const legacyDeployment: IndexerDeployment | undefined = stable || monad ?
   startBlock: 48379352n
 };
 
-export const feeSharingDeployment: IndexerDeployment | undefined = stable || monad ? undefined : robinhood ? {
+export const feeSharingDeployment: IndexerDeployment | undefined = arc || stable || monad ? undefined : robinhood ? {
   version: "fee-sharing-v1",
   launchFactory: "0x128a32ed2af1787a3fab261bc6158400e2f649c9",
   bondingCurveMarket: "0x795fe5649a78496f51c1594a7b435941fb20adb8",
@@ -77,7 +81,7 @@ export const feeSharingDeployment: IndexerDeployment | undefined = stable || mon
   startBlock: 48451170n
 };
 
-export const mainnetDeployment: IndexerDeployment | undefined = stable || monad ? undefined : robinhood ? {
+export const mainnetDeployment: IndexerDeployment | undefined = arc || stable || monad ? undefined : robinhood ? {
   version: "current",
   launchFactory: "0xb880ea1d3453968243722b9c1529870c796b060f",
   bondingCurveMarket: "0x2d6d77652facbbcae05c0dc3aed792b94cd61fa8",
@@ -93,7 +97,7 @@ export const mainnetDeployment: IndexerDeployment | undefined = stable || monad 
   startBlock: 48642000n
 };
 
-export const vNextDeployment: IndexerDeployment | undefined = stable ? undefined : monad ? configuredMonadBondDeployment() : robinhood ? {
+export const vNextDeployment: IndexerDeployment | undefined = arc || stable ? undefined : monad ? configuredMonadBondDeployment() : robinhood ? {
   version: "vnext",
   launchFactory: "0x32af28dfe63ff9e84399f0af51d5b84b4f3b3c62",
   bondingCurveMarket: "0x2f46a783c1314e160d673f927464d85b7364d807",
@@ -118,15 +122,15 @@ export const deployments = Array.from(
 );
 
 const configuredDirectFactory = (process.env.DIRECT_LAUNCH_FACTORY
-  || (stable ? "0xc2c29581179111aa94ba12affd3486879e42090c" : monad ? "0x773260193799321547BFeF0616cf57b3D7aa3412" : robinhood
+  || (arc ? "0x8f627e73b9175e3e5c7b320360d38271a309b2da" : stable ? "0xc2c29581179111aa94ba12affd3486879e42090c" : monad ? "0x773260193799321547BFeF0616cf57b3D7aa3412" : robinhood
     ? "0x7de3165634679353a36886dcfe35e3521beee4a4"
     : "0x0246688cef66734c1cada909cfd202e1448ba275")) as `0x${string}`;
 const configuredDirectLocker = (process.env.DIRECT_LIQUIDITY_LOCKER
-  || (stable ? "0x8d51017c392552333a679ccb60b5df84314c64cd" : monad ? "0xb5fAb655a3b7187175Ac339075DA11542e58d81d" : robinhood
+  || (arc ? "0xcf1f0ad502eddf1791fb9bcf5e87524f50a48324" : stable ? "0x8d51017c392552333a679ccb60b5df84314c64cd" : monad ? "0xb5fAb655a3b7187175Ac339075DA11542e58d81d" : robinhood
     ? "0x8550c8f626993ffb58a884cb4e9b5b8a9ee2bdf6"
     : "0x2e83029d88d0af58ba55b31980dc709920fab941")) as `0x${string}`;
 const configuredDirectStartBlock = BigInt(
-  process.env.DIRECT_DEPLOYMENT_BLOCK || (stable ? "32827109" : monad ? "89311452" : robinhood ? "10703400" : "48647525")
+  process.env.DIRECT_DEPLOYMENT_BLOCK || (arc ? "12879868" : stable ? "32827109" : monad ? "89311452" : robinhood ? "10703400" : "48647525")
 );
 const configuredDirectDeployment: DirectIndexerDeployment | undefined =
   configuredDirectFactory && configuredDirectLocker && configuredDirectStartBlock > 0n
@@ -135,11 +139,12 @@ const configuredDirectDeployment: DirectIndexerDeployment | undefined =
         liquidityLocker: configuredDirectLocker,
         startBlock: configuredDirectStartBlock,
         scope: `${chainId}:direct:${configuredDirectFactory.toLowerCase()}:${configuredDirectStartBlock.toString()}`,
-        dexVersion: stable ? "v3" : "v4"
+        dexVersion: arc || stable ? "v3" : "v4",
+        eventKind: arc ? "arc" : "standard"
       }
     : undefined;
 
-const legacyCurrentDirectDeployment: DirectIndexerDeployment | undefined = stable || monad ? undefined : robinhood ? {
+const legacyCurrentDirectDeployment: DirectIndexerDeployment | undefined = arc || stable || monad ? undefined : robinhood ? {
   launchFactory: "0x9d0e5d76ca2d79ca6ab0c800763eb8e5c39a5079",
   liquidityLocker: "0xe0158cb5c659e95e0ef461e1f7518c4f3b557e81",
   startBlock: 10283960n,
@@ -153,7 +158,7 @@ const legacyCurrentDirectDeployment: DirectIndexerDeployment | undefined = stabl
   dexVersion: "v4"
 };
 
-const vNextDirectDeployment: DirectIndexerDeployment | undefined = stable || monad ? undefined : robinhood ? {
+const vNextDirectDeployment: DirectIndexerDeployment | undefined = arc || stable || monad ? undefined : robinhood ? {
   launchFactory: "0x7de3165634679353a36886dcfe35e3521beee4a4",
   liquidityLocker: "0x8550c8f626993ffb58a884cb4e9b5b8a9ee2bdf6",
   startBlock: 10703400n,
@@ -215,10 +220,10 @@ export const nftDeployments = [nftDeployment]
 
 export const chainDefinition = defineChain({
   id: chainId,
-  name: stable ? "Stable" : monad ? "Monad" : robinhood ? "Robinhood Chain" : "Base",
-  nativeCurrency: stable ? { name: "USDT0", symbol: "USDT0", decimals: 18 } : monad ? { name: "Monad", symbol: "MON", decimals: 18 } : { name: "Ether", symbol: "ETH", decimals: 18 },
+  name: arc ? "Arc" : stable ? "Stable" : monad ? "Monad" : robinhood ? "Robinhood Chain" : "Base",
+  nativeCurrency: arc ? { name: "USDC", symbol: "USDC", decimals: 18 } : stable ? { name: "USDT0", symbol: "USDT0", decimals: 18 } : monad ? { name: "Monad", symbol: "MON", decimals: 18 } : { name: "Ether", symbol: "ETH", decimals: 18 },
   rpcUrls: { default: { http: defaultRpcUrls } },
-  blockExplorers: { default: { name: stable ? "Stablescan" : monad ? "MonadVision" : robinhood ? "Robinhood Explorer" : "BaseScan", url: stable ? "https://stablescan.xyz" : monad ? "https://monadvision.com" : robinhood ? "https://robinhoodchain.blockscout.com" : "https://basescan.org" } },
+  blockExplorers: { default: { name: arc ? "Arc Explorer" : stable ? "Stablescan" : monad ? "MonadVision" : robinhood ? "Robinhood Explorer" : "BaseScan", url: arc ? "https://arc.exploreme.pro" : stable ? "https://stablescan.xyz" : monad ? "https://monadvision.com" : robinhood ? "https://robinhoodchain.blockscout.com" : "https://basescan.org" } },
   contracts: !base ? undefined : {
     multicall3: {
       address: "0xca11bde05977b3631167028862be2a173976ca11",
@@ -232,7 +237,9 @@ export const poolManager = robinhood
   : monad ? "0x188d586ddcf52439676ca21a244753fa19f9ea8e" as const
   : "0x498581ff718922c3f8e6a244956af099b2652b2b" as const;
 
-export const stableQuoteToken = "0x779Ded0c9e1022225f8E0630b35a9b54bE713736" as const;
+export const stableQuoteToken = (arc
+  ? "0x3600000000000000000000000000000000000000"
+  : "0x779Ded0c9e1022225f8E0630b35a9b54bE713736") as `0x${string}`;
 
 export function deploymentScope() {
   if (!mainnetDeployment?.launchFactory || !mainnetDeployment.bondingCurveMarket || mainnetDeployment.startBlock === 0n) return "";

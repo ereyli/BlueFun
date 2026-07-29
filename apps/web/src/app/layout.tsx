@@ -69,6 +69,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 <span><NetworkIcon chainId={4663} size={22} /> Robinhood</span>
                 <span><NetworkIcon chainId={143} size={22} /> Monad</span>
                 <span><NetworkIcon chainId={988} size={22} /> Stable</span>
+                <span><NetworkIcon chainId={5042} size={22} /> Arc</span>
               </div>
               <footer>
                 <span>Onchain contracts continue to operate independently.</span>

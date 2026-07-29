@@ -16,7 +16,7 @@ const getCachedLaunchBySuffix = unstable_cache(
   async (suffix: string, chainId: number) => {
     const indexed = await getDbLaunchByTokenSuffix(suffix, chainId);
     if (indexed) return indexed;
-    if (chainId === 143 || chainId === 988) return undefined;
+    if (chainId === 143 || chainId === 988 || chainId === 5042) return undefined;
     const launches = chainId === 4663 ? await getRobinhoodLaunches() : await getDeployedLaunches();
     const matches = launches.filter((launch) => launch.token.toLowerCase().endsWith(suffix.toLowerCase()));
     return matches.length === 1 ? matches[0] : undefined;
@@ -51,7 +51,7 @@ export default async function TokenMarketPage({ params }: TokenParams) {
 }
 
 async function resolveTokenLaunch(chain: string, slug: string) {
-  if (chain !== "base" && chain !== "robinhood" && chain !== "monad" && chain !== "stable") return undefined;
+  if (chain !== "base" && chain !== "robinhood" && chain !== "monad" && chain !== "stable" && chain !== "arc") return undefined;
   const suffix = tokenSuffixFromSlug(slug);
   if (!suffix) return undefined;
   return getCachedLaunchBySuffix(suffix, chainIdFromParam(chain)).catch(() => undefined);

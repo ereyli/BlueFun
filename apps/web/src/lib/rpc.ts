@@ -10,6 +10,7 @@ export const DEFAULT_STABLE_RPC_URLS = [
   "https://rpc.stable.xyz",
   "https://lb.routeme.sh/rpc/evm/988"
 ];
+export const DEFAULT_ARC_RPC_URLS = ["https://5042.rpc.thirdweb.com"];
 
 export function baseRpcUrls() {
   return uniqueUrls([
@@ -40,6 +41,14 @@ export function stableRpcUrls() {
     ...splitRpcUrls(process.env.NEXT_PUBLIC_STABLE_RPC_URL),
     ...splitRpcUrls(process.env.NEXT_PUBLIC_STABLE_RPC_FALLBACK_URLS),
     ...DEFAULT_STABLE_RPC_URLS
+  ]);
+}
+
+export function arcRpcUrls() {
+  return uniqueUrls([
+    ...splitRpcUrls(process.env.NEXT_PUBLIC_ARC_RPC_URL),
+    ...splitRpcUrls(process.env.NEXT_PUBLIC_ARC_RPC_FALLBACK_URLS),
+    ...DEFAULT_ARC_RPC_URLS
   ]);
 }
 
