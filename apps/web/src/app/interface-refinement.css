@@ -92,6 +92,7 @@
 /* Explore: concise hero and stronger, easier-to-scan market cards. */
 .launchpad-intro.premium-hero {
   border-radius: 22px;
+  grid-template-columns: minmax(480px, .82fr) minmax(0, 1.18fr);
   min-height: 200px;
 }
 
@@ -116,7 +117,11 @@
 .premium-hero .hero-action,
 .premium-hero .hero-secondary {
   border-radius: 11px;
+  flex: 0 0 auto;
 }
+
+.premium-hero .launchpad-intro-actions { flex-wrap: wrap; }
+.premium-hero .network-overflow-menu { flex: 0 0 auto; }
 
 .premium-hero .overview-metrics.network-overview {
   padding: 25px 27px 23px 5px;

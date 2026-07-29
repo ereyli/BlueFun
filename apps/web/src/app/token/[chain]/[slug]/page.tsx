@@ -7,6 +7,7 @@ import { getDeployedLaunches } from "@/lib/onchain-launches";
 import { getRobinhoodLaunches } from "@/lib/robinhood-launches";
 import { siteUrl } from "@/lib/site-url";
 import { tokenPath, tokenSuffixFromSlug } from "@/lib/token-url";
+import { getArcOnchainLaunchBySuffix } from "@/lib/arc-launches";
 
 export const revalidate = 15;
 
@@ -16,12 +17,13 @@ const getCachedLaunchBySuffix = unstable_cache(
   async (suffix: string, chainId: number) => {
     const indexed = await getDbLaunchByTokenSuffix(suffix, chainId);
     if (indexed) return indexed;
-    if (chainId === 143 || chainId === 988 || chainId === 5042) return undefined;
+    if (chainId === 5042) return getArcOnchainLaunchBySuffix(suffix);
+    if (chainId === 143 || chainId === 988) return undefined;
     const launches = chainId === 4663 ? await getRobinhoodLaunches() : await getDeployedLaunches();
     const matches = launches.filter((launch) => launch.token.toLowerCase().endsWith(suffix.toLowerCase()));
     return matches.length === 1 ? matches[0] : undefined;
   },
-  ["market-launch-token-v1"],
+  ["market-launch-token-v2"],
   { revalidate: 15 }
 );
 

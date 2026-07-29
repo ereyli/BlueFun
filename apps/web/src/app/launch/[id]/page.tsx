@@ -7,16 +7,19 @@ import { unstable_cache } from "next/cache";
 import { chainIdFromParam } from "@/lib/chain-slug";
 import { tokenPath } from "@/lib/token-url";
 import { getDbLaunch } from "@/lib/db-launches";
+import { getArcOnchainLaunch } from "@/lib/arc-launches";
 
 export const revalidate = 15;
 
 type LaunchParams = { params: Promise<{ id: string }>; searchParams: Promise<{ chain?: string }> };
 
 const getCachedLaunch = unstable_cache(
-  async (id: string, chainId: number) => chainId === 143 || chainId === 988 || chainId === 5042
+  async (id: string, chainId: number) => chainId === 5042
+    ? getDbLaunch(id, chainId).then((launch) => launch ?? getArcOnchainLaunch(id))
+    : chainId === 143 || chainId === 988
     ? getDbLaunch(id, chainId)
     : chainId === 4663 ? getRobinhoodLaunch(id) : getDeployedLaunch(id),
-  ["market-launch-v1"],
+  ["market-launch-v2"],
   { revalidate: 15 }
 );
 

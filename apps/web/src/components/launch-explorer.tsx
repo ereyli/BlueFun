@@ -258,7 +258,7 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metri
           <h1>Launch.<span>Lock. Trade.</span></h1>
           <p>Fair markets. Permanent liquidity. Clear rules.</p>
           <div className="launchpad-intro-actions">
-            <Link className="button primary hero-action" href={`/launch?chain=${chainSlug(chainId)}`}><Rocket size={17} />Create token</Link>
+            <Link className="button primary hero-action" href={`/launch?chain=${chainSlug(chainId)}`}><span className="hero-action-icon"><Rocket size={17} /></span>Create token</Link>
             <button
               className="button hero-secondary"
               onClick={() => {
@@ -268,7 +268,7 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metri
               }}
               type="button"
             >
-              <Activity size={16} />Explore markets
+              <span className="hero-action-icon"><Activity size={16} /></span>Explore markets
             </button>
             {additionalNetworkStats.length ? <details className="network-overflow-menu">
               <summary>+{additionalNetworkStats.length} networks <ChevronDown aria-hidden="true" size={13}/></summary>

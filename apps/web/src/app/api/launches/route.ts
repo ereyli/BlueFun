@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getDbLaunchPage, getDbLaunches, type LaunchPageFilter } from "@/lib/db-launches";
 import { getDeployedLaunches } from "@/lib/onchain-launches";
 import { getRobinhoodLaunches } from "@/lib/robinhood-launches";
+import { getArcOnchainLaunches } from "@/lib/arc-launches";
 import { chainIdFromParam } from "@/lib/chain-slug";
 import { cachedResponse } from "@/lib/server/response-cache";
 
@@ -28,9 +29,13 @@ export async function GET(request: Request) {
 
 async function loadLaunchPage(chainId: number, page: number, query: string, filter: LaunchPageFilter) {
   const indexed = await getDbLaunchPage(chainId, { page, pageSize: 21, query, filter });
-  if (indexed) return jsonLaunchPage({ ...indexed, page, totalPages: Math.ceil(indexed.total / 21) }, query);
+  if (indexed && (chainId !== 5042 || indexed.total > 0)) {
+    return jsonLaunchPage({ ...indexed, page, totalPages: Math.ceil(indexed.total / 21) }, query);
+  }
 
-  const all = chainId === 143 || chainId === 988 || chainId === 5042
+  const all = chainId === 5042
+    ? await getArcOnchainLaunches().catch(() => [])
+    : chainId === 143 || chainId === 988
     ? await getDbLaunches(chainId).then((value) => value ?? [])
     : chainId === 4663 ? await getRobinhoodLaunches() : await getDeployedLaunches();
   const normalized = query.trim().toLowerCase();

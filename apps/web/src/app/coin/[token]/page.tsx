@@ -7,6 +7,7 @@ import { getDeployedLaunches, getLaunchTrades } from "@/lib/onchain-launches";
 import { getRobinhoodLaunches } from "@/lib/robinhood-launches";
 import { siteUrl } from "@/lib/site-url";
 import { tokenPath } from "@/lib/token-url";
+import { getArcOnchainLaunchByToken } from "@/lib/arc-launches";
 
 export const revalidate = 15;
 
@@ -18,10 +19,14 @@ const getCachedCoinLaunch = unstable_cache(
     const indexedMatch = indexed.find(Boolean);
     if (indexedMatch) return indexedMatch;
 
-    const [base, robinhood] = await Promise.all([getDeployedLaunches(), getRobinhoodLaunches()]);
-    return [...base, ...robinhood].find((launch) => launch.token.toLowerCase() === token.toLowerCase());
+    const [base, robinhood, arc] = await Promise.all([
+      getDeployedLaunches(),
+      getRobinhoodLaunches(),
+      getArcOnchainLaunchByToken(token)
+    ]);
+    return arc ?? [...base, ...robinhood].find((launch) => launch.token.toLowerCase() === token.toLowerCase());
   },
-  ["market-coin-v1"],
+  ["market-coin-v2"],
   { revalidate: 15 }
 );
 
