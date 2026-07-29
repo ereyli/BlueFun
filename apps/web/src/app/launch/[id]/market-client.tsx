@@ -1179,9 +1179,15 @@ function GraduatedTradeCard({
           <>
             <button className="button primary wide trade-submit buy" disabled={tradeDisabled} onClick={needsTokenApproval ? onApproveToken : onBuy} type="button">
               {isWorking ? <Loader2 className="spin" size={16} /> : <ArrowDownUp size={16} />}
-              {isPending ? "Confirm in wallet" : isWorking ? needsTokenApproval ? "Approving" : "Buying" : exceedsEthBalance ? `Insufficient ${nativeSymbol}` : needsTokenApproval ? `Approve ${nativeSymbol}` : `Buy $${launch.symbol}`}
+              {isPending ? "Confirm in wallet" : isWorking ? needsTokenApproval ? "Enabling" : "Buying" : exceedsEthBalance ? `Insufficient ${nativeSymbol}` : needsTokenApproval ? `Enable ${nativeSymbol}` : `Buy $${launch.symbol}`}
             </button>
-            {needsTokenApproval ? <span className="trade-helper">One-time approval lets the Uniswap v3 router spend the selected USDT0 amount.</span> : null}
+            {needsTokenApproval ? (
+              <span className="trade-helper">
+                {launch.chainId === 5042
+                  ? "Arc gas uses native USDC; Uniswap v3 trades through the ERC-20 USDC interface. This one-time permission authorizes the router."
+                  : `One-time permission lets the Uniswap v3 router spend the selected ${nativeSymbol} amount.`}
+              </span>
+            ) : null}
           </>
         ) : (
           <>

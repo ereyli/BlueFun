@@ -529,6 +529,12 @@ html[data-theme="dark"] .token-card.featured:hover {
   padding: 13px 16px;
 }
 
+.swap-terminal .trade-card-toolbar {
+  margin: 0;
+  min-height: 64px;
+  padding: 13px 16px 12px;
+}
+
 .trade-card-toolbar > div {
   gap: 3px;
 }
@@ -536,11 +542,13 @@ html[data-theme="dark"] .token-card.featured:hover {
 .trade-card-toolbar strong {
   font-size: 17px;
   letter-spacing: -.025em;
+  line-height: 1.2;
 }
 
 .trade-card-toolbar span {
   color: var(--muted);
   font-size: 8px;
+  line-height: 1.3;
 }
 
 .swap-terminal > .form,
@@ -1133,6 +1141,11 @@ html[data-theme="dark"] .token-card.featured:hover {
   .trade-card-toolbar {
     min-height: 57px;
     padding: 10px 12px;
+  }
+
+  .swap-terminal .trade-card-toolbar {
+    min-height: 57px;
+    padding: 11px 14px 10px;
   }
 
   .swap-terminal > .form,
