@@ -184,11 +184,35 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
     query: { enabled: Boolean(!isGraduated && mode === "sell" && launch?.token && address && addresses.bondingCurveMarket) }
   });
   const tokenBalance = useReadContract({
+    chainId: activeChainId,
     address: launch?.token,
     abi: b20TokenAbi,
     functionName: "balanceOf",
     args: [address ?? zeroAddress],
-    query: { enabled: Boolean(mode === "sell" && launch?.token && address) }
+    query: { enabled: Boolean(!isArcNativeV3 && mode === "sell" && launch?.token && address) }
+  });
+  const arcTokenAccount = useQuery({
+    queryKey: ["arc-token-account", launch?.token, address],
+    queryFn: async () => {
+      const params = new URLSearchParams({
+        token: launch?.token ?? zeroAddress,
+        account: address ?? zeroAddress
+      });
+      const response = await fetch(`/api/arc/token-account?${params}`, { cache: "no-store" });
+      const payload = await response.json() as { balance?: string; allowance?: string; error?: string };
+      if (!response.ok || payload.balance === undefined || payload.allowance === undefined) {
+        throw new Error(payload.error || "Arc token balance is unavailable.");
+      }
+      return {
+        balance: BigInt(payload.balance),
+        allowance: BigInt(payload.allowance)
+      };
+    },
+    enabled: Boolean(isArcNativeV3 && mode === "sell" && launch?.token && address),
+    refetchInterval: mode === "sell" ? 4_000 : false,
+    refetchOnWindowFocus: true,
+    retry: 1,
+    staleTime: 2_000
   });
   const graduatedTokenPermit2Allowance = useReadContract({
     address: launch?.token,
@@ -241,7 +265,7 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
     functionName: "allowance",
     args: [address ?? zeroAddress, stableUniswapV3Addresses.swapRouter],
     query: {
-      enabled: Boolean(isStableV3 && !(isArcNativeV3 && mode === "buy") && isGraduated && launch?.token && address && parsedAmount > 0n),
+      enabled: Boolean(isStableV3 && !isArcNativeV3 && isGraduated && launch?.token && address && parsedAmount > 0n),
       refetchInterval: 4_000,
       refetchOnWindowFocus: true
     }
@@ -299,7 +323,7 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
     : graduatedQuote.data?.[0] ?? (quoteFromFallback ? fallbackGraduatedQuote : undefined);
   const graduatedMinOut = graduatedQuotedOut ? applySlippage(graduatedQuotedOut, slippageBps) : 0n;
   const isWorking = isPending || transactionIsLoading || isSigningPermit;
-  const sellBalance = tokenBalance.data ?? 0n;
+  const sellBalance = isArcNativeV3 ? arcTokenAccount.data?.balance ?? 0n : tokenBalance.data ?? 0n;
   const spotPriceEth = launch ? parseDisplayAmount(launch.price) : 0;
   const priceImpact = quotedOut
     ? calculatePriceImpact({
@@ -318,14 +342,15 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
   const permit2Expiration = graduatedPermit2RouterAllowance.data?.[1] ?? 0;
   const stableNeedsApproval = Boolean(
     isStableV3 && !(isArcNativeV3 && mode === "buy")
-      && parsedAmount > 0n && (stableAllowance.data ?? 0n) < stableAmountIn
+      && parsedAmount > 0n
+      && (isArcNativeV3 ? arcTokenAccount.data?.allowance ?? 0n : stableAllowance.data ?? 0n) < stableAmountIn
   );
   const needsGraduatedTokenApproval = isStableV3
     ? stableNeedsApproval
     : Boolean(isGraduated && mode === "sell" && parsedAmount > 0n && (graduatedTokenPermit2Allowance.data ?? 0n) < parsedAmount);
   const needsGraduatedPermit2Signature = Boolean(!isStableV3 && isGraduated && mode === "sell" && parsedAmount > 0n && !needsGraduatedTokenApproval && (permit2Amount < parsedAmount || BigInt(permit2Expiration) <= BigInt(Math.floor(Date.now() / 1000) + 900)));
   const graduatedApprovalLoading = isStableV3
-    ? stableAllowance.isLoading
+    ? isArcNativeV3 ? arcTokenAccount.isLoading : stableAllowance.isLoading
     : Boolean(mode === "sell" && (graduatedTokenPermit2Allowance.isLoading || graduatedPermit2RouterAllowance.isLoading));
   const graduatedBuyDisabled = !launch || !isConnected || wrongNetwork || isWorking || mode !== "buy" || parsedAmount === 0n || exceedsEthBalance || graduatedMinOut === 0n;
   const graduatedSellDisabled = !launch || !isConnected || wrongNetwork || isWorking || graduatedApprovalLoading || mode !== "sell" || parsedAmount === 0n || exceedsSellBalance || (!needsGraduatedTokenApproval && graduatedMinOut === 0n);
@@ -363,10 +388,12 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
       : formatUsdFromEthText(displayPrice, ethUsd, true);
 
   refreshTradeStateRef.current = () => {
-    const refreshes: Promise<unknown>[] = [tokenBalance.refetch()];
+    const refreshes: Promise<unknown>[] = [
+      isArcNativeV3 ? arcTokenAccount.refetch() : tokenBalance.refetch()
+    ];
     if (isGraduated) {
       if (isStableV3) {
-        refreshes.push(stableAllowance.refetch());
+        if (!isArcNativeV3) refreshes.push(stableAllowance.refetch());
         refreshes.push(isArcNativeV3 ? arcStableQuote.refetch() : stableQuote.refetch());
       }
       else {
@@ -770,6 +797,7 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
             error={tradeFlowError
               || (transactionIsReverted ? "Transaction reverted on Arc." : "")
               || (activeChainId === 5042 && arcReceipt.error instanceof Error ? arcReceipt.error.message : "")
+              || (isArcNativeV3 && arcTokenAccount.error instanceof Error ? arcTokenAccount.error.message : "")
               || (isArcNativeV3 && arcStableQuote.error instanceof Error ? arcStableQuote.error.message : error?.message)}
             exceedsEthBalance={exceedsEthBalance}
             exceedsSellBalance={exceedsSellBalance}
