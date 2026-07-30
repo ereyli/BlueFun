@@ -106,7 +106,39 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
   }
   const { data: hash, error, writeContract, isPending } = useWriteContract();
   const { signTypedDataAsync, isPending: isSigningPermit } = useSignTypedData();
-  const receipt = useWaitForTransactionReceipt({ hash });
+  const receipt = useWaitForTransactionReceipt({
+    chainId: activeChainId,
+    hash,
+    confirmations: 1,
+    pollingInterval: 2_000,
+    query: { enabled: Boolean(hash && activeChainId !== 5042) }
+  });
+  const arcReceipt = useQuery({
+    queryKey: ["arc-transaction-receipt", hash],
+    queryFn: async () => {
+      const response = await fetch(`/api/arc/transaction-receipt?hash=${hash}`, { cache: "no-store" });
+      const payload = await response.json() as { status?: "success" | "reverted" | "pending"; error?: string };
+      if (response.status === 202 || payload.status === "pending") return null;
+      if (!response.ok || !payload.status) {
+        throw new Error(payload.error || "Arc transaction confirmation is unavailable.");
+      }
+      return payload.status;
+    },
+    enabled: Boolean(activeChainId === 5042 && hash),
+    refetchInterval: (query) => query.state.data ? false : 2_000,
+    refetchOnWindowFocus: true,
+    retry: 2,
+    staleTime: 0
+  });
+  const transactionIsSuccess = activeChainId === 5042
+    ? arcReceipt.data === "success"
+    : receipt.isSuccess;
+  const transactionIsReverted = activeChainId === 5042
+    ? arcReceipt.data === "reverted"
+    : false;
+  const transactionIsLoading = activeChainId === 5042
+    ? Boolean(hash && !arcReceipt.data && !arcReceipt.error)
+    : receipt.isLoading;
   const parsedAmount = parsePositiveEther(amount);
   const isDirect = launch?.launchMode === "direct";
   const isGraduated = launch?.status === "Graduated" || launch?.launchMode === "direct";
@@ -266,7 +298,7 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
     ? stableQuotedOut
     : graduatedQuote.data?.[0] ?? (quoteFromFallback ? fallbackGraduatedQuote : undefined);
   const graduatedMinOut = graduatedQuotedOut ? applySlippage(graduatedQuotedOut, slippageBps) : 0n;
-  const isWorking = isPending || receipt.isLoading || isSigningPermit;
+  const isWorking = isPending || transactionIsLoading || isSigningPermit;
   const sellBalance = tokenBalance.data ?? 0n;
   const spotPriceEth = launch ? parseDisplayAmount(launch.price) : 0;
   const priceImpact = quotedOut
@@ -351,7 +383,7 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
   };
 
   useEffect(() => {
-    if (!receipt.isSuccess || !hash || lastRefreshedReceiptHash.current === hash) return;
+    if (!transactionIsSuccess || !hash || lastRefreshedReceiptHash.current === hash) return;
     lastRefreshedReceiptHash.current = hash;
     refreshTradeStateRef.current();
     const pageRefreshTimeout = window.setTimeout(() => router.refresh(), 1_200);
@@ -360,7 +392,7 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
       window.clearTimeout(pageRefreshTimeout);
       window.clearTimeout(stateRetryTimeout);
     };
-  }, [hash, receipt.isSuccess, router]);
+  }, [hash, router, transactionIsSuccess]);
 
   useEffect(() => {
     const refreshWhenVisible = () => {
@@ -735,9 +767,10 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
           <GraduatedTradeCard
             amount={amount}
             approvalLoading={graduatedApprovalLoading}
-            error={tradeFlowError || (isArcNativeV3 && arcStableQuote.error instanceof Error
-              ? arcStableQuote.error.message
-              : error?.message)}
+            error={tradeFlowError
+              || (transactionIsReverted ? "Transaction reverted on Arc." : "")
+              || (activeChainId === 5042 && arcReceipt.error instanceof Error ? arcReceipt.error.message : "")
+              || (isArcNativeV3 && arcStableQuote.error instanceof Error ? arcStableQuote.error.message : error?.message)}
             exceedsEthBalance={exceedsEthBalance}
             exceedsSellBalance={exceedsSellBalance}
             isConnected={isConnected}
@@ -762,7 +795,7 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
                 ? arcStableQuote.isLoading || arcStableQuote.isFetching
                 : stableQuote.isLoading || stableQuote.isFetching
               : graduatedQuote.isLoading || graduatedQuote.isFetching) && !graduatedQuotedOut}
-            receiptSuccess={Boolean(receipt.isSuccess)}
+            receiptSuccess={transactionIsSuccess}
             sellBalance={sellBalance}
             setAmount={setAmount}
             setMode={setMode}
