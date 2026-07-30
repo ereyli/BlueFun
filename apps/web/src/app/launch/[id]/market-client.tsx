@@ -15,6 +15,7 @@ import type {
 } from "lightweight-charts";
 import {
   b20TokenAbi,
+  arcV3NativeSwapRouterAbi,
   bondingCurveAbi,
   contractsForChain,
   contractsForLaunch,
@@ -86,6 +87,7 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
   const activeChainId = launch?.chainId === 4663 || launch?.chainId === 143 || launch?.chainId === 988 || launch?.chainId === 5042 ? launch.chainId : 8453;
   const { addresses, chain, dexVersion, stableUniswapV3Addresses, uniswapV4Addresses } = contractsForLaunch(activeChainId, id);
   const isStableV3 = dexVersion === "v3";
+  const isArcNativeV3 = activeChainId === 5042 && isStableV3;
   const nativeSymbol = chain.nativeCurrency.symbol;
   const quickBuyAmounts = activeChainId === 143 ? ["50", "100", "500"] : activeChainId === 988 || activeChainId === 5042 ? ["1", "5", "10"] : ["0.01", "0.05", "0.1"];
   const wrongNetwork = Boolean(isConnected && chainId && chainId !== activeChainId);
@@ -206,7 +208,7 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
     functionName: "allowance",
     args: [address ?? zeroAddress, stableUniswapV3Addresses.swapRouter],
     query: {
-      enabled: Boolean(isStableV3 && isGraduated && launch?.token && address && parsedAmount > 0n),
+      enabled: Boolean(isStableV3 && !(isArcNativeV3 && mode === "buy") && isGraduated && launch?.token && address && parsedAmount > 0n),
       refetchInterval: 4_000,
       refetchOnWindowFocus: true
     }
@@ -260,7 +262,10 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
   const tradeDisabled = !addresses.bondingCurveMarket || !isConnected || wrongNetwork || isWorking || parsedAmount === 0n || exceedsEthBalance || exceedsSellBalance || (!needsSellApproval && minOut === 0n);
   const permit2Amount = graduatedPermit2RouterAllowance.data?.[0] ?? 0n;
   const permit2Expiration = graduatedPermit2RouterAllowance.data?.[1] ?? 0;
-  const stableNeedsApproval = Boolean(isStableV3 && parsedAmount > 0n && (stableAllowance.data ?? 0n) < stableAmountIn);
+  const stableNeedsApproval = Boolean(
+    isStableV3 && !(isArcNativeV3 && mode === "buy")
+      && parsedAmount > 0n && (stableAllowance.data ?? 0n) < stableAmountIn
+  );
   const needsGraduatedTokenApproval = isStableV3
     ? stableNeedsApproval
     : Boolean(isGraduated && mode === "sell" && parsedAmount > 0n && (graduatedTokenPermit2Allowance.data ?? 0n) < parsedAmount);
@@ -466,6 +471,23 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
   function buyGraduated() {
     if (!launch || !address || parsedAmount === 0n || graduatedMinOut === 0n) return;
     if (isStableV3) {
+      if (isArcNativeV3) {
+        writeContract({
+          chainId: activeChainId,
+          address: stableUniswapV3Addresses.nativeSwapRouter,
+          abi: arcV3NativeSwapRouterAbi,
+          functionName: "swapExactNativeUsdcForToken",
+          args: [
+            launch.token,
+            launch.poolFee ?? 10_000,
+            address,
+            graduatedMinOut,
+            BigInt(Math.floor(Date.now() / 1000) + 900)
+          ],
+          value: parsedAmount
+        });
+        return;
+      }
       writeContract({
         chainId: activeChainId,
         address: stableUniswapV3Addresses.swapRouter,

@@ -44,6 +44,15 @@ The first Direct launch is the original BlueFun mascot
 `Ben the Arc Dog (BARC)`. Its artwork, story and successful mainnet buy/sell
 validation are recorded in `docs/ARC_MASCOT.md`.
 
+Arc buys route through the immutable native-USDC helper at
+`0x847fc48e0075fdf4186531ef17b2e4c310d16c05`. The helper receives 18-decimal
+native USDC through `msg.value`, exposes the corresponding 6-decimal balance to
+Uniswap v3, grants only an exact temporary router allowance, and resets that
+allowance to zero before returning. The deployment transaction is
+`0xe214528762f9d9ed1b1c87f842fe09c52ab7679121cba295be1777a864ab0fa6`.
+An approval-free 0.01 USDC BARC buy was confirmed on mainnet in transaction
+`0x5772f1ddaa54e72da1f91c01761cae2470455c466278fccfe8cab8592f12ddd9`.
+
 ### Superseded prelaunch core
 
 `DeployArcMainnet.s.sol` deployed the original paused core:
@@ -83,6 +92,8 @@ not point the registry to an upgradeable proxy.
 - Display every quote, reserve, volume and platform fee as USDC, never ETH.
 - Arc native USDC uses 18-decimal EVM value units; the optional ERC-20 interface
   uses 6 decimals. Do not mix the two representations in one calculation.
+- Send native USDC buys through the BlueFun native swap helper. Buyers must not
+  approve USDC; only ERC-20 token sales require a token approval.
 - Reserve estimated native USDC gas before offering a Max buy.
 - Show Bond and Direct launch actions as unavailable until their corresponding
   adapter is frozen and the shared launch pause is lifted.

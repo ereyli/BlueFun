@@ -261,7 +261,8 @@ export const stableUniswapV3Addresses = {
   factory: "0x88F0a512eF09175D456bc9547f914f48C013E4aA" as `0x${string}`,
   positionManager: "0x3BdC3437405f7D801b6036532713fc1F179136a6" as `0x${string}`,
   swapRouter: "0x32eaf9B5d5F2CD7361c5012890C943D7de84C22a" as `0x${string}`,
-  quoter: "0xb070179E7032CdA868b53e6C1742F80c9e940d1A" as `0x${string}`
+  quoter: "0xb070179E7032CdA868b53e6C1742F80c9e940d1A" as `0x${string}`,
+  nativeSwapRouter: ZERO_ADDRESS
 };
 
 export const arcUniswapV3Addresses = {
@@ -269,7 +270,8 @@ export const arcUniswapV3Addresses = {
   factory: "0xf0db7b58379503491d857dB50AC9ece64c653918" as `0x${string}`,
   positionManager: "0x39654A85A4C05127f5Fd6ED22CAeC077A0fB1377" as `0x${string}`,
   swapRouter: "0x53BF6B0684Ec7eF91e1387Da3D1a1769bC5A6F77" as `0x${string}`,
-  quoter: "0x7dfd4f31be6814d2906bde155c3e1b146eac1468" as `0x${string}`
+  quoter: "0x7dfd4f31be6814d2906bde155c3e1b146eac1468" as `0x${string}`,
+  nativeSwapRouter: "0x847fc48e0075fdf4186531ef17b2e4c310d16c05" as `0x${string}`
 };
 
 export function contractsForChain(chainId: number | undefined) {
@@ -986,6 +988,22 @@ export const uniswapV3SwapRouterAbi = [
       ]
     }],
     outputs: [{ name: "amountOut", type: "uint256" }]
+  }
+] as const;
+
+export const arcV3NativeSwapRouterAbi = [
+  {
+    type: "function",
+    name: "swapExactNativeUsdcForToken",
+    stateMutability: "payable",
+    inputs: [
+      { name: "tokenOut", type: "address" },
+      { name: "fee", type: "uint24" },
+      { name: "recipient", type: "address" },
+      { name: "amountOutMinimum", type: "uint256" },
+      { name: "deadline", type: "uint256" }
+    ],
+    outputs: [{ name: "tokenAmountOut", type: "uint256" }]
   }
 ] as const;
 

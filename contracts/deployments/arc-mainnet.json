@@ -36,7 +36,8 @@
     "directLaunchFactory": "0xf07020e9c5e44d08bc5b35657b99aa99c560098b",
     "directLiquidityLocker": "0xfc33cdc679636c4e94f88798f173f64a7adb1a71",
     "directAdapter": "0x682b5b60fd7549e63c607f9d0ccae5ca5f8fa15a",
-    "directAdapterConfigHash": "0x87f023b775c15d48b04c643754e81e21b8ffd148babd252232960d1e7b764d44"
+    "directAdapterConfigHash": "0x87f023b775c15d48b04c643754e81e21b8ffd148babd252232960d1e7b764d44",
+    "nativeUsdcSwapRouter": "0x847fc48e0075fdf4186531ef17b2e4c310d16c05"
   },
   "dex": {
     "version": "v3",
@@ -57,7 +58,8 @@
     "lockerFactorySet": "0xbdf91cce866ba0480529462e490b13e62e5d0ff05e26b38674df347c5d02188d",
     "adapterRegistered": "0xcf1f9a0d9f756528ebcdeae6a585d3c803f60ebf0ac172f752379e86bbd8aafe",
     "adapterFrozen": "0xfc5a6d3667f05fe513e789ec9d72a5bb58b723b3c823d1c19fa941871b7eeeed",
-    "launchesUnpaused": "0x7e6acc4579a31c27878e072e8cf8bffb016661d46badcbb00fb4cf6d1bd7997e"
+    "launchesUnpaused": "0x7e6acc4579a31c27878e072e8cf8bffb016661d46badcbb00fb4cf6d1bd7997e",
+    "nativeUsdcSwapRouter": "0xe214528762f9d9ed1b1c87f842fe09c52ab7679121cba295be1777a864ab0fa6"
   },
   "governanceHandoff": {
     "pendingAdmin": "0x14f2dd466a25757c7239e4417bb4924aeeac515c",
@@ -78,7 +80,8 @@
     "buyApprovalTx": "0x92934de86cfaa5dce45c95a48fad6fcacc1d8b563a82b315b7330247d0ad5574",
     "buyTx": "0x7517b2adb6269075d43c24baeeb504f046507f3bbbf1fed208212920e50de4e6",
     "sellApprovalTx": "0x17dbb44d0eb51442c03d882e45daaf200f22724a8354daf7b4276e8b62f1d5ab",
-    "sellTx": "0xb106006a49777d82231ed785b20664393937c8f35a18b2ab2732bd26f5fc0052"
+    "sellTx": "0xb106006a49777d82231ed785b20664393937c8f35a18b2ab2732bd26f5fc0052",
+    "approvalFreeNativeUsdcBuyTx": "0x5772f1ddaa54e72da1f91c01761cae2470455c466278fccfe8cab8592f12ddd9"
   },
   "supersededPrelaunchGeneration": {
     "reason": "The original seven-day activation schedule incorrectly delayed public launches. It had no launches and was replaced by an adapter-frozen, immediately live Direct generation.",
