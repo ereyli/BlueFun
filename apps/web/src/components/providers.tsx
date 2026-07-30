@@ -19,7 +19,9 @@ const baseTransports = baseRpcUrls().map((url) => http(url, { timeout: 6_000, re
 const robinhoodTransport = fallback(robinhoodRpcUrls().map((url) => http(url, { timeout: 6_000, retryCount: 0 })), { rank: true, retryCount: 1 });
 const monadTransport = fallback(monadRpcUrls().map((url) => http(url, { timeout: 6_000, retryCount: 0 })), { rank: true, retryCount: 1 });
 const stableTransport = fallback(stableRpcUrls().map((url) => http(url, { timeout: 6_000, retryCount: 0 })), { rank: true, retryCount: 1 });
-const arcTransport = fallback(arcRpcUrls().map((url) => http(url, { timeout: 6_000, retryCount: 0 })), { rank: true, retryCount: 1 });
+// Keep the Quoter-compatible Arc endpoint first. Thirdweb currently rejects
+// Uniswap QuoterV2 eth_call requests even though ordinary Arc reads succeed.
+const arcTransport = fallback(arcRpcUrls().map((url) => http(url, { timeout: 6_000, retryCount: 0 })), { retryCount: 1 });
 
 const walletConnectProjectId = process.env.NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID;
 const sharedConfig = {
