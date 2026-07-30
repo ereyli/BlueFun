@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
+import { useQuery } from "@tanstack/react-query";
 import { formatEther, maxUint256, parseEther, zeroAddress } from "viem";
 import { useAccount, useBalance, useChainId, useReadContract, useReadContracts, useSignMessage, useSignTypedData, useSimulateContract, useSwitchChain, useWaitForTransactionReceipt, useWriteContract } from "wagmi";
 import { ArrowDownUp, Copy, ExternalLink, Flame, Loader2, LockKeyhole, RotateCcw, Settings, Share2, ShieldCheck } from "@/components/bluefun-icons";
@@ -226,20 +227,41 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
       sqrtPriceLimitX96: 0n
     }],
     query: {
-      enabled: Boolean(isStableV3 && isGraduated && launch?.token && stableAmountIn > 0n),
+      enabled: Boolean(isStableV3 && !isArcNativeV3 && isGraduated && launch?.token && stableAmountIn > 0n),
       refetchOnWindowFocus: false,
       retry: 1,
       staleTime: 4_000
     }
+  });
+  const arcStableQuote = useQuery({
+    queryKey: ["arc-v3-quote", launch?.token, mode, stableAmountIn.toString()],
+    queryFn: async () => {
+      const params = new URLSearchParams({
+        token: launch?.token ?? zeroAddress,
+        mode,
+        amount: stableAmountIn.toString()
+      });
+      const response = await fetch(`/api/arc/swap-quote?${params}`, { cache: "no-store" });
+      const payload = await response.json() as { amountOut?: string; error?: string };
+      if (!response.ok || !payload.amountOut) {
+        throw new Error(payload.error || "Arc price quote is unavailable.");
+      }
+      return BigInt(payload.amountOut);
+    },
+    enabled: Boolean(isArcNativeV3 && isGraduated && launch?.token && stableAmountIn > 0n),
+    refetchOnWindowFocus: false,
+    retry: 1,
+    staleTime: 4_000
   });
   const quotedOut = mode === "buy" ? buyQuote.data?.[0] : sellQuote.data?.[0];
   const minOut = quotedOut ? applySlippage(quotedOut, slippageBps) : 0n;
   const quoteLoading = mode === "buy" ? buyQuote.isLoading : sellQuote.isLoading;
   const fallbackGraduatedQuote = useMemo(() => estimateGraduatedQuoteFromTrades(trades, mode, parsedAmount), [mode, parsedAmount, trades]);
   const quoteFromFallback = Boolean(!graduatedQuote.data?.[0] && graduatedQuote.error && fallbackGraduatedQuote);
-  const stableQuotedOut = stableQuote.data?.[0] === undefined
+  const rawStableQuotedOut = isArcNativeV3 ? arcStableQuote.data : stableQuote.data?.[0];
+  const stableQuotedOut = rawStableQuotedOut === undefined
     ? undefined
-    : mode === "sell" ? stableQuote.data[0] * 1_000_000_000_000n : stableQuote.data[0];
+    : mode === "sell" ? rawStableQuotedOut * 1_000_000_000_000n : rawStableQuotedOut;
   const graduatedQuotedOut = isStableV3
     ? stableQuotedOut
     : graduatedQuote.data?.[0] ?? (quoteFromFallback ? fallbackGraduatedQuote : undefined);
@@ -311,7 +333,10 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
   refreshTradeStateRef.current = () => {
     const refreshes: Promise<unknown>[] = [tokenBalance.refetch()];
     if (isGraduated) {
-      if (isStableV3) refreshes.push(stableAllowance.refetch(), stableQuote.refetch());
+      if (isStableV3) {
+        refreshes.push(stableAllowance.refetch());
+        refreshes.push(isArcNativeV3 ? arcStableQuote.refetch() : stableQuote.refetch());
+      }
       else {
         refreshes.push(
           graduatedTokenPermit2Allowance.refetch(),
@@ -710,7 +735,9 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
           <GraduatedTradeCard
             amount={amount}
             approvalLoading={graduatedApprovalLoading}
-            error={tradeFlowError || error?.message}
+            error={tradeFlowError || (isArcNativeV3 && arcStableQuote.error instanceof Error
+              ? arcStableQuote.error.message
+              : error?.message)}
             exceedsEthBalance={exceedsEthBalance}
             exceedsSellBalance={exceedsSellBalance}
             isConnected={isConnected}
@@ -730,7 +757,11 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
             onSell={sellGraduated}
             quote={graduatedQuotedOut}
             quoteFromFallback={!isStableV3 && quoteFromFallback}
-            quoteLoading={(isStableV3 ? stableQuote.isLoading || stableQuote.isFetching : graduatedQuote.isLoading || graduatedQuote.isFetching) && !graduatedQuotedOut}
+            quoteLoading={(isStableV3
+              ? isArcNativeV3
+                ? arcStableQuote.isLoading || arcStableQuote.isFetching
+                : stableQuote.isLoading || stableQuote.isFetching
+              : graduatedQuote.isLoading || graduatedQuote.isFetching) && !graduatedQuotedOut}
             receiptSuccess={Boolean(receipt.isSuccess)}
             sellBalance={sellBalance}
             setAmount={setAmount}
