@@ -4,8 +4,13 @@ export const TOTAL_SUPPLY = 1_000_000_000;
 export const CURVE_FEE_RATE = 0.01;
 
 export function parseDisplayAmount(value: string) {
-  const parsed = Number.parseFloat(value.replace(/[^\d.]/g, ""));
-  return Number.isFinite(parsed) ? parsed : 0;
+  const match = value.replace(/,/g, "").match(/[-+]?\d*\.?\d+(?:e[-+]?\d+)?/i);
+  if (!match) return 0;
+  const parsed = Number(match[0]);
+  if (!Number.isFinite(parsed)) return 0;
+  const suffix = value.replace(/,/g, "").slice((match.index ?? 0) + match[0].length).match(/^[KMB]\b/i)?.[0]?.toUpperCase();
+  const multiplier = suffix === "K" ? 1_000 : suffix === "M" ? 1_000_000 : suffix === "B" ? 1_000_000_000 : 1;
+  return parsed * multiplier;
 }
 
 export function compactUsd(value: number) {

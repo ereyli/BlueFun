@@ -12,23 +12,21 @@ import "./create-launch-menu.css";
 import "./interface-refinement.css";
 import "./token-share.css";
 import "./bluefun-experience.css";
+import "./terminal-system.css";
 import { Providers } from "@/components/providers";
-import { WalletButton } from "@/components/wallet-button";
 import { RouteFeedback } from "@/components/route-feedback";
 import { SideNav } from "@/components/side-nav";
 import { siteUrl } from "@/lib/site-url";
-import { NetworkSelector } from "@/components/network-selector";
 import { Suspense } from "react";
 import { ChainLink } from "@/components/chain-link";
 import { NetworkIcon } from "@/components/network-icon";
+import { TerminalTopbar } from "@/components/terminal-topbar";
 import { ThemeToggle } from "@/components/theme-toggle";
-import { CreateLaunchMenu } from "@/components/create-launch-menu";
-import { BrandLaunchpadMenu } from "@/components/brand-launchpad-menu";
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl("/")),
-  title: "BlueFun",
-  description: "Fair multichain token launches on Base, Robinhood Chain, Monad, Stable and Arc.",
+  title: "B20",
+  description: "The multichain terminal for token launches, locked liquidity, trading and NFT markets.",
   other: {
     "base:app_id": "6a594e1358aaa84e3d06752c"
   },
@@ -59,7 +57,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <section className="maintenance-card" aria-labelledby="maintenance-title">
               <div className="maintenance-brand">
                 <span><Image src="/brand/bluelogo.webp" alt="" width={40} height={40} priority /></span>
-                <div><strong>BlueFun</strong><small>Base + Robinhood + Monad + Stable</small></div>
+                <div><strong>B20</strong><small>Base + Robinhood + Monad + Stable</small></div>
               </div>
               <div className="maintenance-status"><i /> Scheduled pause</div>
               <h1 id="maintenance-title">The launch desk is taking a short break.</h1>
@@ -83,46 +81,35 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   }
 
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" data-theme="dark" suppressHydrationWarning>
       <head>
-        <style dangerouslySetInnerHTML={{ __html: `html:not([data-theme]),html:not([data-theme]) body{background:#030303;color-scheme:dark}` }} />
-        <script dangerouslySetInnerHTML={{ __html: `(function(){try{var t=localStorage.getItem('bluefun-theme');if(t!=='light'&&t!=='dark')t=matchMedia('(prefers-color-scheme: dark)').matches?'dark':'light';document.documentElement.dataset.theme=t;document.documentElement.style.colorScheme=t;var m=document.querySelector('meta[name="theme-color"]');if(m)m.content=t==='dark'?'#030303':'#f6f8ff'}catch(e){}})();` }} />
+        <style dangerouslySetInnerHTML={{ __html: `html,body{background:#090b10;color-scheme:dark}` }} />
       </head>
       <body>
         <Providers>
-          <RouteFeedback />
+          <Suspense fallback={null}><RouteFeedback /></Suspense>
           <div className="shell">
             <aside className="sidebar">
               <div className="brand-launchpad-row">
-                <Suspense fallback={<Link className="brand" href="/">BlueFun</Link>}><ChainLink className="brand" href="/">
-                  <span className="brand-mark">
-                    <Image src="/brand/bluelogo.webp" alt="" width={32} height={32} priority />
-                  </span>
-                  <span className="brand-wordmark"><strong>BlueFun</strong><small>onchain launch desk</small></span>
+                <Suspense fallback={<Link className="brand" href="/" aria-label="B20 markets"><Image className="terminal-brand-logo" src="/brand/bluelogo.webp" alt="B20" width={46} height={46} priority /></Link>}><ChainLink className="brand" href="/" aria-label="B20 markets">
+                  <Image className="terminal-brand-logo" src="/brand/bluelogo.webp" alt="B20" width={46} height={46} priority />
+                  <span className="brand-wordmark"><strong>B20</strong><small>onchain terminal</small></span>
                 </ChainLink></Suspense>
               </div>
               <Suspense fallback={null}><SideNav /></Suspense>
-              <a className="sidebar-social-link" href="https://x.com/BluefunLaunch" target="_blank" rel="noreferrer" aria-label="BlueFun on X">
-                <span className="x-icon" aria-hidden="true">X</span>
-                <span>@BluefunLaunch</span>
-              </a>
+              <div className="sidebar-footer-tools">
+                <ThemeToggle />
+                <a className="sidebar-social-link" href="https://x.com/BluefunLaunch" target="_blank" rel="noreferrer" aria-label="B20 on X">
+                  <span className="x-icon" aria-hidden="true">X</span>
+                  <span>@BluefunLaunch</span>
+                </a>
+              </div>
             </aside>
             <section className="content">
-              <header className="topbar">
-                <Link className="mobile-brand" href="/" aria-label="BlueFun home">
-                  <Image src="/brand/bluelogo.webp" alt="" width={32} height={32} priority />
-                </Link>
-                <div className="topbar-actions">
-                  <BrandLaunchpadMenu />
-                  <CreateLaunchMenu />
-                  <Suspense fallback={null}><NetworkSelector /></Suspense>
-                  <ThemeToggle />
-                  <WalletButton />
-                </div>
-              </header>
+              <TerminalTopbar />
               <main className="main">{children}</main>
               <footer className="site-footer">
-                <span>© {new Date().getFullYear()} BlueFun</span>
+                <span>© {new Date().getFullYear()} B20</span>
                 <nav aria-label="Footer"><Link href="/docs">Docs</Link><Link href="/risk">Risk</Link><Link href="/terms">Terms</Link><Link href="/privacy">Privacy</Link></nav>
               </footer>
             </section>

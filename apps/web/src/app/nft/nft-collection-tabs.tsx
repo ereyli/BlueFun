@@ -38,7 +38,7 @@ function AnalyticsView({ summary }: { summary?: ActivityPayload["summary"] }) {
     ["Active listings", String(summary?.listed || 0)],
     ["Unique owners", String(summary?.owners || 0)]
   ], [summary]);
-  return <section className="nft-directory-panel nft-analytics-panel"><header><div><span>INDEXED MARKET DATA</span><h2>Collection analytics</h2><p>Live BlueFun primary mint and secondary marketplace data on Base.</p></div></header><div>{stats.map(([label, value]) => <article key={label}><small>{label}</small><strong>{value}</strong></article>)}</div><p><BarChart3/>Historical charts will activate as the collection accumulates enough confirmed sales.</p></section>;
+  return <section className="nft-directory-panel nft-analytics-panel"><header><div><span>INDEXED MARKET DATA</span><h2>Collection analytics</h2><p>Live B20 primary mint and secondary marketplace data on Base.</p></div></header><div>{stats.map(([label, value]) => <article key={label}><small>{label}</small><strong>{value}</strong></article>)}</div><p><BarChart3/>Historical charts will activate as the collection accumulates enough confirmed sales.</p></section>;
 }
 
 function activityIcon(type: ActivityRow["type"]) { return type === "mint" ? <ArrowDownToLine/> : type === "listing" ? <Tag/> : type === "sale" ? <ShoppingBag/> : <WalletCards/>; }

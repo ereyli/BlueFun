@@ -10,11 +10,11 @@ type Filter = "All" | "Live" | "Free" | "Paid";
 type Sort = "all" | "trending" | "newest" | "price-low" | "price-high" | "minted";
 type View = "grid" | "list";
 
-export function NFTCollectionDirectory({ collections }: { collections: NFTCollectionSummary[] }) {
-  const [query, setQuery] = useState("");
+export function NFTCollectionDirectory({ collections, initialQuery = "" }: { collections: NFTCollectionSummary[]; initialQuery?: string }) {
+  const [query, setQuery] = useState(initialQuery);
   const [filter, setFilter] = useState<Filter>("All");
   const [sort, setSort] = useState<Sort>("all");
-  const [view, setView] = useState<View>("grid");
+  const [view, setView] = useState<View>("list");
   const [page, setPage] = useState(1);
   const visible = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -54,7 +54,7 @@ export function NFTCollectionDirectory({ collections }: { collections: NFTCollec
       <select aria-label="Sort collections" value={sort} onChange={(event) => setSort(event.target.value as Sort)}><option value="all">All collections</option><option value="trending">Trending</option><option value="newest">Newest launches</option><option value="price-low">Mint price: low to high</option><option value="price-high">Mint price: high to low</option><option value="minted">Most minted</option></select>
       <div className="nft-view-switch" aria-label="Collection view"><button aria-label="Grid view" className={view === "grid" ? "active" : ""} onClick={() => setView("grid")}><Grid2X2/></button><button aria-label="List view" className={view === "list" ? "active" : ""} onClick={() => setView("list")}><ListIcon/></button></div>
     </div>
-    {visible.length ? <div className={`nft-directory-collection-grid ${view}`}>{pageRows.map((collection) => <CollectionCard collection={collection} key={collection.address} view={view}/>)}</div> : <div className="nft-directory-empty"><span><ImageOff/></span><h3>{collections.length ? "No matching collections" : "The first drop is waiting"}</h3><p>{collections.length ? "Try another search or filter." : "No NFT collection has launched through the verified BlueFun factory yet."}</p>{!collections.length ? <Link className="button primary" href="/nft/launch"><Sparkles/>Launch the first collection</Link> : null}</div>}
+    {visible.length ? <div className={`nft-directory-collection-grid ${view}`}>{pageRows.map((collection) => <CollectionCard collection={collection} key={collection.address} view={view}/>)}</div> : <div className="nft-directory-empty"><span><ImageOff/></span><h3>{collections.length ? "No matching collections" : "The first drop is waiting"}</h3><p>{collections.length ? "Try another search or filter." : "No NFT collection has launched through the verified B20 factory yet."}</p>{!collections.length ? <Link className="button primary" href="/nft/launch"><Sparkles/>Launch the first collection</Link> : null}</div>}
     {pages > 1 ? <footer className="nft-market-pagination"><span>Showing {(safePage - 1) * pageSize + 1}–{Math.min(safePage * pageSize, visible.length)} of {visible.length}</span><div><button disabled={safePage === 1} onClick={() => setPage((value) => Math.max(1, value - 1))}><ChevronLeft/>Previous</button><b>Page {safePage} of {pages}</b><button disabled={safePage === pages} onClick={() => setPage((value) => Math.min(pages, value + 1))}>Next<ChevronRight/></button></div></footer> : null}
   </section>;
 }
@@ -68,8 +68,8 @@ export function NFTLiveMints({ collections }: { collections: NFTCollectionSummar
     {rows.length ? <div className="nft-live-mint-grid">{rows.map((collection) => {
       const supply = Number(collection.initialSupply); const minted = Number(collection.initialMinted); const progress = supply > 0 ? Math.min(100, minted / supply * 100) : 0;
       return <article className="nft-live-mint-card" key={collection.address}>
-        <Link className="nft-live-mint-art" href={`/nft/${collection.address}`}>{collection.imageUrl ? <img src={optimizedTokenImageUrl(collection.imageUrl)} loading="lazy" decoding="async" alt={collection.name}/> : <span><Sparkles/></span>}<b>{collection.standard}</b></Link>
-        <div><small>{collection.symbol} · BLUEFUN DROP</small><h3>{collection.name}</h3><p>{collection.description || "Creator-owned mint on Base."}</p><dl><div><dt>MINT PRICE</dt><dd>{collection.isFree ? "Free" : collection.mintPriceEth ? `${trimEth(collection.mintPriceEth)} ETH` : "—"}</dd></div><div><dt>ACCESS</dt><dd>{collection.access}</dd></div></dl><div className="nft-live-progress"><span><i style={{width:`${progress}%`}}/></span><small>{collection.initialMinted} / {collection.initialSupply}</small></div><footer><Link href={`/nft/${collection.address}`} className="button primary">{live.length ? <><Sparkles/>Mint now</> : <><Clock3/>View schedule</>}</Link><Link href={`/nft/${collection.address}#collection-marketplace`}>Collection <ArrowRight/></Link></footer></div>
+        <Link className="nft-live-mint-art" href={collectionHref(collection)}>{collection.imageUrl ? <img src={optimizedTokenImageUrl(collection.imageUrl)} loading="lazy" decoding="async" alt={collection.name}/> : <span><Sparkles/></span>}<b>{collection.standard}</b></Link>
+        <div><small>{collection.symbol} · B20 DROP</small><h3>{collection.name}</h3><p>{collection.description || "Creator-owned mint on Base."}</p><dl><div><dt>MINT PRICE</dt><dd>{collection.isFree ? "Free" : collection.mintPriceEth ? `${trimEth(collection.mintPriceEth)} ETH` : "—"}</dd></div><div><dt>ACCESS</dt><dd>{collection.access}</dd></div></dl><div className="nft-live-progress"><span><i style={{width:`${progress}%`}}/></span><small>{collection.initialMinted} / {collection.initialSupply}</small></div><footer><Link href={collectionHref(collection)} className="button primary">{collection.id.startsWith("preview-") ? <><Sparkles/>Open studio</> : live.length ? <><Sparkles/>Mint now</> : <><Clock3/>View schedule</>}</Link><Link href={collectionHref(collection)}>Collection <ArrowRight/></Link></footer></div>
       </article>;
     })}</div> : <div className="nft-directory-empty"><span><Clock3/></span><h3>No active mint right now</h3><p>Explore launched collections below or create the next drop.</p></div>}
   </section>;
@@ -78,7 +78,7 @@ export function NFTLiveMints({ collections }: { collections: NFTCollectionSummar
 function CollectionCard({ collection, view }: { collection: NFTCollectionSummary; view: View }) {
   const supply = Number(collection.initialSupply); const minted = Number(collection.initialMinted);
   const progress = supply > 0 ? Math.min(100, minted / supply * 100) : 0;
-  return <Link className={`nft-collection-card nft-directory-collection-card ${view}`} href={`/nft/${collection.address}`}>
+  return <Link className={`nft-collection-card nft-directory-collection-card ${view}`} href={collectionHref(collection)}>
     <div className="nft-collection-cover">{collection.imageUrl ? <img src={optimizedTokenImageUrl(collection.imageUrl)} loading="lazy" decoding="async" alt={collection.name}/> : <span><Sparkles/></span>}<i className={collection.status.toLowerCase()}>{collection.status}</i><b>{collection.standard}</b></div>
     <div className="nft-collection-body"><div><small>{collection.symbol} · #{collection.id}</small><h3>{collection.name}</h3><p>{collection.description || "Creator-owned collection on Base."}</p></div>
       <dl><div><dt>MINT PRICE</dt><dd>{collection.access === "Allowlist" ? "Allowlist" : collection.mintPriceEth === undefined ? "—" : collection.isFree ? "Free" : `${trimEth(collection.mintPriceEth)} ETH`}</dd></div><div><dt>ITEMS</dt><dd>{collection.itemCount}</dd></div><div><dt>ROYALTY</dt><dd>{collection.royaltyPercent}%</dd></div></dl>
@@ -89,6 +89,7 @@ function CollectionCard({ collection, view }: { collection: NFTCollectionSummary
 }
 
 function shortAddress(value: string) { return `${value.slice(0, 6)}…${value.slice(-4)}`; }
+function collectionHref(collection: NFTCollectionSummary) { return collection.id.startsWith("preview-") ? "/nft/launch" : `/nft/${collection.address}`; }
 function trimEth(value: string) { const numeric = Number(value); return numeric === 0 ? "0" : numeric < .0001 ? "<0.0001" : numeric.toFixed(4).replace(/0+$/, "").replace(/\.$/, ""); }
 function numericId(value: string) { return Number(value.replace(/\D/g, "")) || 0; }
 function finitePrice(value: number) { return Number.isFinite(value) ? value : Number.MAX_SAFE_INTEGER; }

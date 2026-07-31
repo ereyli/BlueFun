@@ -8,6 +8,7 @@ import { getRobinhoodLaunches } from "@/lib/robinhood-launches";
 import { siteUrl } from "@/lib/site-url";
 import { tokenPath } from "@/lib/token-url";
 import { getArcOnchainLaunchByToken } from "@/lib/arc-launches";
+import { findUiPreviewLaunch, isUiPreviewLaunch, uiPreviewEnabled, uiPreviewTrades } from "@/lib/ui-preview-data";
 
 export const revalidate = 15;
 
@@ -43,10 +44,10 @@ const getCachedCoinTrades = unstable_cache(
 export async function generateMetadata({ params }: CoinParams): Promise<Metadata> {
   const { token } = await params;
   const launch = await resolveCoin(token);
-  if (!launch) return { title: "BlueFun Market", description: "Trade token launches on BlueFun." };
+  if (!launch) return { title: "B20 Market", description: "Trade token launches on B20." };
 
-  const title = `${launch.name} ($${launch.symbol}) on BlueFun`;
-  const description = launch.description || `Trade $${launch.symbol} on the BlueFun bonding curve.`;
+  const title = `${launch.name} ($${launch.symbol}) on B20`;
+  const description = launch.description || `Trade $${launch.symbol} on the B20 bonding curve.`;
   const url = siteUrl(tokenPath(launch));
   // X caches failed image fetches independently from the page card. Bump this
   // version when the card renderer changes so social crawlers fetch a fresh PNG.
@@ -55,7 +56,7 @@ export async function generateMetadata({ params }: CoinParams): Promise<Metadata
     title,
     description,
     alternates: { canonical: url },
-    openGraph: { title, description, url, siteName: "BlueFun", type: "website", images: [{ url: image, type: "image/png", width: 1200, height: 630, alt: `${launch.name} social share card` }] },
+    openGraph: { title, description, url, siteName: "B20", type: "website", images: [{ url: image, type: "image/png", width: 1200, height: 630, alt: `${launch.name} social share card` }] },
     twitter: { card: "summary_large_image", site: "@BluefunLaunch", creator: "@BluefunLaunch", title, description, images: [{ url: image, alt: `${launch.name} social share card` }] }
   };
 }
@@ -64,11 +65,15 @@ export default async function CoinMarketPage({ params }: CoinParams) {
   const { token } = await params;
   const launch = await resolveCoin(token);
   if (!launch) notFound();
-  const trades = await getCachedCoinTrades(launch.id, launch.chainId, launch.scope);
+  const trades = isUiPreviewLaunch(launch) ? uiPreviewTrades : await getCachedCoinTrades(launch.id, launch.chainId, launch.scope);
   return <MarketClient id={launch.id} launch={launch} trades={trades} />;
 }
 
 async function resolveCoin(token: string) {
   if (!/^0x[a-fA-F0-9]{40}$/.test(token)) return undefined;
+  if (uiPreviewEnabled()) {
+    const preview = findUiPreviewLaunch(token);
+    if (preview) return preview;
+  }
   return getCachedCoinLaunch(token.toLowerCase()).catch(() => undefined);
 }

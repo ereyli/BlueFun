@@ -296,7 +296,7 @@ function LaunchPageContent() {
     <div className="launch-page">
       <section className="launch-intro">
         <div className="launch-hero-panel">
-          <div className="launch-signal-kicker"><i />Issue desk / BlueFun <span>Live</span></div>
+          <div className="launch-signal-kicker"><i />Issue desk / B20 <span>Live</span></div>
           <div className="launch-network-chip"><NetworkIcon chainId={activeChainId} size={22} /><span>Launching on <strong>{chain.name}</strong></span></div>
           <h1>Issue a market.<br />Not a promise.</h1>
           <p className="muted">

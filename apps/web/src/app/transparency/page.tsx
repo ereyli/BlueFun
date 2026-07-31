@@ -5,7 +5,7 @@ import { getBlueTransparency } from "@/lib/blue-transparency";
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "BLUE Transparency | BlueFun",
+  title: "BLUE Transparency | B20",
   description: "Live, onchain BLUE token distribution and liquidity transparency on Base."
 };
 

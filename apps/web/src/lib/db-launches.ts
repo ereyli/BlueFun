@@ -26,7 +26,17 @@ export type LaunchBuyActivity = {
   marketCapNative?: string;
 };
 
+export type MarketSparkline = {
+  scope: string;
+  launchId: string;
+  points: number[];
+  changePercent: number;
+  buys: number;
+  sells: number;
+};
+
 export type LaunchPageFilter = "All" | "New" | "Volume" | "MarketCap" | "Newest" | "Direct" | "Live" | "Ready" | "Graduated" | "Progress";
+export type LaunchPageSort = "Activity" | "Newest" | "Volume" | "MarketCap" | "Progress";
 export type DbLaunchPage = { launches: DeployedLaunch[]; total: number };
 
 function databaseIntegerString(value: unknown) {
@@ -254,7 +264,7 @@ export async function getDbWalletDashboard(wallet: `0x${string}`): Promise<Walle
 
 export async function getDbLaunchPage(
   chainId = 8453,
-  options: { page?: number; pageSize?: number; query?: string; filter?: LaunchPageFilter } = {}
+  options: { page?: number; pageSize?: number; query?: string; filter?: LaunchPageFilter; sort?: LaunchPageSort } = {}
 ): Promise<DbLaunchPage | undefined> {
   if (process.env.POSTGRES_INDEXER_ENABLED !== "true") return undefined;
   const context = dbContext(chainId);
@@ -263,6 +273,11 @@ export async function getDbLaunchPage(
   const offset = (page - 1) * pageSize;
   const search = normalizeSearchTerm(options.query);
   const filter = options.filter || "All";
+  const sort = options.sort ?? (
+    filter === "Volume" || filter === "MarketCap" || filter === "Progress" ? filter
+      : filter === "New" || filter === "Newest" ? "Newest"
+        : "Activity"
+  );
   const statusFilter = filter === "Live" || filter === "Ready" || filter === "Graduated" ? filter.toLowerCase() : "";
 
   try {
@@ -275,13 +290,13 @@ export async function getDbLaunchPage(
       if (filter === "Direct") query = query.eq("launch_mode", "direct");
       if (filter === "Graduated" || filter === "Progress") query = query.neq("launch_mode", "direct");
       if (search) query = query.or(`name.ilike.%${search}%,symbol.ilike.%${search}%,token.ilike.%${search}%,creator.ilike.%${search}%`);
-      query = filter === "Progress"
+      query = sort === "Progress"
         ? query.order("progress", { ascending: false }).order("created_block", { ascending: false }).order("id", { ascending: false })
-        : filter === "Volume"
+        : sort === "Volume"
           ? query.order("volume_eth", { ascending: false }).order("created_block", { ascending: false })
-          : filter === "MarketCap"
+          : sort === "MarketCap"
               ? query.order("current_market_cap_eth", { ascending: false, nullsFirst: false }).order("created_block", { ascending: false })
-            : filter === "All"
+            : sort === "Activity"
               ? query.order("volume_eth", { ascending: false }).order("raised_eth", { ascending: false }).order("created_block", { ascending: false })
             : query.order("created_block", { ascending: false }).order("id", { ascending: false });
       let response: {
@@ -299,13 +314,13 @@ export async function getDbLaunchPage(
         if (filter === "Direct") legacyQuery = legacyQuery.eq("launch_mode", "direct");
         if (filter === "Graduated" || filter === "Progress") legacyQuery = legacyQuery.neq("launch_mode", "direct");
         if (search) legacyQuery = legacyQuery.or(`name.ilike.%${search}%,symbol.ilike.%${search}%,token.ilike.%${search}%,creator.ilike.%${search}%`);
-        legacyQuery = filter === "Progress"
+        legacyQuery = sort === "Progress"
           ? legacyQuery.order("progress", { ascending: false }).order("created_block", { ascending: false }).order("id", { ascending: false })
-          : filter === "Volume"
+          : sort === "Volume"
             ? legacyQuery.order("volume_eth", { ascending: false }).order("created_block", { ascending: false })
-            : filter === "MarketCap"
+            : sort === "MarketCap"
               ? legacyQuery.order("raised_eth", { ascending: false }).order("created_block", { ascending: false })
-              : filter === "All"
+              : sort === "Activity"
                 ? legacyQuery.order("volume_eth", { ascending: false }).order("raised_eth", { ascending: false }).order("created_block", { ascending: false })
               : legacyQuery.order("created_block", { ascending: false }).order("id", { ascending: false });
         response = await legacyQuery.range(offset, offset + pageSize - 1);
@@ -330,14 +345,14 @@ export async function getDbLaunchPage(
          and ($5 <> 'Direct' or launch_mode = 'direct')
          and ($5 <> 'Graduated' or launch_mode <> 'direct')
          and ($5 <> 'Progress' or launch_mode <> 'direct')
-       order by case when $5 = 'Progress' then progress end desc,
-                case when $5 = 'Volume' then volume_eth end desc,
-                case when $5 = 'MarketCap' then current_market_cap_eth end desc nulls last,
-                case when $5 = 'All' then volume_eth end desc,
-                case when $5 = 'All' then raised_eth end desc,
+       order by case when $6 = 'Progress' then progress end desc,
+                case when $6 = 'Volume' then volume_eth end desc,
+                case when $6 = 'MarketCap' then current_market_cap_eth end desc nulls last,
+                case when $6 = 'Activity' then volume_eth end desc,
+                case when $6 = 'Activity' then raised_eth end desc,
                 created_block desc, id desc
-       limit $6 offset $7`,
-      [context.scopes, context.deploymentBlock, statusFilter, search, filter, pageSize, offset]
+       limit $7 offset $8`,
+      [context.scopes, context.deploymentBlock, statusFilter, search, filter, sort, pageSize, offset]
     ), 1_500);
     return {
       launches: await mapRows(result.rows, context.chainId),
@@ -739,6 +754,104 @@ export async function getDbRecentBuyActivity(chainId = 8453, limit = 80): Promis
     console.error("Failed to read recent buy activity", error);
     return undefined;
   }
+}
+
+export async function getDbMarketSparklines(chainId: number, launchKeys: string[]): Promise<MarketSparkline[] | undefined> {
+  if (process.env.POSTGRES_INDEXER_ENABLED !== "true") return undefined;
+  const context = dbContext(chainId);
+  const requested = new Map(launchKeys.slice(0, 30).flatMap((key) => {
+    const separator = key.lastIndexOf(":");
+    if (separator <= 0 || separator === key.length - 1) return [];
+    return [[key, { scope: key.slice(0, separator), launchId: key.slice(separator + 1) }] as const];
+  }));
+  if (requested.size === 0) return [];
+  const scopes = Array.from(new Set(Array.from(requested.values(), (value) => value.scope))).filter((scope) => context.scopes.includes(scope));
+  const launchIds = Array.from(new Set(Array.from(requested.values(), (value) => value.launchId)));
+  if (scopes.length === 0 || launchIds.length === 0) return [];
+  const since = new Date(Date.now() - 24 * 60 * 60 * 1_000).toISOString();
+
+  try {
+    let rows: Array<Record<string, unknown>>;
+    if (hasSupabaseConfig()) {
+      let response: { data: Array<Record<string, unknown>> | null; error: { message?: string; details?: string } | null } = await getSupabase()
+        .from("trades")
+        .select("scope, launch_id, side, eth_amount, token_amount, market_cap_eth, block_number, created_at")
+        .in("scope", scopes)
+        .in("launch_id", launchIds)
+        .gte("created_at", since)
+        .order("block_number", { ascending: true })
+        .limit(4_000);
+      if (response.error && isMissingTradeColumnError(response.error)) {
+        response = await getSupabase()
+          .from("trades")
+          .select("scope, launch_id, side, eth_amount, token_amount, block_number, created_at")
+          .in("scope", scopes)
+          .in("launch_id", launchIds)
+          .gte("created_at", since)
+          .order("block_number", { ascending: true })
+          .limit(4_000);
+      }
+      if (response.error) throw response.error;
+      rows = response.data ?? [];
+    } else {
+      if (!process.env.DATABASE_URL) return undefined;
+      pool ??= new pg.Pool({ connectionString: process.env.DATABASE_URL, connectionTimeoutMillis: 500, idleTimeoutMillis: 1_000, max: 2 });
+      const result = await withTimeout(pool.query(
+        `select scope, launch_id, side, eth_amount, token_amount, market_cap_eth, block_number, created_at
+         from trades
+         where scope = any($1::text[])
+           and launch_id::text = any($2::text[])
+           and created_at >= $3::timestamptz
+         order by block_number asc, id asc
+         limit 4000`,
+        [scopes, launchIds, since]
+      ), 800);
+      rows = result.rows;
+    }
+
+    const grouped = new Map<string, { points: number[]; buys: number; sells: number }>();
+    for (const row of rows) {
+      const key = `${String(row.scope || "")}:${String(row.launch_id || "")}`;
+      if (!requested.has(key)) continue;
+      const tokenAmount = parseDbBigInt(row.token_amount);
+      const indexedMarketCap = parseDbBigInt(row.market_cap_eth);
+      const estimatedMarketCap = indexedMarketCap > 0n
+        ? indexedMarketCap
+        : tokenAmount > 0n
+          ? (parseDbBigInt(row.eth_amount) * 1_000_000_000n * 10n ** 18n) / tokenAmount
+          : 0n;
+      if (estimatedMarketCap <= 0n) continue;
+      const point = Number(formatEther(estimatedMarketCap));
+      if (!Number.isFinite(point) || point <= 0) continue;
+      const group = grouped.get(key) ?? { points: [], buys: 0, sells: 0 };
+      group.points.push(point);
+      if (row.side === "sell") group.sells += 1;
+      else group.buys += 1;
+      grouped.set(key, group);
+    }
+
+    return Array.from(grouped, ([key, group]) => {
+      const requestedLaunch = requested.get(key)!;
+      const points = sampleSeries(group.points, 36);
+      const first = points[0] ?? 0;
+      const last = points.at(-1) ?? first;
+      return {
+        ...requestedLaunch,
+        points,
+        changePercent: first > 0 ? (last - first) / first * 100 : 0,
+        buys: group.buys,
+        sells: group.sells
+      };
+    });
+  } catch (error) {
+    console.error("Failed to read market sparklines", error);
+    return undefined;
+  }
+}
+
+function sampleSeries(points: number[], limit: number) {
+  if (points.length <= limit) return points;
+  return Array.from({ length: limit }, (_, index) => points[Math.round(index * (points.length - 1) / (limit - 1))]);
 }
 
 async function mapRows(rows: Array<Record<string, unknown>>, chainId: number): Promise<DeployedLaunch[]> {

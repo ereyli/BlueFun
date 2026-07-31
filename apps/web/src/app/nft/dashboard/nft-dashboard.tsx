@@ -71,7 +71,30 @@ export function NFTDashboard() {
     }
   }
 
-  if (!isConnected) return <div className="nft-dashboard-empty"><section><Wallet/><span>PRIVATE WALLET VIEW</span><h1>Your NFT desk.</h1><p>See collections you created, NFTs you own and every active listing in one place.</p><ConnectButton.Custom>{({ mounted, openConnectModal }) => <button className="button primary" disabled={!mounted} onClick={openConnectModal}><Wallet/>Connect wallet</button>}</ConnectButton.Custom></section></div>;
+  if (!isConnected) return <div className="nft-home dashboard-terminal-shell nft-dashboard-terminal">
+    <header className="dashboard-terminal-heading"><div><span><i/>BASE WALLET INDEX</span><h1>NFT Portfolio</h1><p>Collected assets, created collections, listings and offers in one workspace.</p></div><em>Wallet required</em></header>
+    <section className="dashboard-terminal-stats" aria-label="NFT portfolio summary">
+      <article><span>COLLECTED ITEMS</span><strong>—</strong><small>ERC-721 + ERC-1155</small></article>
+      <article><span>COLLECTIONS CREATED</span><strong>—</strong><small>Creator-owned</small></article>
+      <article><span>ACTIVE LISTINGS</span><strong>—</strong><small>Base marketplace</small></article>
+      <article><span>OPEN OFFERS</span><strong>—</strong><small>Live bids</small></article>
+    </section>
+    <div className="dashboard-terminal-grid">
+      <section className="dashboard-terminal-table">
+        <header><div><span>NFT ASSETS</span><h2>Collection inventory</h2></div><small>Connect to load</small></header>
+        <div className="dashboard-terminal-table-head"><span>Item</span><span>Collection</span><span>Standard</span><span>Status</span><span>Floor</span></div>
+        <div className="dashboard-terminal-blank"><Images/><strong>No wallet connected</strong><p>Your NFTs and collection activity will populate this table after connection.</p></div>
+      </section>
+      <aside className="dashboard-terminal-connect">
+        <div className="dashboard-connect-icon"><Wallet size={24}/></div>
+        <span>PRIVATE WALLET VIEW</span>
+        <h2>Open your NFT command desk.</h2>
+        <p>Inspect ownership, manage collections and monitor marketplace activity without leaving the terminal.</p>
+        <ConnectButton.Custom>{({ mounted, openConnectModal }) => <button className="button primary" disabled={!mounted} onClick={openConnectModal}><Wallet/>Connect wallet</button>}</ConnectButton.Custom>
+        <div className="dashboard-connect-proof"><span>Base indexed</span><span>Non-custodial</span></div>
+      </aside>
+    </div>
+  </div>;
 
   const activeListings = data?.listings.filter((listing) => listing.onchainActive ?? (!listing.cancelled && BigInt(listing.remaining_quantity) > 0n && BigInt(listing.end_time) > BigInt(Math.floor(Date.now() / 1000)))) || [];
   const listedValue = activeListings.reduce((sum, listing) => sum + BigInt(listing.unit_price) * BigInt(listing.remaining_quantity), 0n);

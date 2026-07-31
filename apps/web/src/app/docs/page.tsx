@@ -26,8 +26,8 @@ import { addresses, blueStakingAddresses, monadAddresses, robinhoodAddresses } f
 export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
-  title: "Documentation | BlueFun",
-  description: "BlueFun product, launch mechanics, fee model, liquidity security, creator tools and official BLUE token documentation."
+  title: "Documentation | B20",
+  description: "B20 product, launch mechanics, fee model, liquidity security, creator tools and official BLUE token documentation."
 };
 
 const sections = [
@@ -99,9 +99,9 @@ export default async function DocsPage() {
   return <div className="docs-page">
     <header className="docs-hero">
       <div className="docs-hero-copy">
-        <span className="docs-kicker"><BookOpen size={14} />BlueFun documentation</span>
+        <span className="docs-kicker"><BookOpen size={14} />B20 documentation</span>
         <h1>Launch onchain markets with a model users can understand.</h1>
-        <p>BlueFun is a multichain token launchpad for fair bonding-curve launches and immediate, permanently locked markets. Stable adds a Direct-only Uniswap v3 route paid in USDT0.</p>
+        <p>B20 is a multichain market terminal for fair bonding-curve launches and immediate, permanently locked markets. Stable and Arc add Direct-only Uniswap v3 routes paid in their native stablecoins.</p>
         <div className="docs-hero-actions">
           <Link className="button primary" href="/launch">Create a token <ArrowRight size={15} /></Link>
           <Link className="button" href="/">Explore markets</Link>
@@ -111,7 +111,7 @@ export default async function DocsPage() {
         <span>Protocol snapshot</span>
         <strong>Two launch paths. One transparent interface.</strong>
         <dl>
-          <div><dt>Networks</dt><dd>4 configured</dd></div>
+          <div><dt>Networks</dt><dd>5 configured</dd></div>
           <div><dt>Supply</dt><dd>1B fixed</dd></div>
           <div><dt>Launch fee</dt><dd>0.001 ETH</dd></div>
           <div><dt>LP custody</dt><dd>Permanent</dd></div>
@@ -128,7 +128,7 @@ export default async function DocsPage() {
 
       <article className="docs-content">
         <section className="docs-section" id="overview">
-          <SectionTitle eyebrow="Product" title="What BlueFun provides" description="A complete launch, discovery, trading and creator-revenue experience built around verifiable onchain state." />
+          <SectionTitle eyebrow="Product" title="What B20 provides" description="A complete launch, discovery, trading and creator-revenue experience built around verifiable onchain state." />
           <div className="docs-feature-grid">
             <Feature icon={<Rocket />} title="Create" text="Deploy a 1B-supply token through a Bond or Direct DEX route, with metadata and an optional creator first buy." />
             <Feature icon={<Gauge />} title="Explore" text="Discover newest, bonding, graduated and direct markets across every supported network." />
@@ -187,7 +187,7 @@ export default async function DocsPage() {
             <article><span>Buy</span><strong>1% total</strong><p>0.7% platform and 0.3% creator, both accounted in ETH.</p></article>
             <article><span>Sell</span><strong>1% total</strong><p>0.7% platform in ETH and 0.3% of token input sent to the dead address.</p></article>
             <article><span>Base platform share</span><strong>50 / 50</strong><p>Trade platform revenue is split automatically between BLUE staking and treasury.</p></article>
-            <article><span>Monad platform share</span><strong>100% Safe</strong><p>Platform MON revenue accrues to the BlueFun Safe treasury; no implicit bridge or Base staking allocation exists.</p></article>
+            <article><span>Monad platform share</span><strong>100% Safe</strong><p>Platform MON revenue accrues to the B20 Safe treasury; no implicit bridge or Base staking allocation exists.</p></article>
             <article><span>Stable creator share</span><strong>Buy USDT0 only</strong><p>Buy LP fees split 0.7% to the Safe and 0.3% to the creator. Sell LP fees split 0.7% token to the Safe and 0.3% token to burn.</p></article>
           </div>
 
@@ -218,9 +218,9 @@ export default async function DocsPage() {
         </section>
 
         <section className="docs-section" id="creator-tools">
-          <SectionTitle eyebrow="Creator experience" title="From launch to lifetime tracking" description="Creators keep control of their wallet while BlueFun organizes the onchain and indexed data around it." />
+          <SectionTitle eyebrow="Creator experience" title="From launch to lifetime tracking" description="Creators keep control of their wallet while B20 organizes the onchain and indexed data around it." />
           <div className="docs-flow-row">
-            <article><WalletCards /><span>01</span><strong>Connect</strong><p>Select Base or Robinhood Chain and connect the wallet that will own the launch identity.</p></article>
+            <article><WalletCards /><span>01</span><strong>Connect</strong><p>Select a supported network and connect the wallet that will own the launch identity.</p></article>
             <article><Rocket /><span>02</span><strong>Launch</strong><p>Add token identity, choose a launch route and optionally execute the creator first buy atomically.</p></article>
             <article><LayoutDashboard /><span>03</span><strong>Monitor</strong><p>View created tokens, holdings, trades and creator-fee balances in the dashboard.</p></article>
             <article><CircleDollarSign /><span>04</span><strong>Claim</strong><p>Claim vNext buy-side creator ETH. Historical tokens keep the claim rules of the contracts they originally launched through.</p></article>
@@ -241,9 +241,9 @@ export default async function DocsPage() {
         <section className="docs-section" id="trading">
           <SectionTitle eyebrow="Market interface" title="Trading and approvals" description="Quotes and transactions use the route associated with the token&apos;s original launch." />
           <div className="docs-prose-grid">
-            <div><h3>Bonding phase</h3><p>Buys and sells execute against the BlueFun bonding-curve market. Trading closes when graduation is ready, then moves to the locked Uniswap v4 pool.</p></div>
-            <div><h3>DEX phase</h3><p>Graduated and Direct tokens trade through their Uniswap v4 pool. Custom-hook pools may not appear immediately in every third-party aggregator even when BlueFun routing works.</p></div>
-            <div><h3>Allowance reuse</h3><p>A sell requires token allowance for the relevant spender. If the existing allowance is sufficient, BlueFun reuses it; otherwise approval and swap remain two separate wallet transactions.</p></div>
+            <div><h3>Bonding phase</h3><p>Buys and sells execute against the B20 bonding-curve market. Trading closes when graduation is ready, then moves to the locked Uniswap v4 pool.</p></div>
+            <div><h3>DEX phase</h3><p>Graduated and Direct tokens trade through their Uniswap v4 pool. Custom-hook pools may not appear immediately in every third-party aggregator even when B20 routing works.</p></div>
+            <div><h3>Allowance reuse</h3><p>A sell requires token allowance for the relevant spender. If the existing allowance is sufficient, B20 reuses it; otherwise approval and swap remain two separate wallet transactions.</p></div>
             <div><h3>Execution protection</h3><p>The interface shows quotes and minimum received. Contract calls enforce deadlines, minimum output and the launch configuration hash where applicable.</p></div>
           </div>
         </section>
@@ -251,7 +251,7 @@ export default async function DocsPage() {
         <section className="docs-section docs-blue-section" id="blue">
           <div className="docs-blue-identity">
             <Image src="/brand/bluelogo.webp" alt="BLUE token" width={80} height={80} />
-            <div><span>Official platform token</span><h2>BLUE</h2><p>The canonical BlueFun ecosystem token on Base.</p></div>
+            <div><span>Official platform token</span><h2>BLUE</h2><p>The canonical B20 ecosystem token on Base.</p></div>
           </div>
           <div className="docs-blue-grid">
             <div className="docs-blue-facts">
@@ -312,7 +312,7 @@ export default async function DocsPage() {
               </> : null}
             </article>)}
           </div>
-          <Callout tone="info" title="Legacy deployments remain intentional">A token&apos;s rules do not change when BlueFun deploys a newer factory. The indexer resolves each launch to its original market, graduation manager and locker so previously launched tokens remain visible and usable.</Callout>
+          <Callout tone="info" title="Legacy deployments remain intentional">A token&apos;s rules do not change when B20 deploys a newer factory. The indexer resolves each launch to its original market, graduation manager and locker so previously launched tokens remain visible and usable.</Callout>
         </section>
 
         <section className="docs-section" id="security">
@@ -323,12 +323,12 @@ export default async function DocsPage() {
             <article><Flame /><h3>Burn accounting</h3><p>vNext Bond, Direct and graduated-pool sell-token fees are sent to <code>0x0000…dEaD</code>. Burn and platform revenue are emitted and readable onchain.</p></article>
             <article><Gauge /><h3>Market risk</h3><p>Low liquidity, volatility, price impact, failed routing, RPC outages and irreversible transactions remain possible.</p></article>
           </div>
-          <Callout tone="warning" title="Use independent judgment">BlueFun is launch and trading software, not an endorsement of community tokens or investment advice. Verify the network, token address, quote and minimum received before signing.</Callout>
+          <Callout tone="warning" title="Use independent judgment">B20 is launch and trading software, not an endorsement of community tokens or investment advice. Verify the network, token address, quote and minimum received before signing.</Callout>
         </section>
 
         <footer className="docs-end">
           <span>Ready to continue?</span><h2>Explore the market or launch your own token.</h2>
-          <div><Link className="button primary" href="/">Explore BlueFun</Link><Link className="button" href="/launch">Open creator flow</Link></div>
+          <div><Link className="button primary" href="/">Explore B20</Link><Link className="button" href="/launch">Open creator flow</Link></div>
         </footer>
       </article>
     </div>

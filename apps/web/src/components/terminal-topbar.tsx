@@ -1,0 +1,95 @@
+"use client";
+
+import Link from "next/link";
+import { usePathname, useRouter } from "next/navigation";
+import { Suspense, useEffect, useState, type FormEvent } from "react";
+import { ArrowLeft, ImagePlus, Rocket, Search } from "@/components/bluefun-icons";
+import { BrandLaunchpadMenu } from "@/components/brand-launchpad-menu";
+import { NetworkSelector } from "@/components/network-selector";
+import { WalletButton } from "@/components/wallet-button";
+
+type TopbarContext = {
+  title: string;
+  searchPlaceholder: string;
+  searchTarget: string;
+  actionHref: string;
+  actionLabel: string;
+  actionIcon: "collection" | "token";
+};
+
+function contextFor(pathname: string): TopbarContext {
+  const nft = pathname.startsWith("/nft");
+  if (pathname === "/launch") return tokenContext("Create Token");
+  if (pathname === "/dashboard") return tokenContext("Portfolio");
+  if (pathname === "/transparency") return tokenContext("BLUE");
+  if (pathname === "/docs") return tokenContext("Documentation");
+  if (pathname === "/risk") return tokenContext("Risk Disclosure");
+  if (pathname === "/terms") return tokenContext("Terms");
+  if (pathname === "/privacy") return tokenContext("Privacy");
+  if (pathname === "/nft/launch") return nftContext("NFT Creator Studio");
+  if (pathname === "/nft/dashboard") return nftContext("NFT Portfolio");
+  if (pathname === "/nft") return nftContext("NFT Markets");
+  if (nft) return nftContext("Collection");
+  return tokenContext("Markets");
+}
+
+function tokenContext(title: string): TopbarContext {
+  return {
+    title,
+    searchPlaceholder: "Search token, ticker or address",
+    searchTarget: "/",
+    actionHref: "/launch",
+    actionLabel: "Create token",
+    actionIcon: "token"
+  };
+}
+
+function nftContext(title: string): TopbarContext {
+  return {
+    title,
+    searchPlaceholder: "Search collection, symbol or address",
+    searchTarget: "/nft",
+    actionHref: "/nft/launch",
+    actionLabel: "Create collection",
+    actionIcon: "collection"
+  };
+}
+
+export function TerminalTopbar() {
+  const pathname = usePathname();
+  const router = useRouter();
+  const context = contextFor(pathname);
+  const [query, setQuery] = useState("");
+  const isCreateScreen = pathname === context.actionHref;
+
+  useEffect(() => setQuery(""), [pathname]);
+
+  function submitSearch(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const value = query.trim();
+    router.push(value ? `${context.searchTarget}?q=${encodeURIComponent(value)}` : context.searchTarget);
+  }
+
+  return (
+    <header className="topbar terminal-global-header">
+      <Link className="mobile-brand" href="/" aria-label="B20 home">B20</Link>
+      <div className="terminal-page-identity">
+        {isCreateScreen ? <Link aria-label={`Back to ${context.searchTarget === "/nft" ? "NFT markets" : "markets"}`} href={context.searchTarget}><ArrowLeft size={16}/></Link> : null}
+        {!isCreateScreen ? <BrandLaunchpadMenu /> : null}
+        <h1>{context.title}</h1>
+      </div>
+      <form className="terminal-global-search" onSubmit={submitSearch}>
+        <button aria-label="Search markets" className="terminal-search-submit" type="submit"><Search size={16}/></button>
+        <input aria-label={context.searchPlaceholder} onChange={(event) => setQuery(event.target.value)} placeholder={context.searchPlaceholder} value={query}/>
+        <kbd>/</kbd>
+      </form>
+      <Suspense fallback={<span className="terminal-network-placeholder"/>}><NetworkSelector /></Suspense>
+      <Link className="button primary terminal-create-action" href={isCreateScreen ? context.searchTarget : context.actionHref}>
+        {isCreateScreen ? <ArrowLeft size={15}/> : context.actionIcon === "collection" ? <ImagePlus size={15}/> : <Rocket size={15}/>}
+        {isCreateScreen ? (context.searchTarget === "/nft" ? "NFT markets" : "Markets") : context.actionLabel}
+        {!isCreateScreen ? <b>+</b> : null}
+      </Link>
+      <WalletButton />
+    </header>
+  );
+}

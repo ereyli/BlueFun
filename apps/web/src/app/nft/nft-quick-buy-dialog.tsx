@@ -44,7 +44,7 @@ export function NFTQuickBuyDialog({
       return;
     }
     if (!publicClient || !isKnownNFTMarketplace(selected.marketplace, selected.standard)) {
-      setNotice("This listing is not from a verified BlueFun marketplace.");
+      setNotice("This listing is not from a verified B20 marketplace.");
       return;
     }
     try {
