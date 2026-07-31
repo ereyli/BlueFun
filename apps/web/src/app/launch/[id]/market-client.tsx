@@ -875,7 +875,7 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
           <section className="trade-card swap-terminal">
             <div className="trade-card-toolbar">
               <div><strong>Swap</strong><span>B20 curve</span></div>
-              <button className={settingsOpen ? "swap-settings-trigger active" : "swap-settings-trigger"} onClick={() => setSettingsOpen((open) => !open)} type="button" aria-label="Trade settings">
+              <button className={settingsOpen ? "swap-settings-trigger active" : "swap-settings-trigger"} onClick={() => setSettingsOpen((open) => !open)} type="button" aria-label="Slippage settings" title="Slippage settings">
                 <Settings size={17} />
                 <span>{Number(slippageBps) / 100}%</span>
               </button>
@@ -1257,7 +1257,7 @@ function GraduatedTradeCard({
     <section className="graduated-trade-card swap-terminal">
       <div className="trade-card-toolbar graduated-trade-toolbar">
         <div><strong>Swap</strong><span>{launch.launchMode === "direct" ? `Direct Uniswap ${dexVersion}` : `Uniswap ${dexVersion}`}</span></div>
-        <button className={settingsOpen ? "swap-settings-trigger active" : "swap-settings-trigger"} onClick={() => setSettingsOpen((open) => !open)} type="button" aria-label="Trade settings">
+        <button className={settingsOpen ? "swap-settings-trigger active" : "swap-settings-trigger"} onClick={() => setSettingsOpen((open) => !open)} type="button" aria-label="Slippage settings" title="Slippage settings">
           <Settings size={17} />
           <span>{Number(slippageBps) / 100}%</span>
         </button>

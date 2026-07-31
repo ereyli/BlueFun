@@ -2880,7 +2880,7 @@ textarea {
   display: grid;
   gap: 0;
   grid-template:
-    "top top" 68px
+    "top top" 76px
     "summary summary" 94px
     "content trade" auto
     / minmax(0, 1fr) 420px;
@@ -2899,20 +2899,28 @@ textarea {
   gap: 16px;
   grid-area: top;
   grid-template-columns: 228px minmax(300px, 510px) minmax(0, 1fr) auto auto minmax(150px, auto);
-  padding: 0 20px;
+  height: 76px;
+  padding: 6px 20px;
 }
 
 .reference-token-topbar > .wallet-control {
   background: #0b1521;
   border-color: #26374b;
   color: #e8eef7;
-  height: 42px;
+  height: 44px;
+  min-height: 44px;
   min-width: 150px;
   width: 200px;
 }
 
 .reference-token-topbar .reference-create-token {
+  height: 44px;
+  min-height: 44px;
   width: 144px;
+}
+
+.reference-token-topbar .reference-global-search {
+  min-height: 44px;
 }
 
 .reference-back-link {
@@ -2933,9 +2941,11 @@ textarea {
   display: flex;
   font-size: 12px;
   gap: 8px;
-  height: 42px;
+  height: 44px;
+  min-width: 160px;
   padding: 0 14px;
-  width: 116px;
+  white-space: nowrap;
+  width: auto;
 }
 
 .reference-token-terminal > .market-summary-column {
@@ -3667,12 +3677,28 @@ textarea {
 }
 
 .reference-token-terminal .trade-card-toolbar {
-  min-height: 42px;
-  padding: 0 10px;
+  align-items: center;
+  display: flex;
+  justify-content: flex-end;
+  min-height: 34px;
+  padding: 0 0 6px;
 }
 
-.reference-token-terminal .trade-card-toolbar {
+.reference-token-terminal .trade-card-toolbar > div {
   display: none;
+}
+
+.reference-token-terminal .trade-card-toolbar .swap-settings-trigger {
+  background: #0d1b28;
+  border-color: #2b4055;
+  color: #9badbf;
+}
+
+.reference-token-terminal .trade-card-toolbar .swap-settings-trigger:hover,
+.reference-token-terminal .trade-card-toolbar .swap-settings-trigger.active {
+  background: #12243a;
+  border-color: #3d65a2;
+  color: #8eacff;
 }
 
 .reference-token-terminal .trade-tabs-top {
@@ -3872,7 +3898,7 @@ textarea {
 @media (max-width: 1180px) {
   .reference-token-terminal.trade-layout {
     grid-template:
-      "top top" 68px
+      "top top" 76px
       "summary summary" 94px
       "content trade" auto
       / minmax(0, 1fr) 350px;
@@ -3919,6 +3945,7 @@ textarea {
     display: grid;
     flex: none;
     grid-template-columns: 1fr auto;
+    height: auto;
     min-height: 120px;
     padding: 10px;
     width: 100%;
