@@ -29,13 +29,13 @@ export async function generateMetadata({ params, searchParams }: LaunchParams): 
   const launch = await getCachedLaunch(id, chainId).catch(() => undefined);
   if (!launch) {
     return {
-      title: "BlueFun Market",
-      description: "Trade B20 launches on BlueFun."
+      title: "B20 Market",
+      description: "Trade token launches on B20."
     };
   }
 
-  const title = `${launch.name} ($${launch.symbol}) on BlueFun`;
-  const description = launch.description || `Trade $${launch.symbol} on the BlueFun bonding curve.`;
+  const title = `${launch.name} ($${launch.symbol}) on B20`;
+  const description = launch.description || `Trade $${launch.symbol} on the B20 bonding curve.`;
   const url = siteUrl(tokenPath(launch));
   const image = siteUrl(`/api/token/share-card?chain=${launch.chainId}&token=${encodeURIComponent(launch.token)}&v=20260725-3`);
 
@@ -47,7 +47,7 @@ export async function generateMetadata({ params, searchParams }: LaunchParams): 
       title,
       description,
       url,
-      siteName: "BlueFun",
+      siteName: "B20",
       type: "website",
       images: [{ url: image, type: "image/png", width: 1200, height: 630, alt: `${launch.name} social share card` }]
     },

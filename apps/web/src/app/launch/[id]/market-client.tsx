@@ -1,12 +1,14 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import Link from "next/link";
+import dynamic from "next/dynamic";
 import { useRouter } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 import { useQuery } from "@tanstack/react-query";
 import { formatEther, maxUint256, parseEther, zeroAddress } from "viem";
 import { useAccount, useBalance, useChainId, useReadContract, useReadContracts, useSignMessage, useSignTypedData, useSimulateContract, useSwitchChain, useWaitForTransactionReceipt, useWriteContract } from "wagmi";
-import { ArrowDownUp, Copy, ExternalLink, Flame, Loader2, LockKeyhole, RotateCcw, Settings, Share2, ShieldCheck } from "@/components/bluefun-icons";
+import { ArrowDownUp, ChevronDown, Copy, ExternalLink, Flame, Loader2, LockKeyhole, Rocket, RotateCcw, Search, Settings, Share2, ShieldCheck } from "@/components/bluefun-icons";
 import type {
   CandlestickData,
   HistogramData,
@@ -53,6 +55,12 @@ import { NetworkIcon } from "@/components/network-icon";
 import { chatMessageToSign } from "@/lib/chat-auth";
 import { TokenShareDialog } from "@/components/token-share-dialog";
 import { BlueFunState } from "@/components/bluefun-state";
+import { isUiPreviewLaunch } from "@/lib/ui-preview-data";
+
+const ReferenceWalletButton = dynamic(
+  () => import("@/components/wallet-button").then((module) => module.WalletButton),
+  { ssr: false, loading: () => <button className="button wallet-control" disabled type="button">Connect wallet</button> }
+);
 
 const MAX_UINT160 = (1n << 160n) - 1n;
 const PERMIT2_SESSION_SECONDS = 30 * 24 * 60 * 60;
@@ -61,6 +69,7 @@ const BURN_ADDRESS = "0x000000000000000000000000000000000000dEaD" as const;
 type DexPairSnapshot = {
   priceUsd: number;
   marketCap: number;
+  pairAddress?: `0x${string}`;
 };
 
 type MarketDataState = "idle" | "loading" | "ready" | "unavailable";
@@ -92,6 +101,7 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
   const nativeSymbol = chain.nativeCurrency.symbol;
   const quickBuyAmounts = activeChainId === 143 ? ["50", "100", "500"] : activeChainId === 988 || activeChainId === 5042 ? ["1", "5", "10"] : ["0.01", "0.05", "0.1"];
   const wrongNetwork = Boolean(isConnected && chainId && chainId !== activeChainId);
+  const previewMode = isUiPreviewLaunch(launch);
 
   async function switchWalletNetwork() {
     setChainSwitchError("");
@@ -386,6 +396,12 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
     : isGraduated
       ? dexPair?.priceUsd ? formatUsdPrice(dexPair.priceUsd) : marketDataState === "loading" ? "Loading…" : "Unavailable"
       : formatUsdFromEthText(displayPrice, ethUsd, true);
+  const headerMarketCap = previewMode ? "$2.38M" : displayMarketCapText;
+  const headerPrice = previewMode ? "$0.02131" : displayPriceText;
+  const headerLiquidity = previewMode ? "$1.33M" : isDirect ? "Permanently locked" : launch?.raised;
+  const headerVolume = previewMode ? "$40.56K" : formatUsdFromEthText(launch?.volume || "0", ethUsd);
+  const headerBuys = previewMode ? "1,615" : trades.filter((trade) => trade.side === "buy").length.toLocaleString("en-US");
+  const headerSells = previewMode ? "982" : trades.filter((trade) => trade.side === "sell").length.toLocaleString("en-US");
 
   refreshTradeStateRef.current = () => {
     const refreshes: Promise<unknown>[] = [
@@ -517,7 +533,9 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
         const payload = await response.json() as { pair?: Partial<DexPairSnapshot> | null };
         const priceUsd = Number(payload.pair?.priceUsd);
         const marketCap = Number(payload.pair?.marketCap);
-        const nextPair = Number.isFinite(priceUsd) && priceUsd > 0 && Number.isFinite(marketCap) && marketCap > 0 ? { priceUsd, marketCap } : null;
+        const rawPairAddress = String(payload.pair?.pairAddress || "");
+        const pairAddress = /^0x[a-fA-F0-9]{40}$/.test(rawPairAddress) ? rawPairAddress as `0x${string}` : undefined;
+        const nextPair = Number.isFinite(priceUsd) && priceUsd > 0 && Number.isFinite(marketCap) && marketCap > 0 ? { priceUsd, marketCap, pairAddress } : null;
         if (active) {
           setDexPair(nextPair);
           setMarketDataState(nextPair ? "ready" : "unavailable");
@@ -731,7 +749,19 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
   const officialBlue = isOfficialBlue(launch);
 
   return (
-    <div className="trade-layout">
+    <div className="trade-layout reference-token-terminal">
+      <header className="reference-token-topbar">
+        <Link className="reference-back-link" href={`/?chain=${chainSlug(launch.chainId)}`}>← <span>Markets</span></Link>
+        <label className="reference-global-search">
+          <Search size={17}/>
+          <input aria-label="Search markets" placeholder="Search token, address or transaction"/>
+          <kbd>/</kbd>
+        </label>
+        <span className="reference-token-topbar-spacer" aria-hidden="true"/>
+        <span className="reference-token-network"><NetworkIcon chainId={launch.chainId} size={17}/>{chain.name}<ChevronDown size={13}/></span>
+        <Link className="button primary reference-create-token" href={`/launch?chain=${chainSlug(launch.chainId)}`}><Rocket size={15}/>Create token</Link>
+        <ReferenceWalletButton/>
+      </header>
       <section className="market-summary-column">
         <div className="market-header-card">
           <div className="market-header-main">
@@ -762,10 +792,14 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
             </div>
           </div>
           <div className="market-header-stats">
-            <div><span>{isEstimatedCurveData ? "Estimated MC" : "Market cap"}</span><strong>{displayMarketCapText}</strong></div>
-            <div><span>{isEstimatedCurveData ? "Estimated price" : "Price"}</span><strong>{displayPriceText}</strong></div>
-            <div><span>{isDirect ? "Liquidity" : "Raised"}</span><strong>{isDirect ? "Permanently locked" : launch.raised}</strong></div>
+            <div><span>{previewMode ? "Market cap" : isEstimatedCurveData ? "Estimated MC" : "Market cap"}</span><strong>{headerMarketCap}</strong></div>
+            <div><span>{previewMode ? "Price" : isEstimatedCurveData ? "Estimated price" : "Price"}</span><strong>{headerPrice}</strong></div>
+            <div><span>{previewMode ? "Liquidity" : isDirect ? "Liquidity" : "Raised"}</span><strong>{headerLiquidity}</strong></div>
+            <div><span>24h volume</span><strong>{headerVolume}</strong></div>
+            <div><span>Buys</span><strong className="reference-positive">{headerBuys}</strong></div>
+            <div><span>Sells</span><strong className="reference-negative">{headerSells}</strong></div>
           </div>
+          <span className="reference-lp-lock"><LockKeyhole size={14}/>LP locked<ChevronDown size={13}/></span>
           {isGraduated && !latestMarketCapEth && marketDataState !== "ready" ? (
             <div className={`market-data-note ${marketDataState}`}>
               <span className="wallet-status-dot" />
@@ -779,11 +813,13 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
       <TokenShareDialog launch={launch} open={shareOpen} onClose={() => setShareOpen(false)} />
 
       <section className="market-content-column">
+        <div className="reference-chart-tools" aria-hidden="true">
+          <span>＋</span><span>╱</span><span>≡</span><span>⌁</span><span>◇</span><span>T</span><span>☺</span><span>⌖</span>
+        </div>
         <div className="chart-panel">
           <div className="curve-state compact">
             <TradeChart trades={trades} status={launch.status} symbol={launch.symbol} ethUsd={ethUsd} nativeSymbol={nativeSymbol} />
-            <HolderDistribution launch={launch} trades={trades} />
-            <RecentTrades trades={trades} symbol={launch.symbol} chainId={launch.chainId} />
+            <MarketDataPanel launch={launch} poolAddress={dexPair?.pairAddress} trades={trades} walletAddress={address} />
             <CommunityBurnCard launch={launch} />
           </div>
         </div>
@@ -838,7 +874,7 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
         ) : (
           <section className="trade-card swap-terminal">
             <div className="trade-card-toolbar">
-              <div><strong>Swap</strong><span>BlueFun curve</span></div>
+              <div><strong>Swap</strong><span>B20 curve</span></div>
               <button className={settingsOpen ? "swap-settings-trigger active" : "swap-settings-trigger"} onClick={() => setSettingsOpen((open) => !open)} type="button" aria-label="Trade settings">
                 <Settings size={17} />
                 <span>{Number(slippageBps) / 100}%</span>
@@ -849,6 +885,7 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
                 <button aria-selected={mode === "buy"} className={mode === "buy" ? "active" : ""} onClick={() => setMode("buy")} role="tab" type="button">Buy ${launch.symbol}</button>
                 <button aria-selected={mode === "sell"} className={mode === "sell" ? "active" : ""} onClick={() => setMode("sell")} role="tab" type="button">Sell</button>
               </div>
+              <div className="reference-order-type-tabs"><span className="active">Market</span><span>Limit</span></div>
               {!isConnected ? (
                 <div className="wallet-trade-gate"><span className="wallet-status-dot" />Connect wallet to trade</div>
               ) : null}
@@ -896,7 +933,7 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
                   </div>
                 </div>
               </div>
-              <div className="trade-meta-line"><span><NetworkIcon chainId={activeChainId} size={14} />{chain.name}</span><i />BlueFun curve<i />1% fee</div>
+              <div className="trade-meta-line"><span><NetworkIcon chainId={activeChainId} size={14} />{chain.name}</span><i />B20 curve<i />1% fee</div>
               {priceImpact > 5 ? <TradeStatus tone="danger">High price impact: reduce the order size or increase slippage carefully.</TradeStatus> : null}
               {settingsOpen ? (
                 <div className="trade-settings-panel">
@@ -946,6 +983,19 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
           </section>
         )}
 
+        <section className="reference-order-summary" aria-label="Account trading summary">
+          <div><span>Bought</span><strong>{previewMode ? "4.25K" : trades.filter((trade) => trade.side === "buy").length.toLocaleString("en-US")}</strong></div>
+          <div><span>Sold</span><strong>{previewMode ? "2.74K" : trades.filter((trade) => trade.side === "sell").length.toLocaleString("en-US")}</strong></div>
+          <div><span>Balance</span><strong>{previewMode ? "1.51K" : formatTokenBalance(sellBalance)}</strong></div>
+          <div><span>P/L</span><strong className="reference-positive">{previewMode ? "+$23.12" : "Live"}</strong></div>
+        </section>
+        <section className="reference-token-side-info">
+          <h3>Token information <ChevronDown size={13}/></h3>
+          <div><span>Contract</span><strong>{shortAddress(launch.token)}</strong></div>
+          <div><span>Creator</span><strong>{shortAddress(launch.creator)}</strong></div>
+          <div><span>Total supply</span><strong>1B {launch.symbol}</strong></div>
+          <div><span>Fees</span><strong>1% buy / 1% sell</strong></div>
+        </section>
         <TokenChat launch={launch} launchId={id} wallet={address} isConnected={isConnected} />
 
         {launch.status === "Ready" ? (
@@ -1218,6 +1268,7 @@ function GraduatedTradeCard({
           <button aria-selected={mode === "buy"} className={mode === "buy" ? "active" : ""} onClick={() => setMode("buy")} role="tab" type="button">Buy ${launch.symbol}</button>
           <button aria-selected={mode === "sell"} className={mode === "sell" ? "active" : ""} onClick={() => setMode("sell")} role="tab" type="button">Sell</button>
         </div>
+        <div className="reference-order-type-tabs"><span className="active">Market</span><span>Limit</span></div>
         {!isConnected ? (
           <div className="notice compact">
             <strong>Connect wallet</strong>
@@ -1350,7 +1401,7 @@ function GraduatedTradeCard({
         <ExternalLink size={16} />
         Trade on Uniswap
       </a>
-      {launch.launchMode === "direct" && dexVersion === "v4" ? <span className="trade-helper external-route-note">New v4 hook pools may take time to appear in Uniswap Labs routing. BlueFun quotes this pool directly onchain.</span> : null}
+      {launch.launchMode === "direct" && dexVersion === "v4" ? <span className="trade-helper external-route-note">New v4 hook pools may take time to appear in Uniswap Labs routing. B20 quotes this pool directly onchain.</span> : null}
     </section>
   );
 }
@@ -1413,41 +1464,372 @@ async function createPermit2Signature({
   return { details, spender, sigDeadline, signature };
 }
 
-function RecentTrades({ trades, symbol, chainId: launchChainId }: { trades: DeployedTrade[]; symbol: string; chainId: number }) {
-  const { chain } = contractsForChain(launchChainId);
+type MarketDataTab = "trades" | "positions" | "holders" | "risk";
+
+function MarketDataPanel({
+  launch,
+  poolAddress,
+  trades,
+  walletAddress
+}: {
+  launch: DeployedLaunch;
+  poolAddress?: `0x${string}`;
+  trades: DeployedTrade[];
+  walletAddress?: `0x${string}`;
+}) {
+  const [activeTab, setActiveTab] = useState<MarketDataTab>("trades");
+  const { addresses, chain, uniswapV4Addresses } = contractsForChain(launch.chainId);
   const recent = useMemo(() => trades
     .slice()
     .sort((a, b) => Number(BigInt(b.blockNumber || "0") - BigInt(a.blockNumber || "0")) || Date.parse(b.createdAt || "0") - Date.parse(a.createdAt || "0"))
-    .slice(0, 15), [trades]);
+    .slice(0, 20), [trades]);
+  const walletTrades = useMemo(() => {
+    if (!walletAddress) return [];
+    return recent.filter((trade) => trade.trader?.toLowerCase() === walletAddress.toLowerCase());
+  }, [recent, walletAddress]);
+  const position = useMemo(() => walletTrades.reduce((summary, trade) => {
+    const tokenAmount = numericAmount(trade.tokenAmount);
+    const nativeAmount = numericAmount(trade.ethAmount);
+    if (trade.side === "buy") {
+      summary.tokens += tokenAmount;
+      summary.netNative -= nativeAmount;
+      summary.buys += 1;
+    } else {
+      summary.tokens -= tokenAmount;
+      summary.netNative += nativeAmount;
+      summary.sells += 1;
+    }
+    return summary;
+  }, { tokens: 0, netNative: 0, buys: 0, sells: 0 }), [walletTrades]);
+  const indexedHolderActivity = useMemo(() => {
+    const activity = new Map<string, { wallet: `0x${string}`; netTokens: number; lastSeen: string }>();
+    trades.forEach((trade) => {
+      if (!trade.trader) return;
+      const key = trade.trader.toLowerCase();
+      const row = activity.get(key) ?? { wallet: trade.trader, netTokens: 0, lastSeen: trade.createdAt };
+      row.netTokens += (trade.side === "buy" ? 1 : -1) * numericAmount(trade.tokenAmount);
+      if (Date.parse(trade.createdAt || "0") > Date.parse(row.lastSeen || "0")) row.lastSeen = trade.createdAt;
+      activity.set(key, row);
+    });
+    return activity;
+  }, [trades]);
+  const indexedHolderAddresses = useMemo(() => Array.from(indexedHolderActivity.values())
+    .filter((row) => row.netTokens > 0)
+    .sort((a, b) => b.netTokens - a.netTokens)
+    .slice(0, 20)
+    .map((row) => row.wallet), [indexedHolderActivity]);
+  const holderAddresses = useMemo(() => {
+    const marketPoolAddress = launch.status === "Graduated"
+      ? poolAddress ?? uniswapV4Addresses.poolManager
+      : addresses.bondingCurveMarket;
+    const protocolAddresses = [
+      marketPoolAddress,
+      launch.liquidityLocker,
+      launch.creator,
+      BURN_ADDRESS
+    ].filter((value): value is `0x${string}` => Boolean(value && value.toLowerCase() !== zeroAddress));
+    return Array.from(new Map([...protocolAddresses, ...indexedHolderAddresses].map((value) => [value.toLowerCase(), value])).values());
+  }, [addresses.bondingCurveMarket, indexedHolderAddresses, launch.creator, launch.liquidityLocker, launch.status, poolAddress, uniswapV4Addresses.poolManager]);
+  const holderBalances = useReadContracts({
+    contracts: holderAddresses.map((holder) => ({
+      address: launch.token,
+      abi: b20TokenAbi,
+      functionName: "balanceOf",
+      args: [holder]
+    })),
+    query: { enabled: activeTab === "holders" && holderAddresses.length > 0, staleTime: 30_000 }
+  });
+  const holderRows = useMemo(() => {
+    const balanceResults = holderBalances.data as Array<{ result?: unknown }> | undefined;
+    return holderAddresses
+      .map((holder, index) => {
+        const result = balanceResults?.[index]?.result;
+        const balance = typeof result === "bigint" ? result : 0n;
+        const amount = Number(formatEther(balance));
+        const percent = TOTAL_SUPPLY > 0 ? amount / TOTAL_SUPPLY * 100 : 0;
+        const normalized = holder.toLowerCase();
+        const marketPoolAddress = launch.status === "Graduated"
+          ? poolAddress ?? uniswapV4Addresses.poolManager
+          : addresses.bondingCurveMarket;
+        const isPool = marketPoolAddress?.toLowerCase() === normalized;
+        const isLocker = launch.liquidityLocker?.toLowerCase() === normalized;
+        const isCreator = launch.creator.toLowerCase() === normalized;
+        const isBurn = BURN_ADDRESS.toLowerCase() === normalized;
+        const activity = indexedHolderActivity.get(normalized);
+        return {
+          holder,
+          balance,
+          percent,
+          role: isBurn ? "Burn wallet" : isPool ? "Pool / market" : isLocker ? "LP locker" : isCreator ? "Creator wallet" : "Holder",
+          tone: isBurn ? "burn" : isPool ? "pool" : isLocker ? "locker" : isCreator ? "creator" : "holder",
+          lastSeen: activity?.lastSeen
+        };
+      })
+      .filter((row) => row.balance > 0n || row.tone !== "holder")
+      .sort((a, b) => a.balance === b.balance ? a.role.localeCompare(b.role) : a.balance > b.balance ? -1 : 1)
+      .slice(0, 24);
+  }, [addresses.bondingCurveMarket, holderAddresses, holderBalances.data, indexedHolderActivity, launch.creator, launch.liquidityLocker, launch.status, poolAddress, uniswapV4Addresses.poolManager]);
+  const tabs: Array<{ id: MarketDataTab; label: string; count?: number }> = [
+    { id: "trades", label: "Trades", count: recent.length },
+    { id: "positions", label: "Positions", count: walletAddress ? walletTrades.length : undefined },
+    { id: "holders", label: "Holders", count: holderRows.length },
+    { id: "risk", label: "Risk" }
+  ];
+  const creatorHolder = holderRows.find((row) => row.tone === "creator");
+  const burnHolder = holderRows.find((row) => row.tone === "burn");
+  const publicHolderConcentration = holderRows
+    .filter((row) => row.tone === "holder")
+    .slice(0, 5)
+    .reduce((total, row) => total + row.percent, 0);
+  const indexedTraderCount = new Set(recent.map((trade) => trade.trader?.toLowerCase()).filter(Boolean)).size;
+  const indexedBuys = recent.filter((trade) => trade.side === "buy").length;
+  const indexedSells = recent.length - indexedBuys;
+  const liquidityProtected = launch.launchMode !== "direct" || Boolean(launch.liquidityLocker);
+  const creatorAllocation = creatorHolder?.percent ?? 0;
+  const favorableRiskChecks = [
+    liquidityProtected,
+    creatorAllocation <= 5,
+    publicHolderConcentration <= 20,
+    recent.length >= 5,
+    Boolean(launch.token)
+  ].filter(Boolean).length;
+  const riskProfile = !liquidityProtected || creatorAllocation > 10
+    ? "Review needed"
+    : recent.length < 5
+      ? "Limited data"
+      : "Healthy profile";
 
   return (
     <section className="recent-trades">
       <div className="recent-trades-head">
-        <h2>Latest trades</h2>
-        <span>{recent.length ? "Live" : "Waiting"}</span>
-      </div>
-      {recent.length === 0 ? (
-        <div className="trade-feed-empty">No trades yet.</div>
-      ) : (
-        <div className="trade-feed">
-          {recent.map((trade) => (
-            <a
-              className="trade-feed-row"
-              href={`${chain.blockExplorers.default.url}/tx/${trade.txHash}`}
-              key={`${trade.txHash}-${trade.side}-${trade.tokenAmount}`}
-              target="_blank"
-              rel="noreferrer"
+        <nav className="reference-trade-data-tabs" aria-label="Market data" role="tablist">
+          {tabs.map((tab) => (
+            <button
+              aria-controls={`market-data-${tab.id}`}
+              aria-selected={activeTab === tab.id}
+              className={activeTab === tab.id ? "active" : ""}
+              id={`market-tab-${tab.id}`}
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              role="tab"
+              type="button"
             >
-              <span className={trade.side === "buy" ? "trade-side buy" : "trade-side sell"}>{trade.side}</span>
-              <span className="trade-wallet">{trade.trader ? shortAddress(trade.trader) : "Unknown"}</span>
-              <span className="trade-amount">{compactTokenAmount(trade.tokenAmount)} {symbol}</span>
-              <strong>{trade.ethAmount}</strong>
-            </a>
+              {tab.label}
+              {tab.count !== undefined ? <small>{tab.count}</small> : null}
+            </button>
           ))}
-        </div>
-      )}
+        </nav>
+      </div>
+
+      <div
+        aria-labelledby={`market-tab-${activeTab}`}
+        className="market-data-content"
+        id={`market-data-${activeTab}`}
+        role="tabpanel"
+      >
+        {activeTab === "trades" ? (
+          recent.length === 0 ? (
+            <MarketDataEmpty title="No indexed trades yet" detail="New onchain trades will appear here automatically." />
+          ) : (
+            <div className="market-data-table market-trades-table">
+              <div className="market-data-table-head">
+                <span>Time</span><span>Side</span><span>Wallet</span><span>Token amount</span><span>Native total</span><span>Transaction</span>
+              </div>
+              <div className="market-data-table-body">
+                {recent.map((trade) => (
+                  <a
+                    className="market-data-table-row"
+                    href={`${chain.blockExplorers.default.url}/tx/${trade.txHash}`}
+                    key={`${trade.txHash}-${trade.side}-${trade.tokenAmount}`}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    <span className="market-data-time">{formatActivityTime(trade.createdAt)}</span>
+                    <span className={trade.side === "buy" ? "trade-side buy" : "trade-side sell"}>{trade.side}</span>
+                    <span className="trade-wallet">{trade.trader ? shortAddress(trade.trader) : "Unknown"}</span>
+                    <strong>{compactTokenAmount(trade.tokenAmount)} {launch.symbol}</strong>
+                    <span>{formatNativeAmount(trade.ethAmount, chain.nativeCurrency.symbol)}</span>
+                    <span className="market-data-tx">{shortAddress(trade.txHash)} <ExternalLink size={11} /></span>
+                  </a>
+                ))}
+              </div>
+            </div>
+          )
+        ) : null}
+
+        {activeTab === "positions" ? (
+          !walletAddress ? (
+            <MarketDataEmpty title="Connect a wallet to view positions" detail="Your indexed buys, sells and net token flow will be calculated from onchain activity." />
+          ) : walletTrades.length === 0 ? (
+            <MarketDataEmpty title="No indexed position" detail={`No ${launch.symbol} trades were found for ${shortAddress(walletAddress)}.`} />
+          ) : (
+            <div className="position-workspace">
+              <div className="position-summary-card">
+                <span>Wallet</span><strong>{shortAddress(walletAddress)}</strong><small>Indexed trade history</small>
+              </div>
+              <div className="position-summary-card">
+                <span>Net token flow</span>
+                <strong className={position.tokens >= 0 ? "reference-positive" : "reference-negative"}>
+                  {position.tokens >= 0 ? "+" : ""}{compactTokenAmount(String(position.tokens))} {launch.symbol}
+                </strong>
+                <small>{position.buys} buys · {position.sells} sells</small>
+              </div>
+              <div className="position-summary-card">
+                <span>Net native flow</span>
+                <strong className={position.netNative >= 0 ? "reference-positive" : "reference-negative"}>
+                  {position.netNative >= 0 ? "+" : ""}{position.netNative.toFixed(6)} {chain.nativeCurrency.symbol}
+                </strong>
+                <small>Calculated from indexed trades</small>
+              </div>
+            </div>
+          )
+        ) : null}
+
+        {activeTab === "holders" ? (
+          holderBalances.isLoading && !holderBalances.data ? (
+            <MarketDataEmpty title="Loading holder balances" detail="Reading pool, burn, creator and indexed holder balances onchain." />
+          ) : holderRows.length === 0 ? (
+            <MarketDataEmpty title="No holder balances found" detail="Holder balances will appear after tokens enter circulation." />
+          ) : (
+            <div className="market-data-table holders-table">
+              <div className="market-data-context">Onchain balances for protocol wallets and indexed token holders.</div>
+              <div className="market-data-table-head">
+                <span>Rank</span><span>Wallet</span><span>Type</span><span>Balance</span><span>Supply</span><span>Activity</span>
+              </div>
+              <div className="market-data-table-body">
+                {holderRows.map((row, index) => (
+                  <a
+                    className="market-data-table-row"
+                    href={`${chain.blockExplorers.default.url}/address/${row.holder}`}
+                    key={row.holder}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    <span className="market-data-rank">{String(index + 1).padStart(2, "0")}</span>
+                    <strong>{shortAddress(row.holder)}</strong>
+                    <span className={`holder-role ${row.tone}`}>{row.role}</span>
+                    <span>{compactTokenAmount(formatEther(row.balance))} {launch.symbol}</span>
+                    <strong>{formatHolderPercent(row.percent)}</strong>
+                    <span>{row.lastSeen ? formatActivityTime(row.lastSeen) : "Protocol wallet"}</span>
+                  </a>
+                ))}
+              </div>
+            </div>
+          )
+        ) : null}
+
+        {activeTab === "risk" ? (
+          <div className="risk-workspace">
+            <div className="risk-overview">
+              <div className="risk-overview-heading">
+                <span>Market safety snapshot</span>
+                <strong className={riskProfile === "Review needed" ? "warning" : ""}>{riskProfile}</strong>
+              </div>
+              <div className="risk-score">
+                <strong>{favorableRiskChecks}<small>/5</small></strong>
+                <span>favorable checks</span>
+              </div>
+              <p>Signals combine current onchain balances, launch configuration and indexed trading activity.</p>
+            </div>
+            <div className="risk-check-grid">
+              <RiskCheck
+                detail={launch.launchMode === "direct" ? "DEX liquidity custody" : "Protocol bonding market"}
+                label="Liquidity protection"
+                value={launch.launchMode === "direct" ? (launch.liquidityLocker ? "Locker configured" : "Locker not reported") : "Curve controlled"}
+                tone={liquidityProtected ? "positive" : "warning"}
+              />
+              <RiskCheck
+                detail={`${shortAddress(launch.creator)} · current onchain balance`}
+                label="Creator allocation"
+                value={formatHolderPercent(creatorAllocation)}
+                tone={creatorAllocation <= 5 ? "positive" : "warning"}
+              />
+              <RiskCheck
+                detail="Excludes pool, locker, creator and burn wallets"
+                label="Top 5 tracked holders"
+                value={formatHolderPercent(publicHolderConcentration)}
+                tone={publicHolderConcentration <= 20 ? "positive" : "warning"}
+              />
+              <RiskCheck
+                detail={`${indexedBuys} buys · ${indexedSells} sells in the visible index`}
+                label="Indexed activity"
+                value={`${indexedTraderCount} traders`}
+                tone={recent.length >= 5 ? "positive" : "warning"}
+              />
+              <RiskCheck
+                detail={burnHolder ? `${compactTokenAmount(formatEther(burnHolder.balance))} ${launch.symbol} inaccessible` : "No indexed burn balance"}
+                label="Burned supply"
+                value={formatHolderPercent(burnHolder?.percent ?? 0)}
+                tone={burnHolder?.balance ? "positive" : "neutral"}
+              />
+              <RiskCheck
+                detail={`${launch.launchMode === "direct" ? "Direct DEX" : "Bonding curve"} · ${launch.status}`}
+                label="Market route"
+                value={launch.status === "Graduated" ? "DEX live" : launch.status}
+                tone={launch.status === "Graduated" ? "positive" : "neutral"}
+              />
+            </div>
+            <div className="risk-actions">
+              <div><span>Token contract</span><strong>{shortAddress(launch.token)}</strong></div>
+              <a className="risk-explorer-link" href={`${chain.blockExplorers.default.url}/token/${launch.token}`} target="_blank" rel="noreferrer">
+                Open {chain.blockExplorers.default.name} <ExternalLink size={13} />
+              </a>
+              <small>Always verify the contract before signing.</small>
+            </div>
+          </div>
+        ) : null}
+      </div>
     </section>
   );
+}
+
+function MarketDataEmpty({ title, detail }: { title: string; detail: string }) {
+  return (
+    <div className="market-data-empty">
+      <span className="market-data-empty-icon"><Search size={18} /></span>
+      <strong>{title}</strong>
+      <p>{detail}</p>
+    </div>
+  );
+}
+
+function RiskCheck({
+  detail,
+  label,
+  value,
+  tone
+}: {
+  detail: string;
+  label: string;
+  value: string;
+  tone: "positive" | "warning" | "neutral";
+}) {
+  return (
+    <div className={`risk-check ${tone}`}>
+      <span>{label}</span>
+      <strong><i />{value}</strong>
+      <small>{detail}</small>
+    </div>
+  );
+}
+
+function numericAmount(value: string) {
+  const amount = Number.parseFloat(value.replace(/,/g, ""));
+  return Number.isFinite(amount) ? amount : 0;
+}
+
+function formatNativeAmount(value: string, symbol: string) {
+  return value.toUpperCase().includes(symbol.toUpperCase()) ? value : `${value} ${symbol}`;
+}
+
+function formatActivityTime(value: string) {
+  const timestamp = Date.parse(value);
+  if (!Number.isFinite(timestamp)) return "—";
+  const elapsedSeconds = Math.max(0, Math.floor((Date.now() - timestamp) / 1000));
+  if (elapsedSeconds < 60) return `${elapsedSeconds}s ago`;
+  if (elapsedSeconds < 3_600) return `${Math.floor(elapsedSeconds / 60)}m ago`;
+  if (elapsedSeconds < 86_400) return `${Math.floor(elapsedSeconds / 3_600)}h ago`;
+  return new Intl.DateTimeFormat("en", { month: "short", day: "numeric" }).format(timestamp);
 }
 
 function CommunityBurnCard({ launch }: { launch: DeployedLaunch }) {
@@ -1528,121 +1910,6 @@ function CommunityBurnCard({ launch }: { launch: DeployedLaunch }) {
   );
 }
 
-
-function HolderDistribution({ launch, trades }: { launch: DeployedLaunch; trades: DeployedTrade[] }) {
-  const panelRef = useRef<HTMLDetailsElement | null>(null);
-  const [shouldLoad, setShouldLoad] = useState(false);
-  const { addresses, uniswapV4Addresses } = contractsForChain(launch.chainId);
-  useEffect(() => {
-    const element = panelRef.current;
-    if (!element || shouldLoad) return;
-    const observer = new IntersectionObserver((entries) => {
-      if (entries.some((entry) => entry.isIntersecting)) {
-        setShouldLoad(true);
-        observer.disconnect();
-      }
-    }, { rootMargin: "400px" });
-    observer.observe(element);
-    return () => observer.disconnect();
-  }, [shouldLoad]);
-  const candidateWallets = useMemo(() => {
-    const netByWallet = new Map<`0x${string}`, number>();
-
-    for (const trade of trades) {
-      if (!trade.trader) continue;
-      const tokens = parseDisplayAmount(trade.tokenAmount);
-      const current = netByWallet.get(trade.trader) || 0;
-      netByWallet.set(trade.trader, trade.side === "buy" ? current + tokens : current - tokens);
-    }
-
-    return Array.from(netByWallet.entries())
-      .filter(([wallet, amount]) => amount > 0 && wallet.toLowerCase() !== launch.creator.toLowerCase())
-      .sort(([, a], [, b]) => b - a)
-      .slice(0, 12)
-      .map(([wallet]) => wallet);
-  }, [launch.creator, trades]);
-
-  const holderAddresses = useMemo(() => {
-    const values = [
-      launch.status === "Graduated" ? uniswapV4Addresses.poolManager : addresses.bondingCurveMarket,
-      launch.creator,
-      BURN_ADDRESS,
-      ...candidateWallets
-    ].filter(Boolean) as `0x${string}`[];
-    return Array.from(new Map(values.map((value) => [value.toLowerCase(), value])).values());
-  }, [addresses.bondingCurveMarket, candidateWallets, launch.creator, launch.status, uniswapV4Addresses.poolManager]);
-
-  const balances = useReadContracts({
-    contracts: holderAddresses.map((holder) => ({
-      address: launch.token,
-      abi: b20TokenAbi,
-      functionName: "balanceOf",
-      args: [holder]
-    })),
-    query: { enabled: Boolean(shouldLoad && launch.token && holderAddresses.length), staleTime: 30_000 }
-  });
-
-  const rows = useMemo(() => {
-    const balanceResults = balances.data as Array<{ result?: unknown }> | undefined;
-    return holderAddresses
-      .map((holder, index) => {
-        const result = balanceResults?.[index]?.result;
-        const balance = typeof result === "bigint" ? result : 0n;
-        const amount = Number(formatEther(balance));
-        const percent = TOTAL_SUPPLY > 0 ? (amount / TOTAL_SUPPLY) * 100 : 0;
-        const isCurve = addresses.bondingCurveMarket?.toLowerCase() === holder.toLowerCase();
-        const isUniswapPool = launch.status === "Graduated" && uniswapV4Addresses.poolManager.toLowerCase() === holder.toLowerCase();
-        const isCreator = launch.creator.toLowerCase() === holder.toLowerCase();
-        const isBurn = BURN_ADDRESS.toLowerCase() === holder.toLowerCase();
-        return {
-          holder,
-          label: isBurn ? "Burn address" : isUniswapPool ? "Uniswap v4 pool" : isCurve ? "Bonding curve" : isCreator ? "Creator" : shortAddress(holder),
-          balance,
-          percent,
-          tone: isBurn ? "burn" : isUniswapPool ? "pool" : isCurve ? "curve" : isCreator ? "creator" : "holder"
-        };
-      })
-      .filter((row) => row.balance > 0n || row.tone === "burn")
-      .sort((a, b) => Number(b.balance - a.balance))
-      .slice(0, 20);
-  }, [addresses.bondingCurveMarket, balances.data, holderAddresses, launch.creator, launch.status, uniswapV4Addresses.poolManager]);
-
-  if (!shouldLoad) {
-    return <details className="holder-distribution-panel market-accordion deferred-panel" ref={panelRef}><summary className="holder-distribution-head"><div><h2>Holder distribution</h2><p>Onchain balances</p></div><span>Loading</span></summary></details>;
-  }
-  if (!rows.length) return null;
-
-  return (
-    <details className="holder-distribution-panel market-accordion" ref={panelRef}>
-      <summary className="holder-distribution-head">
-        <div>
-          <h2>Holder distribution</h2>
-          <p>Onchain balances for the pool and recent participants</p>
-        </div>
-        <span>Top {rows.length}</span>
-      </summary>
-      <div className="holder-distribution-list">
-        {rows.map((row, index) => (
-          <div className="holder-row" key={row.holder}>
-            <div className="holder-row-top">
-              <em>{index + 1}</em>
-              {row.tone === "burn" ? <span className="holder-burn-icon"><Flame size={12} /></span> : <span className={`holder-dot ${row.tone}`} />}
-              <strong>{row.label}</strong>
-              <small>{formatHolderPercent(row.percent)}</small>
-            </div>
-            <div className={`holder-bar ${row.tone}`}>
-              <span style={{ width: `${Math.min(row.percent, 100)}%` }} />
-            </div>
-            <div className="holder-row-bottom">
-              <span>{compactTokenAmount(formatEther(row.balance))} {launch.symbol}</span>
-              <code>{shortAddress(row.holder)}</code>
-            </div>
-          </div>
-        ))}
-      </div>
-    </details>
-  );
-}
 
 function formatHolderPercent(value: number) {
   if (!Number.isFinite(value) || value <= 0) return "0%";
@@ -1797,7 +2064,7 @@ function TradeChart({ trades, status, symbol, ethUsd, nativeSymbol }: { trades: 
   const shouldFitChartRef = useRef(true);
   const userTouchedChartRef = useRef(false);
   const [chartMode, setChartMode] = useState<"marketCap" | "price">("marketCap");
-  const [intervalMinutes, setIntervalMinutes] = useState(1);
+  const [intervalMinutes, setIntervalMinutes] = useState(5);
   const [darkChart, setDarkChart] = useState(false);
   const { candles, volume } = useMemo(
     () => buildChartData(trades, chartMode, ethUsd, intervalMinutes, status === "Graduated"),
@@ -1844,6 +2111,10 @@ function TradeChart({ trades, status, symbol, ethUsd, nativeSymbol }: { trades: 
       userTouchedChartRef.current = true;
       shouldFitChartRef.current = false;
     };
+    const keepWheelInsideChart = (event: WheelEvent) => {
+      event.preventDefault();
+      markTouched();
+    };
 
     async function setupChart() {
       const { CandlestickSeries, ColorType, createChart, HistogramSeries } = await import("lightweight-charts");
@@ -1851,6 +2122,17 @@ function TradeChart({ trades, status, symbol, ethUsd, nativeSymbol }: { trades: 
       const createdChart = createChart(chartContainer, {
       autoSize: true,
       height: 340,
+      handleScroll: {
+        mouseWheel: true,
+        pressedMouseMove: true,
+        horzTouchDrag: true,
+        vertTouchDrag: true
+      },
+      handleScale: {
+        axisPressedMouseMove: true,
+        mouseWheel: true,
+        pinch: true
+      },
       layout: {
         background: { type: ColorType.Solid, color: darkChart ? "#08090d" : "#fbfcff" },
         textColor: darkChart ? "#9ca6b8" : "#63718d",
@@ -1920,18 +2202,18 @@ function TradeChart({ trades, status, symbol, ethUsd, nativeSymbol }: { trades: 
         shouldFitChartRef.current = false;
       }
 
-      chartContainer.addEventListener("wheel", markTouched, { passive: true });
       chartContainer.addEventListener("pointerdown", markTouched);
       chartContainer.addEventListener("touchstart", markTouched, { passive: true });
+      chartContainer.addEventListener("wheel", keepWheelInsideChart, { passive: false });
     }
 
     void setupChart();
 
     return () => {
       disposed = true;
-      chartContainer.removeEventListener("wheel", markTouched);
       chartContainer.removeEventListener("pointerdown", markTouched);
       chartContainer.removeEventListener("touchstart", markTouched);
+      chartContainer.removeEventListener("wheel", keepWheelInsideChart);
       chart?.remove();
       chartApiRef.current = null;
       candleSeriesRef.current = null;
@@ -1958,16 +2240,15 @@ function TradeChart({ trades, status, symbol, ethUsd, nativeSymbol }: { trades: 
           <span><small>Traders</small><strong>{activity.traders}</strong></span>
         </div>
         <div className="chart-controls">
-          <div className="chart-mode-tabs" role="tablist" aria-label="Chart view">
-            <button aria-selected={chartMode === "marketCap"} className={chartMode === "marketCap" ? "active" : ""} onClick={() => setChartMode("marketCap")} role="tab" type="button">
-              Market Cap
-            </button>
-            <button aria-selected={chartMode === "price"} className={chartMode === "price" ? "active" : ""} onClick={() => setChartMode("price")} role="tab" type="button">
-              Price
-            </button>
-          </div>
           <div className="chart-interval-tabs" role="tablist" aria-label="Candle interval">
-            {[1, 5, 15].map((minutes) => (
+            {[
+              { label: "1s", minutes: 1 / 60 },
+              { label: "30s", minutes: 0.5 },
+              { label: "1m", minutes: 1 },
+              { label: "5m", minutes: 5 },
+              { label: "15m", minutes: 15 },
+              { label: "1h", minutes: 60 }
+            ].map(({ label, minutes }) => (
               <button
                 aria-selected={intervalMinutes === minutes}
                 className={intervalMinutes === minutes ? "active" : ""}
@@ -1980,10 +2261,19 @@ function TradeChart({ trades, status, symbol, ethUsd, nativeSymbol }: { trades: 
                 role="tab"
                 type="button"
               >
-                {minutes}m
+                {label}
               </button>
             ))}
             <button onClick={resetChart} type="button" aria-label="Reset chart view"><RotateCcw size={13} /></button>
+          </div>
+          <span className="chart-indicators-label">Indicators</span>
+          <div className="chart-mode-tabs" role="tablist" aria-label="Chart view">
+            <button aria-selected={chartMode === "marketCap"} className={chartMode === "marketCap" ? "active" : ""} onClick={() => setChartMode("marketCap")} role="tab" type="button">
+              Market Cap
+            </button>
+            <button aria-selected={chartMode === "price"} className={chartMode === "price" ? "active" : ""} onClick={() => setChartMode("price")} role="tab" type="button">
+              Price
+            </button>
           </div>
         </div>
       </div>
@@ -2000,10 +2290,10 @@ function TradeChart({ trades, status, symbol, ethUsd, nativeSymbol }: { trades: 
 
 function focusLatestCandles(chart: IChartApi | null, candleCount: number) {
   if (!chart || candleCount === 0) return;
-  const visibleBars = Math.min(Math.max(candleCount, 12), 60);
+  const visibleBars = Math.min(Math.max(candleCount, 12), 48);
   chart.timeScale().setVisibleLogicalRange({
-    from: Math.max(0, candleCount - visibleBars - 2),
-    to: candleCount + 2
+    from: Math.max(0, candleCount - visibleBars - 1),
+    to: candleCount + 1
   });
 }
 

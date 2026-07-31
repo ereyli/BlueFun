@@ -40,7 +40,7 @@ export function TokenShareDialog({
   const cardUrl = `/api/token/share-card?chain=${launch.chainId}&token=${encodeURIComponent(launch.token)}&v=${cacheKey}`;
   const shareText = useMemo(() => {
     const route = launch.launchMode === "direct" ? "Direct DEX · LP locked" : `${launch.status} · Bond curve`;
-    return `${launch.name} ($${launch.symbol}) is live on BlueFun.\n${network.name} · ${route}\nCA: ${launch.token}\nDiscover the story and trade onchain 👇`;
+    return `${launch.name} ($${launch.symbol}) is live on B20.\n${network.name} · ${route}\nCA: ${launch.token}\nDiscover the story and trade onchain 👇`;
   }, [launch.launchMode, launch.name, launch.status, launch.symbol, launch.token, network.name]);
   const xUrl = tokenUrl
     ? `https://x.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(xShareUrl)}`
@@ -78,9 +78,9 @@ export function TokenShareDialog({
       const blob = response.ok ? await response.blob() : undefined;
       const file = blob ? new File([blob], `${launch.symbol}-bluefun.png`, { type: "image/png" }) : undefined;
       if (file && navigator.canShare?.({ files: [file] })) {
-        await navigator.share({ title: `${launch.name} on BlueFun`, text: shareText, url: tokenUrl, files: [file] });
+        await navigator.share({ title: `${launch.name} on B20`, text: shareText, url: tokenUrl, files: [file] });
       } else {
-        await navigator.share({ title: `${launch.name} on BlueFun`, text: shareText, url: tokenUrl });
+        await navigator.share({ title: `${launch.name} on B20`, text: shareText, url: tokenUrl });
       }
     } catch (error) {
       if (!(error instanceof DOMException && error.name === "AbortError")) throw error;

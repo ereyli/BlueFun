@@ -204,7 +204,7 @@ export function CreatorDashboard() {
         <>
           <section className="dashboard-stat-grid" aria-label="Portfolio summary">
             <StatCard icon={<Rocket />} label="Tokens launched" value={String(data.created.length)} detail={`${countNetworks(data.created)} network${countNetworks(data.created) === 1 ? "" : "s"}`} />
-            <StatCard icon={<WalletCards />} label="Tokens held" value={String(holdings.length)} detail="Bought on BlueFun" />
+            <StatCard icon={<WalletCards />} label="Tokens held" value={String(holdings.length)} detail="Bought on B20" />
             <StatCard icon={<Coins />} label="Claimable now" value={portfolioSymbol ? `${formatNative(totalPending)} ${portfolioSymbol}` : "Multi-chain"} detail="Exact onchain balances" accent />
             <StatCard icon={<BarChart3 />} label="Creator volume" value={portfolioSymbol ? `${compactNumber(totalVolume)} ${portfolioSymbol}` : "Multi-chain"} detail="Across your launches" />
           </section>
@@ -275,9 +275,9 @@ export function CreatorDashboard() {
 
       {tab === "holdings" ? (
         <section className="dashboard-panel dashboard-full-panel">
-          <PanelHeading icon={<WalletCards size={17} />} eyebrow="Wallet inventory" title="Tokens you hold" detail="Current balances from BlueFun markets." />
+          <PanelHeading icon={<WalletCards size={17} />} eyebrow="Wallet inventory" title="Tokens you hold" detail="Current balances from B20 markets." />
           {balances.isLoading && data.traded.length ? <LoadingRows /> : null}
-          {!balances.isLoading && !holdings.length ? <EmptyLarge icon={<Wallet />} title="No BlueFun holdings found" text="Tokens you buy on the platform will be tracked here automatically." action={<Link className="button primary" href="/">Explore tokens</Link>} /> : null}
+          {!balances.isLoading && !holdings.length ? <EmptyLarge icon={<Wallet />} title="No B20 holdings found" text="Tokens you buy on the platform will be tracked here automatically." action={<Link className="button primary" href="/">Explore tokens</Link>} /> : null}
           <div className="holdings-list">
             {holdings.map((holding) => <HoldingRow key={`${holding.launch.chainId}:${holding.launch.scope}:${holding.launch.id}`} holding={holding} />)}
           </div>
@@ -288,7 +288,30 @@ export function CreatorDashboard() {
 }
 
 function DisconnectedDashboard() {
-  return <div className="creator-dashboard disconnected-dashboard"><section><div className="dashboard-connect-icon"><WalletCards size={30} /></div><span className="dashboard-eyebrow">Wallet index / private view</span><h1>One wallet.<br /><span>Every position.</span></h1><p>Issued markets, creator revenue and held tokens — indexed across Base, Robinhood and Monad.</p><ConnectButton.Custom>{({ mounted, openConnectModal }) => <button className="button primary" disabled={!mounted} onClick={openConnectModal} type="button"><Wallet size={17} /> Connect wallet</button>}</ConnectButton.Custom><div className="dashboard-connect-proof"><span><LockKeyhole size={14} /> No custody</span><span><Layers3 size={14} /> Three networks</span></div></section></div>;
+  return <div className="creator-dashboard dashboard-terminal-shell">
+    <header className="dashboard-terminal-heading"><div><span><i/>PRIVATE WALLET INDEX</span><h1>Portfolio</h1><p>Token positions, launched markets and creator revenue in one workspace.</p></div><em>Wallet required</em></header>
+    <section className="dashboard-terminal-stats" aria-label="Portfolio summary">
+      <article><span>PORTFOLIO VALUE</span><strong>—</strong><small>Across all networks</small></article>
+      <article><span>TOKENS HELD</span><strong>—</strong><small>Live balances</small></article>
+      <article><span>MARKETS CREATED</span><strong>—</strong><small>Bond + Direct DEX</small></article>
+      <article><span>CLAIMABLE FEES</span><strong>—</strong><small>Onchain revenue</small></article>
+    </section>
+    <div className="dashboard-terminal-grid">
+      <section className="dashboard-terminal-table">
+        <header><div><span>WALLET POSITIONS</span><h2>Assets and markets</h2></div><small>Connect to load</small></header>
+        <div className="dashboard-terminal-table-head"><span>Asset</span><span>Network</span><span>Balance</span><span>Activity</span><span>Value</span></div>
+        <div className="dashboard-terminal-blank"><BarChart3/><strong>No wallet connected</strong><p>Your live token positions will populate this table after connection.</p></div>
+      </section>
+      <aside className="dashboard-terminal-connect">
+        <div className="dashboard-connect-icon"><WalletCards size={24}/></div>
+        <span>SECURE WALLET ACCESS</span>
+        <h2>Open your private command desk.</h2>
+        <p>B20 reads public onchain balances. It never takes custody of assets or asks for token approval to view this page.</p>
+        <ConnectButton.Custom>{({ mounted, openConnectModal }) => <button className="button primary" disabled={!mounted} onClick={openConnectModal} type="button"><Wallet size={17}/>Connect wallet</button>}</ConnectButton.Custom>
+        <div className="dashboard-connect-proof"><span><LockKeyhole size={13}/>No custody</span><span><Layers3 size={13}/>Five networks</span></div>
+      </aside>
+    </div>
+  </div>;
 }
 
 function StatCard({ accent, detail, icon, label, value }: { accent?: boolean; detail: string; icon: React.ReactNode; label: string; value: string }) {
@@ -316,7 +339,7 @@ function LaunchDashboardCard({ claimingToken, collecting, creatorNative, creator
 
 function HoldingRow({ holding }: { holding: WalletTradeSummary & { balance: bigint } }) {
   const { launch } = holding;
-  return <Link className="holding-row" href={tokenPath(launch)}><TokenAvatar launch={launch} /><div className="holding-identity"><strong>{launch.name}</strong><span>${launch.symbol} · {shortAddress(launch.token)}</span></div><div className="holding-balance"><span>Current balance</span><strong>{formatTokenAmount(holding.balance)} {launch.symbol}</strong></div><div className="holding-activity"><span>BlueFun activity</span><strong>{holding.buyCount} buy{holding.buyCount === 1 ? "" : "s"} · {holding.sellCount} sell{holding.sellCount === 1 ? "" : "s"}</strong></div><NetworkIcon chainId={launch.chainId} size={24} /><ArrowUpRight className="holding-arrow" size={16} /></Link>;
+  return <Link className="holding-row" href={tokenPath(launch)}><TokenAvatar launch={launch} /><div className="holding-identity"><strong>{launch.name}</strong><span>${launch.symbol} · {shortAddress(launch.token)}</span></div><div className="holding-balance"><span>Current balance</span><strong>{formatTokenAmount(holding.balance)} {launch.symbol}</strong></div><div className="holding-activity"><span>B20 activity</span><strong>{holding.buyCount} buy{holding.buyCount === 1 ? "" : "s"} · {holding.sellCount} sell{holding.sellCount === 1 ? "" : "s"}</strong></div><NetworkIcon chainId={launch.chainId} size={24} /><ArrowUpRight className="holding-arrow" size={16} /></Link>;
 }
 
 function TokenAvatar({ launch }: { launch: DeployedLaunch }) {

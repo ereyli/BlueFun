@@ -1,11 +1,12 @@
 import { unstable_cache } from "next/cache";
 import { getDbLaunchMetrics, getDbLaunchPage } from "@/lib/db-launches";
 import { getArcOnchainLaunches } from "@/lib/arc-launches";
+import { MARKET_PAGE_SIZE } from "@/lib/market-pagination";
 
 export const getCachedLaunchOverview = unstable_cache(
   async (chainId: number) => {
     const [page, metrics] = await Promise.all([
-      getDbLaunchPage(chainId, { page: 1, pageSize: 21 }),
+      getDbLaunchPage(chainId, { page: 1, pageSize: MARKET_PAGE_SIZE }),
       getDbLaunchMetrics(chainId)
     ]);
     if (chainId === 5042 && (!page || page.total === 0)) {
@@ -15,7 +16,7 @@ export const getCachedLaunchOverview = unstable_cache(
       });
       if (launches.length) {
         return {
-          page: { launches: launches.slice(0, 21), total: launches.length },
+          page: { launches: launches.slice(0, MARKET_PAGE_SIZE), total: launches.length },
           metrics: {
             totalVolumeEth: 0,
             totalTokens: launches.length,
@@ -27,6 +28,6 @@ export const getCachedLaunchOverview = unstable_cache(
     }
     return { page, metrics };
   },
-  ["launch-overview-v2"],
+  ["launch-overview-v4"],
   { revalidate: 10 }
 );

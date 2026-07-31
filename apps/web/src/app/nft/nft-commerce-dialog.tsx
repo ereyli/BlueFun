@@ -42,10 +42,10 @@ export function NFTCommerceDialog(props: CommerceDialogProps) {
         <div><dt>Unit price</dt><dd>{formatAmount(props.unitPrice)} ETH</dd></div>
         {props.quantity > 1n ? <div><dt>Quantity</dt><dd>{String(props.quantity)}</dd></div> : null}
         <div className="total"><dt>{props.kind === "buy" ? "You pay" : "Sale total"}</dt><dd>{formatAmount(gross)} ETH</dd></div>
-        {props.kind === "list" ? <><div><dt>BlueFun fee</dt><dd>{formatBps(props.platformFeeBps)} · {formatAmount(platformFee)} ETH</dd></div><div><dt>Creator royalty</dt><dd>{formatBps(props.royaltyBps)} · {formatAmount(royalty)} ETH</dd></div><div className="receive"><dt>You receive</dt><dd>{formatAmount(sellerReceives)} ETH</dd></div></> : null}
+        {props.kind === "list" ? <><div><dt>B20 fee</dt><dd>{formatBps(props.platformFeeBps)} · {formatAmount(platformFee)} ETH</dd></div><div><dt>Creator royalty</dt><dd>{formatBps(props.royaltyBps)} · {formatAmount(royalty)} ETH</dd></div><div className="receive"><dt>You receive</dt><dd>{formatAmount(sellerReceives)} ETH</dd></div></> : null}
         {props.kind === "list" && props.durationDays ? <div><dt><Clock3/> Duration</dt><dd>{props.durationDays} days</dd></div> : null}
       </dl>
-      <p className="nft-dialog-proof"><ShieldCheck/>BlueFun never takes custody. Your wallet shows the final network transaction before signing.</p>
+      <p className="nft-dialog-proof"><ShieldCheck/>B20 never takes custody. Your wallet shows the final network transaction before signing.</p>
       <footer><button className="button" disabled={props.pending} onClick={props.onClose}>Cancel</button><button className="button primary" disabled={props.pending} onClick={props.onConfirm}>{props.pending ? "Waiting for confirmation…" : props.confirmLabel || (props.kind === "buy" ? "Confirm purchase" : props.needsApproval ? "Approve marketplace" : "Create listing")}</button></footer>
     </section>
   </div>;

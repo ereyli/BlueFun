@@ -9,11 +9,11 @@ export const dynamic = "force-dynamic";
 
 export async function generateMetadata({ params }: { params: Promise<{ collection: string }> }): Promise<Metadata> {
   const { collection } = await params;
-  if (!isAddress(collection)) return { title: "NFT Collection | BlueFun" };
+  if (!isAddress(collection)) return { title: "NFT Collection | B20" };
   const address = getAddress(collection);
   const summary = (await getNFTCollections(200)).find((item) => item.address.toLowerCase() === address.toLowerCase());
-  if (!summary) return { title: "NFT Collection | BlueFun" };
-  const title = `${summary.name} (${summary.symbol}) | BlueFun NFT`;
+  if (!summary) return { title: "NFT Collection | B20" };
+  const title = `${summary.name} (${summary.symbol}) | B20 NFT`;
   const description = `${summary.status} on Base · ${Number(summary.initialMinted).toLocaleString("en-US")} / ${Number(summary.initialSupply).toLocaleString("en-US")} minted · ${summary.standard}.`;
   const url = siteUrl(`/nft/${address}`);
   const image = siteUrl(`/api/nft/share-card?collection=${encodeURIComponent(address)}`);
@@ -21,7 +21,7 @@ export async function generateMetadata({ params }: { params: Promise<{ collectio
     title,
     description,
     alternates: { canonical: url },
-    openGraph: { title, description, url, siteName: "BlueFun", type: "website", images: [{ url: image, width: 1200, height: 630, alt: `${summary.name} collection stats` }] },
+    openGraph: { title, description, url, siteName: "B20", type: "website", images: [{ url: image, width: 1200, height: 630, alt: `${summary.name} collection stats` }] },
     twitter: { card: "summary_large_image", site: "@BluefunLaunch", creator: "@BluefunLaunch", title, description, images: [image] }
   };
 }

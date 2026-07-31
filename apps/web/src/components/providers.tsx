@@ -38,7 +38,7 @@ const sharedConfig = {
 };
 
 const config = walletConnectProjectId ? getDefaultConfig({
-  appName: "BlueFun",
+  appName: "B20",
   projectId: walletConnectProjectId,
   ...sharedConfig,
   dataSuffix: BLUEFUN_DATA_SUFFIX,
@@ -47,7 +47,7 @@ const config = walletConnectProjectId ? getDefaultConfig({
   connectors: connectorsForWallets([{
     groupName: "Installed wallets",
     wallets: [injectedWallet, coinbaseWallet]
-  }], { appName: "BlueFun", projectId: "injected-wallets-only" })
+  }], { appName: "B20", projectId: "injected-wallets-only" })
 });
 
 export function Providers({ children }: { children: React.ReactNode }) {

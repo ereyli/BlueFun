@@ -36,7 +36,7 @@ export function NFTCollectionShareDialog(props: ShareDialogProps) {
   const shareText = useMemo(() => {
     const mint = `${props.minted.toLocaleString("en-US")} / ${props.supply.toLocaleString("en-US")} minted`;
     const market = props.floor === "—" ? `${props.volume} total volume` : `${props.floor} floor`;
-    return `${props.name} (${props.symbol}) on BlueFun\n${props.status} · ${mint} · ${market}\nExplore the collection on Base 👇`;
+    return `${props.name} (${props.symbol}) on B20\n${props.status} · ${mint} · ${market}\nExplore the collection on Base 👇`;
   }, [props.floor, props.minted, props.name, props.status, props.supply, props.symbol, props.volume]);
   const xUrl = collectionUrl ? `https://x.com/intent/tweet?text=${encodeURIComponent(shareText)}&url=${encodeURIComponent(collectionUrl)}` : "#";
   const cardUrl = `/api/nft/share-card?collection=${encodeURIComponent(props.collection)}&v=${cacheKey}`;

@@ -1,11 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, useTransition, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
-import { Activity, BarChart3, ChevronDown, Clock3, Coins, LayoutGrid, Layers3, List, LockKeyhole, Rocket, Search, Sparkles, Trophy, TrendingUp, Zap } from "@/components/bluefun-icons";
+import dynamic from "next/dynamic";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Activity, Check, ChevronDown, Rocket, Search, Zap } from "@/components/bluefun-icons";
 import { isFeaturedLaunch, isOfficialBlue } from "@/lib/featured-launches";
 import { compactUsd, parseDisplayAmount } from "@/lib/market-math";
-import type { DbLaunchMetrics, LaunchBuyActivity } from "@/lib/db-launches";
+import type { LaunchBuyActivity, MarketSparkline } from "@/lib/db-launches";
 import type { DeployedLaunch } from "@/lib/onchain-launches";
 import { optimizedTokenImageUrl } from "@/lib/token-metadata";
 import { NetworkIcon, networkMeta } from "@/components/network-icon";
@@ -15,42 +17,73 @@ import { launchEconomics } from "@/lib/contracts";
 import { indexerScopesForChain } from "@/lib/contracts";
 import { useRealtimeRefresh } from "@/lib/use-realtime-refresh";
 import { BlueFunState } from "@/components/bluefun-state";
+import { isUiPreviewLaunch } from "@/lib/ui-preview-data";
+import { MARKET_PAGE_SIZE } from "@/lib/market-pagination";
+import { BrandLaunchpadMenu } from "@/components/brand-launchpad-menu";
 
-type Filter = "All" | "Volume" | "MarketCap" | "New";
-type ViewMode = "grid" | "list";
-type NetworkMetrics = Partial<Record<8453 | 4663 | 143 | 988 | 5042, DbLaunchMetrics>>;
+type MarketCategory = "All" | "Progress" | "Direct";
+type MarketSort = "Activity" | "Newest" | "Volume" | "MarketCap";
+const MARKET_NETWORKS = [8453, 4663, 143, 988, 5042] as const;
 
-export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metrics, networkMetrics, chainId = 8453 }: { launches: DeployedLaunch[]; totalLaunches: number; metrics?: DbLaunchMetrics; networkMetrics?: NetworkMetrics; chainId?: number }) {
+const ReferenceWalletButton = dynamic(
+  () => import("@/components/wallet-button").then((module) => module.WalletButton),
+  { ssr: false, loading: () => <button className="button wallet-control" disabled type="button">Connect wallet</button> }
+);
+
+export function LaunchExplorer({ launches: initialLaunches, totalLaunches, chainId = 8453, initialQuery = "" }: { launches: DeployedLaunch[]; totalLaunches: number; chainId?: number; initialQuery?: string }) {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [launches, setLaunches] = useState(initialLaunches);
   const [total, setTotal] = useState(totalLaunches);
   const [page, setPage] = useState(1);
   const [isPageLoading, setIsPageLoading] = useState(false);
   const [loadError, setLoadError] = useState(false);
   const [refreshNonce, setRefreshNonce] = useState(0);
-  const [query, setQuery] = useState("");
-  const [filter, setFilter] = useState<Filter>("All");
-  const [viewMode, setViewMode] = useState<ViewMode>("grid");
-  const [nativeUsd, setNativeUsd] = useState<number | null>(null);
+  const [query, setQuery] = useState(initialQuery);
+  const [category, setCategory] = useState<MarketCategory>("All");
+  const [sort, setSort] = useState<MarketSort>("Activity");
+  const [nativeUsdByChain, setNativeUsdByChain] = useState<Map<number, number | null>>(new Map());
   const [dexMarketCaps, setDexMarketCaps] = useState<Map<string, number>>(new Map());
   const [activityByLaunch, setActivityByLaunch] = useState<Map<string, LaunchBuyActivity>>(new Map());
+  const [marketSparklines, setMarketSparklines] = useState<Map<string, MarketSparkline>>(new Map());
   const [hotLaunchKey, setHotLaunchKey] = useState<string>();
+  const [networkMenuOpen, setNetworkMenuOpen] = useState(false);
   const [, startTransition] = useTransition();
   const tokensRef = useRef<HTMLDivElement>(null);
+  const networkMenuRef = useRef<HTMLDivElement>(null);
   const activityBlocksRef = useRef<Map<string, bigint>>(new Map());
   const activityReadyRef = useRef(false);
-  const activeNetwork = networkMeta(chainId);
+  const allNetworks = chainId === 0;
+  const activeNetwork = allNetworks ? { name: "All networks", symbol: "MULTI" } : networkMeta(chainId);
+  const chainParam = allNetworks ? "all" : chainSlug(chainId);
+
+  useEffect(() => {
+    function closeNetworkMenu(event: PointerEvent) {
+      if (!networkMenuRef.current?.contains(event.target as Node)) setNetworkMenuOpen(false);
+    }
+    function closeNetworkMenuOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") setNetworkMenuOpen(false);
+    }
+    document.addEventListener("pointerdown", closeNetworkMenu);
+    document.addEventListener("keydown", closeNetworkMenuOnEscape);
+    return () => {
+      document.removeEventListener("pointerdown", closeNetworkMenu);
+      document.removeEventListener("keydown", closeNetworkMenuOnEscape);
+    };
+  }, []);
 
   useEffect(() => {
     setLaunches(initialLaunches);
     setTotal(totalLaunches);
     setPage(1);
-    setQuery("");
-    setFilter("All");
+    setQuery(initialQuery);
+    setCategory("All");
+    setSort("Activity");
     setActivityByLaunch(new Map());
     setHotLaunchKey(undefined);
     activityBlocksRef.current = new Map();
     activityReadyRef.current = false;
-  }, [chainId, initialLaunches, totalLaunches]);
+  }, [chainId, initialLaunches, initialQuery, totalLaunches]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -58,7 +91,7 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metri
       setIsPageLoading(true);
       setLoadError(false);
       try {
-        const params = new URLSearchParams({ chain: chainSlug(chainId), page: String(page), filter });
+        const params = new URLSearchParams({ chain: chainParam, page: String(page), filter: category, sort });
         if (query.trim()) params.set("q", query.trim());
         const response = await fetch(`/api/launches?${params.toString()}`, { signal: controller.signal });
         const payload = await response.json() as { launches?: DeployedLaunch[]; total?: number; totalPages?: number };
@@ -76,7 +109,7 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metri
       controller.abort();
       window.clearTimeout(timeout);
     };
-  }, [chainId, filter, page, query, refreshNonce]);
+  }, [category, chainId, chainParam, page, query, refreshNonce, sort]);
 
   useEffect(() => {
     let active = true;
@@ -88,10 +121,15 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metri
       if (activityLoading) return;
       activityLoading = true;
       try {
-        const response = await fetch(`/api/launch-activity?chain=${chainSlug(chainId)}`, { signal: controller.signal });
-        const payload = await response.json() as { activity?: LaunchBuyActivity[] };
-        if (!response.ok || !active) return;
-        const items = payload.activity ?? [];
+        const networkIds = allNetworks ? MARKET_NETWORKS : [chainId];
+        const payloads = await Promise.all(networkIds.map(async (networkId) => {
+          const response = await fetch(`/api/launch-activity?chain=${chainSlug(networkId)}`, { signal: controller.signal });
+          if (!response.ok) return [] as LaunchBuyActivity[];
+          const payload = await response.json() as { activity?: LaunchBuyActivity[] };
+          return payload.activity ?? [];
+        }));
+        if (!active) return;
+        const items = payloads.flat();
         const nextBlocks = new Map(items.map((item) => [activityKey(item), safeBlockNumber(item.blockNumber)]));
 
         if (activityReadyRef.current) {
@@ -125,10 +163,10 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metri
       window.clearTimeout(highlightTimer);
       activityRefreshRef.current = undefined;
     };
-  }, [chainId]);
+  }, [allNetworks, chainId]);
 
   const activityRefreshRef = useRef<(() => Promise<void>) | undefined>(undefined);
-  const activityScopes = useMemo(() => new Set(indexerScopesForChain(chainId).map((item) => item.scope)), [chainId]);
+  const activityScopes = useMemo(() => new Set((allNetworks ? MARKET_NETWORKS : [chainId]).flatMap((networkId) => indexerScopesForChain(networkId).map((item) => item.scope))), [allNetworks, chainId]);
   const activityScopeFilter = useMemo(() => `scope=in.(${[...activityScopes].join(",")})`, [activityScopes]);
   useRealtimeRefresh({
     table: "trades",
@@ -186,13 +224,17 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metri
   useEffect(() => {
     let active = true;
     async function loadNativePrice() {
-      try {
-        const response = await fetch(`/api/native-price?chain=${chainSlug(chainId)}`, { cache: "no-store" });
-        const payload = await response.json() as { nativeUsd?: number | null };
-        if (active) setNativeUsd(payload.nativeUsd ?? null);
-      } catch {
-        if (active) setNativeUsd(null);
-      }
+      const networkIds = allNetworks ? MARKET_NETWORKS : [chainId];
+      const prices = await Promise.all(networkIds.map(async (networkId) => {
+        try {
+          const response = await fetch(`/api/native-price?chain=${chainSlug(networkId)}`, { cache: "no-store" });
+          const payload = await response.json() as { nativeUsd?: number | null };
+          return [networkId, payload.nativeUsd ?? null] as const;
+        } catch {
+          return [networkId, null] as const;
+        }
+      }));
+      if (active) setNativeUsdByChain(new Map(prices));
     }
     loadNativePrice();
     const interval = window.setInterval(loadNativePrice, 300_000);
@@ -200,31 +242,10 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metri
       active = false;
       window.clearInterval(interval);
     };
-  }, [chainId]);
-
-  const networkStats = useMemo(() => ([8453, 4663, 143, 988, 5042] as const).map((networkChainId) => {
-    const values = networkMetrics?.[networkChainId] ?? (networkChainId === chainId ? metrics : undefined);
-    const activeFallback = networkChainId === chainId;
-    return {
-      chainId: networkChainId,
-      name: networkMeta(networkChainId).name,
-      tokens: values?.totalTokens ?? (activeFallback ? totalLaunches : 0),
-      graduated: values?.totalGraduated ?? (activeFallback ? initialLaunches.filter((launch) => launch.status === "Graduated").length : 0),
-      volume: networkChainId === chainId
-        ? formatUsdFromNativeNumber(values?.totalVolumeEth ?? (activeFallback ? launches.reduce((sum, launch) => sum + parseDisplayAmount(launch.volume), 0) : 0), nativeUsd)
-        : formatNativeNumber(values?.totalVolumeEth ?? 0, networkMeta(networkChainId).symbol)
-    };
-  }), [chainId, initialLaunches, launches, metrics, nativeUsd, networkMetrics, totalLaunches]);
-  const heroNetworkStats = useMemo(() => [
-    ...networkStats.filter((network) => network.chainId === chainId),
-    ...networkStats.filter((network) => network.chainId !== chainId)
-  ].slice(0, 4), [chainId, networkStats]);
-  const additionalNetworkStats = useMemo(
-    () => networkStats.filter((network) => !heroNetworkStats.some((visible) => visible.chainId === network.chainId)),
-    [heroNetworkStats, networkStats]
-  );
+  }, [allNetworks, chainId]);
 
   const pulseLaunches = useMemo(() => {
+    if (initialLaunches.some(isUiPreviewLaunch)) return initialLaunches.slice(0, 5);
     return [...initialLaunches]
       .sort((a, b) => {
         const activityDelta = compareBlocks(
@@ -238,153 +259,158 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metri
       })
       .slice(0, 5);
   }, [activityByLaunch, initialLaunches]);
-  const totalPages = Math.ceil(total / 21);
+  const previewMode = initialLaunches.some(isUiPreviewLaunch);
+  const totalPages = previewMode && !query && category === "All" ? Math.ceil(128 / MARKET_PAGE_SIZE) : Math.ceil(total / MARKET_PAGE_SIZE);
   const pagination = paginationItems(page, totalPages);
-  const displayedLaunches = useMemo(() => {
-    const sorted = [...launches];
-    if (filter === "New") return sorted.sort((a, b) => compareLaunchCreated(b, a));
-    if (filter === "Volume") return sorted.sort((a, b) => parseDisplayAmount(b.volume) - parseDisplayAmount(a.volume) || compareLaunchCreated(b, a));
-    if (filter === "MarketCap") return sorted.sort((a, b) => marketCapSortValue(b, dexMarketCaps) - marketCapSortValue(a, dexMarketCaps) || compareLaunchCreated(b, a));
-    return sorted.sort((a, b) => parseDisplayAmount(b.volume) - parseDisplayAmount(a.volume)
-      || marketCapSortValue(b, dexMarketCaps) - marketCapSortValue(a, dexMarketCaps)
-      || compareLaunchCreated(b, a));
-  }, [dexMarketCaps, filter, launches]);
+  // The API sorts the complete result set before pagination. Re-sorting only the
+  // current page here would make page boundaries and the selected order disagree.
+  const displayedLaunches = launches;
+  const displayedLaunchKeys = useMemo(() => displayedLaunches.map(activityKey).join(","), [displayedLaunches]);
+
+  useEffect(() => {
+    if (!displayedLaunchKeys || previewMode) {
+      setMarketSparklines(new Map());
+      return;
+    }
+    const controller = new AbortController();
+    const groups = groupLaunchesByChain(displayedLaunches);
+    Promise.all([...groups].map(async ([networkId, rows]) => {
+      const response = await fetch(`/api/market-sparklines?${new URLSearchParams({ chain: chainSlug(networkId), keys: rows.map(activityKey).join(",") })}`, { signal: controller.signal });
+      if (!response.ok) return [] as MarketSparkline[];
+      const payload = await response.json() as { sparklines?: MarketSparkline[] };
+      return payload.sparklines ?? [];
+    }))
+      .then((items) => setMarketSparklines(new Map(items.flat().map((sparkline) => [`${sparkline.scope}:${sparkline.launchId}`, sparkline]))))
+      .catch((error) => {
+        if (!(error instanceof DOMException && error.name === "AbortError")) setMarketSparklines(new Map());
+      });
+    return () => controller.abort();
+  }, [displayedLaunchKeys, displayedLaunches, previewMode, refreshNonce]);
 
   return (
-    <section className="explorer-shell">
-      <section className="launchpad-intro launchpad-overview premium-hero">
-        <div className="launchpad-intro-copy">
-          <div className="launchpad-eyebrow"><NetworkIcon chainId={chainId} size={20} /><span>{activeNetwork.name}</span></div>
-          <h1>Launch.<span>Lock. Trade.</span></h1>
-          <p>Fair markets. Permanent liquidity. Clear rules.</p>
-          <div className="launchpad-intro-actions">
-            <Link className="button primary hero-action" href={`/launch?chain=${chainSlug(chainId)}`}><span className="hero-action-icon"><Rocket size={17} /></span>Create token</Link>
-            <button
-              className="button hero-secondary"
-              onClick={() => {
-                setFilter("All");
-                setPage(1);
-                window.requestAnimationFrame(() => tokensRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
-              }}
-              type="button"
-            >
-              <span className="hero-action-icon"><Activity size={16} /></span>Explore markets
-            </button>
-            {additionalNetworkStats.length ? <details className="network-overflow-menu">
-              <summary>+{additionalNetworkStats.length} networks <ChevronDown aria-hidden="true" size={13}/></summary>
-              <div>
-                {additionalNetworkStats.map((network) => (
-                  <Link href={`/?chain=${chainSlug(network.chainId)}`} key={`more-${network.chainId}`}>
-                    <NetworkIcon chainId={network.chainId} size={18}/><span><strong>{network.name}</strong><small>{network.tokens} tokens</small></span>
-                  </Link>
-                ))}
-              </div>
-            </details> : null}
-          </div>
-        </div>
-        <div className="overview-metrics network-overview" aria-label="Network launch metrics">
-          <div className="network-overview-head"><span>Network tape</span><small>Indexed onchain</small></div>
-          {heroNetworkStats.map((network) => (
-            <Link className={network.chainId === chainId ? "network-metric-row active" : "network-metric-row"} href={`/?chain=${chainSlug(network.chainId)}`} key={network.chainId}>
-              <div className="network-metric-name"><NetworkIcon chainId={network.chainId} size={22} /><strong>{network.name}</strong></div>
-              <MetricCompact icon={<Coins size={14} />} label="Tokens" value={network.tokens.toLocaleString("en-US")} />
-              <MetricCompact icon={<Trophy size={14} />} label="LP locked" value={network.graduated.toLocaleString("en-US")} />
-              <MetricCompact icon={<BarChart3 size={14} />} label="Volume" value={network.volume} />
-            </Link>
-          ))}
-        </div>
-      </section>
-
-      <section className="market-command-center">
-        <div className="trending-section market-pulse-section">
-          <div className="section-row">
-            <div>
-              <div className="section-title"><Zap size={17} />Onchain tape</div>
-            </div>
-          </div>
-          {pulseLaunches.length === 0 ? (
-            <div className="empty compact-empty"><Sparkles size={18} /><span>Fresh market activity will appear here.</span></div>
-          ) : (
-            <div className="market-pulse-rail">
-              {pulseLaunches.map((launch) => {
-                const officialBlue = isOfficialBlue(launch);
-                const key = activityKey(launch);
-                const activity = activityByLaunch.get(key);
-                const isHot = hotLaunchKey === key;
+    <section className="explorer-shell reference-market-terminal">
+      <header className="reference-market-header">
+        <div className="reference-market-title"><BrandLaunchpadMenu/><h1>Markets</h1></div>
+        <label className="reference-global-search">
+          <Search size={17} />
+          <input onChange={(event) => { setQuery(event.target.value); setPage(1); }} placeholder="Search token, ticker or address" value={query} />
+          <kbd>/</kbd>
+        </label>
+        <div className="reference-network-picker" ref={networkMenuRef}>
+          <button
+            aria-expanded={networkMenuOpen}
+            aria-haspopup="menu"
+            aria-label={`Market network: ${activeNetwork.name}`}
+            className={`reference-network-select${allNetworks ? " all-networks" : ""}${networkMenuOpen ? " open" : ""}`}
+            onClick={() => setNetworkMenuOpen((open) => !open)}
+            type="button"
+          >
+            {allNetworks ? <AllNetworksIcon /> : <NetworkIcon chainId={chainId} size={18}/>}
+            <span><small>Network</small><strong>{activeNetwork.name}</strong></span>
+            <ChevronDown size={13}/>
+          </button>
+          {networkMenuOpen ? (
+            <div className="reference-network-menu" role="menu" aria-label="Select market network">
+              <header><span>Browse networks</span><small>Select a market feed</small></header>
+              <button
+                className={allNetworks ? "active" : ""}
+                onClick={() => {
+                  const params = new URLSearchParams(searchParams.toString());
+                  params.set("chain", "all");
+                  params.delete("page");
+                  router.push(`/?${params.toString()}`);
+                  setNetworkMenuOpen(false);
+                }}
+                role="menuitem"
+                type="button"
+              >
+                <AllNetworksIcon />
+                <span><strong>All networks</strong><small>Combined market feed</small></span>
+                {allNetworks ? <Check size={15}/> : null}
+              </button>
+              {MARKET_NETWORKS.map((networkId) => {
+                const network = networkMeta(networkId);
+                const active = chainId === networkId;
                 return (
-                <Link className={isHot ? "market-pulse-item hot" : "market-pulse-item"} href={tokenPath(launch)} key={`pulse-${launch.id}-${launch.token}`}>
-                  <TokenAvatar launch={launch} hot={isHot} />
-                  <div className="market-pulse-copy">
-                    <strong>${launch.symbol}{officialBlue ? <span>Official</span> : null}</strong>
-                    <small>{activity ? `Buy ${formatActivityAge(activity.createdAt)}` : `Launched ${launch.age}`}</small>
-                  </div>
-                  <div className="market-pulse-value">
-                    <span>{launch.launchMode === "direct" ? "Direct DEX" : launch.status === "Graduated" ? "DEX live" : `${launch.progress}% bond`}</span>
-                    <strong>{launch.launchMode === "direct" ? "LP locked" : launch.raised}</strong>
-                  </div>
-                </Link>
+                  <button
+                    className={active ? "active" : ""}
+                    key={networkId}
+                    onClick={() => {
+                      const params = new URLSearchParams(searchParams.toString());
+                      params.set("chain", chainSlug(networkId));
+                      params.delete("page");
+                      router.push(`/?${params.toString()}`);
+                      setNetworkMenuOpen(false);
+                    }}
+                    role="menuitem"
+                    type="button"
+                  >
+                    <NetworkIcon chainId={networkId} size={25}/>
+                    <span><strong>{network.name}</strong><small>{network.symbol} markets</small></span>
+                    {active ? <Check size={15}/> : null}
+                  </button>
                 );
               })}
             </div>
-          )}
-        </div>
-
-        <section className="discovery-panel market-directory-panel" ref={tokensRef}>
-        <div className="discovery-heading">
-          <h2>Markets</h2>
-        </div>
-        <div className="explore-toolbar market-directory-toolbar">
-          <div className="searchbar">
-            <Search size={18} />
-            <input
-              onChange={(event) => { setQuery(event.target.value); setPage(1); }}
-              placeholder="Search token, ticker or address"
-              value={query}
-            />
-          </div>
-          <div className="market-directory-actions">
-            <div className="feed-tabs market-sort-tabs" role="tablist" aria-label="Sort markets">
-              <FilterButton active={filter === "All"} onClick={() => { setFilter("All"); setPage(1); }}><Layers3 size={14} />All</FilterButton>
-              <FilterButton active={filter === "Volume"} onClick={() => { setFilter("Volume"); setPage(1); }}><BarChart3 size={14} />Top volume</FilterButton>
-              <FilterButton active={filter === "MarketCap"} onClick={() => { setFilter("MarketCap"); setPage(1); }}><TrendingUp size={14} />Market cap</FilterButton>
-              <FilterButton active={filter === "New"} onClick={() => { setFilter("New"); setPage(1); }}><Clock3 size={14} />New</FilterButton>
-            </div>
-            <div className="market-view-toggle" aria-label="Market view">
-              <button aria-label="Card view" aria-pressed={viewMode === "grid"} className={viewMode === "grid" ? "active" : ""} onClick={() => setViewMode("grid")} type="button"><LayoutGrid size={15} /></button>
-              <button aria-label="List view" aria-pressed={viewMode === "list"} className={viewMode === "list" ? "active" : ""} onClick={() => setViewMode("list")} type="button"><List size={16} /></button>
-            </div>
-          </div>
-        </div>
-        </section>
-      </section>
-
-      {loadError ? (
-        <BlueFunState
-          action={<button className="button compact" type="button" onClick={() => setRefreshNonce((value) => value + 1)}>Try again</button>}
-          compact
-          text="Showing the last successful market snapshot while the live feed reconnects."
-          title="Market data is reconnecting"
-          variant="offline"
-        />
-      ) : null}
-
-      {launches.length === 0 && !isPageLoading ? (
-        <BlueFunState
-          action={totalLaunches === 0 ? <Link className="button primary compact" href={`/launch?chain=${chainSlug(chainId)}`}>Launch a token</Link> : null}
-          text={totalLaunches === 0 ? "Create the first fair token and start the market." : "Try another search term or clear the active filter."}
-          title={totalLaunches === 0 ? `Be first on ${activeNetwork.name}` : "No matching launches"}
-          variant="empty"
-        />
-      ) : (
-        <div className={`token-grid ${viewMode === "list" ? "list-view" : "grid-view"}${isPageLoading ? " page-loading" : ""}`} aria-busy={isPageLoading}>
-          {viewMode === "list" ? (
-            <div className="market-list-head" aria-hidden="true">
-              <span>Token</span><span>Market cap</span><span>Volume</span><span>Market</span><span>Creator</span>
-            </div>
           ) : null}
-          {displayedLaunches.map((launch, index) => {
+        </div>
+        <Link className="button primary reference-create-token" href={`/launch?chain=${allNetworks ? "base" : chainSlug(chainId)}`}><Rocket size={15}/>Create token <b>+</b></Link>
+        <ReferenceWalletButton/>
+      </header>
+
+      <nav className="reference-category-bar" aria-label="Market categories">
+        <label className="reference-sort-control">
+          <span>Sort</span>
+          <select
+            aria-label="Sort markets"
+            onChange={(event) => {
+              setSort(event.target.value as MarketSort);
+              setPage(1);
+            }}
+            value={sort}
+          >
+            <option value="Activity">Market activity</option>
+            <option value="Newest">Newest</option>
+            <option value="Volume">24h volume</option>
+            <option value="MarketCap">Market cap</option>
+          </select>
+          <ChevronDown size={12}/>
+        </label>
+        <span>Categories</span>
+        {([
+          ["All", "All tokens"],
+          ["Progress", "Bonding"],
+          ["Direct", "Direct DEX"]
+        ] as const).map(([value, label]) => (
+          <button
+            aria-pressed={category === value}
+            className={category === value ? "active" : ""}
+            key={value}
+            onClick={() => {
+              setCategory(value);
+              setPage(1);
+            }}
+            type="button"
+          >
+            <i />{label}
+          </button>
+        ))}
+      </nav>
+
+      <div className="reference-market-body">
+        <main className="reference-market-main" ref={tokensRef}>
+          <div className="reference-market-scroll">
+          {loadError ? <BlueFunState action={<button className="button compact" type="button" onClick={() => setRefreshNonce((value) => value + 1)}>Try again</button>} compact text="Showing the last successful market snapshot while the live feed reconnects." title="Market data is reconnecting" variant="offline" /> : null}
+          {launches.length === 0 && !isPageLoading ? (
+            <BlueFunState action={totalLaunches === 0 ? <Link className="button primary compact" href={`/launch?chain=${allNetworks ? "base" : chainSlug(chainId)}`}>Launch a token</Link> : null} text={totalLaunches === 0 ? "Create the first fair token and start the market." : "Try another search term or clear the search field."} title={totalLaunches === 0 ? allNetworks ? "No indexed markets yet" : `Be first on ${activeNetwork.name}` : "No matching launches"} variant="empty" />
+          ) : (
+          <div className={`reference-market-table${isPageLoading ? " page-loading" : ""}`} aria-busy={isPageLoading}>
+            <div className="reference-market-table-head" aria-hidden="true">
+              <span>Token</span><span>Network</span><span>Age</span><span>24h chart</span><span>Market cap</span><span>Liquidity</span><span>24h volume</span><span>Risk</span><span>Trade</span>
+            </div>
+            {displayedLaunches.map((launch, index) => {
             const direct = launch.launchMode === "direct";
-            const featured = isFeaturedLaunch(launch);
+            const previewRow = isUiPreviewLaunch(launch);
             const officialBlue = isOfficialBlue(launch);
             const key = activityKey(launch);
             const isHot = hotLaunchKey === key;
@@ -395,60 +421,71 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metri
               : undefined;
             const dexMarketCap = dexMarketCaps.get(launch.token.toLowerCase());
             const marketCapNative = hasMarketCap ? launch.marketCap : indexedMarketCap ?? (direct ? "Live" : estimateCurveMarketCap(launch.raised, launch.chainId));
-            const marketCap = dexMarketCap ? compactUsd(dexMarketCap) : formatLaunchUsd(marketCapNative, nativeUsd);
-            const marketCapLabel = dexMarketCap || hasMarketCap || indexedMarketCap ? "Market cap" : direct ? "Market data" : "Estimated MC";
-            const volume = formatLaunchUsd(launch.volume, nativeUsd);
+            const nativeUsd = nativeUsdByChain.get(launch.chainId) ?? null;
+            const marketCap = previewRow ? launch.marketCap : dexMarketCap ? compactUsd(dexMarketCap) : formatLaunchUsd(marketCapNative, nativeUsd);
+            const liquidity = previewRow ? launch.raised : direct || launch.status === "Graduated" ? "Locked" : formatLaunchUsd(launch.raised, nativeUsd);
+            const volume = previewRow ? launch.volume : formatLaunchUsd(launch.volume, nativeUsd);
+            const sparkline = marketSparklines.get(key);
+            const tradeCount = (sparkline?.buys ?? 0) + (sparkline?.sells ?? 0);
+            const positive = (sparkline?.changePercent ?? 0) >= 0;
             return (
-            <Link className={`${featured ? "token-card featured" : "token-card"}${isHot ? " activity-hot" : ""}`} href={tokenPath(launch)} key={`${launch.chainId}-${launch.id}-${launch.token}`}>
-              <div className="token-card-visual">
-                <TokenAvatar launch={launch} hot={isHot || index === 0} />
-              </div>
-              <div className="token-card-content">
-                <div className="token-card-visual-badges">
-                  <span className={direct ? "token-status direct" : launch.status === "Live" ? "token-status live" : "token-status"}>{direct ? "Direct DEX" : isHot ? "Active buy" : launch.status === "Live" ? "Bonding" : launch.status === "Graduated" ? "Graduated" : "Bonded"}</span>
-                  <span className="token-chain-badge"><NetworkIcon chainId={launch.chainId} size={12} />{networkMeta(launch.chainId).name}</span>
-                </div>
-                <div className="token-card-identity">
-                  <div className="token-title">{launch.name}{officialBlue ? <span>Official BLUE</span> : null}</div>
-                  <div className="token-symbol">${launch.symbol}<span className={activity ? "token-activity-signal active" : "token-activity-signal"}><i />{activity ? `Buy ${formatActivityAge(activity.createdAt)}` : launch.age}</span></div>
-                </div>
-                <div className="token-market-row">
-                  <div className="token-market-cap"><span>{marketCapLabel}</span><strong>{marketCap}</strong></div>
-                  <div className="token-volume"><span>Volume</span><strong>{volume}</strong></div>
-                </div>
-                <div className="token-state-cell">
-                  {direct ? (
-                    <div className="token-direct-state"><span><Zap size={12} />Direct DEX</span><strong><LockKeyhole size={12} />LP locked</strong></div>
-                  ) : (
-                    <>
-                    <div className="token-progress-label">
-                      <span>{launch.status === "Graduated" ? "Liquidity locked" : "Bonding progress"}</span>
-                      <strong>{launch.status === "Graduated" ? "100%" : `${launch.progress}%`}</strong>
-                    </div>
-                    <div className={launch.status === "Graduated" ? "progress token-card-progress graduated" : "progress token-card-progress"} aria-label={`Graduation progress ${launch.progress}%`}><span style={{ width: `${launch.status === "Graduated" ? 100 : launch.progress}%` }} /></div>
-                    </>
-                  )}
-                </div>
-                <div className="token-foot">
-                  <span>By {launch.creator.slice(0, 6)}...{launch.creator.slice(-4)} · {launch.age}</span>
-                  <span>{direct || launch.status === "Graduated" ? "DEX live" : `Raised ${launch.raised}`}</span>
-                </div>
-              </div>
-            </Link>
+            <article className={`reference-market-row${isHot ? " activity-hot" : ""}`} key={`${launch.chainId}-${launch.id}-${launch.token}`}>
+              <Link className="reference-token-cell" href={tokenPath(launch)}>
+                <span className="reference-watch-star">☆</span><TokenAvatar launch={launch} hot={isHot || index === 0} />
+                <span><strong>{launch.name}{officialBlue ? <em>Official</em> : null}</strong><small>${launch.symbol}</small></span>
+              </Link>
+              <span className="reference-chain-cell"><NetworkIcon chainId={launch.chainId} size={13}/>{networkMeta(launch.chainId).name}</span>
+              <span className="reference-age-cell">{launch.age}</span>
+              <Sparkline data={sparkline}/>
+              <span className="reference-value-cell"><strong>{marketCap}</strong>{sparkline ? <small className={positive ? "positive" : "negative"}>{positive ? "↗" : "↘"} {Math.abs(sparkline.changePercent).toFixed(2)}% · 24h</small> : <small>Latest indexed value</small>}</span>
+              <span className="reference-value-cell"><strong>{liquidity}</strong><small>{direct || launch.status === "Graduated" ? "LP liquidity" : `${launch.progress}% bonding`}</small></span>
+              <span className="reference-value-cell"><strong>{volume}</strong><small>{tradeCount ? `${tradeCount} indexed trades` : "No 24h trades"}</small></span>
+              <span className="reference-risk-cell"><strong className={launch.risk.toLowerCase().includes("high") ? "warn" : ""}>{launch.risk || "Low risk"}</strong><small>{launch.holders || "Indexed"} holders</small></span>
+              <Link className="reference-buy-button" href={tokenPath(launch)}>Buy</Link>
+            </article>
             );
           })}
-        </div>
-      )}
-      {totalPages > 1 ? (
-        <nav className="launch-pagination" aria-label="Launch pages">
-          <button disabled={page === 1 || isPageLoading} onClick={() => changePage(page - 1)} type="button" aria-label="Previous page">‹</button>
-          {pagination.map((item, index) => item === "…"
-            ? <span className="pagination-ellipsis" key={`ellipsis-${index}`}>…</span>
-            : <button className={item === page ? "active" : ""} disabled={isPageLoading} onClick={() => changePage(item)} type="button" aria-current={item === page ? "page" : undefined} key={item}>{item}</button>
+          </div>
           )}
-          <button disabled={page === totalPages || isPageLoading} onClick={() => changePage(page + 1)} type="button" aria-label="Next page">›</button>
-        </nav>
-      ) : null}
+          </div>
+          {totalPages > 1 ? (
+            <nav className="launch-pagination reference-pagination" aria-label="Launch pages">
+              <span>{total.toLocaleString("en-US")} tokens</span>
+              <button disabled={page === 1 || isPageLoading} onClick={() => changePage(page - 1)} type="button" aria-label="Previous page">‹</button>
+              {pagination.map((item, index) => item === "…" ? <span className="pagination-ellipsis" key={`ellipsis-${index}`}>…</span> : <button className={item === page ? "active" : ""} disabled={isPageLoading} onClick={() => changePage(item)} type="button" aria-current={item === page ? "page" : undefined} key={item}>{item}</button>)}
+              <button disabled={page === totalPages || isPageLoading} onClick={() => changePage(page + 1)} type="button" aria-label="Next page">›</button>
+            </nav>
+          ) : null}
+        </main>
+
+        <aside className="reference-live-rail">
+          <header><div><span>Live activity</span><small>Recent trades</small></div><Activity size={16}/></header>
+          <div className="reference-live-list">
+            {pulseLaunches.length ? pulseLaunches.map((launch) => {
+              const activity = activityByLaunch.get(activityKey(launch));
+              return <Link href={tokenPath(launch)} key={`live-${launch.chainId}-${launch.id}`}>
+                <i/>
+                <span><strong>{launch.symbol} bought</strong><small>{launch.creator.slice(0,6)}…{launch.creator.slice(-4)}</small></span>
+                <span><time>{activity ? formatActivityAge(activity.createdAt) : launch.age}</time><b>{launch.raised}</b></span>
+              </Link>;
+            }) : <div className="reference-live-empty"><Zap size={16}/>Waiting for the next confirmed trade.</div>}
+          </div>
+        </aside>
+      </div>
+
+      <footer className="reference-status-bar">
+        <div className="reference-market-summary">
+          <span className="reference-summary-network">{allNetworks ? <AllNetworksIcon /> : <NetworkIcon chainId={chainId} size={14}/>}<strong>{activeNetwork.name}</strong></span>
+          <span><small>Total markets</small><b>{total.toLocaleString("en-US")}</b></span>
+          <span><small>On this page</small><b>{displayedLaunches.length}</b></span>
+          <span><small>Category</small><b>{category === "All" ? "All tokens" : category === "Progress" ? "Bonding" : "Direct DEX"}</b></span>
+          <span><small>Sort</small><b>{sort === "Activity" ? "Market activity" : sort === "Newest" ? "Newest" : sort === "Volume" ? "24h volume" : "Market cap"}</b></span>
+        </div>
+        <div className="reference-footer-tools">
+          <span className="reference-search-shortcut"><kbd>/</kbd> Search</span>
+          <span className="reference-page-status">Page <b>{page}</b> of <b>{Math.max(totalPages, 1)}</b></span>
+        </div>
+      </footer>
     </section>
   );
 
@@ -456,17 +493,8 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, metri
     const safePage = Math.min(Math.max(nextPage, 1), totalPages);
     if (safePage === page) return;
     setPage(safePage);
-    window.requestAnimationFrame(() => tokensRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }));
+    window.requestAnimationFrame(() => tokensRef.current?.querySelector<HTMLElement>(".reference-market-scroll")?.scrollTo({ top: 0 }));
   }
-}
-
-function formatUsdFromNativeNumber(nativeValue: number, nativeUsd: number | null) {
-  if (!nativeUsd || !Number.isFinite(nativeValue) || nativeValue <= 0) return "$-";
-  return compactUsd(nativeValue * nativeUsd);
-}
-
-function formatNativeNumber(value: number, symbol: string) {
-  return Number.isFinite(value) && value > 0 ? `${value.toLocaleString("en-US", { maximumFractionDigits: 2 })} ${symbol}` : `0 ${symbol}`;
 }
 
 function formatLaunchUsd(value: string, ethUsd: number | null) {
@@ -487,12 +515,18 @@ function estimateCurveMarketCap(raisedValue: string, chainId: number) {
   return `${marketCapNative.toLocaleString("en-US", { maximumFractionDigits: 4 })} ${economics.nativeSymbol}`;
 }
 
-function marketCapSortValue(launch: DeployedLaunch, dexMarketCaps: Map<string, number>) {
-  const dexValue = dexMarketCaps.get(launch.token.toLowerCase());
-  if (dexValue) return dexValue;
-  const explicitValue = parseDisplayAmount(launch.marketCap);
-  if (explicitValue > 0) return explicitValue;
-  return parseDisplayAmount(estimateCurveMarketCap(launch.raised, launch.chainId));
+function AllNetworksIcon() {
+  return (
+    <span className="reference-all-network-icon" aria-hidden="true">
+      <svg viewBox="0 0 28 28">
+        <circle className="all-network-orbit" cx="14" cy="14" r="8.25" />
+        <path className="all-network-globe" d="M6.2 14h15.6M14 5.8c2.1 2.3 3.1 5.1 3.1 8.2s-1 5.9-3.1 8.2M14 5.8c-2.1 2.3-3.1 5.1-3.1 8.2s1 5.9 3.1 8.2" />
+        <circle className="all-network-node node-one" cx="5.2" cy="8" r="2" />
+        <circle className="all-network-node node-two" cx="22.8" cy="9.2" r="1.7" />
+        <circle className="all-network-node node-three" cx="20.8" cy="21.6" r="1.6" />
+      </svg>
+    </span>
+  );
 }
 
 function formatActivityAge(createdAt: string) {
@@ -506,20 +540,24 @@ function formatActivityAge(createdAt: string) {
   return `${Math.floor(seconds / 86_400)}d ago`;
 }
 
-function FilterButton({ active, children, onClick }: { active: boolean; children: ReactNode; onClick: () => void }) {
+function Sparkline({ data }: { data?: MarketSparkline }) {
+  if (!data || data.points.length < 2) {
+    return <span className="reference-sparkline-empty" aria-label="No indexed 24 hour chart data">No 24h data</span>;
+  }
+  const min = Math.min(...data.points);
+  const max = Math.max(...data.points);
+  const range = Math.max(max - min, Math.abs(max) * 0.002, 0.000000001);
+  const points = data.points.map((point, index) => {
+    const x = index / (data.points.length - 1) * 110;
+    const y = 34 - (point - min) / range * 28;
+    return `${x.toFixed(2)},${y.toFixed(2)}`;
+  }).join(" ");
+  const positive = data.changePercent >= 0;
   return (
-    <button className={active ? "feed-tab active" : "feed-tab"} onClick={onClick} role="tab" type="button" aria-selected={active}>
-      {children}
-    </button>
-  );
-}
-
-function MetricCompact({ icon, label, value }: { icon: ReactNode; label: string; value: string }) {
-  return (
-    <div className="network-metric-value">
-      <span>{icon}{label}</span>
-      <strong>{value}</strong>
-    </div>
+    <svg className={`reference-sparkline ${positive ? "positive" : "negative"}`} viewBox="0 0 110 40" role="img" aria-label={`${positive ? "Positive" : "Negative"} indexed 24 hour market-cap trend`}>
+      <polyline points={points} />
+      <circle cx={points.split(" ").at(-1)?.split(",")[0]} cy={points.split(" ").at(-1)?.split(",")[1]} r="2.2"/>
+    </svg>
   );
 }
 
@@ -541,19 +579,15 @@ function compareLaunchIds(left: string, right: string) {
   return compareBlocks(left, right);
 }
 
-function compareLaunchCreated(left: DeployedLaunch, right: DeployedLaunch) {
-  const blockDelta = compareBlocks(left.createdBlock, right.createdBlock);
-  return blockDelta || compareLaunchIds(left.id, right.id);
-}
-
-function activityKey(item: Pick<LaunchBuyActivity, "scope" | "launchId"> | Pick<DeployedLaunch, "scope" | "id">) {
+function activityKey(item: Pick<LaunchBuyActivity, "scope" | "launchId"> | Pick<DeployedLaunch, "scope" | "id" | "chainId">) {
   const launchId = "launchId" in item ? item.launchId : item.id;
-  return `${item.scope ?? ""}:${launchId}`;
+  const scope = item.scope ?? ("chainId" in item ? indexerScopesForChain(item.chainId)[0] : "");
+  return `${scope}:${launchId}`;
 }
 
 function paginationItems(current: number, total: number): Array<number | "…"> {
   if (total <= 7) return Array.from({ length: total }, (_, index) => index + 1);
-  const pages = new Set([1, total, current - 1, current, current + 1].filter((value) => value >= 1 && value <= total));
+  const pages = new Set([1, total, current - 2, current - 1, current, current + 1, current + 2].filter((value) => value >= 1 && value <= total));
   const sorted = Array.from(pages).sort((a, b) => a - b);
   const result: Array<number | "…"> = [];
   for (const value of sorted) {
@@ -562,6 +596,16 @@ function paginationItems(current: number, total: number): Array<number | "…"> 
     result.push(value);
   }
   return result;
+}
+
+function groupLaunchesByChain(launches: DeployedLaunch[]) {
+  const groups = new Map<number, DeployedLaunch[]>();
+  for (const launch of launches) {
+    const rows = groups.get(launch.chainId) ?? [];
+    rows.push(launch);
+    groups.set(launch.chainId, rows);
+  }
+  return groups;
 }
 
 function TokenAvatar({ hot, launch }: { hot?: boolean; launch: DeployedLaunch }) {
@@ -580,7 +624,9 @@ function TokenAvatar({ hot, launch }: { hot?: boolean; launch: DeployedLaunch })
         />
       ) : (
         <>
-          <div className="token-symbol-art">{launch.symbol.slice(0, 4)}</div>
+          <div className={`token-symbol-art token-symbol-${launch.symbol.toLowerCase()}`}>
+            {launch.symbol === "SPARK" ? "ϟ" : launch.symbol === "SHIBASE" ? "S" : launch.symbol === "NINI" ? "●" : launch.symbol.slice(0, 4)}
+          </div>
           <div className="spark" />
         </>
       )}
