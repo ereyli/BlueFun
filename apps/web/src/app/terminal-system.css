@@ -2880,7 +2880,7 @@ textarea {
   display: grid;
   gap: 0;
   grid-template:
-    "top top" 64px
+    "top top" 68px
     "summary summary" 94px
     "content trade" auto
     / minmax(0, 1fr) 420px;
@@ -3687,31 +3687,6 @@ textarea {
   color: #041614;
 }
 
-.reference-order-type-tabs {
-  background: #111e2b;
-  border: 1px solid #263a4e;
-  border-radius: 7px;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  padding: 3px;
-}
-
-.reference-order-type-tabs span {
-  align-items: center;
-  border-radius: 5px;
-  color: #8999ac;
-  display: flex;
-  font-size: 10px;
-  height: 30px;
-  justify-content: center;
-}
-
-.reference-order-type-tabs span.active {
-  background: #0b1520;
-  border: 1px solid #334a63;
-  color: #eef3fa;
-}
-
 .reference-token-terminal .swap-asset-panel {
   background: #0b1622;
   border-color: #26394d;
@@ -3897,7 +3872,7 @@ textarea {
 @media (max-width: 1180px) {
   .reference-token-terminal.trade-layout {
     grid-template:
-      "top top" 64px
+      "top top" 68px
       "summary summary" 94px
       "content trade" auto
       / minmax(0, 1fr) 350px;

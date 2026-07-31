@@ -885,7 +885,6 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
                 <button aria-selected={mode === "buy"} className={mode === "buy" ? "active" : ""} onClick={() => setMode("buy")} role="tab" type="button">Buy ${launch.symbol}</button>
                 <button aria-selected={mode === "sell"} className={mode === "sell" ? "active" : ""} onClick={() => setMode("sell")} role="tab" type="button">Sell</button>
               </div>
-              <div className="reference-order-type-tabs"><span className="active">Market</span><span>Limit</span></div>
               {!isConnected ? (
                 <div className="wallet-trade-gate"><span className="wallet-status-dot" />Connect wallet to trade</div>
               ) : null}
@@ -1268,7 +1267,6 @@ function GraduatedTradeCard({
           <button aria-selected={mode === "buy"} className={mode === "buy" ? "active" : ""} onClick={() => setMode("buy")} role="tab" type="button">Buy ${launch.symbol}</button>
           <button aria-selected={mode === "sell"} className={mode === "sell" ? "active" : ""} onClick={() => setMode("sell")} role="tab" type="button">Sell</button>
         </div>
-        <div className="reference-order-type-tabs"><span className="active">Market</span><span>Limit</span></div>
         {!isConnected ? (
           <div className="notice compact">
             <strong>Connect wallet</strong>

@@ -5,7 +5,7 @@ import Link from "next/link";
 import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Activity, Check, ChevronDown, Rocket, Search, Zap } from "@/components/bluefun-icons";
-import { isFeaturedLaunch, isOfficialBlue } from "@/lib/featured-launches";
+import { isOfficialBlue } from "@/lib/featured-launches";
 import { compactUsd, parseDisplayAmount } from "@/lib/market-math";
 import type { LaunchBuyActivity, MarketSparkline } from "@/lib/db-launches";
 import type { DeployedLaunch } from "@/lib/onchain-launches";
@@ -45,6 +45,7 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, chain
   const [nativeUsdByChain, setNativeUsdByChain] = useState<Map<number, number | null>>(new Map());
   const [dexMarketCaps, setDexMarketCaps] = useState<Map<string, number>>(new Map());
   const [activityByLaunch, setActivityByLaunch] = useState<Map<string, LaunchBuyActivity>>(new Map());
+  const [recentActivity, setRecentActivity] = useState<LaunchBuyActivity[]>([]);
   const [marketSparklines, setMarketSparklines] = useState<Map<string, MarketSparkline>>(new Map());
   const [hotLaunchKey, setHotLaunchKey] = useState<string>();
   const [networkMenuOpen, setNetworkMenuOpen] = useState(false);
@@ -80,6 +81,7 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, chain
     setCategory("All");
     setSort("Activity");
     setActivityByLaunch(new Map());
+    setRecentActivity([]);
     setHotLaunchKey(undefined);
     activityBlocksRef.current = new Map();
     activityReadyRef.current = false;
@@ -129,8 +131,13 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, chain
           return payload.activity ?? [];
         }));
         if (!active) return;
-        const items = payloads.flat();
-        const nextBlocks = new Map(items.map((item) => [activityKey(item), safeBlockNumber(item.blockNumber)]));
+        const items = payloads.flat().sort(compareActivityNewestFirst);
+        const latestByLaunch = new Map<string, LaunchBuyActivity>();
+        for (const item of items) {
+          const key = activityKey(item);
+          if (!latestByLaunch.has(key)) latestByLaunch.set(key, item);
+        }
+        const nextBlocks = new Map(Array.from(latestByLaunch, ([key, item]) => [key, safeBlockNumber(item.blockNumber)]));
 
         if (activityReadyRef.current) {
           const fresh = items
@@ -145,7 +152,8 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, chain
 
         activityBlocksRef.current = nextBlocks;
         activityReadyRef.current = true;
-        setActivityByLaunch(new Map(items.map((item) => [activityKey(item), item])));
+        setActivityByLaunch(latestByLaunch);
+        setRecentActivity(items);
       } catch (error) {
         if (!(error instanceof DOMException && error.name === "AbortError")) {
           // The launch feed remains usable if the lightweight activity pulse is unavailable.
@@ -244,21 +252,13 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, chain
     };
   }, [allNetworks, chainId]);
 
-  const pulseLaunches = useMemo(() => {
-    if (initialLaunches.some(isUiPreviewLaunch)) return initialLaunches.slice(0, 5);
-    return [...initialLaunches]
-      .sort((a, b) => {
-        const activityDelta = compareBlocks(
-          activityByLaunch.get(activityKey(b))?.blockNumber,
-          activityByLaunch.get(activityKey(a))?.blockNumber
-        );
-        if (activityDelta !== 0) return activityDelta;
-        const featuredDelta = Number(isFeaturedLaunch(b)) - Number(isFeaturedLaunch(a));
-        if (featuredDelta !== 0) return featuredDelta;
-        return compareLaunchIds(b.id, a.id);
-      })
-      .slice(0, 5);
-  }, [activityByLaunch, initialLaunches]);
+  const pulseItems = useMemo(() => {
+    const launchesByKey = new Map(initialLaunches.map((launch) => [activityKey(launch), launch]));
+    return recentActivity.flatMap((activity) => {
+      const launch = launchesByKey.get(activityKey(activity));
+      return launch ? [{ activity, launch }] : [];
+    }).slice(0, 8);
+  }, [initialLaunches, recentActivity]);
   const previewMode = initialLaunches.some(isUiPreviewLaunch);
   const totalPages = previewMode && !query && category === "All" ? Math.ceil(128 / MARKET_PAGE_SIZE) : Math.ceil(total / MARKET_PAGE_SIZE);
   const pagination = paginationItems(page, totalPages);
@@ -459,16 +459,15 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, chain
         </main>
 
         <aside className="reference-live-rail">
-          <header><div><span>Live activity</span><small>Recent trades</small></div><Activity size={16}/></header>
+          <header><div><span>Live activity</span><small>Confirmed buys</small></div><Activity size={16}/></header>
           <div className="reference-live-list">
-            {pulseLaunches.length ? pulseLaunches.map((launch) => {
-              const activity = activityByLaunch.get(activityKey(launch));
-              return <Link href={tokenPath(launch)} key={`live-${launch.chainId}-${launch.id}`}>
+            {pulseItems.length ? pulseItems.map(({ activity, launch }, index) => {
+              return <Link href={tokenPath(launch)} key={`live-${launch.chainId}-${activity.txHash || `${launch.id}-${activity.blockNumber}-${index}`}`}>
                 <i/>
-                <span><strong>{launch.symbol} bought</strong><small>{launch.creator.slice(0,6)}…{launch.creator.slice(-4)}</small></span>
-                <span><time>{activity ? formatActivityAge(activity.createdAt) : launch.age}</time><b>{launch.raised}</b></span>
+                <span><strong>{launch.symbol} bought</strong><small>{shortActivityAddress(activity.trader)}</small></span>
+                <span><time>{formatActivityAge(activity.createdAt)}</time><b>{activity.nativeAmount || "Confirmed"}</b></span>
               </Link>;
-            }) : <div className="reference-live-empty"><Zap size={16}/>Waiting for the next confirmed trade.</div>}
+            }) : <div className="reference-live-empty"><Zap size={16}/>Waiting for the next confirmed buy.</div>}
           </div>
         </aside>
       </div>
@@ -540,6 +539,17 @@ function formatActivityAge(createdAt: string) {
   return `${Math.floor(seconds / 86_400)}d ago`;
 }
 
+function compareActivityNewestFirst(left: LaunchBuyActivity, right: LaunchBuyActivity) {
+  const leftTime = new Date(left.createdAt).getTime();
+  const rightTime = new Date(right.createdAt).getTime();
+  if (Number.isFinite(leftTime) && Number.isFinite(rightTime) && leftTime !== rightTime) return rightTime - leftTime;
+  return compareBlocks(right.blockNumber, left.blockNumber);
+}
+
+function shortActivityAddress(address?: string) {
+  return address && /^0x[a-fA-F0-9]{40}$/.test(address) ? `${address.slice(0, 6)}…${address.slice(-4)}` : "Onchain buyer";
+}
+
 function Sparkline({ data }: { data?: MarketSparkline }) {
   if (!data || data.points.length < 2) {
     return <span className="reference-sparkline-empty" aria-label="No indexed 24 hour chart data">No 24h data</span>;
@@ -573,10 +583,6 @@ function compareBlocks(left?: string, right?: string) {
   const a = safeBlockNumber(left);
   const b = safeBlockNumber(right);
   return a === b ? 0 : a > b ? 1 : -1;
-}
-
-function compareLaunchIds(left: string, right: string) {
-  return compareBlocks(left, right);
 }
 
 function activityKey(item: Pick<LaunchBuyActivity, "scope" | "launchId"> | Pick<DeployedLaunch, "scope" | "id" | "chainId">) {

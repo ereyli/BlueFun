@@ -23,6 +23,9 @@ export type LaunchBuyActivity = {
   launchId: string;
   blockNumber: string;
   createdAt: string;
+  trader?: string;
+  nativeAmount?: string;
+  txHash?: string;
   marketCapNative?: string;
 };
 
@@ -703,7 +706,7 @@ export async function getDbRecentBuyActivity(chainId = 8453, limit = 80): Promis
     if (hasSupabaseConfig()) {
       const response = await getSupabase()
         .from("trades")
-        .select("scope, launch_id, source, eth_amount, token_amount, market_cap_eth, block_number, created_at")
+        .select("scope, launch_id, source, trader, eth_amount, token_amount, market_cap_eth, tx_hash, block_number, created_at")
         .in("scope", context.scopes)
         .eq("side", "buy")
         .gte("block_number", context.deploymentBlock)
@@ -716,7 +719,7 @@ export async function getDbRecentBuyActivity(chainId = 8453, limit = 80): Promis
       if (!process.env.DATABASE_URL) return undefined;
       pool ??= new pg.Pool({ connectionString: process.env.DATABASE_URL, connectionTimeoutMillis: 500, idleTimeoutMillis: 1_000, max: 2 });
       const result = await withTimeout(pool.query(
-        `select scope, launch_id, source, eth_amount, token_amount, market_cap_eth, block_number, created_at
+        `select scope, launch_id, source, trader, eth_amount, token_amount, market_cap_eth, tx_hash, block_number, created_at
          from trades
          where scope = any($1::text[])
            and side = 'buy'
@@ -728,25 +731,27 @@ export async function getDbRecentBuyActivity(chainId = 8453, limit = 80): Promis
       rows = result.rows;
     }
 
-    const seen = new Set<string>();
+    const nativeSymbol = context.chainId === 5042 ? "USDC" : context.chainId === 988 ? "USDT0" : context.chainId === 143 ? "MON" : "ETH";
     return rows.flatMap((row) => {
       const scope = String(row.scope || "");
       const launchId = String(row.launch_id || "");
-      const activityKey = `${scope}:${launchId}`;
-      if (!scope || !launchId || seen.has(activityKey)) return [];
-      seen.add(activityKey);
+      if (!scope || !launchId) return [];
       const indexedMarketCap = parseDbBigInt(row.market_cap_eth);
       const tokenAmount = parseDbBigInt(row.token_amount);
+      const nativeAmount = parseDbBigInt(row.eth_amount);
       const estimatedMarketCap = indexedMarketCap > 0n
         ? indexedMarketCap
         : row.source === "uniswap_v4" && tokenAmount > 0n
-          ? (parseDbBigInt(row.eth_amount) * 1_000_000_000n * 10n ** 18n) / tokenAmount
+          ? (nativeAmount * 1_000_000_000n * 10n ** 18n) / tokenAmount
           : 0n;
       return [{
         scope,
         launchId,
         blockNumber: String(row.block_number || "0"),
         createdAt: String(row.created_at || ""),
+        trader: String(row.trader || ""),
+        nativeAmount: `${trimEth(formatEther(nativeAmount))} ${nativeSymbol}`,
+        txHash: String(row.tx_hash || ""),
         marketCapNative: estimatedMarketCap > 0n ? formatEther(estimatedMarketCap) : undefined
       }];
     });
