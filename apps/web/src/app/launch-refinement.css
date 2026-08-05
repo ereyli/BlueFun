@@ -201,12 +201,13 @@
   width: 28px;
 }
 
-.reference-bond-dot {
-  background: radial-gradient(circle at 35% 30%, #8ca2ff, #4259d8 68%);
-  border: 1px solid rgba(140,162,255,.45);
+.reference-dex-cell .bonding-curve-icon {
+  background: linear-gradient(145deg,rgba(18,28,43,.96),rgba(8,14,23,.96));
+  border: 1px solid rgba(108,124,255,.32);
   border-radius: 7px;
-  box-shadow: 0 0 12px rgba(77,99,220,.22);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.05),0 0 14px rgba(39,215,176,.07);
   height: 28px;
+  padding: 3px;
   width: 28px;
 }
 

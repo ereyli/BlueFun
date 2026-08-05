@@ -20,7 +20,7 @@ import { BlueFunState } from "@/components/bluefun-state";
 import { isUiPreviewLaunch } from "@/lib/ui-preview-data";
 import { MARKET_PAGE_SIZE } from "@/lib/market-pagination";
 import { BrandLaunchpadMenu } from "@/components/brand-launchpad-menu";
-import { DexProviderIcon, type DexProvider } from "@/components/dex-provider-icon";
+import { BondingCurveIcon, DexProviderIcon, type DexProvider } from "@/components/dex-provider-icon";
 
 type MarketCategory = "All" | "Progress" | "Direct";
 type MarketSort = "Activity" | "Newest" | "Volume" | "MarketCap";
@@ -445,7 +445,7 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, chain
               <span className="reference-value-cell"><strong>{liquidity}</strong><small>{direct || launch.status === "Graduated" ? "LP liquidity" : `${launch.progress}% bonding`}</small></span>
               <span className="reference-value-cell"><strong>{volume}</strong><small>{tradeCount ? `${tradeCount} indexed trades` : "No 24h trades"}</small></span>
               <span className="reference-dex-cell">
-                {venue ? <><DexProviderIcon provider={venue} size={22} /><span><strong>{venue === "ekubo" ? "Ekubo" : "Uniswap"}</strong><small>{direct ? "Direct · LP locked" : "Graduated pool"}</small></span></> : <><i className="reference-bond-dot" /><span><strong>Bonding</strong><small>Curve active</small></span></>}
+                {venue ? <><DexProviderIcon provider={venue} size={22} /><span><strong>{venue === "ekubo" ? "Ekubo" : "Uniswap"}</strong><small>{direct ? "Direct · LP locked" : "Graduated pool"}</small></span></> : <><BondingCurveIcon size={22} /><span><strong>Bonding</strong><small>Curve active</small></span></>}
               </span>
               <Link className="reference-buy-button" href={tokenPath(launch)}>Buy</Link>
             </article>
