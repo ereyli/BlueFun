@@ -7,7 +7,7 @@ import { useRouter } from "next/navigation";
 import { createClient } from "@supabase/supabase-js";
 import { useQuery } from "@tanstack/react-query";
 import { formatEther, maxUint256, parseEther, zeroAddress } from "viem";
-import { useAccount, useBalance, useChainId, useReadContract, useReadContracts, useSignMessage, useSignTypedData, useSimulateContract, useSwitchChain, useWaitForTransactionReceipt, useWriteContract } from "wagmi";
+import { useAccount, useBalance, useChainId, usePublicClient, useReadContract, useReadContracts, useSignMessage, useSignTypedData, useSimulateContract, useSwitchChain, useWaitForTransactionReceipt, useWriteContract } from "wagmi";
 import { ArrowDownUp, ChevronDown, Copy, ExternalLink, Flame, Loader2, LockKeyhole, Rocket, RotateCcw, Search, Settings, Share2, ShieldCheck } from "@/components/bluefun-icons";
 import type {
   CandlestickData,
@@ -24,6 +24,7 @@ import {
   contractsForLaunch,
   graduationManagerAbi,
   feeSharingLockerAbi,
+  ekuboRouterAbi,
   indexerScopeForLaunch,
   isVNextLiquidityLocker,
   launchEconomics,
@@ -95,8 +96,11 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
   const chainId = useChainId();
   const { switchChainAsync, isPending: isSwitchingChain } = useSwitchChain();
   const activeChainId = launch?.chainId === 4663 || launch?.chainId === 143 || launch?.chainId === 988 || launch?.chainId === 5042 ? launch.chainId : 8453;
+  const publicClient = usePublicClient({ chainId: activeChainId });
   const { addresses, chain, dexVersion, stableUniswapV3Addresses, uniswapV4Addresses } = contractsForLaunch(activeChainId, id);
   const isStableV3 = dexVersion === "v3";
+  const isEkubo = launch?.dexProvider === "ekubo";
+  const ekuboRouter = addresses.ekuboSwapRouter ?? zeroAddress;
   const isArcNativeV3 = activeChainId === 5042 && isStableV3;
   const nativeSymbol = chain.nativeCurrency.symbol;
   const quickBuyAmounts = activeChainId === 143 ? ["50", "100", "500"] : activeChainId === 988 || activeChainId === 5042 ? ["1", "5", "10"] : ["0.01", "0.05", "0.1"];
@@ -157,13 +161,13 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
     address: liquidityLockerAddress,
     abi: liquidityLockerPoolAbi,
     functionName: "initializationGuard",
-    query: { enabled: Boolean(!isStableV3 && isGraduated && isDirect && liquidityLockerAddress) }
+    query: { enabled: Boolean(!isEkubo && !isStableV3 && isGraduated && isDirect && liquidityLockerAddress) }
   });
   const graduatedPoolHook = useReadContract({
     address: liquidityLockerAddress,
     abi: liquidityLockerPoolAbi,
     functionName: "hooks",
-    query: { enabled: Boolean(!isStableV3 && isGraduated && !isDirect && liquidityLockerAddress) }
+    query: { enabled: Boolean(!isEkubo && !isStableV3 && isGraduated && !isDirect && liquidityLockerAddress) }
   });
   const poolHooks = isDirect ? directPoolHook.data : graduatedPoolHook.data;
   const v4PoolConfig = { fee: launch?.poolFee, tickSpacing: launch?.tickSpacing, hooks: poolHooks };
@@ -259,11 +263,36 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
       }
     ],
     query: {
-      enabled: Boolean(!isStableV3 && isGraduated && launch?.token && poolHooks && parsedAmount > 0n),
+      enabled: Boolean(!isEkubo && !isStableV3 && isGraduated && launch?.token && poolHooks && parsedAmount > 0n),
       refetchOnWindowFocus: false,
       retry: 1,
       staleTime: 8_000
     }
+  });
+  const ekuboQuote = useQuery({
+    queryKey: ["ekubo-quote", activeChainId, ekuboRouter, launch?.token, mode, parsedAmount.toString()],
+    queryFn: async () => {
+      if (!publicClient || !launch?.token) throw new Error("Ekubo RPC client is unavailable.");
+      const simulation = await publicClient.simulateContract({
+        address: ekuboRouter,
+        abi: ekuboRouterAbi,
+        functionName: mode === "buy" ? "quoteBuy" : "quoteSell",
+        args: [launch.token, parsedAmount]
+      });
+      return simulation.result;
+    },
+    enabled: Boolean(isEkubo && isGraduated && launch?.token && ekuboRouter !== zeroAddress && parsedAmount > 0n && parsedAmount <= (1n << 128n) - 1n),
+    refetchOnWindowFocus: false,
+    retry: 1,
+    staleTime: 4_000
+  });
+  const ekuboSellAllowance = useReadContract({
+    chainId: activeChainId,
+    address: launch?.token,
+    abi: b20TokenAbi,
+    functionName: "allowance",
+    args: [address ?? zeroAddress, ekuboRouter],
+    query: { enabled: Boolean(isEkubo && mode === "sell" && launch?.token && address && ekuboRouter !== zeroAddress) }
   });
   const stableInputToken = mode === "buy" ? stableUniswapV3Addresses.quoteToken : launch?.token ?? zeroAddress;
   const stableOutputToken = mode === "buy" ? launch?.token ?? zeroAddress : stableUniswapV3Addresses.quoteToken;
@@ -328,7 +357,9 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
   const stableQuotedOut = rawStableQuotedOut === undefined
     ? undefined
     : mode === "sell" ? rawStableQuotedOut * 1_000_000_000_000n : rawStableQuotedOut;
-  const graduatedQuotedOut = isStableV3
+  const graduatedQuotedOut = isEkubo
+    ? ekuboQuote.data
+    : isStableV3
     ? stableQuotedOut
     : graduatedQuote.data?.[0] ?? (quoteFromFallback ? fallbackGraduatedQuote : undefined);
   const graduatedMinOut = graduatedQuotedOut ? applySlippage(graduatedQuotedOut, slippageBps) : 0n;
@@ -355,11 +386,15 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
       && parsedAmount > 0n
       && (isArcNativeV3 ? arcTokenAccount.data?.allowance ?? 0n : stableAllowance.data ?? 0n) < stableAmountIn
   );
-  const needsGraduatedTokenApproval = isStableV3
+  const needsGraduatedTokenApproval = isEkubo
+    ? Boolean(mode === "sell" && parsedAmount > 0n && (ekuboSellAllowance.data ?? 0n) < parsedAmount)
+    : isStableV3
     ? stableNeedsApproval
     : Boolean(isGraduated && mode === "sell" && parsedAmount > 0n && (graduatedTokenPermit2Allowance.data ?? 0n) < parsedAmount);
-  const needsGraduatedPermit2Signature = Boolean(!isStableV3 && isGraduated && mode === "sell" && parsedAmount > 0n && !needsGraduatedTokenApproval && (permit2Amount < parsedAmount || BigInt(permit2Expiration) <= BigInt(Math.floor(Date.now() / 1000) + 900)));
-  const graduatedApprovalLoading = isStableV3
+  const needsGraduatedPermit2Signature = Boolean(!isEkubo && !isStableV3 && isGraduated && mode === "sell" && parsedAmount > 0n && !needsGraduatedTokenApproval && (permit2Amount < parsedAmount || BigInt(permit2Expiration) <= BigInt(Math.floor(Date.now() / 1000) + 900)));
+  const graduatedApprovalLoading = isEkubo
+    ? ekuboSellAllowance.isLoading
+    : isStableV3
     ? isArcNativeV3 ? arcTokenAccount.isLoading : stableAllowance.isLoading
     : Boolean(mode === "sell" && (graduatedTokenPermit2Allowance.isLoading || graduatedPermit2RouterAllowance.isLoading));
   const graduatedBuyDisabled = !launch || !isConnected || wrongNetwork || isWorking || mode !== "buy" || parsedAmount === 0n || exceedsEthBalance || graduatedMinOut === 0n;
@@ -572,6 +607,13 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
 
   function buyGraduated() {
     if (!launch || !address || parsedAmount === 0n || graduatedMinOut === 0n) return;
+    if (isEkubo) {
+      writeContract({
+        chainId: activeChainId, address: ekuboRouter, abi: ekuboRouterAbi, functionName: "buy",
+        args: [launch.token, graduatedMinOut, address], value: parsedAmount
+      });
+      return;
+    }
     if (isStableV3) {
       if (isArcNativeV3) {
         writeContract({
@@ -628,6 +670,10 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
 
   function approveGraduatedTokenPermit2() {
     if (!launch || parsedAmount === 0n) return;
+    if (isEkubo) {
+      writeContract({ chainId: activeChainId, address: launch.token, abi: b20TokenAbi, functionName: "approve", args: [ekuboRouter, maxUint256] });
+      return;
+    }
     if (isStableV3) {
       writeContract({
         chainId: activeChainId,
@@ -651,6 +697,13 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
     if (!launch || !address || parsedAmount === 0n || graduatedMinOut === 0n) return;
     setTradeFlowError("");
     try {
+      if (isEkubo) {
+        writeContract({
+          chainId: activeChainId, address: ekuboRouter, abi: ekuboRouterAbi, functionName: "sell",
+          args: [launch.token, parsedAmount, graduatedMinOut, address]
+        });
+        return;
+      }
       if (isStableV3) {
         writeContract({
           chainId: activeChainId,
@@ -853,8 +906,10 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
             onSwitchNetwork={switchWalletNetwork}
             onSell={sellGraduated}
             quote={graduatedQuotedOut}
-            quoteFromFallback={!isStableV3 && quoteFromFallback}
-            quoteLoading={(isStableV3
+            quoteFromFallback={!isEkubo && !isStableV3 && quoteFromFallback}
+            quoteLoading={(isEkubo
+              ? ekuboQuote.isLoading || ekuboQuote.isFetching
+              : isStableV3
               ? isArcNativeV3
                 ? arcStableQuote.isLoading || arcStableQuote.isFetching
                 : stableQuote.isLoading || stableQuote.isFetching
@@ -1251,12 +1306,14 @@ function GraduatedTradeCard({
 }) {
   const { chain, dexVersion, uniswapChainName, stableUniswapV3Addresses } = contractsForChain(launch.chainId);
   const isStableV3 = dexVersion === "v3";
+  const isEkubo = launch.dexProvider === "ekubo";
+  const routeName = isEkubo ? "Ekubo" : `Uniswap ${dexVersion}`;
   const nativeSymbol = chain.nativeCurrency.symbol;
   const quickBuyAmounts = launch.chainId === 143 ? ["50", "100", "500"] : launch.chainId === 988 || launch.chainId === 5042 ? ["1", "5", "10"] : ["0.01", "0.05", "0.1"];
   return (
     <section className="graduated-trade-card swap-terminal">
       <div className="trade-card-toolbar graduated-trade-toolbar">
-        <div><strong>Swap</strong><span>{launch.launchMode === "direct" ? `Direct Uniswap ${dexVersion}` : `Uniswap ${dexVersion}`}</span></div>
+        <div><strong>Swap</strong><span>{launch.launchMode === "direct" ? `Direct ${routeName}` : routeName}</span></div>
         <button className={settingsOpen ? "swap-settings-trigger active" : "swap-settings-trigger"} onClick={() => setSettingsOpen((open) => !open)} type="button" aria-label="Slippage settings" title="Slippage settings">
           <Settings size={17} />
           <span>{Number(slippageBps) / 100}%</span>
@@ -1313,7 +1370,7 @@ function GraduatedTradeCard({
             </div>
             <div className="swap-detail-row">
               <span>Minimum <b>{minOut ? formatQuote(minOut, mode === "buy" ? launch.symbol : nativeSymbol) : "-"}</b></span>
-              <span>Route <b>{quoteFromFallback ? "Indexed price" : `Uniswap ${dexVersion}`}</b></span>
+              <span>Route <b>{quoteFromFallback ? "Indexed price" : routeName}</b></span>
             </div>
           </div>
         </div>
@@ -1337,7 +1394,7 @@ function GraduatedTradeCard({
             </div>
           </div>
         ) : null}
-        <div className="trade-meta-line"><span><NetworkIcon chainId={launch.chainId} size={14} />{chain.name}</span><i />Uniswap {dexVersion}<i />Locked liquidity</div>
+        <div className="trade-meta-line"><span><NetworkIcon chainId={launch.chainId} size={14} />{chain.name}</span><i />{routeName}<i />Locked liquidity</div>
         {mode === "buy" ? (
           <>
             <button className="button primary wide trade-submit buy" disabled={tradeDisabled} onClick={needsTokenApproval ? onApproveToken : onBuy} type="button">
@@ -1379,10 +1436,10 @@ function GraduatedTradeCard({
             </button>
             <span className="trade-helper">
               {needsTokenApproval
-                ? dexVersion === "v3" ? "One-time approval lets the Uniswap v3 router access this token." : "One-time approval lets Permit2 access this token. This is the only onchain approval."
+                ? isEkubo ? "One-time approval lets the BlueFun Ekubo router access this token." : dexVersion === "v3" ? "One-time approval lets the Uniswap v3 router access this token." : "One-time approval lets Permit2 access this token. This is the only onchain approval."
                 : needsPermit2Signature
                   ? "A gasless Permit2 signature enables selling for 30 days and is bundled into this sale. No second approval transaction."
-                  : `Selling routes through the locked Uniswap ${dexVersion} pool.`}
+                  : `Selling routes through the locked ${routeName} pool.`}
             </span>
           </>
         )}
@@ -1391,15 +1448,15 @@ function GraduatedTradeCard({
           {!receiptSuccess && error ? <TradeStatus tone="danger">{friendlyTradeError(error)}</TradeStatus> : null}
         </div>
       </div>
-      <a className="button wide trade-external-link" href={uniswapSwapUrl(
+      {!isEkubo ? <a className="button wide trade-external-link" href={uniswapSwapUrl(
         launch.token,
         uniswapChainName,
         isStableV3 ? stableUniswapV3Addresses.quoteToken : undefined
       )} target="_blank" rel="noreferrer">
         <ExternalLink size={16} />
         Trade on Uniswap
-      </a>
-      {launch.launchMode === "direct" && dexVersion === "v4" ? <span className="trade-helper external-route-note">New v4 hook pools may take time to appear in Uniswap Labs routing. B20 quotes this pool directly onchain.</span> : null}
+      </a> : null}
+      {launch.launchMode === "direct" && !isEkubo && dexVersion === "v4" ? <span className="trade-helper external-route-note">New v4 hook pools may take time to appear in Uniswap Labs routing. B20 quotes this pool directly onchain.</span> : null}
     </section>
   );
 }

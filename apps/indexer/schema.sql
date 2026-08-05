@@ -14,6 +14,7 @@ create table if not exists launches (
   discord_url text,
   status text not null default 'live',
   launch_mode text not null default 'bond',
+  dex_provider text not null default 'uniswap',
   pool_fee integer not null default 3000,
   tick_spacing integer not null default 60,
   liquidity_locker text,
@@ -40,6 +41,7 @@ alter table launches add column if not exists created_block numeric;
 alter table launches add column if not exists token_created_at numeric;
 alter table launches add column if not exists position_id text;
 alter table launches add column if not exists launch_mode text not null default 'bond';
+alter table launches add column if not exists dex_provider text not null default 'uniswap';
 alter table launches add column if not exists pool_fee integer not null default 3000;
 alter table launches add column if not exists tick_spacing integer not null default 60;
 alter table launches add column if not exists liquidity_locker text;
@@ -660,5 +662,5 @@ where l.scope=latest.scope and l.id=latest.launch_id
   and (l.last_trade_block is null or latest.block_number>=l.last_trade_block);
 
 insert into app_schema_metadata(component,version,applied_at)
-values('indexer','20260722_production_hardening',now())
+values('indexer','20260805_ekubo_launches',now())
 on conflict(component) do update set version=excluded.version,applied_at=excluded.applied_at;

@@ -1,0 +1,50 @@
+{
+  "network": "Robinhood Chain Mainnet",
+  "chainId": 4663,
+  "deploymentBlock": 28414685,
+  "deployer": "0xd5bc4D80797ddAEBd91282659Eb79ABaf659B47C",
+  "owner": "0xa64ed8d4C4cAcFF075A4D1d50EE2F7795B4B0039",
+  "contracts": {
+    "extension": "0x413f1995eea74340bf300156e63d84b5546e1a56",
+    "swapRouter": "0xc98dbb07aeaa256012eff79a4739b1c80d39d61e",
+    "liquidityLocker": "0x5fe8c58a281e687a7a081f1e37033309578dc419",
+    "directLaunchFactory": "0x1c3ab233d0e39ab95712437388ce1bc670be4042"
+  },
+  "ekubo": {
+    "core": "0x00000000000014aA86C5d3c41765bb24e11bd701",
+    "positions": "0x02D9876A21AF7545f8632C3af76eC90b5ad4b66D",
+    "tickSpacing": 20000,
+    "poolFee": 0
+  },
+  "economics": {
+    "launchFeeNativeWei": "1000000000000000",
+    "buyPlatformFeeBps": 70,
+    "buyCreatorFeeBps": 30,
+    "sellPlatformFeeBps": 70,
+    "sellBurnFeeBps": 30,
+    "maximumCreatorInitialBuyBpsOfSupply": 500
+  },
+  "deploymentTransactions": [
+    "0x2e4beca9c1bbae538002816bf077c89cbf40117d3ceb67b9d54eb70c02929ab7",
+    "0xe6670c6b37cf27c697a053ad96d0b55d7749f65f14f5ac2e6daa12962c016e91",
+    "0xc95ffe843260557ee817143dcce2e30eef90caa931091acd0e1fb90abc024ac1",
+    "0x4dfa493ed7bb3c55c1a523544889fb20b53b3f01e745d35b8762226cfd0417df",
+    "0x570905a451988111210193d6f1c6ecb6f09adaaa6a6a87ad0aa07bf78f9d3a85",
+    "0xb47bc44bebe4d0fda1d9825ba4e6c4e891a8209ca12df0e5d1e89d2cc0e23529",
+    "0x174d2d24f5bb8c34ed9158c5c18a5300dcca932f9c781607c092d1e6462c1e4e"
+  ],
+  "verification": {
+    "forkFlow": "launch, locked one-sided liquidity, quote, buy, sell and bypass rejection passed",
+    "mainnetSimulation": "full launch eth_call passed without persisting a canary token",
+    "liveMascot": {
+      "name": "Quill of Sherwood",
+      "symbol": "QUILL",
+      "launchId": 1000001,
+      "token": "0x1bc5f9ee8aa934d3ae309f6c2af7cd6e17813db0",
+      "metadata": "ipfs://QmQRJfqCXC7z8pA8PmaNjdsuJgTwGX9FUbnLad3ib2UqKv",
+      "launchAndBuyTx": "0x651fb40731c3ccca578b2d46fef92120007703958bb82161718a9e3d404d1717",
+      "approvalTx": "0xabac8546cd68dc3e1738fd1873f4b7f28f6f840d87a5b8b6e71f4338cd21adb8",
+      "sellTx": "0xe88d2baff9b4906af041b4ee07dfcf996f638b695c1b6685c9313a209985ae3e"
+    }
+  }
+}

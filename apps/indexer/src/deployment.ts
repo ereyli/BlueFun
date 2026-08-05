@@ -33,7 +33,9 @@ export type DirectIndexerDeployment = {
   startBlock: bigint;
   scope: string;
   dexVersion: "v3" | "v4";
-  eventKind?: "standard" | "arc";
+  dexProvider?: "uniswap" | "ekubo";
+  swapRouter?: `0x${string}`;
+  eventKind?: "standard" | "arc" | "ekubo";
 };
 
 export type NFTIndexerDeployment = {
@@ -173,10 +175,35 @@ const vNextDirectDeployment: DirectIndexerDeployment | undefined = arc || stable
 };
 
 export const directDeployments = Array.from(new Map(
-  [legacyCurrentDirectDeployment, configuredDirectDeployment, vNextDirectDeployment]
+  [legacyCurrentDirectDeployment, configuredDirectDeployment, vNextDirectDeployment, configuredEkuboDeployment()]
     .filter((deployment): deployment is DirectIndexerDeployment => Boolean(deployment))
     .map((deployment) => [deployment.scope, deployment])
 ).values());
+
+function configuredEkuboDeployment(): DirectIndexerDeployment | undefined {
+  if (!base && !robinhood) return undefined;
+  const launchFactory = (process.env.EKUBO_DIRECT_LAUNCH_FACTORY || (robinhood
+    ? "0x1c3ab233d0e39ab95712437388ce1bc670be4042"
+    : "0xf9c9e5c44023483ec3af3be0d07e20ad3d6df72f")) as `0x${string}`;
+  const liquidityLocker = (process.env.EKUBO_DIRECT_LIQUIDITY_LOCKER || (robinhood
+    ? "0x5fe8c58a281e687a7a081f1e37033309578dc419"
+    : "0xf6545a701a8cbe80d573043e8ffb8210de913d28")) as `0x${string}`;
+  const swapRouter = (process.env.EKUBO_SWAP_ROUTER || (robinhood
+    ? "0xc98dbb07aeaa256012eff79a4739b1c80d39d61e"
+    : "0x2d1e48fb40f00ed48f2e16df4a7a587fd063d177")) as `0x${string}`;
+  const startBlock = BigInt(process.env.EKUBO_DEPLOYMENT_BLOCK || (robinhood ? "28414685" : "49571565"));
+  if (!launchFactory || !liquidityLocker || !swapRouter || startBlock === 0n) return undefined;
+  return {
+    launchFactory,
+    liquidityLocker,
+    swapRouter,
+    startBlock,
+    scope: `${chainId}:direct:${launchFactory.toLowerCase()}:${startBlock.toString()}`,
+    dexVersion: "v3",
+    dexProvider: "ekubo",
+    eventKind: "ekubo"
+  };
+}
 
 const nftFactory = (base
   ? process.env.NFT_COLLECTION_FACTORY || "0xd8cf5150a4d789cab4b03855d3ff536c78fd4b33"

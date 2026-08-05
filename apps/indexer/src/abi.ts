@@ -34,6 +34,49 @@ export const directLaunchFactoryAbi = [
   }
 ] as const;
 
+export const ekuboDirectLaunchFactoryAbi = [
+  {
+    type: "event",
+    name: "EkuboDirectLaunchCreated",
+    inputs: [
+      { indexed: true, name: "launchId", type: "uint256" },
+      { indexed: true, name: "token", type: "address" },
+      { indexed: true, name: "creator", type: "address" },
+      { indexed: false, name: "poolId", type: "bytes32" },
+      { indexed: false, name: "positionId", type: "bytes32" },
+      { indexed: false, name: "tickSpacing", type: "uint32" },
+      { indexed: false, name: "name", type: "string" },
+      { indexed: false, name: "symbol", type: "string" },
+      { indexed: false, name: "contractURI", type: "string" }
+    ]
+  }
+] as const;
+
+export const ekuboRouterAbi = [
+  {
+    type: "event", name: "EkuboBuy", inputs: [
+      { indexed: true, name: "token", type: "address" },
+      { indexed: true, name: "buyer", type: "address" },
+      { indexed: true, name: "recipient", type: "address" },
+      { indexed: false, name: "grossNativeIn", type: "uint256" },
+      { indexed: false, name: "tokenOut", type: "uint256" },
+      { indexed: false, name: "platformFee", type: "uint256" },
+      { indexed: false, name: "creatorFee", type: "uint256" }
+    ]
+  },
+  {
+    type: "event", name: "EkuboSell", inputs: [
+      { indexed: true, name: "token", type: "address" },
+      { indexed: true, name: "seller", type: "address" },
+      { indexed: true, name: "recipient", type: "address" },
+      { indexed: false, name: "grossTokenIn", type: "uint256" },
+      { indexed: false, name: "nativeOut", type: "uint256" },
+      { indexed: false, name: "platformFee", type: "uint256" },
+      { indexed: false, name: "tokenBurned", type: "uint256" }
+    ]
+  }
+] as const;
+
 export const arcDirectLaunchFactoryAbi = [
   {
     type: "event",

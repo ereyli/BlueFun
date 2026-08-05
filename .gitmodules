@@ -1,0 +1,3 @@
+[submodule "contracts/lib/ekubo-v3"]
+	path = contracts/lib/ekubo-v3
+	url = https://github.com/EkuboProtocol/evm-contracts.git

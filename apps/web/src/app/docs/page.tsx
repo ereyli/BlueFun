@@ -59,6 +59,9 @@ const productionContracts = [
     feePolicy: "0xe5c5585ab34f8e2ba55c30ef5e6b0254d87a4941",
     revenueRouter: blueStakingAddresses.revenueRouter,
     governance: blueStakingAddresses.governance,
+    ekuboFactory: addresses.ekuboDirectLaunchFactory,
+    ekuboLocker: addresses.ekuboLiquidityLocker,
+    ekuboRouter: addresses.ekuboSwapRouter,
     version: "vNext"
   },
   {
@@ -74,6 +77,9 @@ const productionContracts = [
     feePolicy: "0x4d0baacfb8267c8f7ca39756bb29f924ddd72a6a",
     revenueRouter: "0xf42f51728ddfff6b4a556175dc5e5b68a1e5371b",
     governance: "0xa64ed8d4c4cacff075a4d1d50ee2f7795b4b0039",
+    ekuboFactory: robinhoodAddresses.ekuboDirectLaunchFactory,
+    ekuboLocker: robinhoodAddresses.ekuboLiquidityLocker,
+    ekuboRouter: robinhoodAddresses.ekuboSwapRouter,
     version: "vNext"
   },
   {
@@ -89,6 +95,9 @@ const productionContracts = [
     feePolicy: "0x72aA9A64E74566e5931883f5Bf1fD173bBD572e4",
     revenueRouter: "0xD9f720a6A06BDe325a252C449E700253B30610ff",
     governance: "0x448B856f684ca79CF60Ce24Dc29d1E3467f0551D",
+    ekuboFactory: undefined,
+    ekuboLocker: undefined,
+    ekuboRouter: undefined,
     version: "vNext"
   }
 ] as const;
@@ -143,8 +152,8 @@ export default async function DocsPage() {
         <section className="docs-section" id="networks">
           <SectionTitle eyebrow="Multichain" title="Networks and token standards" description="The product experience is shared while each network uses its native launch standard and canonical DEX deployment." />
           <div className="docs-network-grid">
-            <article><span className="docs-chain-dot base" /><div><strong>Base</strong><small>Chain ID 8453</small></div><p>Launches use the Base-native B20 <code>ASSET</code> standard. BLUE also lives on Base.</p></article>
-            <article><span className="docs-chain-dot robinhood" /><div><strong>Robinhood Chain</strong><small>Chain ID 4663</small></div><p>Launches use fixed-supply ERC-20 tokens and the network&apos;s official Uniswap v4 stack.</p></article>
+            <article><span className="docs-chain-dot base" /><div><strong>Base</strong><small>Chain ID 8453</small></div><p>Launches use the Base-native B20 <code>ASSET</code> standard. Direct launches can use Uniswap or Ekubo when the selected deployment is active.</p></article>
+            <article><span className="docs-chain-dot robinhood" /><div><strong>Robinhood Chain</strong><small>Chain ID 4663</small></div><p>Launches use fixed-supply ERC-20 tokens. Direct launches can use Uniswap v4 or Ekubo v3.</p></article>
             <article><span className="docs-chain-dot monad" /><div><strong>Monad</strong><small>Chain ID 143 · native MON</small></div><p>Bond and Direct launches use fixed-supply ERC-20 tokens. Launches, trades and gas are paid in MON.</p></article>
             <article><span className="docs-chain-dot stable" /><div><strong>Stable</strong><small>Chain ID 988 · native USDT0</small></div><p>Direct-only launches use fixed-supply ERC-20 tokens and canonical Uniswap v3. Launches, trades and gas use USDT0.</p></article>
             <article><span className="docs-chain-dot arc" /><div><strong>Arc</strong><small>Chain ID 5042 · native USDC</small></div><p>Direct-only launches use fixed-supply ERC-20 tokens and permanently locked Uniswap v3 liquidity. Launches, trades and gas use USDC.</p></article>
@@ -166,7 +175,7 @@ export default async function DocsPage() {
             </article>
             <article className="docs-model-card direct">
               <div className="docs-model-label"><Sparkles size={16} />Direct DEX</div>
-              <h3>A live Uniswap v4 market in one launch transaction</h3>
+              <h3>A live Uniswap or Ekubo market in one launch transaction</h3>
               <ol>
                 <li><span>01</span><p>The token and concentrated-liquidity pool are created atomically.</p></li>
                 <li><span>02</span><p>The 1B supply starts as token-only, permanently locked liquidity.</p></li>
@@ -204,6 +213,7 @@ export default async function DocsPage() {
             </table>
           </div>
           <Callout tone="success" title="Creators earn from buys only">On every vNext network, sell burns and native-currency routing happen atomically with each trade. No fee sync or manual LP-fee collection is required.</Callout>
+          <Callout tone="info" title="Ekubo route keeps the same user fee">Ekubo Direct uses the same 1% trade policy: 0.7% platform plus 0.3% creator on buys, and 0.7% platform plus a 0.3% token burn on sells. Ekubo&apos;s source license separately requires B20 to remit 50% of Ekubo-derived protocol revenue to Ekubo DAO; creator revenue is not reduced by this platform obligation.</Callout>
         </section>
 
         <section className="docs-section" id="liquidity">
@@ -307,12 +317,16 @@ export default async function DocsPage() {
               <ContractRow label="Fee policy" value={network.feePolicy} explorer={network.explorer} />
               <ContractRow label="Revenue router" value={network.revenueRouter} explorer={network.explorer} />
               <ContractRow label="Governance timelock" value={network.governance} explorer={network.explorer} />
+              <ContractRow label="Ekubo Direct factory" value={network.ekuboFactory} explorer={network.explorer} />
+              <ContractRow label="Ekubo LP locker" value={network.ekuboLocker} explorer={network.explorer} />
+              <ContractRow label="Ekubo swap router" value={network.ekuboRouter} explorer={network.explorer} />
               {network.name === "Base" ? <>
                 <ContractRow label="BLUE staking vault" value={blueStakingAddresses.vault} explorer={network.explorer} />
               </> : null}
             </article>)}
           </div>
           <Callout tone="info" title="Legacy deployments remain intentional">A token&apos;s rules do not change when B20 deploys a newer factory. The indexer resolves each launch to its original market, graduation manager and locker so previously launched tokens remain visible and usable.</Callout>
+          <Callout tone="info" title="Ekubo source license">Licensed under the Ekubo DAO Shared Revenue License 1.0 at <a href="https://ekubo-license-v1.eth.limo" target="_blank" rel="noreferrer">ekubo-license-v1.eth</a>.</Callout>
         </section>
 
         <section className="docs-section" id="security">
@@ -352,7 +366,7 @@ function Callout({ tone, title, children }: { tone: "info" | "success" | "warnin
 }
 
 function ContractRow({ label, value, explorer }: { label: string; value?: string; explorer: string }) {
-  if (!value) return null;
+  if (!value || /^0x0{40}$/i.test(value)) return null;
   return <div className="docs-contract-row"><span>{label}</span><a href={`${explorer}${value}`} target="_blank" rel="noreferrer"><code>{shortAddress(value)}</code><ExternalLink size={12} /></a></div>;
 }
 

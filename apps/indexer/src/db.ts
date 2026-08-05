@@ -8,7 +8,7 @@ import WebSocket from "ws";
 let pool = process.env.DATABASE_URL ? new pg.Pool({ connectionString: process.env.DATABASE_URL }) : undefined;
 let supabase: SupabaseClient | undefined;
 
-export const EXPECTED_SCHEMA_VERSION = "20260722_production_hardening";
+export const EXPECTED_SCHEMA_VERSION = "20260805_ekubo_launches";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -34,6 +34,7 @@ export async function upsertLaunch(scope: string, input: {
   telegram?: string;
   discord?: string;
   launchMode?: "bond" | "direct";
+  dexProvider?: "uniswap" | "ekubo";
   poolFee?: number;
   tickSpacing?: number;
   liquidityLocker?: string;
@@ -60,6 +61,7 @@ export async function upsertLaunch(scope: string, input: {
             telegram_url: input.telegram || null,
             discord_url: input.discord || null,
             launch_mode: input.launchMode || "bond",
+            dex_provider: input.dexProvider || "uniswap",
             pool_fee: input.poolFee ?? 3000,
             tick_spacing: input.tickSpacing ?? 60,
             liquidity_locker: input.liquidityLocker || null,
@@ -76,10 +78,10 @@ export async function upsertLaunch(scope: string, input: {
   await pool.query(
     `insert into launches (
        scope, id, token, creator, name, symbol, contract_uri, image_url, description,
-       website_url, twitter_url, telegram_url, discord_url, launch_mode, pool_fee, tick_spacing,
+       website_url, twitter_url, telegram_url, discord_url, launch_mode, dex_provider, pool_fee, tick_spacing,
        liquidity_locker, created_tx, created_block
      )
-     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
      on conflict (scope, id) do update set
        token = excluded.token,
        creator = excluded.creator,
@@ -93,6 +95,7 @@ export async function upsertLaunch(scope: string, input: {
        telegram_url = excluded.telegram_url,
        discord_url = excluded.discord_url,
        launch_mode = excluded.launch_mode,
+       dex_provider = excluded.dex_provider,
        pool_fee = excluded.pool_fee,
        tick_spacing = excluded.tick_spacing,
        liquidity_locker = excluded.liquidity_locker,
@@ -113,6 +116,7 @@ export async function upsertLaunch(scope: string, input: {
       input.telegram || null,
       input.discord || null,
       input.launchMode || "bond",
+      input.dexProvider || "uniswap",
       input.poolFee ?? 3000,
       input.tickSpacing ?? 60,
       input.liquidityLocker || null,
@@ -176,7 +180,7 @@ export async function insertTrade(scope: string, input: {
   launchId: bigint;
   trader: string;
   side: "buy" | "sell";
-  source?: "curve" | "uniswap_v3" | "uniswap_v4";
+  source?: "curve" | "uniswap_v3" | "uniswap_v4" | "ekubo";
   ethAmount: bigint;
   tokenAmount: bigint;
   marketCapEth?: bigint;

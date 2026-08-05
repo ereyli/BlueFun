@@ -6,6 +6,8 @@ import {
   bluePFP721Abi,
   arcDirectLaunchFactoryAbi,
   directLaunchFactoryAbi,
+  ekuboDirectLaunchFactoryAbi,
+  ekuboRouterAbi,
   graduationAbi,
   launchFactoryAbi,
   marketAbi,
@@ -256,7 +258,8 @@ async function backfillLoop() {
   for (const directDeployment of directDeployments) {
     if (latest < directDeployment.startBlock) continue;
     await backfillDirectLaunches(directDeployment, latest);
-    if (directDeployment.dexVersion === "v3") await backfillUniswapV3Swaps(directDeployment, latest);
+    if (directDeployment.dexProvider === "ekubo") await backfillEkuboTrades(directDeployment, latest);
+    else if (directDeployment.dexVersion === "v3") await backfillUniswapV3Swaps(directDeployment, latest);
     else await backfillUniswapV4Swaps(directDeployment, latest);
   }
   lastIndexedBlock = latest;
@@ -354,7 +357,7 @@ async function backfillLaunchCreated(deployment: DeploymentContext, latest: bigi
 }
 
 async function backfillDirectLaunches(
-  deployment: ScopeContext & { launchFactory: `0x${string}`; liquidityLocker: `0x${string}`; eventKind?: "standard" | "arc" },
+  deployment: ScopeContext & { launchFactory: `0x${string}`; liquidityLocker: `0x${string}`; eventKind?: "standard" | "arc" | "ekubo" },
   latest: bigint
 ) {
   let fromBlock = (await getIndexerState(stateKey(deployment, "direct_launches_last_block"))) ?? deployment.startBlock;
@@ -376,6 +379,19 @@ async function backfillDirectLaunches(
       fromBlock = toBlock + 1n;
       continue;
     }
+    if (deployment.eventKind === "ekubo") {
+      const logs = await client.getContractEvents({
+        address: deployment.launchFactory,
+        abi: ekuboDirectLaunchFactoryAbi,
+        eventName: "EkuboDirectLaunchCreated",
+        fromBlock,
+        toBlock
+      });
+      for (const log of logs) await handleEkuboDirectLaunchCreated(deployment, log);
+      await setIndexerState(stateKey(deployment, "direct_launches_last_block"), toBlock + 1n);
+      fromBlock = toBlock + 1n;
+      continue;
+    }
     const logs = await client.getContractEvents({
       address: deployment.launchFactory,
       abi: directLaunchFactoryAbi,
@@ -385,6 +401,74 @@ async function backfillDirectLaunches(
     });
     for (const log of logs) await handleDirectLaunchCreated(deployment, log);
     await setIndexerState(stateKey(deployment, "direct_launches_last_block"), toBlock + 1n);
+    fromBlock = toBlock + 1n;
+  }
+}
+
+async function handleEkuboDirectLaunchCreated(
+  deployment: ScopeContext & { liquidityLocker: `0x${string}` },
+  log: Awaited<ReturnType<typeof client.getContractEvents<typeof ekuboDirectLaunchFactoryAbi, "EkuboDirectLaunchCreated">>>[number]
+) {
+  const metadata: LaunchMetadata = await readLaunchMetadata(log.args.contractURI || "").catch(() => ({}));
+  const cdnImage = metadata.image
+    ? await mirrorTokenImage(metadata.image, chainId, log.args.token!).catch(() => undefined)
+    : undefined;
+  await upsertLaunch(deployment.scope, {
+    id: log.args.launchId!, token: log.args.token!, creator: log.args.creator!,
+    name: log.args.name!, symbol: log.args.symbol!, contractURI: log.args.contractURI!,
+    imageUri: cdnImage || metadata.image, description: metadata.description,
+    website: metadata.website, twitter: metadata.twitter, telegram: metadata.telegram, discord: metadata.discord,
+    launchMode: "direct", dexProvider: "ekubo", poolFee: 0,
+    tickSpacing: Number(log.args.tickSpacing!), liquidityLocker: deployment.liquidityLocker,
+    txHash: log.transactionHash, blockNumber: log.blockNumber
+  });
+  await markGraduated(deployment.scope, {
+    launchId: log.args.launchId!, token: log.args.token!, positionId: log.args.positionId!,
+    poolId: log.args.poolId!, txHash: log.transactionHash, blockNumber: log.blockNumber
+  });
+  const block = await client.getBlock({ blockNumber: log.blockNumber });
+  await updateLaunchState(deployment.scope, {
+    id: log.args.launchId!, status: "graduated", raisedEth: 0n, graduationTargetEth: 0n,
+    progress: 100, creatorAllocation: 0n, tokenCreatedAt: block.timestamp
+  });
+}
+
+async function backfillEkuboTrades(
+  deployment: ScopeContext & { swapRouter?: `0x${string}` },
+  latest: bigint
+) {
+  if (!deployment.swapRouter) return;
+  let fromBlock = (await getIndexerState(stateKey(deployment, "ekubo_trades_last_block"))) ?? deployment.startBlock;
+  if (fromBlock < deployment.startBlock) fromBlock = deployment.startBlock;
+  const launches = await getGraduatedLaunches(deployment.scope);
+  const byToken = new Map(launches.map((launch) => [launch.token.toLowerCase(), launch.launchId]));
+  while (fromBlock <= latest) {
+    const toBlock = fromBlock + chunkSize > latest ? latest : fromBlock + chunkSize;
+    const [buys, sells] = await Promise.all([
+      client.getContractEvents({ address: deployment.swapRouter, abi: ekuboRouterAbi, eventName: "EkuboBuy", fromBlock, toBlock }),
+      client.getContractEvents({ address: deployment.swapRouter, abi: ekuboRouterAbi, eventName: "EkuboSell", fromBlock, toBlock })
+    ]);
+    for (const log of buys) {
+      const launchId = byToken.get(log.args.token!.toLowerCase());
+      if (launchId === undefined) continue;
+      await insertTrade(deployment.scope, {
+        launchId, trader: log.args.buyer!, side: "buy", source: "ekubo",
+        ethAmount: log.args.grossNativeIn!, tokenAmount: log.args.tokenOut!,
+        marketCapEth: log.args.tokenOut! > 0n ? (log.args.grossNativeIn! * totalSupplyRaw) / log.args.tokenOut! : undefined,
+        txHash: log.transactionHash, blockNumber: log.blockNumber
+      });
+    }
+    for (const log of sells) {
+      const launchId = byToken.get(log.args.token!.toLowerCase());
+      if (launchId === undefined) continue;
+      await insertTrade(deployment.scope, {
+        launchId, trader: log.args.seller!, side: "sell", source: "ekubo",
+        ethAmount: log.args.nativeOut!, tokenAmount: log.args.grossTokenIn!,
+        marketCapEth: log.args.grossTokenIn! > 0n ? (log.args.nativeOut! * totalSupplyRaw) / log.args.grossTokenIn! : undefined,
+        txHash: log.transactionHash, blockNumber: log.blockNumber
+      });
+    }
+    await setIndexerState(stateKey(deployment, "ekubo_trades_last_block"), toBlock + 1n);
     fromBlock = toBlock + 1n;
   }
 }

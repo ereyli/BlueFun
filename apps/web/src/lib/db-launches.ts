@@ -134,7 +134,7 @@ export async function getDbBlueStakingOverview(chainId: number, vault: string): 
   }
 }
 
-const launchColumns = "scope, id, token, creator, name, symbol, contract_uri, image_url, description, website_url, twitter_url, telegram_url, discord_url, status, launch_mode, pool_fee, tick_spacing, liquidity_locker, raised_eth, graduation_target_eth, progress, volume_eth, current_market_cap_eth, last_trade_block, token_created_at, created_block, position_id";
+const launchColumns = "scope, id, token, creator, name, symbol, contract_uri, image_url, description, website_url, twitter_url, telegram_url, discord_url, status, launch_mode, dex_provider, pool_fee, tick_spacing, liquidity_locker, raised_eth, graduation_target_eth, progress, volume_eth, current_market_cap_eth, last_trade_block, token_created_at, created_block, position_id";
 const legacyLaunchColumns = "scope, id, token, creator, name, symbol, contract_uri, status, raised_eth, graduation_target_eth, progress, volume_eth, token_created_at, created_block";
 
 export async function getDbWalletDashboard(wallet: `0x${string}`): Promise<WalletDashboardData | undefined> {
@@ -631,7 +631,7 @@ export async function getDbLaunchMetrics(chainId = 8453): Promise<DbLaunchMetric
 
 function isMissingSocialColumnError(error: { message?: string; details?: string }) {
   const text = `${error.message || ""} ${error.details || ""}`.toLowerCase();
-  return ["image_url", "description", "website_url", "twitter_url", "telegram_url", "discord_url", "position_id", "launch_mode", "pool_fee", "tick_spacing", "liquidity_locker", "current_market_cap_eth", "last_trade_block"].some((column) => text.includes(column));
+  return ["image_url", "description", "website_url", "twitter_url", "telegram_url", "discord_url", "position_id", "launch_mode", "dex_provider", "pool_fee", "tick_spacing", "liquidity_locker", "current_market_cap_eth", "last_trade_block"].some((column) => text.includes(column));
 }
 
 function isMissingTradeColumnError(error: { message?: string; details?: string }) {
@@ -874,6 +874,7 @@ async function mapRows(rows: Array<Record<string, unknown>>, chainId: number): P
       chainId,
       scope: cleanDbText(row.scope),
       launchMode: row.launch_mode === "direct" ? "direct" : "bond",
+      dexProvider: row.dex_provider === "ekubo" ? "ekubo" : "uniswap",
       poolFee: Number(row.pool_fee || 3000),
       tickSpacing: Number(row.tick_spacing || 60),
       liquidityLocker: row.liquidity_locker ? getAddress(String(row.liquidity_locker)) as `0x${string}` : undefined,
@@ -898,7 +899,7 @@ async function mapRows(rows: Array<Record<string, unknown>>, chainId: number): P
       holders: "indexed",
       volume: `${trimEth(formatEther(volume))} ${nativeSymbol}`,
       age: formatAge(Number(row.token_created_at || 0)),
-      risk: row.launch_mode === "direct" ? "Direct DEX · LP locked" : status === "Graduated" ? "Adminless" : chainId === 8453 ? "B20 gated" : "Fixed-supply ERC-20",
+      risk: row.launch_mode === "direct" ? `${row.dex_provider === "ekubo" ? "Ekubo" : "Direct DEX"} · LP locked` : status === "Graduated" ? "Adminless" : chainId === 8453 ? "B20 gated" : "Fixed-supply ERC-20",
       price: "Live",
       marketCap: parseDbBigInt(row.current_market_cap_eth) > 0n
         ? `${trimEth(formatEther(parseDbBigInt(row.current_market_cap_eth)))} ${nativeSymbol}`
@@ -945,7 +946,7 @@ function mapTrades(rows: Array<Record<string, unknown>>, chainId: number): Deplo
   const nativeSymbol = chainId === 5042 ? "USDC" : chainId === 988 ? "USDT0" : chainId === 143 ? "MON" : "ETH";
   return rows.slice().reverse().map((row) => ({
     side: row.side === "sell" ? "sell" : "buy",
-    source: row.source === "uniswap_v4" ? "uniswap_v4" : "curve",
+    source: row.source === "uniswap_v4" ? "uniswap_v4" : row.source === "uniswap_v3" ? "uniswap_v3" : row.source === "ekubo" ? "ekubo" : "curve",
     trader: row.trader ? getAddress(String(row.trader)) as `0x${string}` : undefined,
     ethAmount: `${trimEth(formatEther(parseDbBigInt(row.eth_amount)))} ${nativeSymbol}`,
     tokenAmount: trimEth(formatEther(parseDbBigInt(row.token_amount))),

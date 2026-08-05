@@ -5,7 +5,7 @@ import Link from "next/link";
 import { decodeEventLog, erc20Abi, formatEther, parseEther, keccak256, toBytes, zeroAddress } from "viem";
 import { useAccount, usePublicClient, useReadContract, useWaitForTransactionReceipt, useWriteContract } from "wagmi";
 import { Check, CheckCircle2, ChevronLeft, ChevronRight, Coins, Copy, ExternalLink, ImagePlus, Info, LayoutDashboard, Loader2, LockKeyhole, Rocket, TimerReset, UploadCloud, X, Zap } from "@/components/bluefun-icons";
-import { ARC_FEE_POLICY, arcDirectLaunchFactoryAbi, arcFeePolicyAbi, contractsForChain, directLaunchFactoryAbi, launchEconomics, launchFactoryAbi } from "@/lib/contracts";
+import { ARC_FEE_POLICY, arcDirectLaunchFactoryAbi, arcFeePolicyAbi, contractsForChain, directLaunchFactoryAbi, ekuboDirectLaunchFactoryAbi, launchEconomics, launchFactoryAbi } from "@/lib/contracts";
 import { useSearchParams } from "next/navigation";
 import { NetworkIcon } from "@/components/network-icon";
 import { chainIdFromParam } from "@/lib/chain-slug";
@@ -34,6 +34,7 @@ function LaunchPageContent() {
   const [isStableApprovalLoading, setIsStableApprovalLoading] = useState(false);
   const [initialBuy, setInitialBuy] = useState("0");
   const [launchMode, setLaunchMode] = useState<"bond" | "direct">("bond");
+  const [dexProvider, setDexProvider] = useState<"uniswap" | "ekubo">("uniswap");
   const [confirmedLaunchId, setConfirmedLaunchId] = useState("");
   const [confirmedToken, setConfirmedToken] = useState("");
   const [showSuccess, setShowSuccess] = useState(false);
@@ -46,7 +47,12 @@ function LaunchPageContent() {
   const nativeSymbol = economics.nativeSymbol;
   const isErc20 = chain.id !== 8453;
   const isArc = activeChainId === 5042;
-  const selectedFactory = launchMode === "direct" ? addresses.directLaunchFactory : addresses.launchFactory;
+  const ekuboSupported = activeChainId === 8453 || activeChainId === 4663;
+  const ekuboReady = Boolean(addresses.ekuboDirectLaunchFactory && addresses.ekuboDirectLaunchFactory !== zeroAddress);
+  const useEkubo = launchMode === "direct" && dexProvider === "ekubo";
+  const selectedFactory = launchMode === "direct"
+    ? useEkubo ? addresses.ekuboDirectLaunchFactory : addresses.directLaunchFactory
+    : addresses.launchFactory;
   const selectedFactoryReady = Boolean(selectedFactory && selectedFactory !== zeroAddress);
   const { data: hash, error, writeContract, isPending } = useWriteContract();
   const stableApproval = useWriteContract();
@@ -54,17 +60,17 @@ function LaunchPageContent() {
   const receipt = useWaitForTransactionReceipt({ hash });
   const directLaunchFee = useReadContract({
     chainId: activeChainId,
-    address: addresses.directLaunchFactory,
-    abi: directLaunchFactoryAbi,
+    address: selectedFactory,
+    abi: useEkubo ? ekuboDirectLaunchFactoryAbi : directLaunchFactoryAbi,
     functionName: "launchFee",
-    query: { enabled: launchMode === "direct" && addresses.directLaunchFactory !== zeroAddress }
+    query: { enabled: launchMode === "direct" && Boolean(selectedFactory && selectedFactory !== zeroAddress) }
   });
   const directLaunchConfigHash = useReadContract({
     chainId: activeChainId,
-    address: addresses.directLaunchFactory,
-    abi: directLaunchFactoryAbi,
+    address: selectedFactory,
+    abi: useEkubo ? ekuboDirectLaunchFactoryAbi : directLaunchFactoryAbi,
     functionName: "launchConfigHash",
-    query: { enabled: !isArc && launchMode === "direct" && addresses.directLaunchFactory !== zeroAddress }
+    query: { enabled: !isArc && launchMode === "direct" && Boolean(selectedFactory && selectedFactory !== zeroAddress) }
   });
   const directLaunchConfig = useReadContract({
     chainId: activeChainId,
@@ -86,9 +92,9 @@ function LaunchPageContent() {
   const salt = useMemo(() => keccak256(toBytes(`${name}:${symbol}:${Date.now()}`)), [name, symbol]);
   const initialBuyEth = parsePositiveEther(initialBuy);
   const estimatedInitialTokens = useMemo(() => {
-    if (isArc || launchMode !== "direct" || !directLaunchConfig.data || initialBuyEth === 0n) return 0n;
+    if (isArc || useEkubo || launchMode !== "direct" || !directLaunchConfig.data || initialBuyEth === 0n) return 0n;
     return estimateDirectInitialBuyTokens(initialBuyEth, directLaunchConfig.data[2], directLaunchConfig.data[3]);
-  }, [directLaunchConfig.data, initialBuyEth, isArc, launchMode]);
+  }, [directLaunchConfig.data, initialBuyEth, isArc, launchMode, useEkubo]);
   const initialBuyError = launchMode === "direct"
     ? (activeChainId === 988 || isArc) && initialBuyEth % 1_000_000_000_000n !== 0n
       ? `${nativeSymbol} first buys support no more than 6 decimal places.`
@@ -145,11 +151,11 @@ function LaunchPageContent() {
     for (const log of receipt.data.logs) {
       try {
         const decoded = decodeEventLog({
-          abi: launchMode === "direct" ? (isArc ? arcDirectLaunchFactoryAbi : directLaunchFactoryAbi) : launchFactoryAbi,
+          abi: launchMode === "direct" ? (isArc ? arcDirectLaunchFactoryAbi : useEkubo ? ekuboDirectLaunchFactoryAbi : directLaunchFactoryAbi) : launchFactoryAbi,
           data: log.data,
           topics: log.topics
         });
-        if (decoded.eventName === "LaunchCreated" || decoded.eventName === "DirectLaunchCreated" || decoded.eventName === "ArcDirectLaunchCreated") {
+        if (decoded.eventName === "LaunchCreated" || decoded.eventName === "DirectLaunchCreated" || decoded.eventName === "ArcDirectLaunchCreated" || decoded.eventName === "EkuboDirectLaunchCreated") {
           const launchId = decoded.args.launchId.toString();
           setConfirmedLaunchId(launchId);
           setConfirmedToken(decoded.args.token);
@@ -159,7 +165,7 @@ function LaunchPageContent() {
         // Ignore unrelated logs.
       }
     }
-  }, [receipt.isSuccess, receipt.data?.logs, confirmedLaunchId, isArc, launchMode]);
+  }, [receipt.isSuccess, receipt.data?.logs, confirmedLaunchId, isArc, launchMode, useEkubo]);
 
   async function submit() {
     if (!selectedFactory || !selectedFactoryReady || disabled || !isConnected) return;
@@ -197,6 +203,19 @@ function LaunchPageContent() {
         return;
       }
       if (!directLaunchConfigHash.data) return;
+      if (useEkubo) {
+        writeContract({
+          chainId: activeChainId,
+          address: selectedFactory,
+          abi: ekuboDirectLaunchFactoryAbi,
+          functionName: initialBuyEth > 0n ? "createLaunchWithInitialBuy" : "createLaunch",
+          args: initialBuyEth > 0n
+            ? [metadata, directLaunchConfigHash.data, deadline, 0n]
+            : [metadata, directLaunchConfigHash.data, deadline],
+          value: totalLaunchValue
+        });
+        return;
+      }
       const isStableInitialBuy = activeChainId === 988 && initialBuyEth > 0n;
       const initialBuyUSDT0 = initialBuyEth / 1_000_000_000_000n;
       if (isStableInitialBuy) {
@@ -301,7 +320,7 @@ function LaunchPageContent() {
           <h1>Issue a market.<br />Not a promise.</h1>
           <p className="muted">
             {launchMode === "direct"
-              ? `Create the token and its permanently locked Uniswap ${dexVersion} market in one transaction.`
+              ? `Create the token and its permanently locked ${useEkubo ? "Ekubo" : `Uniswap ${dexVersion}`} market in one transaction.`
               : "Add metadata, choose an optional first buy, and publish directly to the bonding curve."}
           </p>
           <div className="launch-preview-card">
@@ -315,9 +334,15 @@ function LaunchPageContent() {
             </div>
             <div className="launch-preview-stat">
               <span>{launchMode === "direct" ? "Route" : "Target"}</span>
-              <strong>{launchMode === "direct" ? `Uniswap ${dexVersion}` : `${economics.graduationTarget} ${nativeSymbol}`}</strong>
+              <strong>{launchMode === "direct" ? useEkubo ? "Ekubo" : `Uniswap ${dexVersion}` : `${economics.graduationTarget} ${nativeSymbol}`}</strong>
             </div>
           </div>
+          {launchMode === "direct" && ekuboSupported ? (
+            <div className="launch-mode-picker" role="radiogroup" aria-label="DEX provider">
+              <button aria-checked={dexProvider === "uniswap"} className={dexProvider === "uniswap" ? "active" : ""} disabled={isWorking} onClick={() => setDexProvider("uniswap")} role="radio" type="button"><span><strong>Uniswap</strong><small>Existing locked market route</small></span>{dexProvider === "uniswap" ? <CheckCircle2 size={17} /> : null}</button>
+              <button aria-checked={dexProvider === "ekubo"} className={dexProvider === "ekubo" ? "active" : ""} disabled={isWorking || !ekuboReady} onClick={() => setDexProvider("ekubo")} role="radio" type="button"><span><strong>Ekubo</strong><small>{ekuboReady ? "Concentrated liquidity · LP locked" : "Deployment pending"}</small></span>{dexProvider === "ekubo" ? <CheckCircle2 size={17} /> : null}</button>
+            </div>
+          ) : null}
         </div>
         <section className="launch-feature-grid">
           <div><Coins /><span><strong>1B fixed supply</strong><small>0% creator allocation</small></span></div>
@@ -429,7 +454,7 @@ function LaunchPageContent() {
                   <div><dt>Token standard</dt><dd>{isErc20 ? "ERC-20" : "B20"}</dd></div>
                   <div><dt>Supply / creator allocation</dt><dd>1B / 0%</dd></div>
                   <div><dt>Trading fee</dt><dd>1% total</dd></div>
-                  <div><dt>Launch route</dt><dd>{launchMode === "direct" ? `Immediate locked Uniswap ${dexVersion} pool` : `${economics.graduationTarget} ${nativeSymbol} bond → Uniswap v4`}</dd></div>
+                  <div><dt>Launch route</dt><dd>{launchMode === "direct" ? `Immediate locked ${useEkubo ? "Ekubo" : `Uniswap ${dexVersion}`} pool` : `${economics.graduationTarget} ${nativeSymbol} bond → Uniswap v4`}</dd></div>
                   <div><dt>Launch fee</dt><dd>{formatEth(launchFeeEth)} {nativeSymbol}</dd></div>
                   <div><dt>Initial buy</dt><dd>{formatEth(initialBuyEth)} {nativeSymbol}{launchMode === "direct" && estimatedInitialTokens > 0n ? ` · ≈ ${formatTokenEstimate(estimatedInitialTokens)} $${symbol.trim() || "TOKEN"}` : ""}</dd></div>
                 </dl>
@@ -446,6 +471,7 @@ function LaunchPageContent() {
       {receipt.isSuccess && showSuccess ? (
         <LaunchSuccessModal
           activeChainId={activeChainId}
+          dexProvider={dexProvider}
           hasInitialBuy={initialBuyEth > 0n}
           imagePreview={imagePreview}
           launchId={confirmedLaunchId}
@@ -465,6 +491,7 @@ function LaunchPageContent() {
 
 function LaunchSuccessModal({
   activeChainId,
+  dexProvider,
   hasInitialBuy,
   imagePreview,
   launchId,
@@ -478,6 +505,7 @@ function LaunchSuccessModal({
   transactionHash
 }: {
   activeChainId: number;
+  dexProvider: "uniswap" | "ekubo";
   hasInitialBuy: boolean;
   imagePreview: string;
   launchId: string;
@@ -494,9 +522,10 @@ function LaunchSuccessModal({
   const [copied, setCopied] = useState(false);
   const tokenExplorerHref = token ? `${chain.blockExplorers.default.url}/token/${token}` : "";
   const transactionHref = transactionHash ? `${chain.blockExplorers.default.url}/tx/${transactionHash}` : "";
+  const dexName = dexProvider === "ekubo" ? "Ekubo" : "Uniswap";
   const items = [
     { label: "Token deployed", done: Boolean(token) },
-    { label: launchMode === "direct" ? "Uniswap pool created" : "Bonding curve activated", done: Boolean(launchId) },
+    { label: launchMode === "direct" ? `${dexName} pool created` : "Bonding curve activated", done: Boolean(launchId) },
     { label: "Metadata pinned", done: metadataReady },
     { label: launchMode === "direct" ? "LP locked permanently" : hasInitialBuy ? "Initial buy processed" : "Market opened fairly", done: Boolean(launchId) }
   ];
@@ -529,7 +558,7 @@ function LaunchSuccessModal({
           <div className="launch-success-mascot"><img alt="" src="/illustrations/bluefun/success.webp" /></div>
           <span>Launch confirmed</span>
           <h2 id="launch-success-title">Your market is live.</h2>
-          <p>{launchMode === "direct" ? "The token and permanently locked Uniswap market are live." : "The token and bonding curve are active. Trading can begin immediately."}</p>
+          <p>{launchMode === "direct" ? `The token and permanently locked ${dexName} market are live.` : "The token and bonding curve are active. Trading can begin immediately."}</p>
         </header>
 
         <div className="launch-success-token">

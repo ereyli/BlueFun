@@ -4,6 +4,8 @@ import { monadChain } from "@/lib/monad-chain";
 import { stableChain } from "@/lib/stable-chain";
 import { arcChain } from "@/lib/arc-chain";
 
+const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000" as const;
+
 export const chain = baseChain;
 
 export const blueStakingAddresses = {
@@ -28,6 +30,10 @@ export type ContractDeployment = {
   directLaunchFactory?: `0x${string}`;
   directLiquidityLocker?: `0x${string}`;
   directDeploymentBlock?: bigint;
+  ekuboDirectLaunchFactory?: `0x${string}`;
+  ekuboLiquidityLocker?: `0x${string}`;
+  ekuboSwapRouter?: `0x${string}`;
+  ekuboDeploymentBlock?: bigint;
   feeHook?: `0x${string}`;
 };
 
@@ -77,6 +83,10 @@ const VNEXT_BASE_DEPLOYMENT: ContractDeployment = {
   directLiquidityLocker: (process.env.NEXT_PUBLIC_BASE_DIRECT_LIQUIDITY_LOCKER
     || "0x857f7d11474235d8cafd79826d4d2e0d2b7dabd7") as `0x${string}`,
   directDeploymentBlock: BigInt(process.env.NEXT_PUBLIC_BASE_DIRECT_DEPLOYMENT_BLOCK || "48678791"),
+  ekuboDirectLaunchFactory: (process.env.NEXT_PUBLIC_BASE_EKUBO_DIRECT_LAUNCH_FACTORY || "0xf9c9e5c44023483ec3af3be0d07e20ad3d6df72f") as `0x${string}`,
+  ekuboLiquidityLocker: (process.env.NEXT_PUBLIC_BASE_EKUBO_LIQUIDITY_LOCKER || "0xf6545a701a8cbe80d573043e8ffb8210de913d28") as `0x${string}`,
+  ekuboSwapRouter: (process.env.NEXT_PUBLIC_BASE_EKUBO_SWAP_ROUTER || "0x2d1e48fb40f00ed48f2e16df4a7a587fd063d177") as `0x${string}`,
+  ekuboDeploymentBlock: BigInt(process.env.NEXT_PUBLIC_BASE_EKUBO_DEPLOYMENT_BLOCK || "49571565"),
   feeHook: "0xf0b8dde19510ee7d6d50be289c4257ecd14c60cc"
 };
 
@@ -89,6 +99,10 @@ export const addresses = {
   directLaunchFactory: VNEXT_BASE_DEPLOYMENT.directLaunchFactory,
   directLiquidityLocker: VNEXT_BASE_DEPLOYMENT.directLiquidityLocker,
   directDeploymentBlock: VNEXT_BASE_DEPLOYMENT.directDeploymentBlock,
+  ekuboDirectLaunchFactory: VNEXT_BASE_DEPLOYMENT.ekuboDirectLaunchFactory,
+  ekuboLiquidityLocker: VNEXT_BASE_DEPLOYMENT.ekuboLiquidityLocker,
+  ekuboSwapRouter: VNEXT_BASE_DEPLOYMENT.ekuboSwapRouter,
+  ekuboDeploymentBlock: VNEXT_BASE_DEPLOYMENT.ekuboDeploymentBlock,
   activationRegistry: "0x8453000000000000000000000000000000000001" as `0x${string}`,
   deploymentBlock: VNEXT_BASE_DEPLOYMENT.deploymentBlock,
   firstLaunchId: VNEXT_BASE_DEPLOYMENT.firstLaunchId
@@ -140,6 +154,10 @@ export const robinhoodAddresses: ContractDeployment = {
   directLiquidityLocker: (process.env.NEXT_PUBLIC_ROBINHOOD_DIRECT_LIQUIDITY_LOCKER
     || "0x8550c8f626993ffb58a884cb4e9b5b8a9ee2bdf6") as `0x${string}`,
   directDeploymentBlock: BigInt(process.env.NEXT_PUBLIC_ROBINHOOD_DIRECT_DEPLOYMENT_BLOCK || "10703400"),
+  ekuboDirectLaunchFactory: (process.env.NEXT_PUBLIC_ROBINHOOD_EKUBO_DIRECT_LAUNCH_FACTORY || "0x1c3ab233d0e39ab95712437388ce1bc670be4042") as `0x${string}`,
+  ekuboLiquidityLocker: (process.env.NEXT_PUBLIC_ROBINHOOD_EKUBO_LIQUIDITY_LOCKER || "0x5fe8c58a281e687a7a081f1e37033309578dc419") as `0x${string}`,
+  ekuboSwapRouter: (process.env.NEXT_PUBLIC_ROBINHOOD_EKUBO_SWAP_ROUTER || "0xc98dbb07aeaa256012eff79a4739b1c80d39d61e") as `0x${string}`,
+  ekuboDeploymentBlock: BigInt(process.env.NEXT_PUBLIC_ROBINHOOD_EKUBO_DEPLOYMENT_BLOCK || "28414685"),
   feeHook: "0x4c77a461669c0345960dd33d415747c8932f60cc"
 };
 
@@ -165,7 +183,6 @@ export const monadAddresses: ContractDeployment = {
 };
 
 const MONAD_DEPLOYMENT = monadAddresses;
-const ZERO_ADDRESS = "0x0000000000000000000000000000000000000000" as const;
 
 export const stableAddresses: ContractDeployment = {
   version: "vnext",
@@ -379,6 +396,21 @@ export function indexerScopesForChain(chainId: number | undefined) {
       }
     });
   }
+  const ekubo = resolvedChainId === robinhoodChain.id ? robinhoodAddresses : resolvedChainId === baseChain.id ? VNEXT_BASE_DEPLOYMENT : undefined;
+  if (ekubo?.ekuboDirectLaunchFactory && ekubo.ekuboDirectLaunchFactory !== ZERO_ADDRESS && ekubo.ekuboDeploymentBlock) {
+    contexts.push({
+      scope: `${resolvedChainId}:direct:${ekubo.ekuboDirectLaunchFactory.toLowerCase()}:${ekubo.ekuboDeploymentBlock.toString()}`,
+      deployment: {
+        ...ekubo,
+        launchFactory: ekubo.ekuboDirectLaunchFactory,
+        bondingCurveMarket: ZERO_ADDRESS,
+        graduationManager: ZERO_ADDRESS,
+        liquidityLocker: ekubo.ekuboLiquidityLocker || ZERO_ADDRESS,
+        deploymentBlock: ekubo.ekuboDeploymentBlock,
+        firstLaunchId: 1_000_001n
+      }
+    });
+  }
   return contexts;
 }
 
@@ -404,7 +436,8 @@ export function isVNextLiquidityLocker(chainId: number, locker?: string) {
     ? MONAD_DEPLOYMENT
     : chainId === robinhoodChain.id ? robinhoodAddresses : VNEXT_BASE_DEPLOYMENT;
   return value === deployment.liquidityLocker.toLowerCase()
-    || value === deployment.directLiquidityLocker?.toLowerCase();
+    || value === deployment.directLiquidityLocker?.toLowerCase()
+    || value === deployment.ekuboLiquidityLocker?.toLowerCase();
 }
 
 export const FAIR_GRADUATION_TARGET_ETH = "5";
@@ -684,6 +717,56 @@ export const directLaunchFactoryAbi = [
       { name: "positionId", type: "bytes32" }
     ]
   }
+] as const;
+
+export const ekuboDirectLaunchFactoryAbi = [
+  {
+    type: "event", name: "EkuboDirectLaunchCreated", inputs: [
+      { indexed: true, name: "launchId", type: "uint256" },
+      { indexed: true, name: "token", type: "address" },
+      { indexed: true, name: "creator", type: "address" },
+      { indexed: false, name: "poolId", type: "bytes32" },
+      { indexed: false, name: "positionId", type: "bytes32" },
+      { indexed: false, name: "tickSpacing", type: "uint32" },
+      { indexed: false, name: "name", type: "string" },
+      { indexed: false, name: "symbol", type: "string" },
+      { indexed: false, name: "contractURI", type: "string" }
+    ]
+  },
+  { type: "function", name: "launchFee", stateMutability: "view", inputs: [], outputs: [{ name: "", type: "uint256" }] },
+  { type: "function", name: "launchConfigHash", stateMutability: "view", inputs: [], outputs: [{ name: "", type: "bytes32" }] },
+  {
+    type: "function", name: "createLaunch", stateMutability: "payable",
+    inputs: [
+      { name: "metadata", type: "tuple", components: [
+        { name: "name", type: "string" }, { name: "symbol", type: "string" },
+        { name: "contractURI", type: "string" }, { name: "salt", type: "bytes32" }
+      ] },
+      { name: "expectedConfigHash", type: "bytes32" }, { name: "deadline", type: "uint256" }
+    ],
+    outputs: [{ name: "launchId", type: "uint256" }, { name: "token", type: "address" }, { name: "poolId", type: "bytes32" }, { name: "positionId", type: "bytes32" }]
+  },
+  {
+    type: "function", name: "createLaunchWithInitialBuy", stateMutability: "payable",
+    inputs: [
+      { name: "metadata", type: "tuple", components: [
+        { name: "name", type: "string" }, { name: "symbol", type: "string" },
+        { name: "contractURI", type: "string" }, { name: "salt", type: "bytes32" }
+      ] },
+      { name: "expectedConfigHash", type: "bytes32" }, { name: "deadline", type: "uint256" },
+      { name: "minimumTokensOut", type: "uint128" }
+    ],
+    outputs: [{ name: "launchId", type: "uint256" }, { name: "token", type: "address" }, { name: "poolId", type: "bytes32" }, { name: "positionId", type: "bytes32" }]
+  }
+] as const;
+
+export const ekuboRouterAbi = [
+  { type: "function", name: "quoteBuy", stateMutability: "nonpayable", inputs: [{ name: "token", type: "address" }, { name: "grossNativeIn", type: "uint128" }], outputs: [{ name: "tokensOut", type: "uint128" }] },
+  { type: "function", name: "quoteSell", stateMutability: "nonpayable", inputs: [{ name: "token", type: "address" }, { name: "grossTokenIn", type: "uint128" }], outputs: [{ name: "nativeOut", type: "uint128" }] },
+  { type: "function", name: "buy", stateMutability: "payable", inputs: [{ name: "token", type: "address" }, { name: "minimumTokensOut", type: "uint128" }, { name: "recipient", type: "address" }], outputs: [{ name: "tokensOut", type: "uint128" }] },
+  { type: "function", name: "sell", stateMutability: "nonpayable", inputs: [{ name: "token", type: "address" }, { name: "grossTokenIn", type: "uint128" }, { name: "minimumNativeOut", type: "uint128" }, { name: "recipient", type: "address" }], outputs: [{ name: "nativeOut", type: "uint128" }] },
+  { type: "function", name: "pendingCreatorRevenue", stateMutability: "view", inputs: [{ name: "creator", type: "address" }], outputs: [{ name: "amount", type: "uint256" }] },
+  { type: "function", name: "claimCreatorRevenue", stateMutability: "nonpayable", inputs: [{ name: "recipient", type: "address" }], outputs: [{ name: "amount", type: "uint256" }] }
 ] as const;
 
 export const arcDirectLaunchFactoryAbi = [

@@ -1,0 +1,48 @@
+{
+  "network": "Base Mainnet",
+  "chainId": 8453,
+  "deploymentBlock": 49571565,
+  "deployer": "0xd5bc4D80797ddAEBd91282659Eb79ABaf659B47C",
+  "owner": "0xA7DEa156cD6a0a8D5e0c25e94e20E670b426cF26",
+  "contracts": {
+    "extension": "0x413f1995eea74340bf300156e63d84b5546e1a56",
+    "swapRouter": "0x2d1e48fb40f00ed48f2e16df4a7a587fd063d177",
+    "liquidityLocker": "0xf6545a701a8cbe80d573043e8ffb8210de913d28",
+    "directLaunchFactory": "0xf9c9e5c44023483ec3af3be0d07e20ad3d6df72f"
+  },
+  "ekubo": {
+    "core": "0x00000000000014aA86C5d3c41765bb24e11bd701",
+    "positions": "0x02D9876A21AF7545f8632C3af76eC90b5ad4b66D",
+    "tickSpacing": 20000,
+    "poolFee": 0
+  },
+  "economics": {
+    "launchFeeNativeWei": "1000000000000000",
+    "buyPlatformFeeBps": 70,
+    "buyCreatorFeeBps": 30,
+    "sellPlatformFeeBps": 70,
+    "sellBurnFeeBps": 30,
+    "maximumCreatorInitialBuyBpsOfSupply": 500
+  },
+  "deploymentTransactions": [
+    "0x064d6442c49c73fde81058074546b80e18020086d8a254ddbb56ceac6db909c1",
+    "0x39d70bc8e33920825ff11d9e48f6d4aedf70758af564dfbd0861944a82410699",
+    "0xb092b08278ee3935f353b6820788b83dca5686b92ee128c47851803eb323ae8e",
+    "0xeaf3f3fd77aa380993f76005c47e5ea396660fa743cadf1e3e7ca6eb774d5251",
+    "0x093ab364f7e992261fdab71fd318367db97243b03ba43fe05265aa81993dca2b",
+    "0xba273c712a4f15c2a00111358bbed69c059ec8d30953682b450c1af2ea2c01b4",
+    "0xb9bf4186f3d65cf07a2ada634663f650fa540e22409f4e5b1cde5e2c61c6686d"
+  ],
+  "verification": {
+    "liveMascot": {
+      "name": "Basie the Blockcat",
+      "symbol": "BASIE",
+      "launchId": 1000001,
+      "token": "0xb20000000000000000000010c822aa94cb700e2a",
+      "metadata": "ipfs://QmRD9FLDpffBgWayWuLJ9VUJpsNxS4VcARbWWxAzpiVDaM",
+      "launchAndBuyTx": "0xb983df1841e70a5da25ea2f411cd6bebbc6e8e707b4ef20d227362e20019e7ee",
+      "approvalTx": "0x840e0faad1765113f748333df81ac9a07921807d2cdff12e7ed0cdc494752718",
+      "sellTx": "0xc85a6632e7b55a89f7f30d132acb0908767c3a30cfc3406a25e6c5640077e84c"
+    }
+  }
+}

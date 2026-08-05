@@ -7,7 +7,7 @@ import { formatEther, formatUnits, zeroAddress } from "viem";
 import { useAccount, useReadContracts, useSwitchChain, useWriteContract } from "wagmi";
 import { ArrowUpRight, BarChart3, Coins, ExternalLink, Flame, Layers3, Loader2, LockKeyhole, RefreshCw, Rocket, Sparkles, Wallet, WalletCards } from "@/components/bluefun-icons";
 import { NetworkIcon, networkMeta } from "@/components/network-icon";
-import { arcUniswapV3Addresses, b20TokenAbi, bondingCurveAbi, deploymentsForChain, feeSharingLockerAbi, indexerScopeForDeployment, isVNextLiquidityLocker, stableUniswapV3Addresses, unifiedFeeHookAbi } from "@/lib/contracts";
+import { arcUniswapV3Addresses, b20TokenAbi, bondingCurveAbi, deploymentsForChain, ekuboRouterAbi, feeSharingLockerAbi, indexerScopeForDeployment, isVNextLiquidityLocker, stableUniswapV3Addresses, unifiedFeeHookAbi } from "@/lib/contracts";
 import type { WalletDashboardData, WalletTradeSummary } from "@/lib/dashboard-types";
 import type { DeployedLaunch } from "@/lib/onchain-launches";
 import { optimizedTokenImageUrl } from "@/lib/token-metadata";
@@ -105,6 +105,20 @@ export function CreatorDashboard() {
     });
   }, [data.created]);
 
+  const ekuboSources = useMemo(() => {
+    const seen = new Set<string>();
+    return data.created.flatMap((launch) => {
+      if (launch.dexProvider !== "ekubo") return [];
+      const deployment = deploymentsForChain(launch.chainId)
+        .find((candidate) => candidate.ekuboSwapRouter && candidate.ekuboSwapRouter !== zeroAddress);
+      if (!deployment?.ekuboSwapRouter) return [];
+      const key = `${launch.chainId}:${deployment.ekuboSwapRouter.toLowerCase()}`;
+      if (seen.has(key)) return [];
+      seen.add(key);
+      return [{ chainId: launch.chainId, address: deployment.ekuboSwapRouter }];
+    });
+  }, [data.created]);
+
   const bondFees = useReadContracts({
     contracts: feeSources.map((source) => ({ chainId: source.chainId, address: source.address, abi: bondingCurveAbi, functionName: "pendingFees", args: [address!] })),
     query: { enabled: Boolean(address && feeSources.length) }
@@ -116,6 +130,10 @@ export function CreatorDashboard() {
   const hookCreatorFees = useReadContracts({
     contracts: hookSources.map((source) => ({ chainId: source.chainId, address: source.address, abi: unifiedFeeHookAbi, functionName: "pendingCreatorRevenue", args: [address!] })),
     query: { enabled: Boolean(address && hookSources.length) }
+  });
+  const ekuboCreatorFees = useReadContracts({
+    contracts: ekuboSources.map((source) => ({ chainId: source.chainId, address: source.address, abi: ekuboRouterAbi, functionName: "pendingCreatorRevenue", args: [address!] })),
+    query: { enabled: Boolean(address && ekuboSources.length) }
   });
   const balances = useReadContracts({
     contracts: data.traded.map(({ launch }) => ({ chainId: launch.chainId, address: launch.token, abi: b20TokenAbi, functionName: "balanceOf", args: [address!] })),
@@ -141,7 +159,8 @@ export function CreatorDashboard() {
     return sum + (source.chainId === 988 || source.chainId === 5042 ? amount * 1_000_000_000_000n : amount);
   }, 0n);
   const pendingHookCreator = sumReadResults(hookCreatorFees.data);
-  const totalPending = pendingBond + pendingLpNative + pendingHookCreator;
+  const pendingEkuboCreator = sumReadResults(ekuboCreatorFees.data);
+  const totalPending = pendingBond + pendingLpNative + pendingHookCreator + pendingEkuboCreator;
   const totalVolume = data.created.reduce((sum, launch) => sum + parseDisplayEth(launch.volume), 0);
   const nativeSymbols = new Set(data.created.map((launch) => networkMeta(launch.chainId).symbol));
   const portfolioSymbol = nativeSymbols.size === 1 ? Array.from(nativeSymbols)[0] : undefined;
@@ -159,6 +178,7 @@ export function CreatorDashboard() {
         void bondFees.refetch();
         void lockerNativeFees.refetch();
         void hookCreatorFees.refetch();
+        void ekuboCreatorFees.refetch();
         void feeRevenue.refetch();
         void tokenPending.refetch();
       }, 5000);
@@ -232,6 +252,12 @@ export function CreatorDashboard() {
                   if (amount === 0n) return null;
                   const key = `hook:${source.chainId}:${source.address}`;
                   return <FeeRow key={key} chainId={source.chainId} label="Creator buy fees" detail="vNext · native currency" amount={`${formatNative(amount)} ${networkMeta(source.chainId).symbol}`} pending={action.key === key} onClaim={() => submitAction(key, source.chainId, { chainId: source.chainId, address: source.address, abi: unifiedFeeHookAbi, functionName: "claimCreatorRevenue", args: [address] })} />;
+                })}
+                {ekuboSources.map((source, index) => {
+                  const amount = readBigInt(ekuboCreatorFees.data?.[index]);
+                  if (amount === 0n) return null;
+                  const key = `ekubo:${source.chainId}:${source.address}`;
+                  return <FeeRow key={key} chainId={source.chainId} label="Creator buy fees" detail="Ekubo · native currency" amount={`${formatNative(amount)} ${networkMeta(source.chainId).symbol}`} pending={action.key === key} onClaim={() => submitAction(key, source.chainId, { chainId: source.chainId, address: source.address, abi: ekuboRouterAbi, functionName: "claimCreatorRevenue", args: [address] })} />;
                 })}
                 {totalPending === 0n ? <EmptyCompact icon={<LockKeyhole size={19} />} title="No fees ready yet" text="New creator fees will appear here as trades happen." /> : null}
               </div>
