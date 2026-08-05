@@ -20,6 +20,7 @@ import { BlueFunState } from "@/components/bluefun-state";
 import { isUiPreviewLaunch } from "@/lib/ui-preview-data";
 import { MARKET_PAGE_SIZE } from "@/lib/market-pagination";
 import { BrandLaunchpadMenu } from "@/components/brand-launchpad-menu";
+import { DexProviderIcon, type DexProvider } from "@/components/dex-provider-icon";
 
 type MarketCategory = "All" | "Progress" | "Direct";
 type MarketSort = "Activity" | "Newest" | "Volume" | "MarketCap";
@@ -406,7 +407,7 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, chain
           ) : (
           <div className={`reference-market-table${isPageLoading ? " page-loading" : ""}`} aria-busy={isPageLoading}>
             <div className="reference-market-table-head" aria-hidden="true">
-              <span>Token</span><span>Network</span><span>Age</span><span>24h chart</span><span>Market cap</span><span>Liquidity</span><span>24h volume</span><span>Risk</span><span>Trade</span>
+              <span>Token</span><span>Network</span><span>Age</span><span>24h chart</span><span>Market cap</span><span>Liquidity</span><span>24h volume</span><span>Venue</span><span>Trade</span>
             </div>
             {displayedLaunches.map((launch, index) => {
             const direct = launch.launchMode === "direct";
@@ -428,6 +429,9 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, chain
             const sparkline = marketSparklines.get(key);
             const tradeCount = (sparkline?.buys ?? 0) + (sparkline?.sells ?? 0);
             const positive = (sparkline?.changePercent ?? 0) >= 0;
+            const venue: DexProvider | undefined = direct
+              ? launch.dexProvider === "ekubo" ? "ekubo" : "uniswap"
+              : launch.status === "Graduated" ? "uniswap" : undefined;
             return (
             <article className={`reference-market-row${isHot ? " activity-hot" : ""}`} key={`${launch.chainId}-${launch.id}-${launch.token}`}>
               <Link className="reference-token-cell" href={tokenPath(launch)}>
@@ -440,7 +444,9 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, chain
               <span className="reference-value-cell"><strong>{marketCap}</strong>{sparkline ? <small className={positive ? "positive" : "negative"}>{positive ? "↗" : "↘"} {Math.abs(sparkline.changePercent).toFixed(2)}% · 24h</small> : <small>Latest indexed value</small>}</span>
               <span className="reference-value-cell"><strong>{liquidity}</strong><small>{direct || launch.status === "Graduated" ? "LP liquidity" : `${launch.progress}% bonding`}</small></span>
               <span className="reference-value-cell"><strong>{volume}</strong><small>{tradeCount ? `${tradeCount} indexed trades` : "No 24h trades"}</small></span>
-              <span className="reference-risk-cell"><strong className={launch.risk.toLowerCase().includes("high") ? "warn" : ""}>{launch.risk || "Low risk"}</strong><small>{launch.holders || "Indexed"} holders</small></span>
+              <span className="reference-dex-cell">
+                {venue ? <><DexProviderIcon provider={venue} size={22} /><span><strong>{venue === "ekubo" ? "Ekubo" : "Uniswap"}</strong><small>{direct ? "Direct · LP locked" : "Graduated pool"}</small></span></> : <><i className="reference-bond-dot" /><span><strong>Bonding</strong><small>Curve active</small></span></>}
+              </span>
               <Link className="reference-buy-button" href={tokenPath(launch)}>Buy</Link>
             </article>
             );

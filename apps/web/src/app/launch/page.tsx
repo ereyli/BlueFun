@@ -4,13 +4,14 @@ import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { decodeEventLog, erc20Abi, formatEther, parseEther, keccak256, toBytes, zeroAddress } from "viem";
 import { useAccount, usePublicClient, useReadContract, useWaitForTransactionReceipt, useWriteContract } from "wagmi";
-import { Check, CheckCircle2, ChevronLeft, ChevronRight, Coins, Copy, ExternalLink, ImagePlus, Info, LayoutDashboard, Loader2, LockKeyhole, Rocket, TimerReset, UploadCloud, X, Zap } from "@/components/bluefun-icons";
+import { Check, CheckCircle2, ChevronLeft, ChevronRight, Copy, ExternalLink, ImagePlus, Info, LayoutDashboard, Loader2, Rocket, TimerReset, UploadCloud, X, Zap } from "@/components/bluefun-icons";
 import { ARC_FEE_POLICY, arcDirectLaunchFactoryAbi, arcFeePolicyAbi, contractsForChain, directLaunchFactoryAbi, ekuboDirectLaunchFactoryAbi, launchEconomics, launchFactoryAbi } from "@/lib/contracts";
 import { useSearchParams } from "next/navigation";
 import { NetworkIcon } from "@/components/network-icon";
 import { chainIdFromParam } from "@/lib/chain-slug";
 import { tokenPath } from "@/lib/token-url";
 import { BlueFunState } from "@/components/bluefun-state";
+import { DexProviderIcon } from "@/components/dex-provider-icon";
 
 export default function LaunchPage() {
   return <Suspense fallback={<BlueFunState title="Preparing launch studio" text="Loading the selected network and market configuration." variant="loading" />}><LaunchPageContent /></Suspense>;
@@ -312,49 +313,30 @@ function LaunchPageContent() {
   }
 
   return (
-    <div className="launch-page">
+    <div className="launch-page launch-page-streamlined">
       <section className="launch-intro">
         <div className="launch-hero-panel">
-          <div className="launch-signal-kicker"><i />Issue desk / B20 <span>Live</span></div>
+          <div className="launch-signal-kicker"><i />B20 launchpad <span>Live</span></div>
           <div className="launch-network-chip"><NetworkIcon chainId={activeChainId} size={22} /><span>Launching on <strong>{chain.name}</strong></span></div>
-          <h1>Issue a market.<br />Not a promise.</h1>
-          <p className="muted">
-            {launchMode === "direct"
-              ? `Create the token and its permanently locked ${useEkubo ? "Ekubo" : `Uniswap ${dexVersion}`} market in one transaction.`
-              : "Add metadata, choose an optional first buy, and publish directly to the bonding curve."}
-          </p>
-          <div className="launch-preview-card">
-            <div className="launch-preview-art">
+          <h1>Launch<br />onchain.</h1>
+          <p className="muted">Create your token and open its market in one transaction.</p>
+          <div className="launch-hero-summary">
+            <div className="launch-hero-art">
               {imagePreview ? <img src={imagePreview} alt="Token preview" /> : <Rocket size={36} />}
             </div>
-            <div>
-              <span className="muted">Launch manifest</span>
-              <h2>{name.trim() || (isErc20 ? "Your ERC-20 token" : "Your B20 token")}</h2>
-              <p className="muted">${symbol.trim() || "SYMBOL"} · {launchMode === "direct" ? "DEX live immediately" : "fair curve"} · first buy {initialBuy || "0"} {nativeSymbol} · fee {formatEth(launchFeeEth)} {nativeSymbol}</p>
+            <div className="launch-hero-token">
+              <small>{symbol.trim() ? `$${symbol.trim()}` : isErc20 ? "ERC-20" : "B20"}</small>
+              <strong>{name.trim() || "Your token"}</strong>
             </div>
-            <div className="launch-preview-stat">
-              <span>{launchMode === "direct" ? "Route" : "Target"}</span>
-              <strong>{launchMode === "direct" ? useEkubo ? "Ekubo" : `Uniswap ${dexVersion}` : `${economics.graduationTarget} ${nativeSymbol}`}</strong>
-            </div>
+            <span className="launch-hero-route">{launchMode === "direct" ? useEkubo ? "Ekubo" : `Uniswap ${dexVersion}` : "Bond"}</span>
           </div>
-          {launchMode === "direct" && ekuboSupported ? (
-            <div className="launch-mode-picker" role="radiogroup" aria-label="DEX provider">
-              <button aria-checked={dexProvider === "uniswap"} className={dexProvider === "uniswap" ? "active" : ""} disabled={isWorking} onClick={() => setDexProvider("uniswap")} role="radio" type="button"><span><strong>Uniswap</strong><small>Existing locked market route</small></span>{dexProvider === "uniswap" ? <CheckCircle2 size={17} /> : null}</button>
-              <button aria-checked={dexProvider === "ekubo"} className={dexProvider === "ekubo" ? "active" : ""} disabled={isWorking || !ekuboReady} onClick={() => setDexProvider("ekubo")} role="radio" type="button"><span><strong>Ekubo</strong><small>{ekuboReady ? "Concentrated liquidity · LP locked" : "Deployment pending"}</small></span>{dexProvider === "ekubo" ? <CheckCircle2 size={17} /> : null}</button>
-            </div>
-          ) : null}
+          <div className="launch-hero-facts"><span>1B supply</span><span>0% allocation</span><span>{launchMode === "direct" ? "LP locked" : "Fair curve"}</span></div>
         </div>
-        <section className="launch-feature-grid">
-          <div><Coins /><span><strong>1B fixed supply</strong><small>0% creator allocation</small></span></div>
-          <div>{launchMode === "direct" ? <Zap /> : <TimerReset />}<span><strong>{launchMode === "direct" ? "Instant DEX market" : "60s launch guard"}</strong><small>{launchMode === "direct" ? "No bond threshold" : "Fair early access"}</small></span></div>
-          <div><LockKeyhole /><span><strong>Liquidity locked</strong><small>{launchMode === "direct" ? "Forever from creation" : "After graduation"}</small></span></div>
-        </section>
       </section>
       <section className="launch-form-card">
         <div className="launch-form-header">
           <div>
-            <span className="pill">Launch setup</span>
-            <h2>Configure market</h2>
+            <h2>Create token</h2>
           </div>
           <span className="launch-form-network"><NetworkIcon chainId={activeChainId} size={14} />{chain.name}</span>
         </div>
@@ -365,13 +347,25 @@ function LaunchPageContent() {
               <div><strong>Connect wallet to launch</strong><small>Use the wallet button in the header. Transactions will be sent on {chain.name}.</small></div>
             </div>
           ) : null}
-          <div className="launch-mode-picker" role="radiogroup" aria-label="Launch route">
-            <button aria-checked={launchMode === "direct"} className={launchMode === "direct" ? "active" : ""} disabled={isWorking} onClick={() => setLaunchMode("direct")} role="radio" type="button">
-              <Zap size={19} /><span><strong>Direct DEX launch</strong><small>Uniswap {dexVersion} market · LP locked</small></span>{launchMode === "direct" ? <CheckCircle2 size={17} /> : null}
-            </button>
-            <button aria-checked={launchMode === "bond"} className={launchMode === "bond" ? "active" : ""} disabled={isWorking || !bondEnabled} onClick={() => setLaunchMode("bond")} role="radio" type="button">
-              <TimerReset size={19} /><span><strong>Bond launch</strong><small>Fair curve · graduates at {economics.graduationTarget} {nativeSymbol}</small></span>{launchMode === "bond" ? <CheckCircle2 size={17} /> : null}
-            </button>
+          <div className="launch-route-block">
+            <span className="launch-control-label">Launch route</span>
+            <div className="launch-mode-picker launch-route-picker" role="radiogroup" aria-label="Launch route">
+              <button aria-checked={launchMode === "direct"} className={launchMode === "direct" ? "active" : ""} disabled={isWorking} onClick={() => setLaunchMode("direct")} role="radio" type="button">
+                <Zap size={18} /><span><strong>Direct</strong><small>DEX now · LP locked</small></span>{launchMode === "direct" ? <CheckCircle2 size={16} /> : null}
+              </button>
+              <button aria-checked={launchMode === "bond"} className={launchMode === "bond" ? "active" : ""} disabled={isWorking || !bondEnabled} onClick={() => setLaunchMode("bond")} role="radio" type="button">
+                <TimerReset size={18} /><span><strong>Bond</strong><small>Fair curve → DEX</small></span>{launchMode === "bond" ? <CheckCircle2 size={16} /> : null}
+              </button>
+            </div>
+            {launchMode === "direct" && ekuboSupported ? (
+              <div className="launch-dex-control">
+                <span className="launch-control-label">Liquidity venue</span>
+                <div className="launch-dex-picker" role="radiogroup" aria-label="DEX provider">
+                  <button aria-checked={dexProvider === "uniswap"} className={dexProvider === "uniswap" ? "active" : ""} disabled={isWorking} onClick={() => setDexProvider("uniswap")} role="radio" type="button"><span><DexProviderIcon provider="uniswap" size={22} /><strong>Uniswap <small>{dexVersion}</small></strong></span>{dexProvider === "uniswap" ? <CheckCircle2 size={15} /> : null}</button>
+                  <button aria-checked={dexProvider === "ekubo"} className={dexProvider === "ekubo" ? "active" : ""} disabled={isWorking || !ekuboReady} onClick={() => setDexProvider("ekubo")} role="radio" type="button"><span><DexProviderIcon provider="ekubo" size={22} /><strong>Ekubo <small>v3</small></strong></span>{dexProvider === "ekubo" ? <CheckCircle2 size={15} /> : null}</button>
+                </div>
+              </div>
+            ) : null}
           </div>
           {launchMode === "direct" && addresses.directLaunchFactory === zeroAddress ? <LaunchNotice tone="info">Direct DEX contracts are ready in the codebase but are not configured for {chain.name} yet.</LaunchNotice> : null}
           <div className="launch-stepper" aria-label="Launch progress">
@@ -395,7 +389,7 @@ function LaunchPageContent() {
 
           {step === 1 ? (
             <section className="launch-step-panel" aria-labelledby="launch-step-identity">
-              <div className="launch-form-section-head"><span>01</span><div><strong id="launch-step-identity">Token identity</strong><small>Name, ticker and artwork</small></div></div>
+              <div className="launch-form-section-head launch-form-section-head-compact"><div><strong id="launch-step-identity">Token details</strong></div></div>
               <div className="launch-field-grid">
                 <div className="field">
                   <label htmlFor="token-name">Name <small>{name.length}/40</small></label>
@@ -422,7 +416,7 @@ function LaunchPageContent() {
 
           {step === 2 ? (
             <section className="launch-step-panel" aria-labelledby="launch-step-details">
-              <div className="launch-form-section-head"><span>02</span><div><strong id="launch-step-details">Project details</strong><small>Optional</small></div></div>
+              <div className="launch-form-section-head launch-form-section-head-compact"><div><strong id="launch-step-details">Project details</strong><small>Optional</small></div></div>
               <div className="project-details-card">
                 <div className="project-details-head"><strong>Market profile</strong><span>Public</span></div>
                 <div className="field">
@@ -445,7 +439,7 @@ function LaunchPageContent() {
 
           {step === 3 ? (
             <section className="launch-step-panel" aria-labelledby="launch-step-review">
-              <div className="launch-form-section-head"><span>03</span><div><strong id="launch-step-review">Review & launch</strong><small>Confirm the transaction details</small></div></div>
+              <div className="launch-form-section-head launch-form-section-head-compact"><div><strong id="launch-step-review">Review launch</strong></div></div>
               <div className="field"><label htmlFor="initial-buy">Optional creator first buy</label><input aria-describedby="initial-buy-help" id="initial-buy" inputMode="decimal" placeholder="0" value={initialBuy} onChange={(event) => setInitialBuy(sanitizeDecimal(event.target.value))} /><span className="field-help" id="initial-buy-help">{nativeSymbol} · {launchMode === "direct" ? initialBuyEth > 0n && estimatedInitialTokens > 0n ? `≈ ${formatTokenEstimate(estimatedInitialTokens)} $${symbol.trim() || "TOKEN"} · Max 50M` : "Max 50M tokens (5%)" : `Maximum ${economics.graduationTarget} ${nativeSymbol}`}</span></div>
               {launchMode === "direct" ? <LaunchNotice tone="info">1% trade fee · Automatic sell burn · Liquidity locked.</LaunchNotice> : null}
               <div className="launch-review-card">
