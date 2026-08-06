@@ -1,1 +1,1 @@
-export const MARKET_PAGE_SIZE = 15;
+export const MARKET_PAGE_SIZE = 20;

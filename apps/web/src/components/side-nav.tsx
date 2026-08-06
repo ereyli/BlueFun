@@ -12,7 +12,7 @@ const tokenItems: NavItem[] = [
   { href: "/launch", label: "Create Token", shortLabel: "Create", icon: ImagePlus },
   { href: "/transparency", label: "BLUE", icon: ShieldCheck },
   { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/docs", label: "Docs", icon: BookOpen, desktopOnly: true }
+  { href: "/docs", label: "Docs", icon: BookOpen }
 ];
 
 const nftItems: NavItem[] = [

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { assertRateLimit, assertRequestSize, assertSameOrigin, RequestGuardError } from "@/lib/server/request-guard";
-import { hasSupportedImageSignature, optimizeTokenImage } from "@/lib/server/image-validation";
+import { hasSupportedImageSignature, optimizeTokenImage, tokenImageGeometryError } from "@/lib/server/image-validation";
 
 export const runtime = "nodejs";
 
@@ -31,8 +31,8 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "Select an image before continuing." }, { status: 400 });
   }
 
-  if (!file.type.startsWith("image/")) {
-    return NextResponse.json({ error: "Please select a valid image file." }, { status: 400 });
+  if (!["image/png", "image/jpeg", "image/webp"].includes(file.type)) {
+    return NextResponse.json({ error: "Use a PNG, JPG or WEBP image." }, { status: 400 });
   }
   if (!(await hasSupportedImageSignature(file))) {
     return NextResponse.json({ error: "Image contents do not match a supported image format." }, { status: 400 });
@@ -41,6 +41,9 @@ export async function POST(request: Request) {
   if (file.size > MAX_IMAGE_BYTES) {
     return NextResponse.json({ error: "Image must be 5 MB or smaller." }, { status: 400 });
   }
+
+  const geometryError = await tokenImageGeometryError(file);
+  if (geometryError) return NextResponse.json({ error: geometryError }, { status: 400 });
 
   try {
     const optimizedFile = await optimizeTokenImage(file);

@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Activity, Check, ChevronDown, Rocket, Search, Zap } from "@/components/bluefun-icons";
+import { Activity, Check, ChevronDown, LayoutGrid, List, Rocket, Search, Zap } from "@/components/bluefun-icons";
 import { isOfficialBlue } from "@/lib/featured-launches";
 import { compactUsd, parseDisplayAmount } from "@/lib/market-math";
 import type { LaunchBuyActivity, MarketSparkline } from "@/lib/db-launches";
@@ -21,9 +21,11 @@ import { isUiPreviewLaunch } from "@/lib/ui-preview-data";
 import { MARKET_PAGE_SIZE } from "@/lib/market-pagination";
 import { BrandLaunchpadMenu } from "@/components/brand-launchpad-menu";
 import { BondingCurveIcon, DexProviderIcon, type DexProvider } from "@/components/dex-provider-icon";
+import { SiteHeaderNav } from "@/components/site-header-nav";
 
 type MarketCategory = "All" | "Progress" | "Direct";
 type MarketSort = "Activity" | "Newest" | "Volume" | "MarketCap";
+type MarketView = "cards" | "list";
 const MARKET_NETWORKS = [8453, 4663, 143, 988, 5042] as const;
 
 const ReferenceWalletButton = dynamic(
@@ -50,6 +52,7 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, chain
   const [marketSparklines, setMarketSparklines] = useState<Map<string, MarketSparkline>>(new Map());
   const [hotLaunchKey, setHotLaunchKey] = useState<string>();
   const [networkMenuOpen, setNetworkMenuOpen] = useState(false);
+  const [view, setView] = useState<MarketView>("cards");
   const [, startTransition] = useTransition();
   const tokensRef = useRef<HTMLDivElement>(null);
   const networkMenuRef = useRef<HTMLDivElement>(null);
@@ -58,6 +61,11 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, chain
   const allNetworks = chainId === 0;
   const activeNetwork = allNetworks ? { name: "All networks", symbol: "MULTI" } : networkMeta(chainId);
   const chainParam = allNetworks ? "all" : chainSlug(chainId);
+
+  useEffect(() => {
+    const savedView = window.localStorage.getItem("bluefun-market-view");
+    if (savedView === "cards" || savedView === "list") setView(savedView);
+  }, []);
 
   useEffect(() => {
     function closeNetworkMenu(event: PointerEvent) {
@@ -266,6 +274,7 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, chain
   // The API sorts the complete result set before pagination. Re-sorting only the
   // current page here would make page boundaries and the selected order disagree.
   const displayedLaunches = launches;
+  const featuredLaunches = displayedLaunches.slice(0, 4);
   const displayedLaunchKeys = useMemo(() => displayedLaunches.map(activityKey).join(","), [displayedLaunches]);
 
   useEffect(() => {
@@ -288,10 +297,34 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, chain
     return () => controller.abort();
   }, [displayedLaunchKeys, displayedLaunches, previewMode, refreshNonce]);
 
+  function presentationFor(launch: DeployedLaunch) {
+    const direct = launch.launchMode === "direct";
+    const previewRow = isUiPreviewLaunch(launch);
+    const key = activityKey(launch);
+    const activity = activityByLaunch.get(key);
+    const hasMarketCap = launch.marketCap.trim().toLowerCase() !== "live" && parseDisplayAmount(launch.marketCap) > 0;
+    const indexedMarketCap = activity?.marketCapNative && parseDisplayAmount(activity.marketCapNative) > 0
+      ? `${activity.marketCapNative} ${launchEconomics(launch.chainId).nativeSymbol}`
+      : undefined;
+    const dexMarketCap = dexMarketCaps.get(launch.token.toLowerCase());
+    const marketCapNative = hasMarketCap ? launch.marketCap : indexedMarketCap ?? (direct ? "Live" : estimateCurveMarketCap(launch.raised, launch.chainId));
+    const nativeUsd = nativeUsdByChain.get(launch.chainId) ?? null;
+    const marketCap = previewRow ? launch.marketCap : dexMarketCap ? compactUsd(dexMarketCap) : formatLaunchUsd(marketCapNative, nativeUsd);
+    const liquidity = previewRow ? launch.raised : direct || launch.status === "Graduated" ? "Locked" : formatLaunchUsd(launch.raised, nativeUsd);
+    const volume = previewRow ? launch.volume : formatLaunchUsd(launch.volume, nativeUsd);
+    const sparkline = marketSparklines.get(key);
+    const tradeCount = (sparkline?.buys ?? 0) + (sparkline?.sells ?? 0);
+    const positive = (sparkline?.changePercent ?? 0) >= 0;
+    const venue: DexProvider | undefined = direct
+      ? launch.dexProvider === "ekubo" ? "ekubo" : "uniswap"
+      : launch.status === "Graduated" ? "uniswap" : undefined;
+    return { direct, key, liquidity, marketCap, positive, sparkline, tradeCount, venue, volume };
+  }
+
   return (
     <section className="explorer-shell reference-market-terminal">
       <header className="reference-market-header">
-        <div className="reference-market-title"><BrandLaunchpadMenu/><h1>Markets</h1></div>
+        <div className="reference-market-title"><BrandLaunchpadMenu/><SiteHeaderNav compact /></div>
         <label className="reference-global-search">
           <Search size={17} />
           <input onChange={(event) => { setQuery(event.target.value); setPage(1); }} placeholder="Search token, ticker or address" value={query} />
@@ -359,6 +392,34 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, chain
         <ReferenceWalletButton/>
       </header>
 
+      <section className="reference-market-intro">
+        <div>
+          <span className="reference-market-eyebrow">Multichain launch markets</span>
+          <h2>Find a token.<br/><em>Catch the signal.</em></h2>
+          <p>Fair curves and permanently locked liquidity, in one focused market.</p>
+        </div>
+        <Link className="reference-intro-cta" href={`/launch?chain=${allNetworks ? "base" : chainSlug(chainId)}`}><Rocket size={16}/>Launch a token</Link>
+      </section>
+
+      {featuredLaunches.length ? (
+        <section className="reference-trending-strip" aria-labelledby="trending-title">
+          <header><h2 id="trending-title">Trending</h2><span>Market activity</span></header>
+          <div>
+            {featuredLaunches.map((launch) => {
+              const metrics = presentationFor(launch);
+              const isHot = hotLaunchKey === metrics.key;
+              return (
+                <Link className={isHot ? "reference-trending-card activity-hot" : "reference-trending-card"} href={tokenPath(launch)} key={`featured-${launch.chainId}-${launch.id}`}>
+                  <TokenAvatar launch={launch} hot={isHot}/>
+                  <span><strong>{launch.name}</strong><small>${launch.symbol}</small></span>
+                  <span><small>Market cap</small><strong>{metrics.marketCap}</strong></span>
+                </Link>
+              );
+            })}
+          </div>
+        </section>
+      ) : null}
+
       <nav className="reference-category-bar" aria-label="Market categories">
         <label className="reference-sort-control">
           <span>Sort</span>
@@ -396,6 +457,10 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, chain
             <i />{label}
           </button>
         ))}
+        <div className="reference-view-switch" role="group" aria-label="Market view">
+          <button aria-label="Card view" aria-pressed={view === "cards"} className={view === "cards" ? "active" : ""} onClick={() => changeView("cards")} type="button"><LayoutGrid size={16}/><span>Cards</span></button>
+          <button aria-label="List view" aria-pressed={view === "list"} className={view === "list" ? "active" : ""} onClick={() => changeView("list")} type="button"><List size={16}/><span>List</span></button>
+        </div>
       </nav>
 
       <div className="reference-market-body">
@@ -405,50 +470,30 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, chain
           {launches.length === 0 && !isPageLoading ? (
             <BlueFunState action={totalLaunches === 0 ? <Link className="button primary compact" href={`/launch?chain=${allNetworks ? "base" : chainSlug(chainId)}`}>Launch a token</Link> : null} text={totalLaunches === 0 ? "Create the first fair token and start the market." : "Try another search term or clear the search field."} title={totalLaunches === 0 ? allNetworks ? "No indexed markets yet" : `Be first on ${activeNetwork.name}` : "No matching launches"} variant="empty" />
           ) : (
-          <div className={`reference-market-table${isPageLoading ? " page-loading" : ""}`} aria-busy={isPageLoading}>
+          <div className={`reference-market-table view-${view}${isPageLoading ? " page-loading" : ""}`} aria-busy={isPageLoading}>
             <div className="reference-market-table-head" aria-hidden="true">
-              <span>Token</span><span>Network</span><span>Age</span><span>24h chart</span><span>Market cap</span><span>Liquidity</span><span>24h volume</span><span>Venue</span><span>Trade</span>
+              <span>Token</span><span>Network</span><span>Age</span><span>24h chart</span><span>Market cap</span><span>Liquidity</span><span>24h volume</span><span>Venue</span>
             </div>
             {displayedLaunches.map((launch, index) => {
-            const direct = launch.launchMode === "direct";
-            const previewRow = isUiPreviewLaunch(launch);
             const officialBlue = isOfficialBlue(launch);
-            const key = activityKey(launch);
-            const isHot = hotLaunchKey === key;
-            const activity = activityByLaunch.get(key);
-            const hasMarketCap = launch.marketCap.trim().toLowerCase() !== "live" && parseDisplayAmount(launch.marketCap) > 0;
-            const indexedMarketCap = activity?.marketCapNative && parseDisplayAmount(activity.marketCapNative) > 0
-              ? `${activity.marketCapNative} ${launchEconomics(launch.chainId).nativeSymbol}`
-              : undefined;
-            const dexMarketCap = dexMarketCaps.get(launch.token.toLowerCase());
-            const marketCapNative = hasMarketCap ? launch.marketCap : indexedMarketCap ?? (direct ? "Live" : estimateCurveMarketCap(launch.raised, launch.chainId));
-            const nativeUsd = nativeUsdByChain.get(launch.chainId) ?? null;
-            const marketCap = previewRow ? launch.marketCap : dexMarketCap ? compactUsd(dexMarketCap) : formatLaunchUsd(marketCapNative, nativeUsd);
-            const liquidity = previewRow ? launch.raised : direct || launch.status === "Graduated" ? "Locked" : formatLaunchUsd(launch.raised, nativeUsd);
-            const volume = previewRow ? launch.volume : formatLaunchUsd(launch.volume, nativeUsd);
-            const sparkline = marketSparklines.get(key);
-            const tradeCount = (sparkline?.buys ?? 0) + (sparkline?.sells ?? 0);
-            const positive = (sparkline?.changePercent ?? 0) >= 0;
-            const venue: DexProvider | undefined = direct
-              ? launch.dexProvider === "ekubo" ? "ekubo" : "uniswap"
-              : launch.status === "Graduated" ? "uniswap" : undefined;
+            const metrics = presentationFor(launch);
+            const isHot = hotLaunchKey === metrics.key;
             return (
-            <article className={`reference-market-row${isHot ? " activity-hot" : ""}`} key={`${launch.chainId}-${launch.id}-${launch.token}`}>
-              <Link className="reference-token-cell" href={tokenPath(launch)}>
+            <Link className={`reference-market-row${isHot ? " activity-hot" : ""}`} href={tokenPath(launch)} key={`${launch.chainId}-${launch.id}-${launch.token}`}>
+              <span className="reference-token-cell">
                 <span className="reference-watch-star">☆</span><TokenAvatar launch={launch} hot={isHot || index === 0} />
                 <span><strong>{launch.name}{officialBlue ? <em>Official</em> : null}</strong><small>${launch.symbol}</small></span>
-              </Link>
+              </span>
               <span className="reference-chain-cell"><NetworkIcon chainId={launch.chainId} size={13}/>{networkMeta(launch.chainId).name}</span>
               <span className="reference-age-cell">{launch.age}</span>
-              <Sparkline data={sparkline}/>
-              <span className="reference-value-cell"><strong>{marketCap}</strong>{sparkline ? <small className={positive ? "positive" : "negative"}>{positive ? "↗" : "↘"} {Math.abs(sparkline.changePercent).toFixed(2)}% · 24h</small> : <small>Latest indexed value</small>}</span>
-              <span className="reference-value-cell"><strong>{liquidity}</strong><small>{direct || launch.status === "Graduated" ? "LP liquidity" : `${launch.progress}% bonding`}</small></span>
-              <span className="reference-value-cell"><strong>{volume}</strong><small>{tradeCount ? `${tradeCount} indexed trades` : "No 24h trades"}</small></span>
+              <Sparkline data={metrics.sparkline}/>
+              <span className="reference-value-cell market-cap"><strong>{metrics.marketCap}</strong>{metrics.sparkline ? <small className={metrics.positive ? "positive" : "negative"}>{metrics.positive ? "↗" : "↘"} {Math.abs(metrics.sparkline.changePercent).toFixed(2)}% · 24h</small> : <small>Market cap</small>}</span>
+              <span className="reference-value-cell liquidity"><strong>{metrics.liquidity}</strong><small>{metrics.direct || launch.status === "Graduated" ? "LP liquidity" : `${launch.progress}% bonding`}</small></span>
+              <span className="reference-value-cell volume"><strong>{metrics.volume}</strong><small>{metrics.tradeCount ? `${metrics.tradeCount} trades · 24h` : "Volume · 24h"}</small></span>
               <span className="reference-dex-cell">
-                {venue ? <><DexProviderIcon provider={venue} size={22} /><span><strong>{venue === "ekubo" ? "Ekubo" : "Uniswap"}</strong><small>{direct ? "Direct · LP locked" : "Graduated pool"}</small></span></> : <><BondingCurveIcon size={22} /><span><strong>Bonding</strong><small>Curve active</small></span></>}
+                {metrics.venue ? <><DexProviderIcon provider={metrics.venue} size={22} /><span><strong>{metrics.venue === "ekubo" ? "Ekubo" : "Uniswap"}</strong><small>{metrics.direct ? "Direct · LP locked" : "Graduated pool"}</small></span></> : <><BondingCurveIcon size={22} /><span><strong>Bonding</strong><small>Curve active</small></span></>}
               </span>
-              <Link className="reference-buy-button" href={tokenPath(launch)}>Buy</Link>
-            </article>
+            </Link>
             );
           })}
           </div>
@@ -499,6 +544,11 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, chain
     if (safePage === page) return;
     setPage(safePage);
     window.requestAnimationFrame(() => tokensRef.current?.querySelector<HTMLElement>(".reference-market-scroll")?.scrollTo({ top: 0 }));
+  }
+
+  function changeView(nextView: MarketView) {
+    setView(nextView);
+    window.localStorage.setItem("bluefun-market-view", nextView);
   }
 }
 

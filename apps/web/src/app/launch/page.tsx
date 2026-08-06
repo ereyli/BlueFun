@@ -288,10 +288,13 @@ function LaunchPageContent() {
     setMetadataUri("");
     setMetadataUploadKey("");
     if (imagePreview) URL.revokeObjectURL(imagePreview);
-    setImagePreview(file ? URL.createObjectURL(file) : "");
+    setImagePreview("");
     if (!file) return;
 
     try {
+      const validationError = await validateTokenImage(file);
+      if (validationError) throw new Error(validationError);
+      setImagePreview(URL.createObjectURL(file));
       setIsImageUploading(true);
       const uploadedImageUri = await uploadImage(file);
       setImageUri(uploadedImageUri);
@@ -404,9 +407,9 @@ function LaunchPageContent() {
                 <label htmlFor="token-image">Token image</label>
                 <label className={imagePreview ? "upload-box has-preview" : "upload-box"} htmlFor="token-image">
                   {imagePreview ? <img src={imagePreview} alt="Token preview" /> : <span><ImagePlus size={22} />Select logo or meme image</span>}
-                  <input accept="image/*" id="token-image" required onChange={(event) => selectImage(event.target.files?.[0])} type="file" />
+                  <input accept="image/png,image/jpeg,image/webp" id="token-image" required onChange={(event) => selectImage(event.target.files?.[0])} type="file" />
                 </label>
-                <span className="field-help">{isImageUploading ? "Uploading image…" : imageUri ? "Image ready." : "Square image · max 5 MB · stored on IPFS"}</span>
+                <span className="field-help">{isImageUploading ? "Uploading image…" : imageUri ? "Image ready." : "1024 × 1024 px recommended · square · PNG, JPG or WEBP · max 5 MB"}</span>
               </div>
               <div className="launch-step-actions single">
                 <button className="button primary" disabled={!identityReady} onClick={() => setStep(2)} type="button">Continue <ChevronRight size={16} /></button>
@@ -684,6 +687,31 @@ function formatTokenEstimate(value: bigint) {
     notation: amount >= 1_000 ? "compact" : "standard",
     maximumFractionDigits: amount >= 1_000 ? 2 : 4
   }).format(amount);
+}
+
+async function validateTokenImage(file: File) {
+  if (!["image/png", "image/jpeg", "image/webp"].includes(file.type)) return "Use a PNG, JPG or WEBP image.";
+  if (file.size > 5 * 1024 * 1024) return "Token image must be 5 MB or smaller.";
+
+  const dimensions = await new Promise<{ width: number; height: number } | null>((resolve) => {
+    const url = URL.createObjectURL(file);
+    const image = new Image();
+    image.onload = () => {
+      resolve({ width: image.naturalWidth, height: image.naturalHeight });
+      URL.revokeObjectURL(url);
+    };
+    image.onerror = () => {
+      resolve(null);
+      URL.revokeObjectURL(url);
+    };
+    image.src = url;
+  });
+
+  if (!dimensions) return "Image dimensions could not be read.";
+  if (dimensions.width < 512 || dimensions.height < 512) return "Token image must be at least 512 × 512 px.";
+  if (dimensions.width > 4096 || dimensions.height > 4096) return "Token image must not exceed 4096 × 4096 px.";
+  if (Math.abs(dimensions.width - dimensions.height) / Math.max(dimensions.width, dimensions.height) > 0.02) return "Token image must be square. Recommended size: 1024 × 1024 px.";
+  return "";
 }
 
 async function uploadImage(file: File) {

@@ -14,6 +14,7 @@ import "./token-share.css";
 import "./bluefun-experience.css";
 import "./terminal-system.css";
 import "./launch-refinement.css";
+import "./minimal-market.css";
 import { Providers } from "@/components/providers";
 import { RouteFeedback } from "@/components/route-feedback";
 import { SideNav } from "@/components/side-nav";

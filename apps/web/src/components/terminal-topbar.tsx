@@ -1,12 +1,14 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { Suspense, useEffect, useState, type FormEvent } from "react";
 import { ArrowLeft, ImagePlus, Rocket, Search } from "@/components/bluefun-icons";
 import { BrandLaunchpadMenu } from "@/components/brand-launchpad-menu";
 import { NetworkSelector } from "@/components/network-selector";
 import { WalletButton } from "@/components/wallet-button";
+import { SiteHeaderNav } from "@/components/site-header-nav";
 
 type TopbarContext = {
   title: string;
@@ -72,22 +74,23 @@ export function TerminalTopbar() {
 
   return (
     <header className="topbar terminal-global-header">
-      <Link className="mobile-brand" href="/" aria-label="B20 home">B20</Link>
+      <Link className="mobile-brand" href="/" aria-label="B20 home"><Image src="/brand/bluelogo.webp" alt="B20" width={34} height={34} priority /></Link>
       <div className="terminal-page-identity">
         {isCreateScreen ? <Link aria-label={`Back to ${context.searchTarget === "/nft" ? "NFT markets" : "markets"}`} href={context.searchTarget}><ArrowLeft size={16}/></Link> : null}
         {!isCreateScreen ? <BrandLaunchpadMenu /> : null}
         <h1>{context.title}</h1>
       </div>
+      <SiteHeaderNav />
       <form className="terminal-global-search" onSubmit={submitSearch}>
         <button aria-label="Search markets" className="terminal-search-submit" type="submit"><Search size={16}/></button>
         <input aria-label={context.searchPlaceholder} onChange={(event) => setQuery(event.target.value)} placeholder={context.searchPlaceholder} value={query}/>
         <kbd>/</kbd>
       </form>
       <Suspense fallback={<span className="terminal-network-placeholder"/>}><NetworkSelector /></Suspense>
-      <Link className="button primary terminal-create-action" href={isCreateScreen ? context.searchTarget : context.actionHref}>
-        {isCreateScreen ? <ArrowLeft size={15}/> : context.actionIcon === "collection" ? <ImagePlus size={15}/> : <Rocket size={15}/>}
-        {isCreateScreen ? (context.searchTarget === "/nft" ? "NFT markets" : "Markets") : context.actionLabel}
-        {!isCreateScreen ? <b>+</b> : null}
+      <Link aria-current={isCreateScreen ? "page" : undefined} className="button primary terminal-create-action" href={context.actionHref}>
+        {context.actionIcon === "collection" ? <ImagePlus size={15}/> : <Rocket size={15}/>}
+        {context.actionLabel}
+        <b>+</b>
       </Link>
       <WalletButton />
     </header>

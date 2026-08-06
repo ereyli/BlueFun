@@ -57,6 +57,7 @@ import { chatMessageToSign } from "@/lib/chat-auth";
 import { TokenShareDialog } from "@/components/token-share-dialog";
 import { BlueFunState } from "@/components/bluefun-state";
 import { isUiPreviewLaunch } from "@/lib/ui-preview-data";
+import { SiteHeaderNav } from "@/components/site-header-nav";
 
 const ReferenceWalletButton = dynamic(
   () => import("@/components/wallet-button").then((module) => module.WalletButton),
@@ -804,7 +805,7 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
   return (
     <div className="trade-layout reference-token-terminal">
       <header className="reference-token-topbar">
-        <Link className="reference-back-link" href={`/?chain=${chainSlug(launch.chainId)}`}>← <span>Markets</span></Link>
+        <div className="reference-token-leading"><Link className="reference-back-link" href={`/?chain=${chainSlug(launch.chainId)}`}>← <span>Markets</span></Link><SiteHeaderNav compact /></div>
         <label className="reference-global-search">
           <Search size={17}/>
           <input aria-label="Search markets" placeholder="Search token, address or transaction"/>
