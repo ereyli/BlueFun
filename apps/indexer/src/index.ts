@@ -82,6 +82,7 @@ const nftTransferChunkSize = BigInt(process.env.NFT_TRANSFER_LOG_CHUNK_SIZE || "
 const rpcChunkDelayMs = Number(process.env.RPC_CHUNK_DELAY_MS || (chainId === 8453 ? "175" : "0"));
 const pollMs = Number(process.env.POLL_MS || "1000");
 const confirmations = BigInt(process.env.CONFIRMATIONS || "1");
+const liveScopeConcurrency = Math.max(1, Number(process.env.LIVE_SCOPE_CONCURRENCY || "2"));
 const totalSupplyRaw = 1_000_000_000n * 10n ** 18n;
 const q192 = 1n << 192n;
 const pfpListingKey = (listingId: bigint) => -listingId;
@@ -120,6 +121,17 @@ const client = createPublicClient({
 });
 
 const sleep = (milliseconds: number) => new Promise<void>((resolve) => setTimeout(resolve, milliseconds));
+
+async function mapWithConcurrency<T>(items: T[], concurrency: number, worker: (item: T) => Promise<void>) {
+  let cursor = 0;
+  async function runWorker() {
+    while (cursor < items.length) {
+      const item = items[cursor++];
+      await worker(item);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, runWorker));
+}
 
 async function checkpointIndexerState(key: string, nextBlock: bigint, isBackfilling = false) {
   await setIndexerState(key, nextBlock);
@@ -179,6 +191,7 @@ console.log("BlueFun indexer starting", {
   })),
   chunkSize: chunkSize.toString(),
   confirmations: confirmations.toString(),
+  liveScopeConcurrency: liveScopeConcurrency.toString(),
   rpcEndpoints: rpcUrls.length.toString(),
   scopes: deploymentContexts.length + directDeployments.length + nftDeployments.length
 });
@@ -263,21 +276,21 @@ async function backfillLoop() {
       backfillNFTOffers(latest)
     ]);
   }
-  await Promise.all(deploymentContexts.map(async (deployment) => {
+  await mapWithConcurrency(deploymentContexts, liveScopeConcurrency, async (deployment) => {
     if (latest < deployment.startBlock) return;
     await backfillLaunchCreated(deployment, latest);
     await backfillMarketBuys(deployment, latest);
     await backfillMarketSells(deployment, latest);
     await backfillGraduations(deployment, latest);
     await backfillUniswapV4Swaps(deployment, latest);
-  }));
-  await Promise.all(directDeployments.map(async (directDeployment) => {
+  });
+  await mapWithConcurrency(directDeployments, liveScopeConcurrency, async (directDeployment) => {
     if (latest < directDeployment.startBlock) return;
     await backfillDirectLaunches(directDeployment, latest);
     if (directDeployment.dexProvider === "ekubo") await backfillEkuboTrades(directDeployment, latest);
     else if (directDeployment.dexVersion === "v3") await backfillUniswapV3Swaps(directDeployment, latest);
     else await backfillUniswapV4Swaps(directDeployment, latest);
-  }));
+  });
   lastIndexedBlock = latest;
   const checkpoint = await client.getBlock({ blockNumber: latest });
   await setIndexerTextState(canonicalStateKey(), JSON.stringify({ block: latest.toString(), hash: checkpoint.hash }));
