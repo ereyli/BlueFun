@@ -12,10 +12,10 @@ export async function GET(request: Request) {
   }
   const chainId = chainIdFromParam(chainParam);
 
-  return cachedResponse(`launch-activity:${chainId}`, 2_000, async () => {
+  return cachedResponse(`launch-activity:${chainId}`, 1_000, async () => {
     const activity = await getDbRecentBuyActivity(chainId);
     return NextResponse.json({ activity: activity ?? [] }, {
-      headers: { "cache-control": "public, s-maxage=2, stale-while-revalidate=4" }
+      headers: { "cache-control": "public, s-maxage=1, stale-while-revalidate=2" }
     });
   });
 }

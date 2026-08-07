@@ -8,7 +8,7 @@ import WebSocket from "ws";
 let pool = process.env.DATABASE_URL ? new pg.Pool({ connectionString: process.env.DATABASE_URL }) : undefined;
 let supabase: SupabaseClient | undefined;
 
-export const EXPECTED_SCHEMA_VERSION = "20260805_ekubo_launches";
+export const EXPECTED_SCHEMA_VERSION = "20260807_low_latency_realtime";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 

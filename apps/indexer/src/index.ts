@@ -80,8 +80,8 @@ const chunkSize = BigInt(process.env.LOG_CHUNK_SIZE || (chainId === 988 || chain
 const nftEventChunkSize = BigInt(process.env.NFT_EVENT_LOG_CHUNK_SIZE || "1900");
 const nftTransferChunkSize = BigInt(process.env.NFT_TRANSFER_LOG_CHUNK_SIZE || "1900");
 const rpcChunkDelayMs = Number(process.env.RPC_CHUNK_DELAY_MS || (chainId === 8453 ? "175" : "0"));
-const pollMs = Number(process.env.POLL_MS || (chainId === 988 || chainId === 143 || chainId === 5042 ? "1200" : chainId === 8453 ? "2500" : "12000"));
-const confirmations = BigInt(process.env.CONFIRMATIONS || (chainId === 988 || chainId === 143 || chainId === 5042 ? "2" : chainId === 8453 ? "1" : "3"));
+const pollMs = Number(process.env.POLL_MS || "1000");
+const confirmations = BigInt(process.env.CONFIRMATIONS || "1");
 const totalSupplyRaw = 1_000_000_000n * 10n ** 18n;
 const q192 = 1n << 192n;
 const pfpListingKey = (listingId: bigint) => -listingId;
@@ -121,11 +121,13 @@ const client = createPublicClient({
 
 const sleep = (milliseconds: number) => new Promise<void>((resolve) => setTimeout(resolve, milliseconds));
 
-async function checkpointIndexerState(key: string, nextBlock: bigint) {
+async function checkpointIndexerState(key: string, nextBlock: bigint, isBackfilling = false) {
   await setIndexerState(key, nextBlock);
   // Backfills otherwise issue eth_getLogs requests in a tight loop and exhaust
-  // every public provider in the fallback list within seconds.
-  if (rpcChunkDelayMs > 0) await sleep(rpcChunkDelayMs);
+  // every public provider in the fallback list within seconds. Never delay the
+  // live-head pass: that path is latency-sensitive and already bounded to the
+  // few blocks produced since the previous poll.
+  if (isBackfilling && rpcChunkDelayMs > 0) await sleep(rpcChunkDelayMs);
 }
 
 await ensureSchema();
@@ -326,7 +328,7 @@ async function backfillNFTTransfers(latest: bigint) {
     }
     events.sort((a, b) => Number(a.blockNumber - b.blockNumber) || a.logIndex - b.logIndex || a.batchIndex - b.batchIndex);
     for (const event of events) await applyNFTTransfer({ chainId, ...event });
-    await checkpointIndexerState(stateKey(nftDeployment, "transfers_last_block"), toBlock + 1n);
+    await checkpointIndexerState(stateKey(nftDeployment, "transfers_last_block"), toBlock + 1n, toBlock < latest);
     fromBlock = toBlock + 1n;
   }
 }
@@ -363,7 +365,7 @@ async function backfillLaunchCreated(deployment: DeploymentContext, latest: bigi
       await handleLaunchCreated(deployment, log);
     }
 
-    await checkpointIndexerState(stateKey(deployment, "launch_factory_last_block"), toBlock + 1n);
+    await checkpointIndexerState(stateKey(deployment, "launch_factory_last_block"), toBlock + 1n, toBlock < latest);
     fromBlock = toBlock + 1n;
   }
 }
@@ -387,7 +389,7 @@ async function backfillDirectLaunches(
         toBlock
       });
       for (const log of logs) await handleArcDirectLaunchCreated(deployment, log);
-      await checkpointIndexerState(stateKey(deployment, "direct_launches_last_block"), toBlock + 1n);
+      await checkpointIndexerState(stateKey(deployment, "direct_launches_last_block"), toBlock + 1n, toBlock < latest);
       fromBlock = toBlock + 1n;
       continue;
     }
@@ -400,7 +402,7 @@ async function backfillDirectLaunches(
         toBlock
       });
       for (const log of logs) await handleEkuboDirectLaunchCreated(deployment, log);
-      await checkpointIndexerState(stateKey(deployment, "direct_launches_last_block"), toBlock + 1n);
+      await checkpointIndexerState(stateKey(deployment, "direct_launches_last_block"), toBlock + 1n, toBlock < latest);
       fromBlock = toBlock + 1n;
       continue;
     }
@@ -412,7 +414,7 @@ async function backfillDirectLaunches(
       toBlock
     });
     for (const log of logs) await handleDirectLaunchCreated(deployment, log);
-    await checkpointIndexerState(stateKey(deployment, "direct_launches_last_block"), toBlock + 1n);
+    await checkpointIndexerState(stateKey(deployment, "direct_launches_last_block"), toBlock + 1n, toBlock < latest);
     fromBlock = toBlock + 1n;
   }
 }
@@ -480,7 +482,7 @@ async function backfillEkuboTrades(
         txHash: log.transactionHash, blockNumber: log.blockNumber
       });
     }
-    await checkpointIndexerState(stateKey(deployment, "ekubo_trades_last_block"), toBlock + 1n);
+    await checkpointIndexerState(stateKey(deployment, "ekubo_trades_last_block"), toBlock + 1n, toBlock < latest);
     fromBlock = toBlock + 1n;
   }
 }
@@ -572,7 +574,7 @@ async function backfillNFTCollections(latest: bigint) {
         blockNumber: log.blockNumber
       });
     }
-    await checkpointIndexerState(stateKey(nftDeployment, "collections_last_block"), toBlock + 1n);
+    await checkpointIndexerState(stateKey(nftDeployment, "collections_last_block"), toBlock + 1n, toBlock < latest);
     fromBlock = toBlock + 1n;
   }
 }
@@ -601,7 +603,7 @@ async function backfillNFTPFPCollections(latest: bigint) {
       txHash: log.transactionHash,
       blockNumber: log.blockNumber
     });
-    await checkpointIndexerState(stateKey(context, "collections_last_block"), toBlock + 1n);
+    await checkpointIndexerState(stateKey(context, "collections_last_block"), toBlock + 1n, toBlock < latest);
     fromBlock = toBlock + 1n;
   }
 }
@@ -632,7 +634,7 @@ async function backfillNFTItems(latest: bigint) {
         blockNumber: log.blockNumber
       });
     }
-    await checkpointIndexerState(stateKey(nftDeployment, "items_last_block"), toBlock + 1n);
+    await checkpointIndexerState(stateKey(nftDeployment, "items_last_block"), toBlock + 1n, toBlock < latest);
     fromBlock = toBlock + 1n;
   }
 }
@@ -693,7 +695,7 @@ async function backfillNFTPhases(latest: bigint) {
       if (!registeredCollections.has(log.args.collection!.toLowerCase())) continue;
       await cancelNFTPhase(chainId, log.args.collection!, log.args.tokenId!, log.args.phaseId!);
     }
-    await checkpointIndexerState(stateKey(nftDeployment, "phases_last_block"), toBlock + 1n);
+    await checkpointIndexerState(stateKey(nftDeployment, "phases_last_block"), toBlock + 1n, toBlock < latest);
     fromBlock = toBlock + 1n;
   }
 }
@@ -732,7 +734,7 @@ async function backfillNFTMints(latest: bigint) {
         blockNumber: log.blockNumber
       });
     }
-    await checkpointIndexerState(stateKey(nftDeployment, "mints_last_block"), toBlock + 1n);
+    await checkpointIndexerState(stateKey(nftDeployment, "mints_last_block"), toBlock + 1n, toBlock < latest);
     fromBlock = toBlock + 1n;
   }
 }
@@ -764,7 +766,7 @@ async function backfillNFTMarketplace(latest: bigint) {
       royaltyRecipient: log.args.royaltyRecipient!, royaltyAmount: log.args.royaltyAmount!,
       txHash: log.transactionHash, logIndex: Number(log.logIndex), blockNumber: log.blockNumber
     });
-    await checkpointIndexerState(stateKey(nftDeployment, "marketplace_last_block"), toBlock + 1n);
+    await checkpointIndexerState(stateKey(nftDeployment, "marketplace_last_block"), toBlock + 1n, toBlock < latest);
     fromBlock = toBlock + 1n;
   }
 }
@@ -790,7 +792,7 @@ async function backfillNFTPFPMarketplace(latest: bigint) {
       grossAmount: log.args.grossAmount!, platformFee: log.args.platformFee!, royaltyRecipient: log.args.royaltyRecipient!,
       royaltyAmount: log.args.royaltyAmount!, txHash: log.transactionHash, logIndex: Number(log.logIndex), blockNumber: log.blockNumber
     });
-    await checkpointIndexerState(stateKey(context, "marketplace_last_block"), toBlock + 1n);
+    await checkpointIndexerState(stateKey(context, "marketplace_last_block"), toBlock + 1n, toBlock < latest);
     fromBlock = toBlock + 1n;
   }
 }
@@ -815,7 +817,7 @@ async function backfillNFTOffers(latest: bigint) {
       standard: Number(log.args.standard!), offerType: Number(log.args.offerType!),
       txHash: log.transactionHash, logIndex: Number(log.logIndex), blockNumber: log.blockNumber
     });
-    await checkpointIndexerState(stateKey(context, "offers_last_block"), toBlock + 1n);
+    await checkpointIndexerState(stateKey(context, "offers_last_block"), toBlock + 1n, toBlock < latest);
     fromBlock = toBlock + 1n;
   }
 }
@@ -839,7 +841,7 @@ async function backfillMarketBuys(deployment: DeploymentContext, latest: bigint)
       await handleTokensBought(deployment, log);
     }
 
-    await checkpointIndexerState(stateKey(deployment, "market_buys_v2_last_block"), toBlock + 1n);
+    await checkpointIndexerState(stateKey(deployment, "market_buys_v2_last_block"), toBlock + 1n, toBlock < latest);
     fromBlock = toBlock + 1n;
   }
 }
@@ -863,7 +865,7 @@ async function backfillMarketSells(deployment: DeploymentContext, latest: bigint
       await handleTokensSold(deployment, log);
     }
 
-    await checkpointIndexerState(stateKey(deployment, "market_sells_v2_last_block"), toBlock + 1n);
+    await checkpointIndexerState(stateKey(deployment, "market_sells_v2_last_block"), toBlock + 1n, toBlock < latest);
     fromBlock = toBlock + 1n;
   }
 }
@@ -887,7 +889,7 @@ async function backfillGraduations(deployment: DeploymentContext, latest: bigint
       await handleGraduated(deployment, log);
     }
 
-    await checkpointIndexerState(stateKey(deployment, "graduations_last_block"), toBlock + 1n);
+    await checkpointIndexerState(stateKey(deployment, "graduations_last_block"), toBlock + 1n, toBlock < latest);
     fromBlock = toBlock + 1n;
   }
 }
@@ -926,7 +928,7 @@ async function backfillUniswapV4Swaps(deployment: ScopeContext, latest: bigint) 
       await handleUniswapV4Swap(deployment, log, pool.launchId);
     }
 
-    await checkpointIndexerState(stateKey(deployment, "uniswap_v4_swaps_v3_last_block"), toBlock + 1n);
+    await checkpointIndexerState(stateKey(deployment, "uniswap_v4_swaps_v3_last_block"), toBlock + 1n, toBlock < latest);
     fromBlock = toBlock + 1n;
   }
 }
@@ -967,7 +969,7 @@ async function backfillUniswapV3Swaps(deployment: ScopeContext, latest: bigint) 
       if (!launch) continue;
       await handleUniswapV3Swap(deployment, log, launch);
     }
-    await checkpointIndexerState(stateKey(deployment, "uniswap_v3_swaps_last_block"), toBlock + 1n);
+    await checkpointIndexerState(stateKey(deployment, "uniswap_v3_swaps_last_block"), toBlock + 1n, toBlock < latest);
     fromBlock = toBlock + 1n;
   }
 }

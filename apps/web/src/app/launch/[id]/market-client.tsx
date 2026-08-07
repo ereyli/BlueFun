@@ -477,7 +477,7 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
     const refreshWhenVisible = () => {
       if (document.visibilityState === "visible") router.refresh();
     };
-    const interval = window.setInterval(refreshWhenVisible, realtimeStatus === "subscribed" ? 60_000 : 8_000);
+    const interval = window.setInterval(refreshWhenVisible, 4_000);
     document.addEventListener("visibilitychange", refreshWhenVisible);
     return () => {
       window.clearInterval(interval);
@@ -524,6 +524,19 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
           });
         }
       )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "launches",
+          filter: `id=eq.${id}`
+        },
+        (payload) => {
+          const row = (payload.new || payload.old) as Record<string, unknown> | null;
+          if (row?.scope === scope) router.refresh();
+        }
+      )
       .subscribe((status) => {
         if (status === "SUBSCRIBED") setRealtimeStatus("subscribed");
         else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") setRealtimeStatus("unavailable");
@@ -533,7 +546,7 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [activeChainId, id, launch?.scope, nativeSymbol]);
+  }, [activeChainId, id, launch?.scope, nativeSymbol, router]);
 
   useEffect(() => {
     let active = true;

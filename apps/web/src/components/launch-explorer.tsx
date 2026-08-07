@@ -188,11 +188,21 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, chain
   useRealtimeRefresh({
     table: "trades",
     filter: activityScopeFilter,
-    fallbackMs: 60_000,
+    fallbackMs: 4_000,
     onRefresh: () => activityRefreshRef.current?.(),
     matches: (payload) => {
       const row = (payload.new || payload.old) as Record<string, unknown>;
       return row.side === "buy" && activityScopes.has(String(row.scope || ""));
+    }
+  });
+  useRealtimeRefresh({
+    table: "launches",
+    filter: activityScopeFilter,
+    fallbackMs: 4_000,
+    onRefresh: () => startTransition(() => setRefreshNonce((value) => value + 1)),
+    matches: (payload) => {
+      const row = (payload.new || payload.old) as Record<string, unknown>;
+      return activityScopes.has(String(row.scope || ""));
     }
   });
 
@@ -202,7 +212,7 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, chain
     };
     const interval = window.setInterval(() => {
       refreshWhenVisible();
-    }, 60_000);
+    }, 4_000);
     document.addEventListener("visibilitychange", refreshWhenVisible);
     return () => {
       window.clearInterval(interval);

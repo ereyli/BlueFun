@@ -38,7 +38,7 @@ export async function GET(request: Request) {
     : loadLaunchPage(chainId, page, query, filter, sort);
   return query
     ? load()
-    : cachedResponse(`launch-page:${allNetworks ? "all" : chainId}:${page}:${filter}:${sort}`, 5_000, load);
+    : cachedResponse(`launch-page:${allNetworks ? "all" : chainId}:${page}:${filter}:${sort}`, 1_000, load);
 }
 
 async function loadLaunchPage(chainId: number, page: number, query: string, filter: LaunchPageFilter, sort: LaunchPageSort) {
@@ -120,7 +120,7 @@ function jsonLaunchPage(payload: object, query: string) {
     headers: {
       "cache-control": query
         ? "private, no-store"
-        : "public, s-maxage=10, stale-while-revalidate=60"
+        : "public, s-maxage=1, stale-while-revalidate=2"
     }
   });
 }

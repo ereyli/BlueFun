@@ -35,7 +35,7 @@ export function useRealtimeRefresh(input: {
     const fallbackTimer = window.setInterval(() => {
       // Realtime is primary. The slower fallback heals missed websocket messages.
       if (!subscribed || document.visibilityState === "visible") refreshVisible();
-    }, input.fallbackMs ?? 60_000);
+    }, input.fallbackMs ?? 4_000);
     document.addEventListener("visibilitychange", refreshVisible);
 
     if (!supabaseUrl || !supabaseAnonKey) {
