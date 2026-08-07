@@ -84,6 +84,8 @@ const rpcChunkDelayMs = Number(process.env.RPC_CHUNK_DELAY_MS || (chainId === 84
 const pollMs = Number(process.env.POLL_MS || "1000");
 const confirmations = BigInt(process.env.CONFIRMATIONS || "1");
 const liveScopeConcurrency = Math.max(1, Number(process.env.LIVE_SCOPE_CONCURRENCY || (chainId === 4663 ? "1" : "2")));
+const rateLimitBackoffMs = Number(process.env.RATE_LIMIT_BACKOFF_MS || (chainId === 4663 ? "4000" : "5000"));
+const maxRateLimitBackoffMs = Number(process.env.MAX_RATE_LIMIT_BACKOFF_MS || "30000");
 const totalSupplyRaw = 1_000_000_000n * 10n ** 18n;
 const q192 = 1n << 192n;
 const pfpListingKey = (listingId: bigint) => -listingId;
@@ -247,7 +249,7 @@ async function runIndexerPoll() {
     lastPollError = error instanceof Error ? error.message.slice(0, 500) : String(error).slice(0, 500);
     const rateLimited = isRateLimitError(error);
     nextPollDelayMs = rateLimited
-      ? Math.min(Math.max(nextPollDelayMs * 2, 60_000), 300_000)
+      ? Math.min(Math.max(nextPollDelayMs * 2, rateLimitBackoffMs), maxRateLimitBackoffMs)
       : pollMs;
     console.error(rateLimited ? "Indexer RPC rate limited; backing off" : "Indexer poll failed", error);
   } finally {
