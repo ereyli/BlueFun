@@ -82,7 +82,7 @@ const nftTransferChunkSize = BigInt(process.env.NFT_TRANSFER_LOG_CHUNK_SIZE || "
 const rpcChunkDelayMs = Number(process.env.RPC_CHUNK_DELAY_MS || (chainId === 8453 ? "175" : "0"));
 const pollMs = Number(process.env.POLL_MS || "1000");
 const confirmations = BigInt(process.env.CONFIRMATIONS || "1");
-const liveScopeConcurrency = Math.max(1, Number(process.env.LIVE_SCOPE_CONCURRENCY || (chainId === 4663 ? "1" : "2")));
+const liveScopeConcurrency = Math.max(1, Number(process.env.LIVE_SCOPE_CONCURRENCY || (chainId === 8453 || chainId === 4663 ? "1" : "2")));
 const totalSupplyRaw = 1_000_000_000n * 10n ** 18n;
 const q192 = 1n << 192n;
 const pfpListingKey = (listingId: bigint) => -listingId;
