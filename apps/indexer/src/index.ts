@@ -1,4 +1,5 @@
 import "dotenv/config";
+import { AsyncLocalStorage } from "node:async_hooks";
 import { createServer } from "node:http";
 import { createPublicClient, encodeAbiParameters, fallback, getAddress, http, keccak256, zeroAddress } from "viem";
 import {
@@ -82,7 +83,7 @@ const nftTransferChunkSize = BigInt(process.env.NFT_TRANSFER_LOG_CHUNK_SIZE || "
 const rpcChunkDelayMs = Number(process.env.RPC_CHUNK_DELAY_MS || (chainId === 8453 ? "175" : "0"));
 const pollMs = Number(process.env.POLL_MS || "1000");
 const confirmations = BigInt(process.env.CONFIRMATIONS || "1");
-const liveScopeConcurrency = Math.max(1, Number(process.env.LIVE_SCOPE_CONCURRENCY || (chainId === 8453 || chainId === 4663 ? "1" : "2")));
+const liveScopeConcurrency = Math.max(1, Number(process.env.LIVE_SCOPE_CONCURRENCY || (chainId === 4663 ? "1" : "2")));
 const totalSupplyRaw = 1_000_000_000n * 10n ** 18n;
 const q192 = 1n << 192n;
 const pfpListingKey = (listingId: bigint) => -listingId;
@@ -113,24 +114,35 @@ type LaunchMetadata = {
   discord?: string;
 };
 
-const client = createPublicClient({
+const createRpcClient = (urls: string[]) => createPublicClient({
   chain: chainDefinition,
-  // Keep the configured order stable. Public RPCs can be fast while healthy but
-  // become rate limited during a backfill; fallback will move to the next URL.
-  transport: fallback(rpcUrls.map((url) => http(url, { retryCount: 0 })), { rank: false, retryCount: 0 })
+  // Keep each worker's configured order stable. Rotating the first endpoint
+  // across workers distributes live load without losing failover.
+  transport: fallback(urls.map((url) => http(url, { retryCount: 0 })), { rank: false, retryCount: 0 })
+});
+const rpcClients = rpcUrls.map((_, index) => createRpcClient([...rpcUrls.slice(index), ...rpcUrls.slice(0, index)]));
+const baseClient = rpcClients[0];
+const rpcClientContext = new AsyncLocalStorage<typeof baseClient>();
+const client = new Proxy(baseClient, {
+  get(target, property) {
+    const activeClient = rpcClientContext.getStore() ?? target;
+    const value = Reflect.get(activeClient, property, activeClient);
+    return typeof value === "function" ? value.bind(activeClient) : value;
+  }
 });
 
 const sleep = (milliseconds: number) => new Promise<void>((resolve) => setTimeout(resolve, milliseconds));
 
 async function mapWithConcurrency<T>(items: T[], concurrency: number, worker: (item: T) => Promise<void>) {
   let cursor = 0;
-  async function runWorker() {
+  async function runWorker(workerIndex: number) {
+    const workerClient = rpcClients[workerIndex % rpcClients.length] ?? baseClient;
     while (cursor < items.length) {
       const item = items[cursor++];
-      await worker(item);
+      await rpcClientContext.run(workerClient, () => worker(item));
     }
   }
-  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, runWorker));
+  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, (_, index) => runWorker(index)));
 }
 
 async function checkpointIndexerState(key: string, nextBlock: bigint, isBackfilling = false) {
@@ -267,14 +279,14 @@ async function backfillLoop() {
     await backfillNFTCollections(latest);
     await backfillNFTPFPCollections(latest);
     await backfillNFTItems(latest);
-    await Promise.all([
-      backfillNFTPhases(latest),
-      backfillNFTMints(latest),
-      backfillNFTTransfers(latest),
-      backfillNFTMarketplace(latest),
-      backfillNFTPFPMarketplace(latest),
-      backfillNFTOffers(latest)
-    ]);
+    await mapWithConcurrency([
+      () => backfillNFTPhases(latest),
+      () => backfillNFTMints(latest),
+      () => backfillNFTTransfers(latest),
+      () => backfillNFTMarketplace(latest),
+      () => backfillNFTPFPMarketplace(latest),
+      () => backfillNFTOffers(latest)
+    ], liveScopeConcurrency, (task) => task());
   }
   await mapWithConcurrency(deploymentContexts, liveScopeConcurrency, async (deployment) => {
     if (latest < deployment.startBlock) return;
