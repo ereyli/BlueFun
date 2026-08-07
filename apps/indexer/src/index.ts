@@ -214,7 +214,9 @@ async function runIndexerPoll() {
     lastSuccessfulPollAt = Date.now();
     lastPollError = "";
     consecutiveFailures = 0;
-    nextPollDelayMs = pollMs;
+    // Keep the requested cadence measured from poll start. A slow live pass
+    // should not add another full interval before checking the next head.
+    nextPollDelayMs = Math.max(0, pollMs - (Date.now() - pollStartedAt));
   } catch (error) {
     consecutiveFailures += 1;
     lastPollError = error instanceof Error ? error.message.slice(0, 500) : String(error).slice(0, 500);
@@ -261,21 +263,21 @@ async function backfillLoop() {
       backfillNFTOffers(latest)
     ]);
   }
-  for (const deployment of deploymentContexts) {
-    if (latest < deployment.startBlock) continue;
+  await Promise.all(deploymentContexts.map(async (deployment) => {
+    if (latest < deployment.startBlock) return;
     await backfillLaunchCreated(deployment, latest);
     await backfillMarketBuys(deployment, latest);
     await backfillMarketSells(deployment, latest);
     await backfillGraduations(deployment, latest);
     await backfillUniswapV4Swaps(deployment, latest);
-  }
-  for (const directDeployment of directDeployments) {
-    if (latest < directDeployment.startBlock) continue;
+  }));
+  await Promise.all(directDeployments.map(async (directDeployment) => {
+    if (latest < directDeployment.startBlock) return;
     await backfillDirectLaunches(directDeployment, latest);
     if (directDeployment.dexProvider === "ekubo") await backfillEkuboTrades(directDeployment, latest);
     else if (directDeployment.dexVersion === "v3") await backfillUniswapV3Swaps(directDeployment, latest);
     else await backfillUniswapV4Swaps(directDeployment, latest);
-  }
+  }));
   lastIndexedBlock = latest;
   const checkpoint = await client.getBlock({ blockNumber: latest });
   await setIndexerTextState(canonicalStateKey(), JSON.stringify({ block: latest.toString(), hash: checkpoint.hash }));
