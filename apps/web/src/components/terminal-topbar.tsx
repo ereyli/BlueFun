@@ -4,7 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { Suspense, useEffect, useState, type FormEvent } from "react";
-import { ArrowLeft, ImagePlus, Rocket, Search } from "@/components/bluefun-icons";
+import { ImagePlus, Rocket, Search } from "@/components/bluefun-icons";
 import { BrandLaunchpadMenu } from "@/components/brand-launchpad-menu";
 import { NetworkSelector } from "@/components/network-selector";
 import { WalletButton } from "@/components/wallet-button";
@@ -76,9 +76,9 @@ export function TerminalTopbar() {
     <header className="topbar terminal-global-header">
       <Link className="mobile-brand" href="/" aria-label="B20 home"><Image src="/brand/bluelogo.webp" alt="B20" width={34} height={34} priority /></Link>
       <div className="terminal-page-identity">
-        {isCreateScreen ? <Link aria-label={`Back to ${context.searchTarget === "/nft" ? "NFT markets" : "markets"}`} href={context.searchTarget}><ArrowLeft size={16}/></Link> : null}
-        {!isCreateScreen ? <BrandLaunchpadMenu /> : null}
-        <h1>{context.title}</h1>
+        <Link className="terminal-home-link" href="/" aria-label="BlueFun token markets"><Image src="/brand/bluelogo.webp" alt="" width={34} height={34} priority /></Link>
+        <BrandLaunchpadMenu />
+        <h1 className="terminal-page-title">{context.title}</h1>
       </div>
       <SiteHeaderNav />
       <form className="terminal-global-search" onSubmit={submitSearch}>

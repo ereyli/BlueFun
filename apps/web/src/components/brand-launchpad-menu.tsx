@@ -34,11 +34,11 @@ export function BrandLaunchpadMenu() {
       <span className={`launchpad-product-mark ${nftMode ? "nft" : "token"}`}>
         <Image alt="" height={30} src={nftMode ? "/brand/nft-launchpad.png" : "/brand/bluelogo.webp"} width={30}/>
       </span>
-      <span>{nftMode ? "NFT" : "Token"}</span>
+      <span>{nftMode ? "NFT markets" : "Token markets"}</span>
       <ChevronDown aria-hidden="true" />
     </button>
     {open ? <div aria-label="Launchpads" className="brand-launchpad-popover" role="menu">
-      <div className="brand-launchpad-popover-head"><span>Switch workspace</span></div>
+      <div className="brand-launchpad-popover-head"><span>Choose market</span><small>Tokens or NFTs</small></div>
       <Link className={!nftMode ? "active" : undefined} href="/" role="menuitem">
         <span className="launchpad-product-preview token"><Image alt="" height={34} src="/brand/bluelogo.webp" width={34}/></span>
         <span><strong>Token markets</strong><small>Launch, discover and trade tokens</small></span>

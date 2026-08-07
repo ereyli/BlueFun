@@ -20,14 +20,17 @@ export function NetworkSelector() {
   const { switchChainAsync, isPending } = useSwitchChain();
   const router = useRouter();
   const pathname = usePathname();
+  const nftMode = pathname.startsWith("/nft");
   const searchParams = useSearchParams();
   const [open, setOpen] = useState(false);
+  const [optimisticChainId, setOptimisticChainId] = useState<number>();
   const [switchError, setSwitchError] = useState("");
   const rootRef = useRef<HTMLDivElement>(null);
-  const requestedChain = searchParams.get("chain") || chainSlugFromPath(pathname);
-  const selectedChainId = requestedChain
+  const requestedChain = nftMode ? "base" : searchParams.get("chain") || chainSlugFromPath(pathname);
+  const routeChainId = requestedChain
     ? chainIdFromParam(requestedChain)
     : chainId === robinhoodChain.id || chainId === monadChain.id || chainId === stableChain.id || chainId === arcChain.id ? chainId : baseChain.id;
+  const selectedChainId = optimisticChainId ?? routeChainId;
   const selectedNetwork = networkMeta(selectedChainId);
 
   useEffect(() => {
@@ -45,8 +48,20 @@ export function NetworkSelector() {
     };
   }, []);
 
+  useEffect(() => {
+    if (optimisticChainId === routeChainId) setOptimisticChainId(undefined);
+  }, [optimisticChainId, routeChainId]);
+
   async function selectNetwork(nextChainId: number) {
     setSwitchError("");
+    setOptimisticChainId(nextChainId);
+    setOpen(false);
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("chain", chainSlug(nextChainId));
+    params.delete("page");
+    const destination = /^\/launch\/[^/]+$/.test(pathname) || /^\/token\/(base|robinhood|monad|stable|arc)\//.test(pathname) ? "/" : pathname;
+    router.push(`${destination}?${params.toString()}`);
+
     if (isConnected && chainId !== nextChainId) {
       try {
         await switchChainAsync({ chainId: nextChainId });
@@ -55,15 +70,8 @@ export function NetworkSelector() {
         setSwitchError(message.includes("rejected") || message.includes("denied")
           ? "Network switch was cancelled in your wallet."
           : "Your wallet could not switch networks. Try again from the wallet.");
-        setOpen(false);
-        return;
       }
     }
-    const params = new URLSearchParams(searchParams.toString());
-    params.set("chain", chainSlug(nextChainId));
-    const destination = /^\/launch\/[^/]+$/.test(pathname) || /^\/token\/(base|robinhood|monad|stable|arc)\//.test(pathname) ? "/" : pathname;
-    router.push(`${destination}?${params.toString()}`);
-    setOpen(false);
   }
 
   return (
@@ -84,7 +92,7 @@ export function NetworkSelector() {
       {open ? (
         <div className="network-menu" role="menu" aria-label="Select network">
           <div className="network-menu-label">Choose network</div>
-          {networks.map((networkId) => {
+          {(nftMode ? [baseChain.id] : networks).map((networkId) => {
             const network = networkMeta(networkId);
             const active = networkId === selectedChainId;
             return (

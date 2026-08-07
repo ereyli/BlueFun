@@ -13,7 +13,7 @@ export default async function NFTPage({ searchParams }: { searchParams: Promise<
   const creators = new Set(collections.map((collection) => collection.creator.toLowerCase())).size;
   return <div className="nft-home nft-directory-home">
     <section className="nft-directory-hero">
-      <div><span><i/>B20 NFT · BASE</span><h1>NFT collection desk</h1><p>Discover primary drops, inspect collection activity and trade verified listings from one focused workspace.</p><div><Link className="button primary" href="/nft/launch"><ImagePlus/>Create collection</Link><a className="button" href="#live-mints">Live mints <ArrowRight/></a></div></div>
+      <div><span><i/>NFT MARKETS · BASE</span><h1>Discover. Mint. Collect.</h1><p>Primary drops and verified collections in one focused market.</p><div><Link className="button primary" href="/nft/launch"><ImagePlus/>Create collection</Link><a className="button" href="#live-mints">Live mints <ArrowRight/></a></div></div>
       <dl><div><dt>COLLECTIONS</dt><dd>{collections.length}</dd></div><div><dt>LIVE MINTS</dt><dd>{live}</dd></div><div><dt>CREATORS</dt><dd>{creators}</dd></div><div><dt>NETWORK</dt><dd>Base</dd></div></dl>
     </section>
     <NFTLiveMints collections={collections}/>

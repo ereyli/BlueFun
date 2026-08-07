@@ -11,7 +11,7 @@ import type { LaunchBuyActivity, MarketSparkline } from "@/lib/db-launches";
 import type { DeployedLaunch } from "@/lib/onchain-launches";
 import { optimizedTokenImageUrl } from "@/lib/token-metadata";
 import { NetworkIcon, networkMeta } from "@/components/network-icon";
-import { chainSlug } from "@/lib/chain-slug";
+import { chainIdFromParam, chainSlug } from "@/lib/chain-slug";
 import { tokenPath } from "@/lib/token-url";
 import { launchEconomics } from "@/lib/contracts";
 import { indexerScopesForChain } from "@/lib/contracts";
@@ -58,9 +58,11 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, chain
   const networkMenuRef = useRef<HTMLDivElement>(null);
   const activityBlocksRef = useRef<Map<string, bigint>>(new Map());
   const activityReadyRef = useRef(false);
-  const allNetworks = chainId === 0;
-  const activeNetwork = allNetworks ? { name: "All networks", symbol: "MULTI" } : networkMeta(chainId);
-  const chainParam = allNetworks ? "all" : chainSlug(chainId);
+  const routeChain = searchParams.get("chain")?.trim().toLowerCase();
+  const marketChainId = routeChain === "all" ? 0 : routeChain ? chainIdFromParam(routeChain) : chainId;
+  const allNetworks = marketChainId === 0;
+  const activeNetwork = allNetworks ? { name: "All networks", symbol: "MULTI" } : networkMeta(marketChainId);
+  const chainParam = allNetworks ? "all" : chainSlug(marketChainId);
 
   useEffect(() => {
     const savedView = window.localStorage.getItem("bluefun-market-view");
@@ -120,7 +122,7 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, chain
       controller.abort();
       window.clearTimeout(timeout);
     };
-  }, [category, chainId, chainParam, page, query, refreshNonce, sort]);
+  }, [category, chainParam, marketChainId, page, query, refreshNonce, sort]);
 
   useEffect(() => {
     let active = true;
@@ -132,7 +134,7 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, chain
       if (activityLoading) return;
       activityLoading = true;
       try {
-        const networkIds = allNetworks ? MARKET_NETWORKS : [chainId];
+        const networkIds = allNetworks ? MARKET_NETWORKS : [marketChainId];
         const payloads = await Promise.all(networkIds.map(async (networkId) => {
           const response = await fetch(`/api/launch-activity?chain=${chainSlug(networkId)}`, { signal: controller.signal });
           if (!response.ok) return [] as LaunchBuyActivity[];
@@ -180,10 +182,10 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, chain
       window.clearTimeout(highlightTimer);
       activityRefreshRef.current = undefined;
     };
-  }, [allNetworks, chainId]);
+  }, [allNetworks, marketChainId]);
 
   const activityRefreshRef = useRef<(() => Promise<void>) | undefined>(undefined);
-  const activityScopes = useMemo(() => new Set((allNetworks ? MARKET_NETWORKS : [chainId]).flatMap((networkId) => indexerScopesForChain(networkId).map((item) => item.scope))), [allNetworks, chainId]);
+  const activityScopes = useMemo(() => new Set((allNetworks ? MARKET_NETWORKS : [marketChainId]).flatMap((networkId) => indexerScopesForChain(networkId).map((item) => item.scope))), [allNetworks, marketChainId]);
   const activityScopeFilter = useMemo(() => `scope=in.(${[...activityScopes].join(",")})`, [activityScopes]);
   useRealtimeRefresh({
     table: "trades",
@@ -251,7 +253,7 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, chain
   useEffect(() => {
     let active = true;
     async function loadNativePrice() {
-      const networkIds = allNetworks ? MARKET_NETWORKS : [chainId];
+      const networkIds = allNetworks ? MARKET_NETWORKS : [marketChainId];
       const prices = await Promise.all(networkIds.map(async (networkId) => {
         try {
           const response = await fetch(`/api/native-price?chain=${chainSlug(networkId)}`, { cache: "no-store" });
@@ -269,7 +271,7 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, chain
       active = false;
       window.clearInterval(interval);
     };
-  }, [allNetworks, chainId]);
+  }, [allNetworks, marketChainId]);
 
   const pulseItems = useMemo(() => {
     const launchesByKey = new Map(initialLaunches.map((launch) => [activityKey(launch), launch]));
@@ -283,7 +285,8 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, chain
   const pagination = paginationItems(page, totalPages);
   // The API sorts the complete result set before pagination. Re-sorting only the
   // current page here would make page boundaries and the selected order disagree.
-  const displayedLaunches = launches;
+  const displayedLaunches = allNetworks ? launches : launches.filter((launch) => launch.chainId === marketChainId);
+  const marketLoading = isPageLoading || displayedLaunches.length === 0 && launches.length > 0;
   const featuredLaunches = displayedLaunches.slice(0, 4);
   const displayedLaunchKeys = useMemo(() => displayedLaunches.map(activityKey).join(","), [displayedLaunches]);
 
@@ -349,7 +352,7 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, chain
             onClick={() => setNetworkMenuOpen((open) => !open)}
             type="button"
           >
-            {allNetworks ? <AllNetworksIcon /> : <NetworkIcon chainId={chainId} size={18}/>}
+            {allNetworks ? <AllNetworksIcon /> : <NetworkIcon chainId={marketChainId} size={18}/>}
             <span><small>Network</small><strong>{activeNetwork.name}</strong></span>
             <ChevronDown size={13}/>
           </button>
@@ -374,7 +377,7 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, chain
               </button>
               {MARKET_NETWORKS.map((networkId) => {
                 const network = networkMeta(networkId);
-                const active = chainId === networkId;
+                const active = marketChainId === networkId;
                 return (
                   <button
                     className={active ? "active" : ""}
@@ -398,7 +401,7 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, chain
             </div>
           ) : null}
         </div>
-        <Link className="button primary reference-create-token" href={`/launch?chain=${allNetworks ? "base" : chainSlug(chainId)}`}><Rocket size={15}/>Create token <b>+</b></Link>
+        <Link className="button primary reference-create-token" href={`/launch?chain=${allNetworks ? "base" : chainSlug(marketChainId)}`}><Rocket size={15}/>Create token <b>+</b></Link>
         <ReferenceWalletButton/>
       </header>
 
@@ -408,7 +411,7 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, chain
           <h2>Find a token.<br/><em>Catch the signal.</em></h2>
           <p>Fair curves and permanently locked liquidity, in one focused market.</p>
         </div>
-        <Link className="reference-intro-cta" href={`/launch?chain=${allNetworks ? "base" : chainSlug(chainId)}`}><Rocket size={16}/>Launch a token</Link>
+        <Link className="reference-intro-cta" href={`/launch?chain=${allNetworks ? "base" : chainSlug(marketChainId)}`}><Rocket size={16}/>Launch a token</Link>
       </section>
 
       {featuredLaunches.length ? (
@@ -477,10 +480,12 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, chain
         <main className="reference-market-main" ref={tokensRef}>
           <div className="reference-market-scroll">
           {loadError ? <BlueFunState action={<button className="button compact" type="button" onClick={() => setRefreshNonce((value) => value + 1)}>Try again</button>} compact text="Showing the last successful market snapshot while the live feed reconnects." title="Market data is reconnecting" variant="offline" /> : null}
-          {launches.length === 0 && !isPageLoading ? (
-            <BlueFunState action={totalLaunches === 0 ? <Link className="button primary compact" href={`/launch?chain=${allNetworks ? "base" : chainSlug(chainId)}`}>Launch a token</Link> : null} text={totalLaunches === 0 ? "Create the first fair token and start the market." : "Try another search term or clear the search field."} title={totalLaunches === 0 ? allNetworks ? "No indexed markets yet" : `Be first on ${activeNetwork.name}` : "No matching launches"} variant="empty" />
+          {marketLoading && displayedLaunches.length === 0 ? (
+            <BlueFunState compact text={`Loading ${activeNetwork.name} markets…`} title="Switching market feed" variant="loading" />
+          ) : displayedLaunches.length === 0 ? (
+            <BlueFunState action={totalLaunches === 0 ? <Link className="button primary compact" href={`/launch?chain=${allNetworks ? "base" : chainSlug(marketChainId)}`}>Launch a token</Link> : null} text={totalLaunches === 0 ? "Create the first fair token and start the market." : "Try another search term or clear the search field."} title={totalLaunches === 0 ? allNetworks ? "No indexed markets yet" : `Be first on ${activeNetwork.name}` : "No matching launches"} variant="empty" />
           ) : (
-          <div className={`reference-market-table view-${view}${isPageLoading ? " page-loading" : ""}`} aria-busy={isPageLoading}>
+          <div className={`reference-market-table view-${view}${marketLoading ? " page-loading" : ""}`} aria-busy={marketLoading}>
             <div className="reference-market-table-head" aria-hidden="true">
               <span>Token</span><span>Network</span><span>Age</span><span>24h chart</span><span>Market cap</span><span>Liquidity</span><span>24h volume</span><span>Venue</span>
             </div>
@@ -512,9 +517,9 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, chain
           {totalPages > 1 ? (
             <nav className="launch-pagination reference-pagination" aria-label="Launch pages">
               <span>{total.toLocaleString("en-US")} tokens</span>
-              <button disabled={page === 1 || isPageLoading} onClick={() => changePage(page - 1)} type="button" aria-label="Previous page">‹</button>
-              {pagination.map((item, index) => item === "…" ? <span className="pagination-ellipsis" key={`ellipsis-${index}`}>…</span> : <button className={item === page ? "active" : ""} disabled={isPageLoading} onClick={() => changePage(item)} type="button" aria-current={item === page ? "page" : undefined} key={item}>{item}</button>)}
-              <button disabled={page === totalPages || isPageLoading} onClick={() => changePage(page + 1)} type="button" aria-label="Next page">›</button>
+              <button disabled={page === 1 || marketLoading} onClick={() => changePage(page - 1)} type="button" aria-label="Previous page">‹</button>
+              {pagination.map((item, index) => item === "…" ? <span className="pagination-ellipsis" key={`ellipsis-${index}`}>…</span> : <button className={item === page ? "active" : ""} disabled={marketLoading} onClick={() => changePage(item)} type="button" aria-current={item === page ? "page" : undefined} key={item}>{item}</button>)}
+              <button disabled={page === totalPages || marketLoading} onClick={() => changePage(page + 1)} type="button" aria-label="Next page">›</button>
             </nav>
           ) : null}
         </main>
@@ -535,7 +540,7 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, chain
 
       <footer className="reference-status-bar">
         <div className="reference-market-summary">
-          <span className="reference-summary-network">{allNetworks ? <AllNetworksIcon /> : <NetworkIcon chainId={chainId} size={14}/>}<strong>{activeNetwork.name}</strong></span>
+          <span className="reference-summary-network">{allNetworks ? <AllNetworksIcon /> : <NetworkIcon chainId={marketChainId} size={14}/>}<strong>{activeNetwork.name}</strong></span>
           <span><small>Total markets</small><b>{total.toLocaleString("en-US")}</b></span>
           <span><small>On this page</small><b>{displayedLaunches.length}</b></span>
           <span><small>Category</small><b>{category === "All" ? "All tokens" : category === "Progress" ? "Bonding" : "Direct DEX"}</b></span>
