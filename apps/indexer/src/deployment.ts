@@ -15,7 +15,7 @@ export const defaultRpcUrls = arc
   ? [defaultRpcUrl, "https://rpc1.monad.xyz", ...splitRpcUrls(process.env.MONAD_RPC_FALLBACK_URLS)]
   : robinhood
   ? [defaultRpcUrl, ...splitRpcUrls(process.env.ROBINHOOD_RPC_FALLBACK_URLS)]
-  : [defaultRpcUrl, "https://base.drpc.org"];
+  : [defaultRpcUrl, "https://base.drpc.org", "https://base-pokt.nodies.app"];
 
 export type IndexerDeployment = {
   version: "legacy" | "fee-sharing-v1" | "current" | "vnext";
