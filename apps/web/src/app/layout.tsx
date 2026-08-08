@@ -19,7 +19,7 @@ import "./nft-modern.css";
 import "./bluedex.css";
 import "./shell-theme-refinement.css";
 import { Providers } from "@/components/providers";
-import { RouteFeedback } from "@/components/route-feedback";
+import { NavigationRecovery } from "@/components/navigation-recovery";
 import { SideNav } from "@/components/side-nav";
 import { siteUrl } from "@/lib/site-url";
 import { Suspense } from "react";
@@ -92,7 +92,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body>
         <Providers>
-          <Suspense fallback={null}><RouteFeedback /></Suspense>
+          <NavigationRecovery />
           <div className="shell">
             <aside className="sidebar">
               <div className="brand-launchpad-row">
