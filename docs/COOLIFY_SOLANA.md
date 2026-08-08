@@ -19,15 +19,13 @@ Keep the existing database, Pinata, WalletConnect and EVM variables unchanged.
 ## Solana indexer
 
 Create one additional Coolify application from the same repository and use the
-existing indexer Dockerfile/build configuration. Set its start command to:
-
-```bash
-npm run start:solana -w apps/indexer
-```
+existing indexer Dockerfile/build configuration. Leave Coolify's start-command
+override empty and select the Solana process with `INDEXER_MODE=solana`.
 
 Environment:
 
 ```dotenv
+INDEXER_MODE=solana
 SOLANA_RPC_URL=https://your-private-solana-mainnet-rpc
 SOLANA_PROGRAM_ID=CqjRfYuDzJgQUBF6BzRnNQfV5Gc4DT9a4pxrTQReX6f5
 POLL_MS=5000
