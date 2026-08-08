@@ -20,12 +20,8 @@ export function WalletButton() {
   useEffect(() => {
     if (solanaSelected && evmConnected) {
       void disconnectEvm();
-      return;
     }
-    if (!solanaSelected && solanaWallet.connected) {
-      void solanaWallet.disconnect();
-    }
-  }, [disconnectEvm, evmConnected, solanaSelected, solanaWallet]);
+  }, [disconnectEvm, evmConnected, solanaSelected]);
 
   if (solanaSelected) {
     if (!solanaWallet.connected || !solanaWallet.publicKey) {

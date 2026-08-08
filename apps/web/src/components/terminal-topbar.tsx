@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { Suspense, useEffect, useState, type FormEvent } from "react";
@@ -83,9 +82,9 @@ export function TerminalTopbar() {
 
   return (
     <header className="topbar terminal-global-header">
-      <Link className="mobile-brand" href="/" aria-label="B20 home"><Image src="/brand/bluelogo.webp" alt="B20" width={34} height={34} priority /></Link>
+      <Suspense fallback={<span className="mobile-brand" aria-hidden="true"><Image src="/brand/bluelogo.webp" alt="" width={34} height={34} priority /></span>}><ChainLink className="mobile-brand" href="/" aria-label="B20 home"><Image src="/brand/bluelogo.webp" alt="B20" width={34} height={34} priority /></ChainLink></Suspense>
       <div className="terminal-page-identity">
-        <Link className="terminal-home-link" href="/" aria-label="BlueFun token markets"><Image src="/brand/bluelogo.webp" alt="" width={34} height={34} priority /></Link>
+        <Suspense fallback={<span className="terminal-home-link" aria-hidden="true"><Image src="/brand/bluelogo.webp" alt="" width={34} height={34} priority /></span>}><ChainLink className="terminal-home-link" href="/" aria-label="BlueFun token markets"><Image src="/brand/bluelogo.webp" alt="" width={34} height={34} priority /></ChainLink></Suspense>
         <BrandLaunchpadMenu />
         <h1 className="terminal-page-title">{context.title}</h1>
       </div>

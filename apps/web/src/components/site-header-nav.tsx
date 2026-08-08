@@ -1,7 +1,8 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { Suspense } from "react";
+import { ChainLink } from "@/components/chain-link";
 
 const links: ReadonlyArray<{ href: string; label: string; exact?: boolean }> = [
   { href: "/", label: "Markets", exact: true },
@@ -15,10 +16,12 @@ export function SiteHeaderNav({ compact = false }: { compact?: boolean }) {
 
   return (
     <nav className={`site-header-nav${compact ? " compact" : ""}`} aria-label="Primary navigation">
-      {links.map((link) => {
-        const active = link.exact ? pathname === link.href || pathname === "/explore" : pathname.startsWith(link.href);
-        return <Link aria-current={active ? "page" : undefined} href={link.href} key={link.href}>{link.label}</Link>;
-      })}
+      <Suspense fallback={null}>
+        {links.map((link) => {
+          const active = link.exact ? pathname === link.href || pathname === "/explore" : pathname.startsWith(link.href);
+          return <ChainLink aria-current={active ? "page" : undefined} href={link.href} key={link.href}>{link.label}</ChainLink>;
+        })}
+      </Suspense>
     </nav>
   );
 }
