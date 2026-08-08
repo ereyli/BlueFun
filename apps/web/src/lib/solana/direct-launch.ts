@@ -29,6 +29,7 @@ import {
   createMintToInstruction,
   createSetAuthorityInstruction,
   createTransferInstruction,
+  getMint,
   getAssociatedTokenAddressSync
 } from "@solana/spl-token";
 import {
@@ -71,6 +72,7 @@ export type SolanaDirectLaunchInput = {
   symbol: string;
   metadataUri: string;
   initialBuyLamports: bigint;
+  existingMint?: PublicKey;
   onProgress?: (progress: SolanaLaunchProgress) => void;
 };
 
@@ -103,55 +105,80 @@ export async function launchSolanaDirect(input: SolanaDirectLaunchInput): Promis
   // The config PDA is authoritative. The initial launch fee is 0.05 SOL, but
   // governance can change it through the program's timelocked update flow.
 
-  const mint = Keypair.generate();
-  const creatorTokenAccount = getAssociatedTokenAddressSync(mint.publicKey, creator);
-  const rent = await connection.getMinimumBalanceForRentExemption(MINT_SIZE);
-  const mintTx = new Transaction().add(
-    SystemProgram.createAccount({
-      fromPubkey: creator,
-      newAccountPubkey: mint.publicKey,
-      lamports: rent,
-      space: MINT_SIZE,
-      programId: TOKEN_PROGRAM_ID
-    }),
-    createInitializeMintInstruction(mint.publicKey, SOLANA_TOKEN_DECIMALS, creator, creator),
-    createAssociatedTokenAccountIdempotentInstruction(creator, creatorTokenAccount, creator, mint.publicKey),
-    createMintToInstruction(mint.publicKey, creatorTokenAccount, creator, SOLANA_TOKEN_SUPPLY_RAW)
-  );
-  const mintSignature = await sendTransaction(connection, wallet, mintTx, [mint]);
-  input.onProgress?.({ key: "mint", label: "1B fixed supply minted", signature: mintSignature });
+  const mintSigner = input.existingMint ? undefined : Keypair.generate();
+  const mint = input.existingMint ?? mintSigner!.publicKey;
+  const creatorTokenAccount = getAssociatedTokenAddressSync(mint, creator);
+  if (mintSigner) {
+    const rent = await connection.getMinimumBalanceForRentExemption(MINT_SIZE);
+    const mintTx = new Transaction().add(
+      SystemProgram.createAccount({
+        fromPubkey: creator,
+        newAccountPubkey: mint,
+        lamports: rent,
+        space: MINT_SIZE,
+        programId: TOKEN_PROGRAM_ID
+      }),
+      createInitializeMintInstruction(mint, SOLANA_TOKEN_DECIMALS, creator, creator),
+      createAssociatedTokenAccountIdempotentInstruction(creator, creatorTokenAccount, creator, mint),
+      createMintToInstruction(mint, creatorTokenAccount, creator, SOLANA_TOKEN_SUPPLY_RAW)
+    );
+    const mintSignature = await sendTransaction(connection, wallet, mintTx, [mintSigner]);
+    input.onProgress?.({ key: "mint", label: "1B fixed supply minted", signature: mintSignature });
+    await waitForMint(connection, mint);
+  } else {
+    const state = await getMint(connection, mint, "confirmed", TOKEN_PROGRAM_ID);
+    if (state.decimals !== SOLANA_TOKEN_DECIMALS || state.supply !== SOLANA_TOKEN_SUPPLY_RAW) {
+      throw new Error("The recovery mint does not match the fixed 1B BlueFun supply.");
+    }
+    if (!state.mintAuthority?.equals(creator) || !state.freezeAuthority?.equals(creator)) {
+      throw new Error("The recovery mint is not controlled by the connected creator.");
+    }
+    input.onProgress?.({ key: "mint", label: "Existing 1B mint recovered" });
+  }
 
   const umi = createUmi(endpoint).use(mplTokenMetadata()).use(walletAdapterIdentity(walletAdapter));
-  const umiMint = umiPublicKey(mint.publicKey.toBase58());
+  const umiMint = umiPublicKey(mint.toBase58());
   const metadata = findMetadataPda(umi, { mint: umiMint });
-  const metadataResult = await createMetadataAccountV3(umi, {
-    metadata,
-    mint: umiMint,
-    mintAuthority: umi.identity,
-    payer: umi.identity,
-    updateAuthority: umi.identity,
-    data: {
-      name: input.name,
-      symbol: input.symbol,
-      uri: input.metadataUri,
-      sellerFeeBasisPoints: 0,
-      creators: none(),
-      collection: none(),
-      uses: none()
-    },
-    isMutable: false,
-    collectionDetails: none()
-  }).sendAndConfirm(umi, { confirm: { commitment: "confirmed" } });
-  input.onProgress?.({ key: "metadata", label: "Immutable token metadata created", signature: base58Signature(metadataResult.signature) });
+  let metadataSignature: string | undefined;
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    try {
+      const metadataResult = await createMetadataAccountV3(umi, {
+        metadata,
+        mint: umiMint,
+        mintAuthority: umi.identity,
+        payer: umi.identity,
+        updateAuthority: umi.identity,
+        data: {
+          name: input.name,
+          symbol: input.symbol,
+          uri: input.metadataUri,
+          sellerFeeBasisPoints: 0,
+          creators: none(),
+          collection: none(),
+          uses: none()
+        },
+        isMutable: false,
+        collectionDetails: none()
+      }).sendAndConfirm(umi, { confirm: { commitment: "confirmed" } });
+      metadataSignature = base58Signature(metadataResult.signature);
+      break;
+    } catch (error) {
+      const metadataAccount = await connection.getAccountInfo(new PublicKey(metadata[0].toString()), "confirmed");
+      if (metadataAccount) break;
+      if (attempt === 4) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 1_000 * (attempt + 1)));
+    }
+  }
+  input.onProgress?.({ key: "metadata", label: "Immutable token metadata created", signature: metadataSignature });
 
   const revokeTx = new Transaction().add(
-    createSetAuthorityInstruction(mint.publicKey, creator, AuthorityType.MintTokens, null),
-    createSetAuthorityInstruction(mint.publicKey, creator, AuthorityType.FreezeAccount, null)
+    createSetAuthorityInstruction(mint, creator, AuthorityType.MintTokens, null),
+    createSetAuthorityInstruction(mint, creator, AuthorityType.FreezeAccount, null)
   );
   await sendTransaction(connection, wallet, revokeTx);
 
   const [launchAddress] = PublicKey.findProgramAddressSync(
-    [Buffer.from("launch"), mint.publicKey.toBuffer()],
+    [Buffer.from("launch"), mint.toBuffer()],
     BLUEFUN_SOLANA_PROGRAM_ID
   );
   const reserveTx = await program.methods
@@ -159,7 +186,7 @@ export async function launchSolanaDirect(input: SolanaDirectLaunchInput): Promis
     .accounts({
       creator,
       config: configAddress,
-      mint: mint.publicKey,
+      mint,
       launch: launchAddress,
       systemProgram: SystemProgram.programId
     })
@@ -197,7 +224,7 @@ export async function launchSolanaDirect(input: SolanaDirectLaunchInput): Promis
     payer: creator,
     creator,
     positionNft: creatorPositionNft.publicKey,
-    tokenAMint: mint.publicKey,
+    tokenAMint: mint,
     tokenBMint: NATIVE_MINT,
     tokenAAmount,
     tokenBAmount,
@@ -287,7 +314,7 @@ export async function launchSolanaDirect(input: SolanaDirectLaunchInput): Promis
       payer: creator,
       pool: poolCreation.pool,
       inputTokenMint: NATIVE_MINT,
-      outputTokenMint: mint.publicKey,
+      outputTokenMint: mint,
       amountIn: new BN(input.initialBuyLamports.toString()),
       minimumAmountOut: quote.minSwapOutAmount,
       tokenAMint: poolState.tokenAMint,
@@ -308,11 +335,11 @@ export async function launchSolanaDirect(input: SolanaDirectLaunchInput): Promis
     config: configAddress,
     treasury: config.treasury,
     launch: launchAddress,
-    mint: mint.publicKey,
+    mint,
     pool: poolCreation.pool,
     creatorPosition: poolCreation.position,
     platformPosition,
-    poolTokenAVault: deriveTokenVaultAddress(mint.publicKey, poolCreation.pool),
+    poolTokenAVault: deriveTokenVaultAddress(mint, poolCreation.pool),
     creatorPositionNft: creatorPositionNftAccount,
     platformPositionNft: treasuryPositionNftAccount,
     creatorTokenAccount,
@@ -322,7 +349,7 @@ export async function launchSolanaDirect(input: SolanaDirectLaunchInput): Promis
   input.onProgress?.({ key: "verify", label: "Onchain verification complete", signature });
 
   return {
-    mint: mint.publicKey.toBase58(),
+    mint: mint.toBase58(),
     pool: poolCreation.pool.toBase58(),
     launch: launchAddress.toBase58(),
     creatorPosition: poolCreation.position.toBase58(),
@@ -342,6 +369,15 @@ async function sendTransaction(connection: Connection, wallet: BrowserWallet, tr
   const confirmation = await connection.confirmTransaction({ signature, ...latest }, "confirmed");
   if (confirmation.value.err) throw new Error(`Solana transaction failed: ${JSON.stringify(confirmation.value.err)}`);
   return signature;
+}
+
+async function waitForMint(connection: Connection, mint: PublicKey) {
+  for (let attempt = 0; attempt < 12; attempt += 1) {
+    const account = await connection.getAccountInfo(mint, "confirmed");
+    if (account?.owner.equals(TOKEN_PROGRAM_ID) && account.data.length >= MINT_SIZE) return;
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  }
+  throw new Error("The minted token was not yet visible to the metadata RPC. Retry the launch recovery flow.");
 }
 
 function base58Signature(signature: Uint8Array) {
