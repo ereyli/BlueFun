@@ -31,7 +31,7 @@ Environment:
 SOLANA_RPC_URL=https://your-private-solana-mainnet-rpc
 SOLANA_PROGRAM_ID=CqjRfYuDzJgQUBF6BzRnNQfV5Gc4DT9a4pxrTQReX6f5
 POLL_MS=5000
-HEALTH_PORT=3101
+HEALTH_PORT=3000
 DATABASE_URL=postgresql://...
 ```
 
