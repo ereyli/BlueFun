@@ -80,11 +80,12 @@ export async function POST(request: Request) {
       imageUri = `ipfs://${imageResult.IpfsHash}`;
     }
 
+    const publicImageUrl = ipfsToPublicUrl(imageUri);
     const metadata = {
       name,
       symbol,
       description: description || `${name} (${symbol}) launched on BlueFun.`,
-      image: imageUri,
+      image: chainId === 101 ? publicImageUrl : imageUri,
       external_url: website || undefined,
       socials: {
         website: website || undefined,
@@ -92,6 +93,18 @@ export async function POST(request: Request) {
         telegram: telegram || undefined,
         discord: discord || undefined
       },
+      ...(chainId === 101 ? {
+        properties: {
+          category: "image",
+          files: [{ uri: publicImageUrl, type: "image/webp" }]
+        },
+        extensions: {
+          website: website || undefined,
+          twitter: twitter || undefined,
+          telegram: telegram || undefined,
+          discord: discord || undefined
+        }
+      } : {}),
       attributes: [
         { trait_type: "Network", value: network },
         { trait_type: "Token Standard", value: standard },
@@ -172,4 +185,8 @@ function cleanUrl(value: FormDataEntryValue | null) {
 function ipfsToGatewayUrl(uri: string) {
   const gateway = process.env.PINATA_GATEWAY_URL || "https://gateway.pinata.cloud/ipfs";
   return `${gateway.replace(/\/$/, "")}/${uri.replace("ipfs://", "")}`;
+}
+
+function ipfsToPublicUrl(uri: string) {
+  return uri.startsWith("ipfs://") ? `https://ipfs.io/ipfs/${uri.slice(7)}` : uri;
 }

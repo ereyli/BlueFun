@@ -10,13 +10,15 @@ import {
   getBaseFeeParams
 } from "@meteora-ag/cp-amm-sdk";
 import {
-  createMetadataAccountV3,
+  createV1,
   findMetadataPda,
-  mplTokenMetadata
+  mplTokenMetadata,
+  TokenStandard
 } from "@metaplex-foundation/mpl-token-metadata";
 import { createUmi } from "@metaplex-foundation/umi-bundle-defaults";
-import { none, publicKey as umiPublicKey } from "@metaplex-foundation/umi";
+import { none, percentAmount, publicKey as umiPublicKey } from "@metaplex-foundation/umi";
 import { walletAdapterIdentity } from "@metaplex-foundation/umi-signer-wallet-adapters";
+import { toWeb3JsInstruction } from "@metaplex-foundation/umi-web3js-adapters";
 import type { WalletAdapter } from "@solana/wallet-adapter-base";
 import {
   AuthorityType,
@@ -109,6 +111,25 @@ export async function launchSolanaDirect(input: SolanaDirectLaunchInput): Promis
   const mintSigner = input.existingMint ? undefined : Keypair.generate();
   const mint = input.existingMint ?? mintSigner!.publicKey;
   const creatorTokenAccount = getAssociatedTokenAddressSync(mint, creator);
+  const umi = createUmi(endpoint).use(mplTokenMetadata()).use(walletAdapterIdentity(walletAdapter));
+  const umiMint = umiPublicKey(mint.toBase58());
+  const metadata = findMetadataPda(umi, { mint: umiMint });
+  const metadataBuilder = () => createV1(umi, {
+    metadata,
+    mint: umiMint,
+    authority: umi.identity,
+    payer: umi.identity,
+    updateAuthority: umi.identity,
+    name: input.name,
+    symbol: input.symbol,
+    uri: input.metadataUri,
+    sellerFeeBasisPoints: percentAmount(0),
+    tokenStandard: TokenStandard.Fungible,
+    creators: none(),
+    isMutable: false,
+    collectionDetails: none()
+  });
+  let metadataSignature: string | undefined;
   if (mintSigner) {
     const rent = await connection.getMinimumBalanceForRentExemption(MINT_SIZE);
     const mintTx = new Transaction().add(
@@ -121,10 +142,12 @@ export async function launchSolanaDirect(input: SolanaDirectLaunchInput): Promis
       }),
       createInitializeMintInstruction(mint, SOLANA_TOKEN_DECIMALS, creator, creator),
       createAssociatedTokenAccountIdempotentInstruction(creator, creatorTokenAccount, creator, mint),
-      createMintToInstruction(mint, creatorTokenAccount, creator, SOLANA_TOKEN_SUPPLY_RAW)
+      createMintToInstruction(mint, creatorTokenAccount, creator, SOLANA_TOKEN_SUPPLY_RAW),
+      ...metadataBuilder().getInstructions().map(toWeb3JsInstruction)
     );
     const mintSignature = await sendTransaction(connection, wallet, mintTx, [mintSigner]);
     input.onProgress?.({ key: "mint", label: "1B fixed supply minted", signature: mintSignature });
+    metadataSignature = mintSignature;
     await waitForMint(connection, mint);
   } else {
     const state = await getMint(connection, mint, "confirmed", TOKEN_PROGRAM_ID);
@@ -137,40 +160,21 @@ export async function launchSolanaDirect(input: SolanaDirectLaunchInput): Promis
     input.onProgress?.({ key: "mint", label: "Existing 1B mint recovered" });
   }
 
-  const umi = createUmi(endpoint).use(mplTokenMetadata()).use(walletAdapterIdentity(walletAdapter));
-  const umiMint = umiPublicKey(mint.toBase58());
-  const metadata = findMetadataPda(umi, { mint: umiMint });
-  let metadataSignature: string | undefined;
-  for (let attempt = 0; attempt < 5; attempt += 1) {
-    try {
-      const metadataResult = await createMetadataAccountV3(umi, {
-        metadata,
-        mint: umiMint,
-        mintAuthority: umi.identity,
-        payer: umi.identity,
-        updateAuthority: umi.identity,
-        data: {
-          name: input.name,
-          symbol: input.symbol,
-          uri: input.metadataUri,
-          sellerFeeBasisPoints: 0,
-          creators: none(),
-          collection: none(),
-          uses: none()
-        },
-        isMutable: false,
-        collectionDetails: none()
-      }).sendAndConfirm(umi, { confirm: { commitment: "confirmed" } });
-      metadataSignature = base58Signature(metadataResult.signature);
-      break;
-    } catch (error) {
-      const metadataAccount = await connection.getAccountInfo(new PublicKey(metadata[0].toString()), "confirmed");
-      if (metadataAccount) break;
-      if (attempt === 4) throw error;
-      await new Promise((resolve) => setTimeout(resolve, 1_000 * (attempt + 1)));
+  if (!metadataSignature) {
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      try {
+        const metadataResult = await metadataBuilder().sendAndConfirm(umi, { confirm: { commitment: "confirmed" } });
+        metadataSignature = base58Signature(metadataResult.signature);
+        break;
+      } catch (error) {
+        const metadataAccount = await connection.getAccountInfo(new PublicKey(metadata[0].toString()), "confirmed");
+        if (metadataAccount) break;
+        if (attempt === 4) throw error;
+        await new Promise((resolve) => setTimeout(resolve, 1_000 * (attempt + 1)));
+      }
     }
   }
-  input.onProgress?.({ key: "metadata", label: "Immutable token metadata created", signature: metadataSignature });
+  input.onProgress?.({ key: "metadata", label: "Immutable token metadata created atomically", signature: metadataSignature });
 
   const revokeTx = new Transaction().add(
     createSetAuthorityInstruction(mint, creator, AuthorityType.MintTokens, null),
