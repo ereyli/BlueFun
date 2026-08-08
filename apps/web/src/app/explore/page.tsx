@@ -15,7 +15,7 @@ export default async function ExplorePage({ searchParams }: { searchParams: Prom
     return <LaunchExplorer launches={uiPreviewLaunches} totalLaunches={128} chainId={chainId} />;
   }
   const { page } = await getCachedLaunchOverview(chainId);
-  const fallback = page ? undefined : await (chainId === 143 || chainId === 988 || chainId === 5042
+  const fallback = page ? undefined : await (chainId === 101 || chainId === 143 || chainId === 988 || chainId === 5042
     ? getDbLaunches(chainId).then((value) => value ?? [])
     : chainId === 4663 ? getRobinhoodLaunches() : getDeployedLaunches());
   const launches = page?.launches ?? fallback?.slice(0, MARKET_PAGE_SIZE) ?? [];

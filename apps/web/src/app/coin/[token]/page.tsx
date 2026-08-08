@@ -9,6 +9,7 @@ import { siteUrl } from "@/lib/site-url";
 import { tokenPath } from "@/lib/token-url";
 import { getArcOnchainLaunchByToken } from "@/lib/arc-launches";
 import { findUiPreviewLaunch, isUiPreviewLaunch, uiPreviewEnabled, uiPreviewTrades } from "@/lib/ui-preview-data";
+import { SolanaMarket } from "@/components/solana-market";
 
 export const revalidate = 15;
 
@@ -16,7 +17,7 @@ type CoinParams = { params: Promise<{ token: string }> };
 
 const getCachedCoinLaunch = unstable_cache(
   async (token: string) => {
-    const indexed = await Promise.all([8453, 4663, 143, 988, 5042].map((chainId) => getDbLaunchByToken(token, chainId)));
+    const indexed = await Promise.all([8453, 4663, 143, 988, 5042, 101].map((chainId) => getDbLaunchByToken(token, chainId)));
     const indexedMatch = indexed.find(Boolean);
     if (indexedMatch) return indexedMatch;
 
@@ -65,15 +66,16 @@ export default async function CoinMarketPage({ params }: CoinParams) {
   const { token } = await params;
   const launch = await resolveCoin(token);
   if (!launch) notFound();
+  if (launch.chainId === 101) return <SolanaMarket launch={launch} />;
   const trades = isUiPreviewLaunch(launch) ? uiPreviewTrades : await getCachedCoinTrades(launch.id, launch.chainId, launch.scope);
   return <MarketClient id={launch.id} launch={launch} trades={trades} />;
 }
 
 async function resolveCoin(token: string) {
-  if (!/^0x[a-fA-F0-9]{40}$/.test(token)) return undefined;
+  if (!/^0x[a-fA-F0-9]{40}$/.test(token) && !/^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(token)) return undefined;
   if (uiPreviewEnabled()) {
     const preview = findUiPreviewLaunch(token);
     if (preview) return preview;
   }
-  return getCachedCoinLaunch(token.toLowerCase()).catch(() => undefined);
+  return getCachedCoinLaunch(token.startsWith("0x") ? token.toLowerCase() : token).catch(() => undefined);
 }

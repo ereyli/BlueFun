@@ -185,7 +185,7 @@ After the delay:
 - [x] Robinhood timelock owner migration scheduled
 - [x] Robinhood treasury migration scheduled
 - [x] Robinhood bridge-recipient migration scheduled
-- [ ] Timelock operations executed after 2026-07-26 12:13:33 UTC
+- [x] Timelock operations executed after 2026-07-26 12:13:33 UTC
 - [ ] Safe accepted timelock ownership on Base
 - [ ] Safe accepted timelock ownership on Robinhood
 - [x] Safe deployed and verified as 2-of-3 on Stable

@@ -1,12 +1,17 @@
 "use client";
 
 import "@rainbow-me/rainbowkit/styles.css";
+import "@solana/wallet-adapter-react-ui/styles.css";
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { connectorsForWallets, darkTheme, getDefaultConfig, lightTheme, RainbowKitProvider } from "@rainbow-me/rainbowkit";
 import { coinbaseWallet, injectedWallet } from "@rainbow-me/rainbowkit/wallets";
 import { WagmiProvider, createConfig, fallback, http } from "wagmi";
 import { useEffect, useState } from "react";
+import { ConnectionProvider, WalletProvider } from "@solana/wallet-adapter-react";
+import { WalletModalProvider } from "@solana/wallet-adapter-react-ui";
+import { PhantomWalletAdapter } from "@solana/wallet-adapter-phantom";
+import { SolflareWalletAdapter } from "@solana/wallet-adapter-solflare";
 import { baseChain } from "@/lib/base-chain";
 import { robinhoodChain } from "@/lib/robinhood-chain";
 import { monadChain } from "@/lib/monad-chain";
@@ -62,6 +67,8 @@ export function Providers({ children }: { children: React.ReactNode }) {
     }
   }));
   const [dark, setDark] = useState(false);
+  const [solanaWallets] = useState(() => [new PhantomWalletAdapter(), new SolflareWalletAdapter()]);
+  const solanaEndpoint = process.env.NEXT_PUBLIC_SOLANA_RPC_URL || "https://api.mainnet-beta.solana.com";
 
   useEffect(() => {
     const syncTheme = () => setDark(document.documentElement.dataset.theme === "dark");
@@ -82,7 +89,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
           theme={walletTheme}
           modalSize="compact"
         >
-          {children}
+          <ConnectionProvider endpoint={solanaEndpoint}>
+            <WalletProvider wallets={solanaWallets} autoConnect>
+              <WalletModalProvider>{children}</WalletModalProvider>
+            </WalletProvider>
+          </ConnectionProvider>
         </RainbowKitProvider>
       </QueryClientProvider>
     </WagmiProvider>

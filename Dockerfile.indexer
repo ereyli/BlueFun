@@ -8,6 +8,7 @@ COPY apps/indexer/package.json apps/indexer/package.json
 RUN npm ci --workspace apps/indexer --include-workspace-root=false --include=dev
 
 COPY apps/indexer apps/indexer
+COPY solana/idl solana/idl
 
 RUN npm run build -w apps/indexer
 RUN npm prune --omit=dev --workspace apps/indexer --include-workspace-root=false

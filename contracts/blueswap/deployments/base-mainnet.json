@@ -1,0 +1,45 @@
+{
+  "network": "Base",
+  "chainId": 8453,
+  "deployer": "0x9d5f55a644eF0eB9FF82dbd14Dd0471de3ff5bfb",
+  "factory": "0xDc4fd3381a67F40e6CF8B54f4b33C1ddddc5f69C",
+  "router02": "0x1B4DFD836CF75E427BA49715606F25bdCbAF5431",
+  "wrappedNative": "0x4200000000000000000000000000000000000006",
+  "feeTo": "0x144A3f70C0bf33124852E3891011e033b909F46d",
+  "feeToSetterTimelock": "0xA7DEa156cD6a0a8D5e0c25e94e20E670b426cF26",
+  "timelockDelaySeconds": 604800,
+  "timelockOwnerAtDeployment": "0x9d5f55a644eF0eB9FF82dbd14Dd0471de3ff5bfb",
+  "timelockPendingOwnerAtDeployment": "0x0000000000000000000000000000000000000000",
+  "factoryDeploymentBlock": 49697459,
+  "routerDeploymentBlock": 49697496,
+  "transactions": {
+    "factoryDeployment": "0x6394fd4d79428c164a95ff0cde14d2c6e95e47e05dfa9de60f0cf42615bfe981",
+    "setFeeTo": "0x7489b0604cf1a2d9ed943865b4d38fb17b98b7d47201af47d4e4372267cef2f9",
+    "setFeeToSetter": "0xbcf1bdb230134a4093190f91a762540401eee675c3ea1bdd053b873accd73c10",
+    "routerDeployment": "0xe612e5fcfd742c27cf74aab7e10f216304d6cae82ba6e8cbb0c04eabf13ede89"
+  },
+  "postDeploymentGovernance": {
+    "safe": "0x144A3f70C0bf33124852E3891011e033b909F46d",
+    "timelockOwnershipProposalExecution": "0xa9859b82bc7caacf3c8e400975d74ae5e3621d8406a93b0b72280ca2717233cd",
+    "revenueRouterTreasuryMigration": "0x222fcebcbe093dfd8cbc4dfc2839eaaad3f188722996a337e2f5fbd4a378c3f3",
+    "stateAfterExecution": {
+      "timelockOwner": "0x9d5f55a644eF0eB9FF82dbd14Dd0471de3ff5bfb",
+      "timelockPendingOwner": "0x144A3f70C0bf33124852E3891011e033b909F46d",
+      "revenueRouterTreasury": "0x144A3f70C0bf33124852E3891011e033b909F46d",
+      "safeAcceptanceRequired": true
+    }
+  },
+  "pairInitCodeHash": "0x96e8ac4277198ff8b6f785478aa9a39f403cb768dd02cbee326c3e7da348845f",
+  "source": {
+    "coreCommit": "4dd59067c76dea4a0e8e4bfdda41877a6b16dedc",
+    "peripheryCommit": "ed24991304291297c3b4a52818d02f46a17aa9a2",
+    "coreCompiler": "0.5.16",
+    "routerCompiler": "0.6.6",
+    "optimizerRuns": 999999,
+    "evmVersion": "istanbul"
+  },
+  "explorerVerification": {
+    "factory": "https://basescan.org/address/0xDc4fd3381a67F40e6CF8B54f4b33C1ddddc5f69C#code",
+    "router02": "https://basescan.org/address/0x1B4DFD836CF75E427BA49715606F25bdCbAF5431#code"
+  }
+}

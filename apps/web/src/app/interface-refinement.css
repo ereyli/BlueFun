@@ -781,12 +781,30 @@ html[data-theme="dark"] .market-command-center {
 
 .topbar .launchpad-product-mark {
   align-items: center;
+  background: color-mix(in srgb, var(--blue) 13%, var(--panel));
+  border: 1px solid color-mix(in srgb, var(--blue) 36%, var(--line));
+  border-radius: 8px;
+  color: color-mix(in srgb, var(--blue) 78%, white);
   display: flex;
   height: 27px;
   justify-content: center;
   overflow: hidden;
   width: 27px;
 }
+
+.topbar .launchpad-product-mark.nft {
+  background: color-mix(in srgb, #b76cff 13%, var(--panel));
+  border-color: color-mix(in srgb, #b76cff 38%, var(--line));
+  color: #c98cff;
+}
+
+.topbar .launchpad-product-mark.dex {
+  background: linear-gradient(145deg, color-mix(in srgb, var(--blue) 17%, var(--panel)), color-mix(in srgb, var(--green) 10%, var(--panel)));
+  border-color: color-mix(in srgb, var(--blue) 42%, var(--line));
+  color: #75a0ff;
+}
+
+.topbar .launchpad-product-mark svg { height: 17px; width: 17px; }
 
 .topbar .launchpad-product-mark img {
   height: 100%;
@@ -840,13 +858,30 @@ html[data-theme="dark"] .market-command-center {
 
 .brand-launchpad-popover .launchpad-product-preview {
   align-items: center;
+  background: color-mix(in srgb, var(--blue) 11%, var(--panel));
+  border: 1px solid color-mix(in srgb, var(--blue) 34%, var(--line));
   border-radius: 9px;
+  color: color-mix(in srgb, var(--blue) 78%, white);
   display: flex;
   height: 34px;
   justify-content: center;
   overflow: hidden;
   width: 34px;
 }
+
+.brand-launchpad-popover .launchpad-product-preview.nft {
+  background: color-mix(in srgb, #b76cff 11%, var(--panel));
+  border-color: color-mix(in srgb, #b76cff 34%, var(--line));
+  color: #c98cff;
+}
+
+.brand-launchpad-popover .launchpad-product-preview.dex {
+  background: linear-gradient(145deg, color-mix(in srgb, var(--blue) 16%, var(--panel)), color-mix(in srgb, var(--green) 9%, var(--panel)));
+  border-color: color-mix(in srgb, var(--blue) 40%, var(--line));
+  color: #75a0ff;
+}
+
+.brand-launchpad-popover .launchpad-product-preview svg { height: 19px; width: 19px; }
 
 .brand-launchpad-popover .launchpad-product-preview img {
   height: 100%;

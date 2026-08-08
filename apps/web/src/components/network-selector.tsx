@@ -10,9 +10,9 @@ import { monadChain } from "@/lib/monad-chain";
 import { stableChain } from "@/lib/stable-chain";
 import { arcChain } from "@/lib/arc-chain";
 import { NetworkIcon, networkMeta } from "@/components/network-icon";
-import { chainIdFromParam, chainSlug, chainSlugFromPath } from "@/lib/chain-slug";
+import { chainIdFromParam, chainSlug, chainSlugFromPath, SOLANA_CHAIN_ID } from "@/lib/chain-slug";
 
-const networks = [baseChain.id, robinhoodChain.id, monadChain.id, stableChain.id, arcChain.id] as const;
+const networks = [baseChain.id, robinhoodChain.id, monadChain.id, stableChain.id, arcChain.id, SOLANA_CHAIN_ID] as const;
 
 export function NetworkSelector() {
   const { isConnected } = useAccount();
@@ -21,6 +21,7 @@ export function NetworkSelector() {
   const router = useRouter();
   const pathname = usePathname();
   const nftMode = pathname.startsWith("/nft");
+  const dexMode = pathname.startsWith("/dex");
   const searchParams = useSearchParams();
   const [open, setOpen] = useState(false);
   const [optimisticChainId, setOptimisticChainId] = useState<number>();
@@ -59,9 +60,10 @@ export function NetworkSelector() {
     const params = new URLSearchParams(searchParams.toString());
     params.set("chain", chainSlug(nextChainId));
     params.delete("page");
-    const destination = /^\/launch\/[^/]+$/.test(pathname) || /^\/token\/(base|robinhood|monad|stable|arc)\//.test(pathname) ? "/" : pathname;
+    const destination = /^\/launch\/[^/]+$/.test(pathname) || /^\/token\/(base|robinhood|monad|stable|arc|solana)\//.test(pathname) ? "/" : pathname;
     router.push(`${destination}?${params.toString()}`);
 
+    if (nextChainId === SOLANA_CHAIN_ID) return;
     if (isConnected && chainId !== nextChainId) {
       try {
         await switchChainAsync({ chainId: nextChainId });
@@ -92,7 +94,7 @@ export function NetworkSelector() {
       {open ? (
         <div className="network-menu" role="menu" aria-label="Select network">
           <div className="network-menu-label">Choose network</div>
-          {(nftMode ? [baseChain.id] : networks).map((networkId) => {
+          {(nftMode ? [baseChain.id] : dexMode ? [baseChain.id, robinhoodChain.id] : networks).map((networkId) => {
             const network = networkMeta(networkId);
             const active = networkId === selectedChainId;
             return (
@@ -104,7 +106,7 @@ export function NetworkSelector() {
                 type="button"
               >
                 <NetworkIcon chainId={networkId} size={30} />
-                <span><strong>{network.name}</strong><small>{networkId === 8453 ? "B20 native launches" : networkId === 143 ? "MON-native ERC-20 launches" : networkId === 988 ? "USDT0 Direct DEX launches" : networkId === 5042 ? "USDC Direct DEX launches" : "ERC-20 launches"}</small></span>
+                <span><strong>{network.name}</strong><small>{dexMode ? "BlueDEX V2 liquidity" : networkId === SOLANA_CHAIN_ID ? "SOL Direct Meteora launches" : networkId === 8453 ? "B20 native launches" : networkId === 143 ? "MON-native ERC-20 launches" : networkId === 988 ? "USDT0 Direct DEX launches" : networkId === 5042 ? "USDC Direct DEX launches" : "ERC-20 launches"}</small></span>
                 {active ? <Check size={17} /> : null}
               </button>
             );

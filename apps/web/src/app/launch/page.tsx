@@ -2,6 +2,7 @@
 
 import { Suspense, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 import { decodeEventLog, erc20Abi, formatEther, parseEther, keccak256, toBytes, zeroAddress } from "viem";
 import { useAccount, usePublicClient, useReadContract, useWaitForTransactionReceipt, useWriteContract } from "wagmi";
 import { Check, CheckCircle2, ChevronLeft, ChevronRight, Copy, ExternalLink, ImagePlus, Info, LayoutDashboard, Loader2, Rocket, TimerReset, UploadCloud, X, Zap } from "@/components/bluefun-icons";
@@ -13,11 +14,22 @@ import { tokenPath } from "@/lib/token-url";
 import { BlueFunState } from "@/components/bluefun-state";
 import { DexProviderIcon } from "@/components/dex-provider-icon";
 
+const SolanaLaunchStudio = dynamic(
+  () => import("@/components/solana-launch-studio").then((module) => module.SolanaLaunchStudio),
+  { ssr: false, loading: () => <BlueFunState title="Preparing Solana studio" text="Loading Meteora market tools." variant="loading" /> }
+);
+
 export default function LaunchPage() {
   return <Suspense fallback={<BlueFunState title="Preparing launch studio" text="Loading the selected network and market configuration." variant="loading" />}><LaunchPageContent /></Suspense>;
 }
 
 function LaunchPageContent() {
+  const requestedChain = useSearchParams().get("chain");
+  if (requestedChain?.toLowerCase() === "solana") return <SolanaLaunchStudio />;
+  return <EvmLaunchStudio requestedChain={requestedChain} />;
+}
+
+function EvmLaunchStudio({ requestedChain }: { requestedChain: string | null }) {
   const [name, setName] = useState("");
   const [symbol, setSymbol] = useState("");
   const [imagePreview, setImagePreview] = useState("");
@@ -41,7 +53,6 @@ function LaunchPageContent() {
   const [showSuccess, setShowSuccess] = useState(false);
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const { isConnected, chainId } = useAccount();
-  const requestedChain = useSearchParams().get("chain");
   const activeChainId = requestedChain ? chainIdFromParam(requestedChain) : chainId === 4663 || chainId === 143 || chainId === 988 || chainId === 5042 ? chainId : 8453;
   const { addresses, chain, bondEnabled, dexVersion, stableUniswapV3Addresses } = contractsForChain(activeChainId);
   const economics = launchEconomics(activeChainId);

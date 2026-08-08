@@ -26,7 +26,7 @@ import { SiteHeaderNav } from "@/components/site-header-nav";
 type MarketCategory = "All" | "Progress" | "Direct";
 type MarketSort = "Activity" | "Newest" | "Volume" | "MarketCap";
 type MarketView = "cards" | "list";
-const MARKET_NETWORKS = [8453, 4663, 143, 988, 5042] as const;
+const MARKET_NETWORKS = [8453, 4663, 143, 988, 5042, 101] as const;
 
 const ReferenceWalletButton = dynamic(
   () => import("@/components/wallet-button").then((module) => module.WalletButton),
@@ -422,7 +422,7 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, chain
               const metrics = presentationFor(launch);
               const isHot = hotLaunchKey === metrics.key;
               return (
-                <Link className={isHot ? "reference-trending-card activity-hot" : "reference-trending-card"} href={tokenPath(launch)} key={`featured-${launch.chainId}-${launch.id}`}>
+                <Link className={isHot ? "reference-trending-card activity-hot" : "reference-trending-card"} href={tokenPath(launch)} key={`featured-${launch.chainId}-${launch.token.toLowerCase()}`}>
                   <TokenAvatar launch={launch} hot={isHot}/>
                   <span><strong>{launch.name}</strong><small>${launch.symbol}</small></span>
                   <span><small>Market cap</small><strong>{metrics.marketCap}</strong></span>

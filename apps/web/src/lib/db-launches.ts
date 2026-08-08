@@ -530,7 +530,8 @@ export async function getDbLaunchByTokenSuffix(tokenSuffix: string, chainId = 84
 }
 
 export async function getDbLaunchByToken(token: string, chainId = 8453): Promise<DeployedLaunch | undefined> {
-  if (process.env.POSTGRES_INDEXER_ENABLED !== "true" || !/^0x[a-fA-F0-9]{40}$/.test(token)) return undefined;
+  const validToken = chainId === 101 ? /^[1-9A-HJ-NP-Za-km-z]{32,44}$/.test(token) : /^0x[a-fA-F0-9]{40}$/.test(token);
+  if (process.env.POSTGRES_INDEXER_ENABLED !== "true" || !validToken) return undefined;
   const context = dbContext(chainId);
 
   try {
@@ -541,7 +542,7 @@ export async function getDbLaunchByToken(token: string, chainId = 8453): Promise
         .select(launchColumns)
         .in("scope", context.scopes)
         .gte("created_block", context.deploymentBlock)
-        .ilike("token", token)
+        [chainId === 101 ? "eq" : "ilike"]("token", token)
         .limit(1);
       if (response.error && isMissingSocialColumnError(response.error)) {
         response = await getSupabase()
@@ -549,7 +550,7 @@ export async function getDbLaunchByToken(token: string, chainId = 8453): Promise
           .select(legacyLaunchColumns)
           .in("scope", context.scopes)
           .gte("created_block", context.deploymentBlock)
-          .ilike("token", token)
+          [chainId === 101 ? "eq" : "ilike"]("token", token)
           .limit(1);
       }
       if (response.error) throw response.error;
@@ -562,14 +563,14 @@ export async function getDbLaunchByToken(token: string, chainId = 8453): Promise
          from launches
          where scope = any($1::text[])
            and created_block >= $2
-           and lower(token) = lower($3)
+           and ${chainId === 101 ? "token = $3" : "lower(token) = lower($3)"}
          limit 1`,
         [context.scopes, context.deploymentBlock, token]
       ), 1_500);
       rows = result.rows;
     }
 
-    const row = rows.find((item) => String(item.token || "").toLowerCase() === token.toLowerCase());
+    const row = rows.find((item) => chainId === 101 ? String(item.token || "") === token : String(item.token || "").toLowerCase() === token.toLowerCase());
     if (!row) return undefined;
     const launch = (await mapRows([row], context.chainId))[0];
     return launch ? await attachGraduationPosition(launch, context.scopes) : undefined;
@@ -860,7 +861,7 @@ function sampleSeries(points: number[], limit: number) {
 }
 
 async function mapRows(rows: Array<Record<string, unknown>>, chainId: number): Promise<DeployedLaunch[]> {
-  const nativeSymbol = chainId === 5042 ? "USDC" : chainId === 988 ? "USDT0" : chainId === 143 ? "MON" : "ETH";
+  const nativeSymbol = chainId === 101 ? "SOL" : chainId === 5042 ? "USDC" : chainId === 988 ? "USDT0" : chainId === 143 ? "MON" : "ETH";
   return Promise.all(rows.map(async (row) => {
     const status = toStatus(String(row.status));
     const raised = parseDbBigInt(row.raised_eth);
@@ -874,13 +875,13 @@ async function mapRows(rows: Array<Record<string, unknown>>, chainId: number): P
       chainId,
       scope: cleanDbText(row.scope),
       launchMode: row.launch_mode === "direct" ? "direct" : "bond",
-      dexProvider: row.dex_provider === "ekubo" ? "ekubo" : "uniswap",
+      dexProvider: row.dex_provider === "meteora" ? "meteora" : row.dex_provider === "ekubo" ? "ekubo" : "uniswap",
       poolFee: Number(row.pool_fee || 3000),
       tickSpacing: Number(row.tick_spacing || 60),
-      liquidityLocker: row.liquidity_locker ? getAddress(String(row.liquidity_locker)) as `0x${string}` : undefined,
+      liquidityLocker: row.liquidity_locker ? (chainId === 101 ? String(row.liquidity_locker) : getAddress(String(row.liquidity_locker))) as `0x${string}` : undefined,
       id: String(row.id),
-      token: getAddress(String(row.token)) as `0x${string}`,
-      creator: getAddress(String(row.creator)) as `0x${string}`,
+      token: (chainId === 101 ? String(row.token) : getAddress(String(row.token))) as `0x${string}`,
+      creator: (chainId === 101 ? String(row.creator) : getAddress(String(row.creator))) as `0x${string}`,
       name: String(row.name),
       symbol: String(row.symbol),
       contractURI,
@@ -899,7 +900,7 @@ async function mapRows(rows: Array<Record<string, unknown>>, chainId: number): P
       holders: "indexed",
       volume: `${trimEth(formatEther(volume))} ${nativeSymbol}`,
       age: formatAge(Number(row.token_created_at || 0)),
-      risk: row.launch_mode === "direct" ? `${row.dex_provider === "ekubo" ? "Ekubo" : "Direct DEX"} · LP locked` : status === "Graduated" ? "Adminless" : chainId === 8453 ? "B20 gated" : "Fixed-supply ERC-20",
+      risk: row.launch_mode === "direct" ? `${row.dex_provider === "meteora" ? "Meteora" : row.dex_provider === "ekubo" ? "Ekubo" : "Uniswap"} · LP locked` : status === "Graduated" ? "Adminless" : chainId === 8453 ? "B20 gated" : "Fixed-supply ERC-20",
       price: "Live",
       marketCap: parseDbBigInt(row.current_market_cap_eth) > 0n
         ? `${trimEth(formatEther(parseDbBigInt(row.current_market_cap_eth)))} ${nativeSymbol}`
@@ -1025,6 +1026,11 @@ function getSupabase() {
 }
 
 function dbContext(chainId: number) {
+  if (chainId === 101) return {
+    chainId: 101,
+    scopes: [`solana:101:${process.env.NEXT_PUBLIC_SOLANA_PROGRAM_ID || "CqjRfYuDzJgQUBF6BzRnNQfV5Gc4DT9a4pxrTQReX6f5"}`],
+    deploymentBlock: "0"
+  };
   const config = contractsForChain(chainId);
   const deploymentContexts = indexerScopesForChain(config.chain.id);
   return {
@@ -1040,6 +1046,11 @@ function dbContext(chainId: number) {
 }
 
 function dbContextForLaunch(chainId: number, launchId: string, launchScope?: string) {
+  if (chainId === 101) return {
+    chainId: 101,
+    scope: launchScope || `solana:101:${process.env.NEXT_PUBLIC_SOLANA_PROGRAM_ID || "CqjRfYuDzJgQUBF6BzRnNQfV5Gc4DT9a4pxrTQReX6f5"}`,
+    deploymentBlock: "0"
+  };
   const config = contractsForChain(chainId);
   const scope = launchScope || indexerScopeForLaunch(config.chain.id, launchId);
   const deployment = indexerScopesForChain(config.chain.id).find((context) => context.scope === scope)?.deployment;

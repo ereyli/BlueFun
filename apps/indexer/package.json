@@ -4,15 +4,19 @@
   "type": "module",
   "scripts": {
     "dev": "tsx src/index.ts",
+    "dev:solana": "tsx src/solana.ts",
     "backfill:images": "tsx src/backfill-token-images.ts",
     "build": "tsc",
-    "start": "node dist/index.js"
+    "start": "node dist/index.js",
+    "start:solana": "node dist/solana.js"
   },
   "dependencies": {
+    "@coral-xyz/anchor": "^0.32.1",
+    "@solana/web3.js": "^1.98.4",
     "@supabase/supabase-js": "^2.110.0",
     "dotenv": "^16.4.7",
     "pg": "^8.13.1",
-    "sharp": "^0.35.3",
+    "sharp": "0.34.5",
     "viem": "^2.54.1",
     "ws": "^8.21.0"
   },

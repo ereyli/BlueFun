@@ -1,0 +1,22 @@
+[package]
+name = "bluefun-solana"
+version = "0.1.0"
+edition = "2021"
+description = "Compact no_std BlueFun Solana launch policy"
+
+[lib]
+crate-type = ["cdylib"]
+name = "bluefun_solana"
+
+[features]
+default = []
+custom-heap = []
+custom-panic = []
+
+[dependencies]
+pinocchio = { version = "=0.10.2", default-features = false, features = ["cpi"] }
+pinocchio-system = "=0.5.0"
+solana-address = "=2.5.0"
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(target_os, values("solana"))'] }

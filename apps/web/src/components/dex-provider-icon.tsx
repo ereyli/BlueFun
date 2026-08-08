@@ -1,10 +1,11 @@
 import Image from "next/image";
 
-export type DexProvider = "uniswap" | "ekubo";
+export type DexProvider = "uniswap" | "ekubo" | "meteora";
 
 const DEX_ASSETS: Record<DexProvider, string> = {
   uniswap: "/dex/uniswap.svg",
-  ekubo: "/dex/ekubo.svg"
+  ekubo: "/dex/ekubo.svg",
+  meteora: "/dex/meteora.svg"
 };
 
 export function DexProviderIcon({ provider, size = 20 }: { provider: DexProvider; size?: number }) {

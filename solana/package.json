@@ -1,0 +1,19 @@
+{
+  "name": "@bluefun/solana",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "PATH=\"$HOME/.local/share/solana/install/active_release/bin:$PATH\" cargo build-sbf --manifest-path programs/bluefun_solana/Cargo.toml",
+    "initialize": "tsx scripts/initialize.ts",
+    "test:integration:local": "tsx scripts/integration-local.ts"
+  },
+  "dependencies": {
+    "@coral-xyz/anchor": "^0.32.1",
+    "@meteora-ag/cp-amm-sdk": "^1.4.5",
+    "@solana/web3.js": "^1.98.4"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}

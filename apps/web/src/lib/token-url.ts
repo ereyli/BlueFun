@@ -1,3 +1,5 @@
+import { chainSlug } from "@/lib/chain-slug";
+
 type TokenUrlIdentity = {
   chainId?: number;
   name: string;
@@ -13,7 +15,8 @@ export function tokenSlug(token: Pick<TokenUrlIdentity, "name" | "symbol" | "tok
 }
 
 export function tokenPath(token: TokenUrlIdentity) {
-  return `/coin/${token.token.toLowerCase()}`;
+  const path = `/coin/${token.token.startsWith("0x") ? token.token.toLowerCase() : token.token}`;
+  return token.chainId ? `${path}?chain=${chainSlug(token.chainId)}` : path;
 }
 
 export function tokenSuffixFromSlug(slug: string) {

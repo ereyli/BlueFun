@@ -7,7 +7,7 @@ import { getRobinhoodLaunches } from "@/lib/robinhood-launches";
 import { parseDisplayAmount } from "@/lib/market-math";
 import { getNativeUsdPrice } from "@/lib/native-usd";
 
-const ALL_MARKET_NETWORKS = [8453, 4663, 143, 988, 5042] as const;
+const ALL_MARKET_NETWORKS = [8453, 4663, 143, 988, 5042, 101] as const;
 
 export async function getAllNetworkLaunches() {
   const groups = await Promise.all(ALL_MARKET_NETWORKS.map(async (chainId) => {

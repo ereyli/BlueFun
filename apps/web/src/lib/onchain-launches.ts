@@ -17,7 +17,7 @@ export type DeployedLaunch = {
   chainId: number;
   scope?: string;
   launchMode?: "bond" | "direct";
-  dexProvider?: "uniswap" | "ekubo";
+  dexProvider?: "uniswap" | "ekubo" | "meteora";
   poolFee?: number;
   tickSpacing?: number;
   liquidityLocker?: `0x${string}`;
@@ -49,7 +49,7 @@ export type DeployedLaunch = {
 
 export type DeployedTrade = {
   side: "buy" | "sell";
-  source?: "curve" | "uniswap_v3" | "uniswap_v4" | "ekubo";
+  source?: "curve" | "uniswap_v3" | "uniswap_v4" | "ekubo" | "meteora";
   trader?: `0x${string}`;
   ethAmount: string;
   tokenAmount: string;

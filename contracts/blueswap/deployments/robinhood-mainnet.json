@@ -1,0 +1,47 @@
+{
+  "network": "Robinhood Chain",
+  "chainId": 4663,
+  "deployer": "0xd5bc4D80797ddAEBd91282659Eb79ABaf659B47C",
+  "factory": "0x9A5786CAd9845dc83537cf7420D707179322FC3E",
+  "router02": "0xd2541D19f560F234754b9Cc4a688Ac4f30b35B77",
+  "wrappedNative": "0x0Bd7D308f8E1639FAb988df18A8011f41EAcAD73",
+  "feeTo": "0x144A3f70C0bf33124852E3891011e033b909F46d",
+  "feeToSetterTimelock": "0xa64ed8d4C4cAcFF075A4D1d50EE2F7795B4B0039",
+  "timelockDelaySeconds": 604800,
+  "timelockOwnerAtDeployment": "0xd5bc4D80797ddAEBd91282659Eb79ABaf659B47C",
+  "timelockPendingOwnerAtDeployment": "0x0000000000000000000000000000000000000000",
+  "factoryDeploymentBlock": 30996277,
+  "routerDeploymentBlock": 30996419,
+  "transactions": {
+    "factoryDeployment": "0x0db515b22ac63818589cf2dd399409a1f32bb053ab2c1e8a6379e9381d93d48e",
+    "setFeeTo": "0xf8838691d95ae89882caec9357831c8b9ea3928fbbaae9740956d52d24131a01",
+    "setFeeToSetter": "0xee5bb054abd2381168027023313636c4d3845864cfdeac3cc50428ff7781c873",
+    "routerDeployment": "0xd0960f204819b58546cb7bc2d944fda914f98fbce69b1384305db486ddac9f00"
+  },
+  "postDeploymentGovernance": {
+    "safe": "0x144A3f70C0bf33124852E3891011e033b909F46d",
+    "timelockOwnershipProposalExecution": "0xbaf08405957abccacccc55d9d7b3adbb571acc93cfe3fd23794603b571eecd53",
+    "routerTreasuryMigration": "0x360491020c4862e2c7316a09046f8323962b904d4448a0fc19716883c8cd512d",
+    "routerBridgeRecipientMigration": "0xcb369f91d09e7cc811cf4bce4137ffc199571fd83f6b7c504b4820e938a2ee5a",
+    "stateAfterExecution": {
+      "timelockOwner": "0xd5bc4D80797ddAEBd91282659Eb79ABaf659B47C",
+      "timelockPendingOwner": "0x144A3f70C0bf33124852E3891011e033b909F46d",
+      "routerTreasury": "0x144A3f70C0bf33124852E3891011e033b909F46d",
+      "routerBridgeRecipient": "0x144A3f70C0bf33124852E3891011e033b909F46d",
+      "safeAcceptanceRequired": true
+    }
+  },
+  "pairInitCodeHash": "0x96e8ac4277198ff8b6f785478aa9a39f403cb768dd02cbee326c3e7da348845f",
+  "source": {
+    "coreCommit": "4dd59067c76dea4a0e8e4bfdda41877a6b16dedc",
+    "peripheryCommit": "ed24991304291297c3b4a52818d02f46a17aa9a2",
+    "coreCompiler": "0.5.16",
+    "routerCompiler": "0.6.6",
+    "optimizerRuns": 999999,
+    "evmVersion": "istanbul"
+  },
+  "explorerVerification": {
+    "factory": "https://robinhoodchain.blockscout.com/address/0x9A5786CAd9845dc83537cf7420D707179322FC3E?tab=contract",
+    "router02": "https://robinhoodchain.blockscout.com/address/0xd2541D19f560F234754b9Cc4a688Ac4f30b35B77?tab=contract"
+  }
+}

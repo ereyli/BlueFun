@@ -29,7 +29,7 @@ export async function GET(request: Request) {
         : "Activity"
   )) as LaunchPageSort;
   const sorts: LaunchPageSort[] = ["Activity", "Newest", "Volume", "MarketCap", "Progress"];
-  if (!chainParam || !["all", "base", "robinhood", "monad", "stable", "arc", "8453", "4663", "143", "988", "5042"].includes(chainParam.toLowerCase()) || !Number.isInteger(page) || page < 1 || page > 100_000 || !filters.includes(normalizedFilter as LaunchPageFilter) || !sorts.includes(sort)) {
+  if (!chainParam || !["all", "base", "robinhood", "monad", "stable", "arc", "solana", "8453", "4663", "143", "988", "5042", "101"].includes(chainParam.toLowerCase()) || !Number.isInteger(page) || page < 1 || page > 100_000 || !filters.includes(normalizedFilter as LaunchPageFilter) || !sorts.includes(sort)) {
     return NextResponse.json({ launches: [], total: 0, page: 1, totalPages: 0 }, { status: 400 });
   }
   const filter = normalizedFilter as LaunchPageFilter;
@@ -52,7 +52,7 @@ async function loadLaunchPage(chainId: number, page: number, query: string, filt
 
   const all = chainId === 5042
     ? await getArcOnchainLaunches().catch(() => [])
-    : chainId === 143 || chainId === 988
+    : chainId === 101 || chainId === 143 || chainId === 988
     ? await getDbLaunches(chainId).then((value) => value ?? [])
     : chainId === 4663 ? await getRobinhoodLaunches() : await getDeployedLaunches();
   const source = all;

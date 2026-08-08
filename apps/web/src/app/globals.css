@@ -5447,10 +5447,18 @@ textarea:focus-visible {
   width: 100%;
 }
 
+.network-icon.base {
+  background: transparent;
+  border-color: transparent;
+  border-radius: 50%;
+  box-shadow: none;
+  padding: 0;
+}
+
 .network-icon.robinhood {
   background: #ccff00;
   border-color: #b5e800;
-  padding: 4px 6px;
+  padding: 4px;
 }
 
 .network-icon.monad {
@@ -6105,6 +6113,34 @@ textarea:focus-visible {
 .launch-feature-grid small { color: var(--muted); font-size: 10px; font-weight: 650; }
 
 .launch-form-card { padding: 24px; }
+.solana-launch-hero {
+  background: radial-gradient(circle at 88% 8%, rgba(20, 241, 149, .24), transparent 30%), linear-gradient(145deg, #090616 0%, #201052 58%, #7b2cff 100%);
+  border-color: rgba(153, 69, 255, .55);
+}
+.solana-launch-page .launch-form-card { border-top: 3px solid #14f195; }
+.solana-launch-page .launch-review-card dd { align-items: center; display: inline-flex; gap: 6px; }
+.solana-fee-glyph { align-items: center; background: linear-gradient(135deg, #14f195, #9945ff); border-radius: 9px; color: #07111b; display: inline-flex; font-size: 16px; font-weight: 950; height: 26px; justify-content: center; width: 26px; }
+.solana-progress { display: grid; gap: 7px; margin-top: 14px; }
+.solana-progress span { align-items: center; color: var(--muted); display: flex; font-size: 12px; gap: 7px; }
+.solana-progress svg { color: #15b981; }
+.solana-market-shell { display: grid; gap: 22px; grid-template-columns: minmax(0, 1fr) minmax(360px, 470px); margin: 0 auto; max-width: 1240px; }
+.solana-market-summary, .solana-swap-card { background: var(--surface); border: 1px solid var(--line); border-radius: 24px; box-shadow: 0 22px 70px rgba(12, 18, 44, .1); }
+.solana-market-summary { align-content: start; display: grid; gap: 24px; padding: 34px; }
+.solana-market-art { align-items: center; background: radial-gradient(circle at 35% 25%, #14f195, #5627a7 72%); border-radius: 24px; display: flex; height: 128px; justify-content: center; overflow: hidden; width: 128px; }
+.solana-market-art img { height: 100%; object-fit: cover; width: 100%; }
+.solana-market-summary h1 { font-size: clamp(38px, 5vw, 64px); letter-spacing: -.05em; margin: 18px 0 8px; }
+.solana-market-summary h1 small { color: var(--muted); font-size: .42em; }
+.solana-market-links { display: flex; flex-wrap: wrap; gap: 9px; }
+.solana-market-links a { align-items: center; border: 1px solid var(--line); border-radius: 999px; display: inline-flex; gap: 6px; padding: 9px 13px; }
+.solana-swap-card { display: grid; gap: 16px; padding: 24px; }
+.solana-swap-card > header { align-items: center; display: flex; justify-content: space-between; }
+.solana-swap-card h2 { font-size: 28px; margin: 0; }.solana-swap-card header span { color: var(--muted); font-size: 12px; }
+.solana-swap-tabs { background: var(--surface-2); border: 1px solid var(--line); border-radius: 16px; display: grid; gap: 5px; grid-template-columns: 1fr 1fr; padding: 5px; }
+.solana-swap-tabs button { background: transparent; border: 0; border-radius: 12px; color: var(--muted); font-weight: 850; min-height: 48px; }.solana-swap-tabs .active.buy { background: #20cca0; color: #061811; }.solana-swap-tabs .active.sell { background: #fa6776; color: #200609; }
+.solana-amount-card { border: 1px solid var(--line); border-radius: 18px; display: grid; gap: 14px; padding: 18px; }.solana-amount-card label { color: var(--muted); display: flex; font-size: 11px; font-weight: 850; justify-content: space-between; }.solana-amount-card > div { align-items: center; display: flex; gap: 12px; }.solana-amount-card input { background: transparent; border: 0; color: var(--text); font-size: 38px; font-weight: 850; min-width: 0; outline: 0; width: 100%; }.solana-quote { font-size: 34px; margin-right: auto; }.solana-amount-card.output small { color: var(--muted); }
+.solana-percent-row { display: grid !important; grid-template-columns: repeat(4, 1fr); }.solana-percent-row button { background: var(--surface-2); border: 1px solid var(--line); border-radius: 9px; color: var(--muted); padding: 8px; }
+.solana-swap-submit.buy { background: #20cca0; color: #061811; }.solana-swap-submit.sell { background: #fa6776; color: #200609; }
+@media (max-width: 900px) { .solana-market-shell { grid-template-columns: 1fr; }.solana-market-summary { padding: 24px; } }
 .launch-form-header { border-bottom: 1px solid #e7edf6; margin: -2px -2px 8px; padding: 0 2px 18px; }
 
 .launch-form-section-head {

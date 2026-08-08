@@ -1,0 +1,766 @@
+{
+  "address": "CqjRfYuDzJgQUBF6BzRnNQfV5Gc4DT9a4pxrTQReX6f5",
+  "metadata": {
+    "name": "bluefun_solana",
+    "version": "0.1.0",
+    "spec": "0.1.0",
+    "description": "BlueFun Solana Direct launch registry and Meteora DAMM v2 verifier"
+  },
+  "instructions": [
+    {
+      "name": "accept_admin",
+      "discriminator": [
+        112,
+        42,
+        45,
+        90,
+        116,
+        181,
+        13,
+        170
+      ],
+      "accounts": [
+        {
+          "name": "pending_admin",
+          "signer": true
+        },
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "finalize_launch",
+      "discriminator": [
+        113,
+        133,
+        62,
+        196,
+        58,
+        212,
+        118,
+        166
+      ],
+      "accounts": [
+        {
+          "name": "creator",
+          "writable": true,
+          "signer": true,
+          "relations": [
+            "launch"
+          ]
+        },
+        {
+          "name": "config",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "treasury",
+          "writable": true,
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "launch",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  108,
+                  97,
+                  117,
+                  110,
+                  99,
+                  104
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              }
+            ]
+          }
+        },
+        {
+          "name": "mint",
+          "relations": [
+            "launch"
+          ]
+        },
+        {
+          "name": "pool"
+        },
+        {
+          "name": "creator_position"
+        },
+        {
+          "name": "platform_position"
+        },
+        {
+          "name": "creator_position_nft"
+        },
+        {
+          "name": "platform_position_nft"
+        },
+        {
+          "name": "pool_token_a_vault"
+        },
+        {
+          "name": "creator_token_account"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "initialize",
+      "discriminator": [
+        175,
+        175,
+        109,
+        31,
+        13,
+        152,
+        155,
+        237
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "guardian"
+        },
+        {
+          "name": "treasury",
+          "writable": true
+        },
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "initial_sqrt_price",
+          "type": "u128"
+        },
+        {
+          "name": "max_sqrt_price",
+          "type": "u128"
+        }
+      ]
+    },
+    {
+      "name": "manage",
+      "discriminator": [
+        168,
+        141,
+        131,
+        54,
+        79,
+        150,
+        88,
+        36
+      ],
+      "accounts": [
+        {
+          "name": "admin",
+          "signer": true,
+          "relations": [
+            "config"
+          ]
+        },
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "action",
+          "type": "u8"
+        },
+        {
+          "name": "value",
+          "type": {
+            "array": [
+              "u8",
+              32
+            ]
+          }
+        },
+        {
+          "name": "secondary",
+          "type": {
+            "array": [
+              "u8",
+              16
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "reserve_launch",
+      "discriminator": [
+        60,
+        214,
+        0,
+        184,
+        198,
+        221,
+        230,
+        168
+      ],
+      "accounts": [
+        {
+          "name": "creator",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "mint"
+        },
+        {
+          "name": "launch",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  108,
+                  97,
+                  117,
+                  110,
+                  99,
+                  104
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              }
+            ]
+          }
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "name",
+          "type": "string"
+        },
+        {
+          "name": "symbol",
+          "type": "string"
+        },
+        {
+          "name": "metadata_uri",
+          "type": "string"
+        },
+        {
+          "name": "initial_buy_lamports",
+          "type": "u64"
+        }
+      ]
+    },
+    {
+      "name": "set_paused",
+      "discriminator": [
+        91,
+        60,
+        125,
+        192,
+        176,
+        225,
+        166,
+        218
+      ],
+      "accounts": [
+        {
+          "name": "authority",
+          "signer": true
+        },
+        {
+          "name": "config",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  99,
+                  111,
+                  110,
+                  102,
+                  105,
+                  103
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "args": [
+        {
+          "name": "paused",
+          "type": "bool"
+        }
+      ]
+    }
+  ],
+  "accounts": [
+    {
+      "name": "Config",
+      "discriminator": [
+        155,
+        12,
+        170,
+        224,
+        30,
+        250,
+        204,
+        130
+      ]
+    },
+    {
+      "name": "Launch",
+      "discriminator": [
+        144,
+        51,
+        51,
+        163,
+        206,
+        85,
+        213,
+        38
+      ]
+    }
+  ],
+  "errors": [
+    {
+      "code": 6000,
+      "name": "LaunchesPaused",
+      "msg": "Launches are paused"
+    },
+    {
+      "code": 6001,
+      "name": "InvalidMetadata",
+      "msg": "Metadata is invalid"
+    },
+    {
+      "code": 6002,
+      "name": "ArithmeticOverflow",
+      "msg": "Arithmetic overflow"
+    },
+    {
+      "code": 6003,
+      "name": "InvalidMint",
+      "msg": "The mint is not a BlueFun fixed-supply mint"
+    },
+    {
+      "code": 6004,
+      "name": "InvalidSupply",
+      "msg": "Token supply must be exactly one billion tokens"
+    },
+    {
+      "code": 6005,
+      "name": "MintAuthorityNotRevoked",
+      "msg": "Mint authority must be permanently revoked"
+    },
+    {
+      "code": 6006,
+      "name": "FreezeAuthorityNotRevoked",
+      "msg": "Freeze authority must be permanently revoked"
+    },
+    {
+      "code": 6007,
+      "name": "InvalidPoolPair",
+      "msg": "The Meteora pool token pair is invalid"
+    },
+    {
+      "code": 6008,
+      "name": "InvalidPoolCreator",
+      "msg": "The Meteora pool creator does not match this launch"
+    },
+    {
+      "code": 6009,
+      "name": "InvalidPoolVault",
+      "msg": "The Meteora pool token vault is invalid"
+    },
+    {
+      "code": 6010,
+      "name": "InvalidCollectFeeMode",
+      "msg": "Meteora fees must be collected in the quote token"
+    },
+    {
+      "code": 6011,
+      "name": "PoolDisabled",
+      "msg": "The Meteora pool is disabled"
+    },
+    {
+      "code": 6012,
+      "name": "DynamicFeeNotAllowed",
+      "msg": "Dynamic fees are not allowed"
+    },
+    {
+      "code": 6013,
+      "name": "InvalidTradingFee",
+      "msg": "Trading fee configuration is not the BlueFun one-percent profile"
+    },
+    {
+      "code": 6014,
+      "name": "InvalidMeteoraAccount",
+      "msg": "Invalid Meteora account"
+    },
+    {
+      "code": 6015,
+      "name": "InvalidPosition",
+      "msg": "Invalid Meteora position"
+    },
+    {
+      "code": 6016,
+      "name": "LiquidityNotFullyLocked",
+      "msg": "Liquidity is not permanently locked"
+    },
+    {
+      "code": 6017,
+      "name": "InvalidPositionNft",
+      "msg": "Position NFT is invalid"
+    },
+    {
+      "code": 6018,
+      "name": "InvalidPositionOwner",
+      "msg": "Position NFT owner is invalid"
+    },
+    {
+      "code": 6019,
+      "name": "InvalidFeeSplit",
+      "msg": "Permanent liquidity does not use the 70/30 split"
+    },
+    {
+      "code": 6020,
+      "name": "InvalidCreatorTokenAccount",
+      "msg": "Creator token account is invalid"
+    },
+    {
+      "code": 6021,
+      "name": "InitialBuyTooLarge",
+      "msg": "Initial purchase exceeds five percent of supply"
+    },
+    {
+      "code": 6022,
+      "name": "AlreadyFinalized",
+      "msg": "Launch is already finalized"
+    },
+    {
+      "code": 6023,
+      "name": "FeeTooHigh",
+      "msg": "Launch fee exceeds the one-SOL safety cap"
+    },
+    {
+      "code": 6024,
+      "name": "NoPendingUpdate",
+      "msg": "There is no pending update"
+    },
+    {
+      "code": 6025,
+      "name": "TimelockActive",
+      "msg": "The 48-hour timelock is still active"
+    },
+    {
+      "code": 6026,
+      "name": "Unauthorized",
+      "msg": "Authority is not permitted"
+    },
+    {
+      "code": 6027,
+      "name": "InvalidAuthority",
+      "msg": "Authority cannot be the zero address"
+    },
+    {
+      "code": 6028,
+      "name": "InvalidPriceProfile",
+      "msg": "The fixed Meteora price profile is invalid"
+    },
+    {
+      "code": 6029,
+      "name": "InvalidAccountData",
+      "msg": "Account data does not match the required layout"
+    },
+    {
+      "code": 6030,
+      "name": "InvalidTokenAccount",
+      "msg": "Invalid legacy SPL token account"
+    },
+    {
+      "code": 6031,
+      "name": "InvalidAdminAction",
+      "msg": "Unknown admin action"
+    }
+  ],
+  "types": [
+    {
+      "name": "Config",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "admin",
+            "type": "pubkey"
+          },
+          {
+            "name": "pending_admin",
+            "type": "pubkey"
+          },
+          {
+            "name": "guardian",
+            "type": "pubkey"
+          },
+          {
+            "name": "treasury",
+            "type": "pubkey"
+          },
+          {
+            "name": "pending_treasury",
+            "type": "pubkey"
+          },
+          {
+            "name": "pending_treasury_eta",
+            "type": "i64"
+          },
+          {
+            "name": "launch_fee_lamports",
+            "type": "u64"
+          },
+          {
+            "name": "pending_launch_fee_lamports",
+            "type": "u64"
+          },
+          {
+            "name": "pending_fee_eta",
+            "type": "i64"
+          },
+          {
+            "name": "expected_base_fee_data",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            }
+          },
+          {
+            "name": "total_trading_fee_bps",
+            "type": "u16"
+          },
+          {
+            "name": "platform_share_bps",
+            "type": "u16"
+          },
+          {
+            "name": "creator_share_bps",
+            "type": "u16"
+          },
+          {
+            "name": "initial_sqrt_price",
+            "type": "u128"
+          },
+          {
+            "name": "max_sqrt_price",
+            "type": "u128"
+          },
+          {
+            "name": "pending_initial_sqrt_price",
+            "type": "u128"
+          },
+          {
+            "name": "pending_max_sqrt_price",
+            "type": "u128"
+          },
+          {
+            "name": "pending_price_eta",
+            "type": "i64"
+          },
+          {
+            "name": "paused",
+            "type": "bool"
+          },
+          {
+            "name": "launch_count",
+            "type": "u64"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Launch",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "id",
+            "type": "u64"
+          },
+          {
+            "name": "creator",
+            "type": "pubkey"
+          },
+          {
+            "name": "mint",
+            "type": "pubkey"
+          },
+          {
+            "name": "pool",
+            "type": "pubkey"
+          },
+          {
+            "name": "creator_position",
+            "type": "pubkey"
+          },
+          {
+            "name": "platform_position",
+            "type": "pubkey"
+          },
+          {
+            "name": "name",
+            "type": "string"
+          },
+          {
+            "name": "symbol",
+            "type": "string"
+          },
+          {
+            "name": "metadata_uri",
+            "type": "string"
+          },
+          {
+            "name": "initial_buy_lamports",
+            "type": "u64"
+          },
+          {
+            "name": "initial_creator_token_balance",
+            "type": "u64"
+          },
+          {
+            "name": "reserved_at",
+            "type": "i64"
+          },
+          {
+            "name": "finalized_at",
+            "type": "i64"
+          },
+          {
+            "name": "finalized",
+            "type": "bool"
+          },
+          {
+            "name": "bump",
+            "type": "u8"
+          }
+        ]
+      }
+    }
+  ]
+}

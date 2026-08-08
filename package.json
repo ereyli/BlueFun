@@ -8,16 +8,19 @@
   "scripts": {
     "start": "npm run start -w apps/web",
     "test:contracts": "forge test",
+    "test:blueswap": "cd contracts/blueswap && ./scripts/verify-canonical.sh",
     "dev:web": "npm run dev -w apps/web",
     "dev:indexer": "npm run dev -w apps/indexer",
     "build": "npm run build -w apps/web",
     "build:all": "npm run build --workspaces --if-present"
   },
   "dependencies": {
-    "@rainbow-me/rainbowkit": "^2.2.11"
+    "@rainbow-me/rainbowkit": "^2.2.11",
+    "rpc-websockets": "9.3.8"
   },
   "overrides": {
     "axios": "^1.18.0",
+    "rpc-websockets": "9.3.8",
     "viem": "^2.54.1",
     "ws": "^8.21.0"
   }

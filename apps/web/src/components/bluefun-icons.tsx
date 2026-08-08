@@ -125,6 +125,7 @@ function iconGlyph(asset: IconAsset): ReactNode {
 }
 
 export const Activity = createBlueFunIcon("chart");
+export const AlertTriangle = createBlueFunIcon("alert");
 export const ArrowDownLeft = createBlueFunIcon("arrow-back", -45);
 export const ArrowDownToLine = createBlueFunIcon("download-line");
 export const ArrowDownUp = createBlueFunIcon("vertical-swap");

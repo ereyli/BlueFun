@@ -63,6 +63,8 @@ Monad vNext is deployed from block `89311403` (Direct factory block `89311452`) 
 - `apps/web`: Next.js launch, market, docs, creator dashboard and staking interface.
 - `apps/indexer`: deployment-scoped Node.js indexer for legacy and vNext launches, trades and graduations.
 - `contracts`: Foundry contracts, tests and deployment scripts.
+- `contracts/blueswap`: pinned, unmodified Uniswap V2 core/Router02 sources, canonical build verification and
+  protocol-fee-on deployment guidance for BlueSwap.
 
 Both indexers may share one Supabase/Postgres database because rows and checkpoints are isolated by chain and deployment scope. Web and indexer must be deployed together when activating a new contract generation.
 

@@ -28,6 +28,14 @@ function contextFor(pathname: string): TopbarContext {
   if (pathname === "/risk") return tokenContext("Risk Disclosure");
   if (pathname === "/terms") return tokenContext("Terms");
   if (pathname === "/privacy") return tokenContext("Privacy");
+  if (pathname.startsWith("/dex")) return {
+    title: "BlueDEX",
+    searchPlaceholder: "Open token by contract address",
+    searchTarget: "/dex",
+    actionHref: "/dex?tab=pool",
+    actionLabel: "Add liquidity",
+    actionIcon: "token"
+  };
   if (pathname === "/nft/launch") return nftContext("NFT Creator Studio");
   if (pathname === "/nft/dashboard") return nftContext("NFT Portfolio");
   if (pathname === "/nft") return nftContext("NFT Markets");
@@ -92,7 +100,7 @@ export function TerminalTopbar() {
         {context.actionLabel}
         <b>+</b>
       </Link>
-      <WalletButton />
+      <Suspense fallback={<span className="terminal-wallet-placeholder"/>}><WalletButton /></Suspense>
     </header>
   );
 }

@@ -34,7 +34,7 @@ export async function upsertLaunch(scope: string, input: {
   telegram?: string;
   discord?: string;
   launchMode?: "bond" | "direct";
-  dexProvider?: "uniswap" | "ekubo";
+  dexProvider?: "uniswap" | "ekubo" | "meteora";
   poolFee?: number;
   tickSpacing?: number;
   liquidityLocker?: string;
@@ -180,7 +180,7 @@ export async function insertTrade(scope: string, input: {
   launchId: bigint;
   trader: string;
   side: "buy" | "sell";
-  source?: "curve" | "uniswap_v3" | "uniswap_v4" | "ekubo";
+  source?: "curve" | "uniswap_v3" | "uniswap_v4" | "ekubo" | "meteora";
   ethAmount: bigint;
   tokenAmount: bigint;
   marketCapEth?: bigint;

@@ -22,7 +22,7 @@ export default async function HomePage({ searchParams }: { searchParams: Promise
     return <LaunchExplorer launches={page.launches} totalLaunches={page.total} chainId={0} initialQuery={params.q || ""} />;
   }
   const { page } = await getCachedLaunchOverview(chainId);
-  const fallback = page ? undefined : await (chainId === 143 || chainId === 988 || chainId === 5042
+  const fallback = page ? undefined : await (chainId === 101 || chainId === 143 || chainId === 988 || chainId === 5042
     ? getDbLaunches(chainId).then((value) => value ?? [])
     : chainId === 4663 ? getRobinhoodLaunches() : getDeployedLaunches());
   const liveLaunches = page?.launches ?? fallback?.slice(0, MARKET_PAGE_SIZE) ?? [];

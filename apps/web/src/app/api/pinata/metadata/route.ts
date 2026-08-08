@@ -31,8 +31,8 @@ export async function POST(request: Request) {
   const symbol = cleanText(form.get("symbol"), 20).toUpperCase();
   const chainId = Number(cleanText(form.get("chainId"), 8));
   const launchMode = cleanText(form.get("launchMode"), 10) === "direct" ? "direct" : "bond";
-  const network = chainId === 5042 ? "Arc" : chainId === 988 ? "Stable" : chainId === 143 ? "Monad" : chainId === 4663 ? "Robinhood Chain" : chainId === 8453 ? "Base" : "";
-  const standard = chainId === 8453 ? "B20" : chainId === 5042 || chainId === 988 || chainId === 143 || chainId === 4663 ? "ERC-20" : "";
+  const network = chainId === 101 ? "Solana" : chainId === 5042 ? "Arc" : chainId === 988 ? "Stable" : chainId === 143 ? "Monad" : chainId === 4663 ? "Robinhood Chain" : chainId === 8453 ? "Base" : "";
+  const standard = chainId === 101 ? "SPL" : chainId === 8453 ? "B20" : chainId === 5042 || chainId === 988 || chainId === 143 || chainId === 4663 ? "ERC-20" : "";
   const description = cleanText(form.get("description"), 500);
   const website = cleanUrl(form.get("website"));
   const twitter = cleanUrl(form.get("twitter"));
@@ -98,7 +98,9 @@ export async function POST(request: Request) {
         { trait_type: "Launchpad", value: "BlueFun" },
         { trait_type: "Launch Route", value: launchMode === "direct" ? "Direct DEX" : "Bonding Curve" },
         launchMode === "direct"
-          ? { trait_type: "Liquidity", value: chainId === 5042 || chainId === 988
+          ? { trait_type: "Liquidity", value: chainId === 101
+              ? "Permanently locked Meteora DAMM v2"
+              : chainId === 5042 || chainId === 988
               ? "Permanently locked Uniswap v3"
               : "Permanently locked Uniswap v4" }
           : { trait_type: "Graduation Target", value: chainId === 143 ? "400,000 MON" : "5 ETH" }
