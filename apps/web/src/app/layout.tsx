@@ -17,6 +17,7 @@ import "./launch-refinement.css";
 import "./minimal-market.css";
 import "./nft-modern.css";
 import "./bluedex.css";
+import "./shell-theme-refinement.css";
 import { Providers } from "@/components/providers";
 import { RouteFeedback } from "@/components/route-feedback";
 import { SideNav } from "@/components/side-nav";

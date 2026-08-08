@@ -1,0 +1,321 @@
+/* Route-aware application shell and final theme normalization. */
+
+@media (min-width: 761px) {
+  /* Only discovery and token trading use the distraction-free full-width shell. */
+  body:has(.reference-market-terminal) .sidebar,
+  body:has(.reference-token-terminal) .sidebar {
+    display: none !important;
+  }
+
+  .shell:has(.reference-market-terminal),
+  .shell:has(.reference-token-terminal) {
+    grid-template-columns: minmax(0,1fr) !important;
+  }
+
+  body:not(:has(.reference-market-terminal)):not(:has(.reference-token-terminal)) .sidebar {
+    display: flex !important;
+  }
+
+  .shell:not(:has(.reference-market-terminal)):not(:has(.reference-token-terminal)) {
+    grid-template-columns: 68px minmax(0,1fr) !important;
+  }
+
+  .content:has(.launch-page-streamlined),
+  .content:has(.docs-page),
+  .content:has(.blue-transparency-page),
+  .content:has(.creator-dashboard),
+  .content:has(.dashboard-terminal-shell) {
+    min-width: 0;
+    width: 100%;
+  }
+}
+
+/* A neutral graphite dark theme: visible layers without blue-black or pure-black blocks. */
+:root,
+html[data-theme="dark"] {
+  --bg: #0e1014;
+  --sidebar: #12151a;
+  --panel: #171a20;
+  --panel-2: #1c2027;
+  --panel-3: #222730;
+  --line: #2a3039;
+  --line-strong: #3a424e;
+  --text: #f3f5f7;
+  --muted: #929ba8;
+  --muted-2: #6f7885;
+  --blue: #6078ff;
+  --blue-2: #8294ff;
+  --blue-soft: #202947;
+}
+
+html[data-theme="dark"],
+html[data-theme="dark"] body,
+html[data-theme="dark"] .shell {
+  background: #0e1014 !important;
+}
+
+html[data-theme="dark"] body {
+  background-image:
+    radial-gradient(circle at 82% 0,rgba(96,120,255,.075),transparent 30rem),
+    radial-gradient(circle at 8% 38%,rgba(82,199,184,.035),transparent 28rem) !important;
+}
+
+html[data-theme="dark"] .content,
+html[data-theme="dark"] .main {
+  background-color: #0e1014;
+}
+
+html[data-theme="dark"] .sidebar,
+html[data-theme="dark"] .topbar,
+html[data-theme="dark"] .terminal-global-header,
+html[data-theme="dark"] .bottom-nav {
+  background: rgba(18,21,26,.96) !important;
+  border-color: #2a3039 !important;
+}
+
+html[data-theme="dark"] .side-nav a,
+html[data-theme="dark"] .sidebar-social-link {
+  color: #98a1ae;
+}
+
+html[data-theme="dark"] .side-nav a:hover,
+html[data-theme="dark"] .sidebar-social-link:hover {
+  background: #1d222a !important;
+  border-color: #333a45 !important;
+  color: #f4f6f8 !important;
+}
+
+html[data-theme="dark"] .side-nav a > span:last-child {
+  background: #242932;
+  border-color: #3a424d;
+  box-shadow: 0 12px 30px rgba(0,0,0,.34);
+  color: #f3f5f7;
+}
+
+html[data-theme="dark"] .side-nav a[aria-current="page"] {
+  background: rgba(96,120,255,.14) !important;
+  border-color: rgba(96,120,255,.42) !important;
+  box-shadow: inset 3px 0 0 #6078ff;
+  color: #aebaff !important;
+}
+
+html[data-theme="dark"] .terminal-global-search,
+html[data-theme="dark"] .terminal-global-header .network-trigger,
+html[data-theme="dark"] .terminal-global-header > .wallet-control,
+html[data-theme="dark"] .terminal-page-identity .brand-launchpad-menu > button,
+html[data-theme="dark"] .network-menu,
+html[data-theme="dark"] .brand-launchpad-popover {
+  background: #191d24 !important;
+  border-color: #303741 !important;
+  color: #f3f5f7;
+}
+
+html[data-theme="dark"] .network-option:hover,
+html[data-theme="dark"] .network-option.active,
+html[data-theme="dark"] .brand-launchpad-popover a:hover,
+html[data-theme="dark"] .brand-launchpad-popover a:focus-visible {
+  background: #232832 !important;
+  border-color: #3a4350 !important;
+}
+
+html[data-theme="dark"] .docs-hero,
+html[data-theme="dark"] .dashboard-terminal-heading,
+html[data-theme="dark"] .dashboard-terminal-stats,
+html[data-theme="dark"] .dashboard-terminal-table,
+html[data-theme="dark"] .dashboard-terminal-connect,
+html[data-theme="dark"] .dashboard-hero,
+html[data-theme="dark"] .dashboard-tabs,
+html[data-theme="dark"] .dashboard-panel,
+html[data-theme="dark"] .dashboard-stat,
+html[data-theme="dark"] .bluedex-card,
+html[data-theme="dark"] .active-pools-panel,
+html[data-theme="dark"] .nft-directory-hero,
+html[data-theme="dark"] .nft-live-mints,
+html[data-theme="dark"] .nft-directory-panel,
+html[data-theme="dark"] .nft-dashboard-hero,
+html[data-theme="dark"] .nft-dashboard-stats,
+html[data-theme="dark"] .nft-collection-profile,
+html[data-theme="dark"] .nft-action {
+  background: #171a20 !important;
+  border-color: #2c333d !important;
+  box-shadow: 0 18px 46px rgba(0,0,0,.16) !important;
+}
+
+html[data-theme="dark"] .token-amount-card,
+html[data-theme="dark"] .bluedex-quote-details,
+html[data-theme="dark"] .pool-preview,
+html[data-theme="dark"] .position-card,
+html[data-theme="dark"] .active-pool-row:hover,
+html[data-theme="dark"] .nft-directory-toolbar,
+html[data-theme="dark"] .nft-market-toolbar,
+html[data-theme="dark"] .nft-collection-card {
+  background: #1c2027 !important;
+  border-color: #303742 !important;
+}
+
+/* Light mode must be light all the way through the shell and its interactive states. */
+html[data-theme="light"] {
+  --bg: #f5f7fa;
+  --sidebar: #ffffff;
+  --panel: #ffffff;
+  --panel-2: #f4f6f9;
+  --panel-3: #e9edf3;
+  --line: #dfe4eb;
+  --line-strong: #c7cfda;
+  --text: #18202b;
+  --muted: #687486;
+  --muted-2: #8a95a4;
+  --blue: #4766f4;
+  --blue-2: #647dff;
+  --blue-soft: #edf1ff;
+}
+
+html[data-theme="light"],
+html[data-theme="light"] body,
+html[data-theme="light"] .shell,
+html[data-theme="light"] .content,
+html[data-theme="light"] .main {
+  background: #f5f7fa !important;
+  color: #18202b;
+}
+
+html[data-theme="light"] .sidebar,
+html[data-theme="light"] .topbar,
+html[data-theme="light"] .terminal-global-header,
+html[data-theme="light"] .bottom-nav {
+  background: rgba(255,255,255,.96) !important;
+  border-color: #dfe4eb !important;
+}
+
+html[data-theme="light"] .terminal-global-search,
+html[data-theme="light"] .terminal-global-header .network-trigger,
+html[data-theme="light"] .terminal-global-header > .wallet-control,
+html[data-theme="light"] .terminal-page-identity .brand-launchpad-menu > button,
+html[data-theme="light"] .network-menu,
+html[data-theme="light"] .brand-launchpad-popover {
+  background: #ffffff !important;
+  border-color: #d9e0e9 !important;
+  box-shadow: 0 12px 34px rgba(25,38,59,.08);
+  color: #18202b !important;
+}
+
+html[data-theme="light"] .terminal-global-search input,
+html[data-theme="light"] .terminal-search-submit,
+html[data-theme="light"] .network-trigger-copy strong,
+html[data-theme="light"] .wallet-control,
+html[data-theme="light"] .brand-launchpad-popover strong {
+  color: #18202b !important;
+}
+
+html[data-theme="light"] .terminal-global-search input::placeholder,
+html[data-theme="light"] .network-trigger-copy small,
+html[data-theme="light"] .network-chevron,
+html[data-theme="light"] .brand-launchpad-popover small {
+  color: #788496 !important;
+}
+
+html[data-theme="light"] .terminal-global-search kbd {
+  background: #f4f6f9;
+  border-color: #d9e0e9;
+  color: #697588;
+}
+
+html[data-theme="light"] .side-nav a {
+  color: #778294;
+}
+
+html[data-theme="light"] .side-nav a:hover,
+html[data-theme="light"] .sidebar-social-link:hover {
+  background: #f1f4f8 !important;
+  border-color: #dce3ec !important;
+  color: #1d2938 !important;
+}
+
+html[data-theme="light"] .side-nav a > span:last-child {
+  background: #ffffff;
+  border-color: #d9e0e9;
+  box-shadow: 0 12px 30px rgba(25,38,59,.14);
+  color: #1d2938;
+}
+
+html[data-theme="light"] .side-nav a[aria-current="page"] {
+  background: #edf1ff !important;
+  border-color: rgba(71,102,244,.28) !important;
+  box-shadow: inset 3px 0 0 #4766f4;
+  color: #4766f4 !important;
+}
+
+html[data-theme="light"] .network-option,
+html[data-theme="light"] .brand-launchpad-popover a {
+  color: #1d2938;
+}
+
+html[data-theme="light"] .network-option:hover,
+html[data-theme="light"] .network-option.active,
+html[data-theme="light"] .brand-launchpad-popover a:hover,
+html[data-theme="light"] .brand-launchpad-popover a:focus-visible,
+html[data-theme="light"] .brand-launchpad-popover a.active {
+  background: #f1f4f9 !important;
+  border-color: #dbe3ee !important;
+  color: #1d2938 !important;
+}
+
+html[data-theme="light"] .theme-toggle {
+  background: #edf0f4;
+  border-color: #d9dee6;
+}
+
+html[data-theme="light"] .theme-option {
+  color: #7a8492;
+}
+
+html[data-theme="light"] .theme-option.active {
+  background: #ffffff;
+  border-color: #d8dee7;
+  color: #18202b;
+}
+
+html[data-theme="light"] .docs-hero,
+html[data-theme="light"] .dashboard-terminal-heading,
+html[data-theme="light"] .dashboard-terminal-stats,
+html[data-theme="light"] .dashboard-terminal-table,
+html[data-theme="light"] .dashboard-terminal-connect,
+html[data-theme="light"] .dashboard-hero,
+html[data-theme="light"] .dashboard-tabs,
+html[data-theme="light"] .dashboard-panel,
+html[data-theme="light"] .dashboard-stat,
+html[data-theme="light"] .bluedex-card,
+html[data-theme="light"] .active-pools-panel,
+html[data-theme="light"] .nft-directory-hero,
+html[data-theme="light"] .nft-live-mints,
+html[data-theme="light"] .nft-directory-panel,
+html[data-theme="light"] .nft-dashboard-hero,
+html[data-theme="light"] .nft-dashboard-stats,
+html[data-theme="light"] .nft-collection-profile,
+html[data-theme="light"] .nft-action {
+  background: #ffffff !important;
+  border-color: #dfe4eb !important;
+  color: #18202b !important;
+  box-shadow: 0 14px 38px rgba(25,38,59,.055) !important;
+}
+
+html[data-theme="light"] .bluedex-page::before {
+  opacity: .55;
+}
+
+html[data-theme="light"] .token-amount-card,
+html[data-theme="light"] .bluedex-quote-details,
+html[data-theme="light"] .pool-preview,
+html[data-theme="light"] .position-card,
+html[data-theme="light"] .active-pool-row:hover,
+html[data-theme="light"] .nft-directory-toolbar,
+html[data-theme="light"] .nft-market-toolbar,
+html[data-theme="light"] .nft-collection-card {
+  background: #f7f9fb !important;
+  border-color: #dfe5ed !important;
+}
+
+@media (max-width: 760px) {
+  .sidebar { display: none !important; }
+  .shell { grid-template-columns: minmax(0,1fr) !important; }
+}
