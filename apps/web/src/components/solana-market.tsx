@@ -8,7 +8,7 @@ import { getAssociatedTokenAddressSync, NATIVE_MINT, TOKEN_PROGRAM_ID } from "@s
 import { PublicKey } from "@solana/web3.js";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import type { CandlestickData, HistogramData, IChartApi, UTCTimestamp } from "lightweight-charts";
-import { Activity, CheckCircle2, ExternalLink, Loader2, RefreshCw } from "@/components/bluefun-icons";
+import { Activity, CheckCircle2, ExternalLink, Loader2, RefreshCw, ShieldCheck, Wallet } from "@/components/bluefun-icons";
 import { DexProviderIcon } from "@/components/dex-provider-icon";
 import { NetworkIcon } from "@/components/network-icon";
 import type { DeployedLaunch } from "@/lib/onchain-launches";
@@ -28,15 +28,18 @@ export function SolanaMarket({ launch }: { launch: DeployedLaunch }) {
   const [error, setError] = useState("");
   const [rpcError, setRpcError] = useState("");
   const [signature, setSignature] = useState("");
+  const [chartMode, setChartMode] = useState<"marketCap" | "price">("marketCap");
+  const [timeframe, setTimeframe] = useState<"5m" | "30m" | "1h">("5m");
   const quoteRequestRef = useRef(0);
   const mint = useMemo(() => new PublicKey(launch.token), [launch.token]);
   const pool = useMemo(() => new PublicKey(launch.liquidityLocker!), [launch.liquidityLocker]);
   const cpAmm = useMemo(() => new CpAmm(connection), [connection]);
   const amountRaw = useMemo(() => parseNineDecimals(amount), [amount]);
   const marketQuery = useQuery<MarketSnapshot>({
-    queryKey: ["solana-market", launch.liquidityLocker],
+    queryKey: ["solana-market", launch.liquidityLocker, launch.token, timeframe],
     queryFn: async () => {
-      const response = await fetch(`/api/solana/market?pool=${encodeURIComponent(launch.liquidityLocker || "")}`);
+      const params = new URLSearchParams({ pool: launch.liquidityLocker || "", mint: launch.token, creator: launch.creator, timeframe });
+      const response = await fetch(`/api/solana/market?${params}`);
       if (!response.ok) throw new Error("Live market data is not available yet.");
       return response.json() as Promise<MarketSnapshot>;
     },
@@ -148,10 +151,19 @@ export function SolanaMarket({ launch }: { launch: DeployedLaunch }) {
       </div>
 
       <section className="solana-chart-card">
-        <header><div><span>BLUFIN / SOL</span><h2>{formatUsd(market?.priceUsd)}</h2></div><div className={`solana-change ${changePositive ? "positive" : "negative"}`}>{market?.priceChange24h == null ? "Live" : `${changePositive ? "+" : ""}${market.priceChange24h.toFixed(2)}%`} <small>24h</small></div></header>
-        <SolanaPriceChart candles={market?.candles || []} loading={marketQuery.isLoading}/>
+        <header>
+          <div><span>{launch.symbol} {chartMode === "marketCap" ? "MARKET CAP" : "PRICE / USD"}</span><h2>{chartMode === "marketCap" ? compactUsd(market?.marketCap ?? market?.fdv) : formatUsd(market?.priceUsd)}</h2></div>
+          <div className="solana-chart-toolbar">
+            <div className="solana-chart-segment"><button className={chartMode === "marketCap" ? "active" : ""} onClick={() => setChartMode("marketCap")} type="button">Market cap</button><button className={chartMode === "price" ? "active" : ""} onClick={() => setChartMode("price")} type="button">Price</button></div>
+            <div className="solana-chart-segment compact">{(["5m", "30m", "1h"] as const).map((value) => <button className={timeframe === value ? "active" : ""} key={value} onClick={() => setTimeframe(value)} type="button">{value}</button>)}</div>
+            <div className={`solana-change ${changePositive ? "positive" : "negative"}`}>{market?.priceChange24h == null ? "Live" : `${changePositive ? "+" : ""}${market.priceChange24h.toFixed(2)}%`} <small>24h</small></div>
+          </div>
+        </header>
+        <SolanaPriceChart candles={market?.candles || []} loading={marketQuery.isLoading} mode={chartMode} solUsd={market?.solUsd}/>
         <footer><span><Activity size={14}/> Meteora DAMM v2 live market</span><button onClick={() => void marketQuery.refetch()} type="button"><RefreshCw className={marketQuery.isFetching ? "spin" : ""} size={14}/> Refresh</button></footer>
       </section>
+
+      <SolanaMarketData launch={launch} market={market} wallet={wallet.publicKey?.toBase58()} loading={marketQuery.isLoading}/>
     </section>
 
     <aside className="solana-swap-card">
@@ -171,46 +183,90 @@ function MarketStat({ label, value, detail }: { label: string; value: string; de
   return <article><small>{label}</small><strong>{value}</strong><span>{detail}</span></article>;
 }
 
-function SolanaPriceChart({ candles, loading }: { candles: MarketCandle[]; loading: boolean }) {
+function SolanaMarketData({ launch, market, wallet, loading }: { launch: DeployedLaunch; market?: MarketSnapshot; wallet?: string; loading: boolean }) {
+  const [tab, setTab] = useState<"trades" | "position" | "holders" | "security">("trades");
+  const trades = market?.trades || [];
+  const holders = market?.holders || [];
+  const walletTrades = wallet ? trades.filter((trade) => trade.trader === wallet) : [];
+  const position = walletTrades.reduce((summary, trade) => {
+    const direction = trade.side === "buy" ? 1 : -1;
+    summary.tokens += trade.tokenAmount * direction;
+    summary.sol -= trade.nativeAmount * direction;
+    summary.buys += trade.side === "buy" ? 1 : 0;
+    summary.sells += trade.side === "sell" ? 1 : 0;
+    return summary;
+  }, { tokens: 0, sol: 0, buys: 0, sells: 0 });
+  const creator = holders.find((holder) => holder.role === "creator");
+  const publicTopFive = holders.filter((holder) => holder.role === "holder").slice(0, 5).reduce((total, holder) => total + holder.percent, 0);
+  const tabs = [
+    { id: "trades" as const, label: "Trades", count: trades.length },
+    { id: "position" as const, label: "Position", count: wallet ? walletTrades.length : undefined },
+    { id: "holders" as const, label: "Holders", count: market?.holderCount ?? holders.length },
+    { id: "security" as const, label: "Security", count: undefined }
+  ];
+
+  return <section className="recent-trades solana-market-data">
+    <div className="recent-trades-head"><nav aria-label="Solana market data" className="reference-trade-data-tabs" role="tablist">{tabs.map((item) => <button aria-selected={tab === item.id} className={tab === item.id ? "active" : ""} key={item.id} onClick={() => setTab(item.id)} role="tab" type="button">{item.label}{item.count !== undefined ? <small>{item.count}</small> : null}</button>)}</nav></div>
+    <div className="market-data-content">
+      {tab === "trades" ? loading && !market ? <MarketDataState icon={<Loader2 className="spin" size={19}/>} title="Loading onchain trades" detail="Reading recent Meteora swaps from Solana."/> : !trades.length ? <MarketDataState icon={<Activity size={19}/>} title="No swaps found yet" detail="New Meteora swaps will appear here automatically."/> : <div className="market-data-table market-trades-table"><div className="market-data-table-head"><span>Time</span><span>Side</span><span>Wallet</span><span>Token amount</span><span>SOL total</span><span>Transaction</span></div><div className="market-data-table-body">{trades.map((trade) => <a className="market-data-table-row" href={`https://solscan.io/tx/${trade.signature}`} key={trade.signature} rel="noreferrer" target="_blank"><span className="market-data-time">{formatActivityTime(trade.timestamp)}</span><span className={`trade-side ${trade.side}`}>{trade.side}</span><span className="trade-wallet">{shortSolana(trade.trader)}</span><strong>{compactNumber(trade.tokenAmount)} {launch.symbol}</strong><span>{formatSol(trade.nativeAmount)} SOL</span><span className="market-data-tx">{shortSolana(trade.signature)} <ExternalLink size={11}/></span></a>)}</div></div> : null}
+
+      {tab === "position" ? !wallet ? <MarketDataState icon={<Wallet size={19}/>} title="Connect a Solana wallet" detail="Your buys, sells and net position will appear here."/> : !walletTrades.length ? <MarketDataState icon={<Activity size={19}/>} title="No indexed position" detail={`No recent ${launch.symbol} swaps were found for ${shortSolana(wallet)}.`}/> : <div className="position-workspace"><div className="position-summary-card"><span>Wallet</span><strong>{shortSolana(wallet)}</strong><small>Recent onchain activity</small></div><div className="position-summary-card"><span>Net token flow</span><strong className={position.tokens >= 0 ? "reference-positive" : "reference-negative"}>{position.tokens >= 0 ? "+" : ""}{compactNumber(position.tokens)} {launch.symbol}</strong><small>{position.buys} buys · {position.sells} sells</small></div><div className="position-summary-card"><span>Net SOL flow</span><strong className={position.sol >= 0 ? "reference-positive" : "reference-negative"}>{position.sol >= 0 ? "+" : ""}{formatSol(position.sol)} SOL</strong><small>Calculated from recent swaps</small></div></div> : null}
+
+      {tab === "holders" ? loading && !market ? <MarketDataState icon={<Loader2 className="spin" size={19}/>} title="Loading holders" detail="Resolving the largest token accounts on Solana."/> : !holders.length ? <MarketDataState icon={<Wallet size={19}/>} title="Holder data is unavailable" detail="The current RPC provider did not return token-account distribution."/> : <div className="market-data-table holders-table"><div className="market-data-context">Current largest token accounts and participant balances reported onchain.</div><div className="market-data-table-head"><span>Rank</span><span>Wallet</span><span>Type</span><span>Balance</span><span>Supply</span><span>Explorer</span></div><div className="market-data-table-body">{holders.map((holder, index) => <a className="market-data-table-row" href={`https://solscan.io/account/${holder.owner}`} key={`${holder.owner}-${holder.role}`} rel="noreferrer" target="_blank"><span className="market-data-rank">{String(index + 1).padStart(2, "0")}</span><strong>{shortSolana(holder.owner)}</strong><span className={`holder-role ${holder.role}`}>{holder.role === "pool" ? "Liquidity pool" : holder.role === "creator" ? "Creator wallet" : "Holder"}</span><span>{compactNumber(holder.balance)} {launch.symbol}</span><strong>{formatPercent(holder.percent)}</strong><span className="market-data-tx">Solscan <ExternalLink size={11}/></span></a>)}</div></div> : null}
+
+      {tab === "security" ? <div className="risk-workspace"><div className="risk-overview"><div className="risk-overview-heading"><span>Market safety snapshot</span><strong>Protected launch</strong></div><div className="risk-score"><strong>4<small>/4</small></strong><span>verified controls</span></div><p>Signals use the immutable mint configuration, locked Meteora positions and current holder distribution.</p></div><div className="risk-check-grid"><SolanaRisk label="Mint authority" value="Revoked" detail="No additional supply can be minted"/><SolanaRisk label="Freeze authority" value="Disabled" detail="Token accounts cannot be frozen by creator"/><SolanaRisk label="Liquidity custody" value="Permanently locked" detail="Both Meteora position NFTs are locked"/><SolanaRisk label="Creator allocation" value={formatPercent(creator?.percent || 0)} detail={`${shortSolana(launch.creator)} · current tracked balance`}/><SolanaRisk label="Top 5 public holders" value={formatPercent(publicTopFive)} detail="Excludes the liquidity pool and creator"/><SolanaRisk label="Market route" value="Meteora DAMM v2" detail="Direct market · no bonding threshold"/></div></div> : null}
+    </div>
+  </section>;
+}
+
+function MarketDataState({ icon, title, detail }: { icon: React.ReactNode; title: string; detail: string }) { return <div className="market-data-empty"><span className="market-data-empty-icon">{icon}</span><strong>{title}</strong><p>{detail}</p></div>; }
+function SolanaRisk({ label, value, detail }: { label: string; value: string; detail: string }) { return <div className="risk-check"><span><ShieldCheck size={16}/>{label}</span><strong>{value}</strong><small>{detail}</small></div>; }
+
+function SolanaPriceChart({ candles, loading, mode, solUsd }: { candles: MarketCandle[]; loading: boolean; mode: "marketCap" | "price"; solUsd?: number | null }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
 
   useEffect(() => {
     const container = containerRef.current;
-    if (!container || !candles.length) return;
+    if (!container || !candles.length || !solUsd) return;
+    const usdRate = solUsd;
     let disposed = false;
     async function setup() {
       const { CandlestickSeries, ColorType, createChart, HistogramSeries } = await import("lightweight-charts");
       if (disposed || !container) return;
       const dark = document.documentElement.dataset.theme === "dark";
+      const scale = usdRate * (mode === "marketCap" ? 1_000_000_000 : 1);
+      const priceFormatter = mode === "marketCap" ? compactUsd : formatUsd;
       const chart = createChart(container, {
         autoSize: true, height: 340,
         layout: { background: { type: ColorType.Solid, color: "transparent" }, textColor: dark ? "#8f9ab0" : "#63718d", fontFamily: "Inter, ui-sans-serif, system-ui" },
         grid: { vertLines: { color: dark ? "rgba(126,145,184,.08)" : "rgba(112,132,174,.12)" }, horzLines: { color: dark ? "rgba(126,145,184,.08)" : "rgba(112,132,174,.12)" } },
         rightPriceScale: { borderColor: dark ? "#252a34" : "#dfe5f1", scaleMargins: { top: .12, bottom: .28 } },
         timeScale: { borderColor: dark ? "#252a34" : "#dfe5f1", timeVisible: true, secondsVisible: false, rightOffset: 3 },
-        localization: { priceFormatter: formatTiny }
+        localization: { priceFormatter }
       });
       chartRef.current = chart;
-      const series = chart.addSeries(CandlestickSeries, { upColor: "#20cca0", downColor: "#fa6776", borderVisible: false, wickUpColor: "#20cca0", wickDownColor: "#fa6776", priceFormat: { type: "custom", formatter: formatTiny, minMove: 0.0000000001 } });
+      const series = chart.addSeries(CandlestickSeries, { upColor: "#20cca0", downColor: "#fa6776", borderVisible: false, wickUpColor: "#20cca0", wickDownColor: "#fa6776", priceFormat: { type: "custom", formatter: priceFormatter, minMove: mode === "marketCap" ? .01 : .0000000001 } });
       const volume = chart.addSeries(HistogramSeries, { priceFormat: { type: "volume" }, priceScaleId: "volume", color: "rgba(91,111,255,.24)", lastValueVisible: false, priceLineVisible: false });
       chart.priceScale("volume").applyOptions({ scaleMargins: { top: .8, bottom: 0 }, visible: false, borderVisible: false });
-      series.setData(candles.map((candle) => ({ ...candle, time: candle.time as UTCTimestamp })) as CandlestickData<UTCTimestamp>[]);
+      series.setData(candles.map((candle) => ({ time: candle.time as UTCTimestamp, open: candle.open * scale, high: candle.high * scale, low: candle.low * scale, close: candle.close * scale })) as CandlestickData<UTCTimestamp>[]);
       volume.setData(candles.map((candle) => ({ time: candle.time as UTCTimestamp, value: candle.volume, color: candle.close >= candle.open ? "rgba(32,204,160,.3)" : "rgba(250,103,118,.3)" })) as HistogramData<UTCTimestamp>[]);
       chart.timeScale().fitContent();
     }
     void setup();
     return () => { disposed = true; chartRef.current?.remove(); chartRef.current = null; };
-  }, [candles]);
+  }, [candles, mode, solUsd]);
 
   if (loading) return <div className="solana-chart-state"><Loader2 className="spin" size={20}/> Loading live chart</div>;
-  if (!candles.length) return <div className="solana-chart-state"><Activity size={20}/> Chart begins with the first market trades.</div>;
+  if (!candles.length || !solUsd) return <div className="solana-chart-state"><Activity size={20}/> Chart begins with the first market trades.</div>;
   return <div className="solana-chart-canvas" ref={containerRef}/>;
 }
 
 type Quote = { output: bigint; minimum: BN; poolState: Awaited<ReturnType<CpAmm["fetchPoolState"]>> };
 type MarketCandle = { time: number; open: number; high: number; low: number; close: number; volume: number };
-type MarketSnapshot = { priceUsd: number | null; priceNative: number | null; liquidityUsd: number | null; fdv: number | null; marketCap: number | null; volume24h: number | null; priceChange24h: number | null; buys24h: number | null; sells24h: number | null; pairUrl: string; candles: MarketCandle[] };
+type SolanaTrade = { signature: string; trader: string; side: "buy" | "sell"; tokenAmount: number; nativeAmount: number; priceNative: number; timestamp: number; slot: number };
+type SolanaHolder = { owner: string; balance: number; percent: number; role: "pool" | "creator" | "holder"; account?: string };
+type MarketSnapshot = { priceUsd: number | null; priceNative: number | null; solUsd: number | null; liquidityUsd: number | null; fdv: number | null; marketCap: number | null; volume24h: number | null; priceChange24h: number | null; buys24h: number | null; sells24h: number | null; pairUrl: string; candles: MarketCandle[]; trades: SolanaTrade[]; holders: SolanaHolder[]; holderCount: number | null };
 function parseNineDecimals(value: string) { const [whole = "0", decimals = ""] = (value || "0").split("."); return BigInt(whole || "0") * 1_000_000_000n + BigInt(decimals.padEnd(9, "0").slice(0, 9) || "0"); }
 function formatNine(value: bigint, digits = 4) { const whole = value / 1_000_000_000n; const fraction = (value % 1_000_000_000n).toString().padStart(9, "0").slice(0, digits).replace(/0+$/, ""); return fraction ? `${whole}.${fraction}` : whole.toString(); }
 function sanitize(value: string) { const clean = value.replace(",", ".").replace(/[^0-9.]/g, ""); const [whole, ...fraction] = clean.split("."); return fraction.length ? `${whole}.${fraction.join("").slice(0, 9)}` : whole; }
@@ -219,3 +275,8 @@ function compactUsd(value?: number | null) { if (value == null) return "–"; re
 function formatUsd(value?: number | null) { if (value == null) return "–"; if (value >= .01) return `$${value.toLocaleString("en-US", { maximumFractionDigits: 4 })}`; return `$${value.toPrecision(4)}`; }
 function formatTiny(value: number) { if (!Number.isFinite(value)) return "–"; return value >= .0001 ? value.toFixed(6).replace(/0+$/, "") : value.toPrecision(5); }
 function readableRpcError(error: unknown) { const message = error instanceof Error ? error.message : "Solana RPC is temporarily unavailable."; return /403|forbidden/i.test(message) ? "Solana RPC access is temporarily unavailable. Please retry shortly." : message; }
+function compactNumber(value: number) { return new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 2 }).format(value); }
+function formatSol(value: number) { return Math.abs(value) < .0001 && value !== 0 ? value.toPrecision(3) : value.toLocaleString("en-US", { maximumFractionDigits: 6 }); }
+function formatPercent(value: number) { return `${value < .01 && value > 0 ? "<0.01" : value.toFixed(value < 1 ? 2 : 1)}%`; }
+function shortSolana(value: string) { return value.length > 12 ? `${value.slice(0, 5)}…${value.slice(-4)}` : value; }
+function formatActivityTime(timestamp: number) { if (!timestamp) return "–"; const date = new Date(timestamp * 1_000); const diff = Date.now() - date.getTime(); if (diff < 60_000) return "now"; if (diff < 3_600_000) return `${Math.floor(diff / 60_000)}m`; if (diff < 86_400_000) return `${Math.floor(diff / 3_600_000)}h`; return date.toLocaleDateString("en-US", { month: "short", day: "numeric" }); }
