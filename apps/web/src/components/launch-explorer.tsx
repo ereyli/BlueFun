@@ -26,6 +26,16 @@ import { SiteHeaderNav } from "@/components/site-header-nav";
 type MarketCategory = "All" | "Progress" | "Direct";
 type MarketSort = "Activity" | "Newest" | "Volume" | "MarketCap";
 type MarketView = "cards" | "list";
+type SolanaMarketSummary = {
+  mint: string;
+  pool: string;
+  marketCap: number | null;
+  liquidityUsd: number | null;
+  volume24h: number | null;
+  priceChange24h: number | null;
+  buys24h: number | null;
+  sells24h: number | null;
+};
 const MARKET_NETWORKS = [8453, 4663, 143, 988, 5042, 101] as const;
 
 const ReferenceWalletButton = dynamic(
@@ -50,6 +60,7 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, chain
   const [activityByLaunch, setActivityByLaunch] = useState<Map<string, LaunchBuyActivity>>(new Map());
   const [recentActivity, setRecentActivity] = useState<LaunchBuyActivity[]>([]);
   const [marketSparklines, setMarketSparklines] = useState<Map<string, MarketSparkline>>(new Map());
+  const [solanaMarketSummaries, setSolanaMarketSummaries] = useState<Map<string, SolanaMarketSummary>>(new Map());
   const [hotLaunchKey, setHotLaunchKey] = useState<string>();
   const [networkMenuOpen, setNetworkMenuOpen] = useState(false);
   const [view, setView] = useState<MarketView>("cards");
@@ -289,6 +300,38 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, chain
   const marketLoading = isPageLoading || displayedLaunches.length === 0 && launches.length > 0;
   const featuredLaunches = displayedLaunches.slice(0, 4);
   const displayedLaunchKeys = useMemo(() => displayedLaunches.map(activityKey).join(","), [displayedLaunches]);
+  const solanaMarketQuery = useMemo(() => displayedLaunches
+    .filter((launch) => launch.chainId === 101 && launch.liquidityLocker)
+    .map((launch) => `${launch.token}:${launch.liquidityLocker}`)
+    .join(","), [displayedLaunches]);
+
+  useEffect(() => {
+    if (!solanaMarketQuery || previewMode) {
+      setSolanaMarketSummaries(new Map());
+      return;
+    }
+    const controller = new AbortController();
+    let active = true;
+    async function loadSummaries() {
+      try {
+        const response = await fetch(`/api/solana/market-summaries?${new URLSearchParams({ markets: solanaMarketQuery })}`, { signal: controller.signal });
+        if (!response.ok) return;
+        const payload = await response.json() as { summaries?: SolanaMarketSummary[] };
+        if (active) setSolanaMarketSummaries(new Map((payload.summaries ?? []).map((summary) => [summary.mint, summary])));
+      } catch (error) {
+        if (!(error instanceof DOMException && error.name === "AbortError")) {
+          // Keep the last successful snapshot while the upstream market feed reconnects.
+        }
+      }
+    }
+    void loadSummaries();
+    const interval = window.setInterval(loadSummaries, 30_000);
+    return () => {
+      active = false;
+      controller.abort();
+      window.clearInterval(interval);
+    };
+  }, [previewMode, solanaMarketQuery]);
 
   useEffect(() => {
     if (!displayedLaunchKeys || previewMode) {
@@ -296,7 +339,11 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, chain
       return;
     }
     const controller = new AbortController();
-    const groups = groupLaunchesByChain(displayedLaunches);
+    const groups = groupLaunchesByChain(displayedLaunches.filter((launch) => launch.chainId !== 101));
+    if (groups.size === 0) {
+      setMarketSparklines(new Map());
+      return;
+    }
     Promise.all([...groups].map(async ([networkId, rows]) => {
       const response = await fetch(`/api/market-sparklines?${new URLSearchParams({ chain: chainSlug(networkId), keys: rows.map(activityKey).join(",") })}`, { signal: controller.signal });
       if (!response.ok) return [] as MarketSparkline[];
@@ -320,18 +367,20 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, chain
       ? `${activity.marketCapNative} ${launchEconomics(launch.chainId).nativeSymbol}`
       : undefined;
     const dexMarketCap = dexMarketCaps.get(launch.token.toLowerCase());
+    const solanaSummary = launch.chainId === 101 ? solanaMarketSummaries.get(launch.token) : undefined;
     const marketCapNative = hasMarketCap ? launch.marketCap : indexedMarketCap ?? (direct ? "Live" : estimateCurveMarketCap(launch.raised, launch.chainId));
     const nativeUsd = nativeUsdByChain.get(launch.chainId) ?? null;
-    const marketCap = previewRow ? launch.marketCap : dexMarketCap ? compactUsd(dexMarketCap) : formatLaunchUsd(marketCapNative, nativeUsd);
+    const marketCap = previewRow ? launch.marketCap : solanaSummary?.marketCap ? compactUsd(solanaSummary.marketCap) : dexMarketCap ? compactUsd(dexMarketCap) : formatLaunchUsd(marketCapNative, nativeUsd);
     const liquidity = previewRow ? launch.raised : direct || launch.status === "Graduated" ? "Locked" : formatLaunchUsd(launch.raised, nativeUsd);
-    const volume = previewRow ? launch.volume : formatLaunchUsd(launch.volume, nativeUsd);
+    const volume = previewRow ? launch.volume : solanaSummary?.volume24h !== null && solanaSummary?.volume24h !== undefined ? compactUsd(solanaSummary.volume24h) : formatLaunchUsd(launch.volume, nativeUsd);
     const sparkline = marketSparklines.get(key);
-    const tradeCount = (sparkline?.buys ?? 0) + (sparkline?.sells ?? 0);
-    const positive = (sparkline?.changePercent ?? 0) >= 0;
+    const tradeCount = solanaSummary ? (solanaSummary.buys24h ?? 0) + (solanaSummary.sells24h ?? 0) : (sparkline?.buys ?? 0) + (sparkline?.sells ?? 0);
+    const changePercent = solanaSummary?.priceChange24h ?? sparkline?.changePercent;
+    const positive = (changePercent ?? 0) >= 0;
     const venue: DexProvider | undefined = direct
-      ? launch.dexProvider === "ekubo" ? "ekubo" : "uniswap"
+      ? launch.dexProvider === "meteora" ? "meteora" : launch.dexProvider === "ekubo" ? "ekubo" : "uniswap"
       : launch.status === "Graduated" ? "uniswap" : undefined;
-    return { direct, key, liquidity, marketCap, positive, sparkline, tradeCount, venue, volume };
+    return { changePercent, direct, key, liquidity, marketCap, positive, sparkline, tradeCount, venue, volume };
   }
 
   return (
@@ -502,11 +551,11 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, chain
               <span className="reference-chain-cell"><NetworkIcon chainId={launch.chainId} size={13}/>{networkMeta(launch.chainId).name}</span>
               <span className="reference-age-cell">{launch.age}</span>
               <Sparkline data={metrics.sparkline}/>
-              <span className="reference-value-cell market-cap"><strong>{metrics.marketCap}</strong>{metrics.sparkline ? <small className={metrics.positive ? "positive" : "negative"}>{metrics.positive ? "↗" : "↘"} {Math.abs(metrics.sparkline.changePercent).toFixed(2)}% · 24h</small> : <small>Market cap</small>}</span>
+              <span className="reference-value-cell market-cap"><strong>{metrics.marketCap}</strong>{metrics.changePercent !== undefined && metrics.changePercent !== null ? <small className={metrics.positive ? "positive" : "negative"}>{metrics.positive ? "↗" : "↘"} {Math.abs(metrics.changePercent).toFixed(2)}% · 24h</small> : <small>Market cap</small>}</span>
               <span className="reference-value-cell liquidity"><strong>{metrics.liquidity}</strong><small>{metrics.direct || launch.status === "Graduated" ? "LP liquidity" : `${launch.progress}% bonding`}</small></span>
               <span className="reference-value-cell volume"><strong>{metrics.volume}</strong><small>{metrics.tradeCount ? `${metrics.tradeCount} trades · 24h` : "Volume · 24h"}</small></span>
               <span className="reference-dex-cell">
-                {metrics.venue ? <><DexProviderIcon provider={metrics.venue} size={22} /><span><strong>{metrics.venue === "ekubo" ? "Ekubo" : "Uniswap"}</strong><small>{metrics.direct ? "Direct · LP locked" : "Graduated pool"}</small></span></> : <><BondingCurveIcon size={22} /><span><strong>Bonding</strong><small>Curve active</small></span></>}
+                {metrics.venue ? <><DexProviderIcon provider={metrics.venue} size={22} /><span><strong>{dexProviderName(metrics.venue)}</strong><small>{metrics.direct ? "Direct · LP locked" : "Graduated pool"}</small></span></> : <><BondingCurveIcon size={22} /><span><strong>Bonding</strong><small>Curve active</small></span></>}
               </span>
             </Link>
             );
@@ -565,6 +614,12 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, chain
     setView(nextView);
     window.localStorage.setItem("bluefun-market-view", nextView);
   }
+}
+
+function dexProviderName(provider: DexProvider) {
+  if (provider === "meteora") return "Meteora";
+  if (provider === "ekubo") return "Ekubo";
+  return "Uniswap";
 }
 
 function formatLaunchUsd(value: string, ethUsd: number | null) {
