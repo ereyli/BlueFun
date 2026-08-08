@@ -68,7 +68,10 @@ export function Providers({ children }: { children: React.ReactNode }) {
   }));
   const [dark, setDark] = useState(false);
   const [solanaWallets] = useState(() => [new PhantomWalletAdapter(), new SolflareWalletAdapter()]);
-  const solanaEndpoint = process.env.NEXT_PUBLIC_SOLANA_RPC_URL || "https://api.mainnet-beta.solana.com";
+  const [solanaEndpoint] = useState(() => {
+    if (typeof window !== "undefined") return `${window.location.origin}/api/solana/rpc`;
+    return `${process.env.NEXT_PUBLIC_SITE_URL || "http://127.0.0.1:3000"}/api/solana/rpc`;
+  });
 
   useEffect(() => {
     const syncTheme = () => setDark(document.documentElement.dataset.theme === "dark");

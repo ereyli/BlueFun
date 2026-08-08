@@ -6123,24 +6123,50 @@ textarea:focus-visible {
 .solana-progress { display: grid; gap: 7px; margin-top: 14px; }
 .solana-progress span { align-items: center; color: var(--muted); display: flex; font-size: 12px; gap: 7px; }
 .solana-progress svg { color: #15b981; }
-.solana-market-shell { display: grid; gap: 22px; grid-template-columns: minmax(0, 1fr) minmax(360px, 470px); margin: 0 auto; max-width: 1240px; }
-.solana-market-summary, .solana-swap-card { background: var(--surface); border: 1px solid var(--line); border-radius: 24px; box-shadow: 0 22px 70px rgba(12, 18, 44, .1); }
-.solana-market-summary { align-content: start; display: grid; gap: 24px; padding: 34px; }
-.solana-market-art { align-items: center; background: radial-gradient(circle at 35% 25%, #14f195, #5627a7 72%); border-radius: 24px; display: flex; height: 128px; justify-content: center; overflow: hidden; width: 128px; }
+.solana-terminal-shell { display: grid; gap: 18px; grid-template-columns: minmax(0, 1fr) minmax(350px, 430px); margin: 0 auto; max-width: 1420px; }
+.solana-terminal-main { display: grid; gap: 14px; min-width: 0; }
+.solana-token-header, .solana-stat-grid article, .solana-chart-card, .solana-swap-card { background: var(--surface); border: 1px solid var(--line); box-shadow: 0 18px 52px rgba(12,18,44,.08); }
+.solana-token-header { align-items: center; border-radius: 22px; display: grid; gap: 18px; grid-template-columns: auto minmax(0,1fr) auto; padding: 22px; }
+.solana-market-art { align-items: center; background: radial-gradient(circle at 35% 25%, #14f195, #5627a7 72%); border-radius: 18px; display: flex; height: 86px; justify-content: center; overflow: hidden; width: 86px; }
 .solana-market-art img { height: 100%; object-fit: cover; width: 100%; }
-.solana-market-summary h1 { font-size: clamp(38px, 5vw, 64px); letter-spacing: -.05em; margin: 18px 0 8px; }
-.solana-market-summary h1 small { color: var(--muted); font-size: .42em; }
+.solana-token-identity { min-width: 0; }
+.solana-token-identity h1 { font-size: clamp(27px,3.2vw,42px); letter-spacing: -.045em; margin: 9px 0 5px; }
+.solana-token-identity h1 small { color: var(--muted); font-size: .48em; white-space: nowrap; }
+.solana-token-identity p { color: var(--muted); display: -webkit-box; font-size: 13px; line-height: 1.55; margin: 0; max-width: 760px; overflow: hidden; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.launch-network-chip i, .solana-route-line i { background: currentColor; border-radius: 50%; height: 3px; opacity: .45; width: 3px; }
 .solana-market-links { display: flex; flex-wrap: wrap; gap: 9px; }
-.solana-market-links a { align-items: center; border: 1px solid var(--line); border-radius: 999px; display: inline-flex; gap: 6px; padding: 9px 13px; }
-.solana-swap-card { display: grid; gap: 16px; padding: 24px; }
+.solana-market-links a { align-items: center; border: 1px solid var(--line); border-radius: 999px; display: inline-flex; font-size: 12px; font-weight: 750; gap: 6px; padding: 8px 11px; }
+.solana-stat-grid { display: grid; gap: 10px; grid-template-columns: repeat(4,minmax(0,1fr)); }
+.solana-stat-grid article { border-radius: 16px; display: grid; gap: 3px; min-width: 0; padding: 15px 16px; }
+.solana-stat-grid small { color: var(--muted); font-size: 10px; font-weight: 850; letter-spacing: .08em; text-transform: uppercase; }
+.solana-stat-grid strong { font-size: clamp(18px,2vw,25px); letter-spacing: -.035em; overflow: hidden; text-overflow: ellipsis; }
+.solana-stat-grid span { color: var(--muted); font-size: 10px; }
+.solana-chart-card { border-radius: 22px; overflow: hidden; }
+.solana-chart-card > header { align-items: center; border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; padding: 17px 20px; }
+.solana-chart-card > header span { color: var(--muted); font-size: 10px; font-weight: 850; letter-spacing: .08em; }
+.solana-chart-card > header h2 { font-size: 25px; margin: 3px 0 0; }
+.solana-change { border-radius: 999px; font-size: 13px; font-weight: 850; padding: 8px 11px; }
+.solana-change.positive { background: rgba(32,204,160,.12); color: #16a77f; }.solana-change.negative { background: rgba(250,103,118,.12); color: #ec5364; }
+.solana-change small { color: inherit !important; opacity: .7; }
+.solana-chart-canvas { height: 340px; width: 100%; }
+.solana-chart-state { align-items: center; color: var(--muted); display: flex; gap: 9px; height: 340px; justify-content: center; }
+.solana-chart-card > footer { align-items: center; border-top: 1px solid var(--line); color: var(--muted); display: flex; font-size: 10px; justify-content: space-between; padding: 10px 15px; }
+.solana-chart-card > footer span, .solana-chart-card > footer button { align-items: center; display: inline-flex; gap: 6px; }
+.solana-chart-card > footer button { background: transparent; border: 0; color: var(--muted); cursor: pointer; font: inherit; font-weight: 750; }
+.solana-swap-card { align-self: start; border-radius: 22px; display: grid; gap: 14px; padding: 20px; position: sticky; top: 86px; }
 .solana-swap-card > header { align-items: center; display: flex; justify-content: space-between; }
-.solana-swap-card h2 { font-size: 28px; margin: 0; }.solana-swap-card header span { color: var(--muted); font-size: 12px; }
+.solana-swap-card h2 { font-size: 26px; margin: 0; }.solana-swap-card header span { color: var(--muted); font-size: 11px; }
 .solana-swap-tabs { background: var(--surface-2); border: 1px solid var(--line); border-radius: 16px; display: grid; gap: 5px; grid-template-columns: 1fr 1fr; padding: 5px; }
-.solana-swap-tabs button { background: transparent; border: 0; border-radius: 12px; color: var(--muted); font-weight: 850; min-height: 48px; }.solana-swap-tabs .active.buy { background: #20cca0; color: #061811; }.solana-swap-tabs .active.sell { background: #fa6776; color: #200609; }
-.solana-amount-card { border: 1px solid var(--line); border-radius: 18px; display: grid; gap: 14px; padding: 18px; }.solana-amount-card label { color: var(--muted); display: flex; font-size: 11px; font-weight: 850; justify-content: space-between; }.solana-amount-card > div { align-items: center; display: flex; gap: 12px; }.solana-amount-card input { background: transparent; border: 0; color: var(--text); font-size: 38px; font-weight: 850; min-width: 0; outline: 0; width: 100%; }.solana-quote { font-size: 34px; margin-right: auto; }.solana-amount-card.output small { color: var(--muted); }
+.solana-swap-tabs button { background: transparent; border: 0; border-radius: 12px; color: var(--muted); cursor: pointer; font-weight: 850; min-height: 46px; }.solana-swap-tabs .active.buy { background: #20cca0; color: #061811; }.solana-swap-tabs .active.sell { background: #fa6776; color: #200609; }
+.solana-amount-card { border: 1px solid var(--line); border-radius: 17px; display: grid; gap: 13px; padding: 16px; }.solana-amount-card label { color: var(--muted); display: flex; font-size: 10px; font-weight: 850; justify-content: space-between; }.solana-amount-card > div { align-items: center; display: flex; gap: 12px; }.solana-amount-card input { background: transparent; border: 0; color: var(--text); font-size: 34px; font-weight: 850; min-width: 0; outline: 0; width: 100%; }.solana-quote { font-size: 31px; margin-right: auto; }.solana-amount-card.output small { color: var(--muted); }
 .solana-percent-row { display: grid !important; grid-template-columns: repeat(4, 1fr); }.solana-percent-row button { background: var(--surface-2); border: 1px solid var(--line); border-radius: 9px; color: var(--muted); padding: 8px; }
+.solana-amount-card:not(.output) .solana-percent-row:has(button:nth-child(3):last-child) { grid-template-columns: repeat(3,1fr); }
+.solana-swap-arrow { align-items: center; background: var(--surface); border: 1px solid var(--line); border-radius: 11px; display: flex; font-weight: 900; height: 36px; justify-content: center; margin: -25px auto; position: relative; width: 36px; z-index: 2; }
 .solana-swap-submit.buy { background: #20cca0; color: #061811; }.solana-swap-submit.sell { background: #fa6776; color: #200609; }
-@media (max-width: 900px) { .solana-market-shell { grid-template-columns: 1fr; }.solana-market-summary { padding: 24px; } }
+.solana-route-line { align-items: center; color: var(--muted); display: flex; font-size: 10px; gap: 8px; justify-content: center; }
+.solana-route-line span { align-items: center; display: inline-flex; gap: 4px; }
+@media (max-width: 1050px) { .solana-terminal-shell { grid-template-columns: 1fr; }.solana-swap-card { position: static; }.solana-stat-grid { grid-template-columns: repeat(2,1fr); } }
+@media (max-width: 650px) { .solana-token-header { align-items: start; grid-template-columns: auto 1fr; padding: 17px; }.solana-market-art { height: 64px; width: 64px; }.solana-market-links { grid-column: 1 / -1; }.solana-stat-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }.solana-chart-canvas,.solana-chart-state { height: 280px; }.solana-swap-card { padding: 15px; }.solana-token-identity h1 { font-size: 25px; } }
 .launch-form-header { border-bottom: 1px solid #e7edf6; margin: -2px -2px 8px; padding: 0 2px 18px; }
 
 .launch-form-section-head {

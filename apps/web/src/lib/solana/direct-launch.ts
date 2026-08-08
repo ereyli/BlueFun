@@ -42,6 +42,7 @@ import {
   type Signer
 } from "@solana/web3.js";
 import bluefunIdl from "./bluefun-idl.json";
+import { confirmSolanaSignature } from "./confirm-signature";
 
 export const BLUEFUN_SOLANA_PROGRAM_ID = new PublicKey("CqjRfYuDzJgQUBF6BzRnNQfV5Gc4DT9a4pxrTQReX6f5");
 export const METEORA_DAMM_V2_PROGRAM_ID = new PublicKey("cpamdpZCGKUy5JxQXB4dcpGPiikHawvSWAd6mEn1sGG");
@@ -366,8 +367,7 @@ async function sendTransaction(connection: Connection, wallet: BrowserWallet, tr
   if (signers.length) transaction.partialSign(...signers);
   const signed = await wallet.signTransaction(transaction);
   const signature = await connection.sendRawTransaction(signed.serialize(), { maxRetries: 4, skipPreflight: false });
-  const confirmation = await connection.confirmTransaction({ signature, ...latest }, "confirmed");
-  if (confirmation.value.err) throw new Error(`Solana transaction failed: ${JSON.stringify(confirmation.value.err)}`);
+  await confirmSolanaSignature(connection, signature);
   return signature;
 }
 

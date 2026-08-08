@@ -9,6 +9,7 @@ import { BrandLaunchpadMenu } from "@/components/brand-launchpad-menu";
 import { NetworkSelector } from "@/components/network-selector";
 import { WalletButton } from "@/components/wallet-button";
 import { SiteHeaderNav } from "@/components/site-header-nav";
+import { ChainLink } from "@/components/chain-link";
 
 type TopbarContext = {
   title: string;
@@ -95,11 +96,13 @@ export function TerminalTopbar() {
         <kbd>/</kbd>
       </form>
       <Suspense fallback={<span className="terminal-network-placeholder"/>}><NetworkSelector /></Suspense>
-      <Link aria-current={isCreateScreen ? "page" : undefined} className="button primary terminal-create-action" href={context.actionHref}>
-        {context.actionIcon === "collection" ? <ImagePlus size={15}/> : <Rocket size={15}/>}
-        {context.actionLabel}
-        <b>+</b>
-      </Link>
+      <Suspense fallback={<span className="terminal-create-placeholder"/>}>
+        <ChainLink aria-current={isCreateScreen ? "page" : undefined} className="button primary terminal-create-action" href={context.actionHref}>
+          {context.actionIcon === "collection" ? <ImagePlus size={15}/> : <Rocket size={15}/>}
+          {context.actionLabel}
+          <b>+</b>
+        </ChainLink>
+      </Suspense>
       <Suspense fallback={<span className="terminal-wallet-placeholder"/>}><WalletButton /></Suspense>
     </header>
   );

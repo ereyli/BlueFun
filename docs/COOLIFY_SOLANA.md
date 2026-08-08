@@ -5,11 +5,12 @@ indexer process. Do not point the EVM indexer at a Solana RPC.
 
 ## Web
 
-Add these as both build-time and runtime variables, then redeploy web after the
-program and config PDA are live:
+Add the program id as a build-time and runtime variable. Add the RPC URL as a
+runtime-only, server-side variable; BlueFun proxies browser Solana calls through
+its own same-origin endpoint so private provider keys are not exposed:
 
 ```dotenv
-NEXT_PUBLIC_SOLANA_RPC_URL=https://your-private-solana-mainnet-rpc
+SOLANA_RPC_URL=https://your-private-solana-mainnet-rpc
 NEXT_PUBLIC_SOLANA_PROGRAM_ID=CqjRfYuDzJgQUBF6BzRnNQfV5Gc4DT9a4pxrTQReX6f5
 POSTGRES_INDEXER_ENABLED=true
 ```
