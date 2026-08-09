@@ -29,7 +29,7 @@ export function SolanaMarket({ launch }: { launch: DeployedLaunch }) {
   const [rpcError, setRpcError] = useState("");
   const [signature, setSignature] = useState("");
   const [chartMode, setChartMode] = useState<"marketCap" | "price">("marketCap");
-  const [timeframe, setTimeframe] = useState<"5m" | "30m" | "1h">("5m");
+  const [timeframe, setTimeframe] = useState<"1m" | "5m" | "30m" | "1h">("5m");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [slippageBps, setSlippageBps] = useState(200);
   const quoteRequestRef = useRef(0);
@@ -40,7 +40,7 @@ export function SolanaMarket({ launch }: { launch: DeployedLaunch }) {
   const marketQuery = useQuery<MarketSnapshot>({
     queryKey: ["solana-market", launch.liquidityLocker, launch.token, timeframe],
     queryFn: async () => {
-      const params = new URLSearchParams({ pool: launch.liquidityLocker || "", mint: launch.token, creator: launch.creator, timeframe });
+      const params = new URLSearchParams({ pool: launch.liquidityLocker || "", mint: launch.token, creator: launch.creator, timeframe: timeframe === "1m" ? "5m" : timeframe });
       const response = await fetch(`/api/solana/market?${params}`);
       if (!response.ok) throw new Error("Live market data is not available yet.");
       return response.json() as Promise<MarketSnapshot>;
@@ -148,6 +148,7 @@ export function SolanaMarket({ launch }: { launch: DeployedLaunch }) {
   const changePositive = (market?.priceChange24h || 0) >= 0;
   const connectedWallet = wallet.publicKey?.toBase58();
   const walletTrades = connectedWallet ? (market?.trades || []).filter((trade) => trade.trader === connectedWallet) : [];
+  const chartCandles = useMemo(() => buildSolanaChartCandles(market?.trades || [], market?.candles || [], timeframe), [market?.candles, market?.trades, timeframe]);
   const buttonLabel = !wallet.publicKey ? "Connect Solana wallet" : rpcError ? "RPC temporarily unavailable" : insufficient ? "Insufficient balance" : quoteLoading ? "Getting live quote" : busy ? "Confirming swap" : `${side === "buy" ? "Buy" : "Sell"} $${launch.symbol}`;
 
   return <div className="trade-layout reference-token-terminal solana-token-terminal">
@@ -177,10 +178,13 @@ export function SolanaMarket({ launch }: { launch: DeployedLaunch }) {
 
     <section className="market-content-column">
       <div className="chart-panel"><div className="curve-state compact">
-        <section className="solana-chart-card">
-          <header><div><span>{launch.symbol} {chartMode === "marketCap" ? "MARKET CAP" : "PRICE / USD"}</span><h2>{chartMode === "marketCap" ? compactUsd(market?.marketCap ?? market?.fdv) : formatUsd(market?.priceUsd)}</h2></div><div className="solana-chart-toolbar"><div className="solana-chart-segment"><button className={chartMode === "marketCap" ? "active" : ""} onClick={() => setChartMode("marketCap")} type="button">Market cap</button><button className={chartMode === "price" ? "active" : ""} onClick={() => setChartMode("price")} type="button">Price</button></div><div className="solana-chart-segment compact">{(["5m", "30m", "1h"] as const).map((value) => <button className={timeframe === value ? "active" : ""} key={value} onClick={() => setTimeframe(value)} type="button">{value}</button>)}</div><div className={`solana-change ${changePositive ? "positive" : "negative"}`}>{market?.priceChange24h == null ? "Live" : `${changePositive ? "+" : ""}${market.priceChange24h.toFixed(2)}%`} <small>24h</small></div></div></header>
-          <SolanaPriceChart candles={market?.candles || []} loading={marketQuery.isLoading} mode={chartMode} solUsd={market?.solUsd}/>
-          <footer><span><Activity size={14}/> Meteora DAMM v2 live market</span><button onClick={() => void marketQuery.refetch()} type="button"><RefreshCw className={marketQuery.isFetching ? "spin" : ""} size={14}/>Refresh</button></footer>
+        <section className="tv-chart-wrap solana-tv-chart">
+          <div className="tv-chart-header">
+            <div className="chart-activity-strip"><span><small>Buys</small><strong>{market?.buys24h ?? 0}</strong></span><span><small>Sells</small><strong>{market?.sells24h ?? 0}</strong></span><span><small>Traders</small><strong>{new Set((market?.trades || []).map((trade) => trade.trader)).size}</strong></span></div>
+            <div className="chart-controls"><div className="chart-interval-tabs" role="tablist" aria-label="Candle interval">{(["1m", "5m", "30m", "1h"] as const).map((value) => <button aria-selected={timeframe === value} className={timeframe === value ? "active" : ""} key={value} onClick={() => setTimeframe(value)} role="tab" type="button">{value}</button>)}<button aria-label="Refresh chart" onClick={() => void marketQuery.refetch()} type="button"><RefreshCw className={marketQuery.isFetching ? "spin" : ""} size={13}/></button></div><span className="chart-indicators-label">Indicators</span><div className="chart-mode-tabs" role="tablist"><button aria-selected={chartMode === "marketCap"} className={chartMode === "marketCap" ? "active" : ""} onClick={() => setChartMode("marketCap")} role="tab" type="button">Market Cap</button><button aria-selected={chartMode === "price"} className={chartMode === "price" ? "active" : ""} onClick={() => setChartMode("price")} role="tab" type="button">Price</button></div></div>
+          </div>
+          <SolanaPriceChart candles={chartCandles} loading={marketQuery.isLoading || (activityQuery.isLoading && !chartCandles.length)} mode={chartMode} solUsd={market?.solUsd}/>
+          <div className="solana-chart-caption"><span><Activity size={13}/>Meteora swaps · onchain candles</span><span className={changePositive ? "reference-positive" : "reference-negative"}>{market?.priceChange24h == null ? "Live" : `${changePositive ? "+" : ""}${market.priceChange24h.toFixed(2)}% 24h`}</span></div>
         </section>
         {marketQuery.isError ? <p className="launch-notice danger">Live chart data could not be refreshed. Trading remains available.</p> : null}
         <SolanaMarketData launch={launch} market={market} wallet={connectedWallet} loading={activityQuery.isLoading}/>
@@ -210,7 +214,7 @@ export function SolanaMarket({ launch }: { launch: DeployedLaunch }) {
   </div>;
 }
 
-function SolanaAssetPill({ launch, native }: { launch: DeployedLaunch; native: boolean }) { return <span className="swap-asset-pill"><span className="swap-asset-icon">{native ? <NetworkIcon chainId={101} size={22}/> : launch.imageURI ? <img alt="" src={ipfsUrl(launch.imageURI)}/> : <NetworkIcon chainId={101} size={22}/>}</span><span><strong>{native ? "SOL" : launch.symbol}</strong><small>Solana</small></span></span>; }
+function SolanaAssetPill({ launch, native }: { launch: DeployedLaunch; native: boolean }) { return <span className="swap-token-pill">{native ? <span className="swap-token-icon native"><NetworkIcon chainId={101} size={28}/></span> : launch.imageURI ? <img alt={launch.name} className="swap-token-icon token-avatar-image" src={ipfsUrl(launch.imageURI)}/> : <span className="swap-token-icon"><NetworkIcon chainId={101} size={22}/></span>}<span className="swap-token-copy"><strong>{native ? "SOL" : launch.symbol}</strong><small>Solana</small></span></span>; }
 
 function SolanaMarketData({ launch, market, wallet, loading }: { launch: DeployedLaunch; market?: MarketSnapshot; wallet?: string; loading: boolean }) {
   const [tab, setTab] = useState<"trades" | "position" | "holders" | "security">("trades");
@@ -268,10 +272,13 @@ function SolanaPriceChart({ candles, loading, mode, solUsd }: { candles: MarketC
       const priceFormatter = mode === "marketCap" ? compactUsd : formatUsd;
       const chart = createChart(container, {
         autoSize: true, height: 340,
-        layout: { background: { type: ColorType.Solid, color: "transparent" }, textColor: dark ? "#8f9ab0" : "#63718d", fontFamily: "Inter, ui-sans-serif, system-ui" },
-        grid: { vertLines: { color: dark ? "rgba(126,145,184,.08)" : "rgba(112,132,174,.12)" }, horzLines: { color: dark ? "rgba(126,145,184,.08)" : "rgba(112,132,174,.12)" } },
+        handleScroll: { mouseWheel: true, pressedMouseMove: true, horzTouchDrag: true, vertTouchDrag: true },
+        handleScale: { axisPressedMouseMove: true, mouseWheel: true, pinch: true },
+        layout: { background: { type: ColorType.Solid, color: dark ? "#08090d" : "#fbfcff" }, textColor: dark ? "#9ca6b8" : "#63718d", fontFamily: "\"Helvetica Neue\", Inter, ui-sans-serif, system-ui" },
+        grid: { vertLines: { color: dark ? "rgba(126,145,184,.09)" : "rgba(112,132,174,.13)" }, horzLines: { color: dark ? "rgba(126,145,184,.09)" : "rgba(112,132,174,.13)" } },
         rightPriceScale: { borderColor: dark ? "#252a34" : "#dfe5f1", scaleMargins: { top: .12, bottom: .28 } },
-        timeScale: { borderColor: dark ? "#252a34" : "#dfe5f1", timeVisible: true, secondsVisible: false, rightOffset: 3 },
+        timeScale: { barSpacing: 14, borderColor: dark ? "#252a34" : "#dfe5f1", timeVisible: true, secondsVisible: false, rightOffset: 3 },
+        crosshair: { vertLine: { color: "rgba(66,217,255,.42)", labelBackgroundColor: "#315cff" }, horzLine: { color: "rgba(66,217,255,.42)", labelBackgroundColor: "#315cff" } },
         localization: { priceFormatter }
       });
       chartRef.current = chart;
@@ -280,7 +287,8 @@ function SolanaPriceChart({ candles, loading, mode, solUsd }: { candles: MarketC
       chart.priceScale("volume").applyOptions({ scaleMargins: { top: .8, bottom: 0 }, visible: false, borderVisible: false });
       series.setData(candles.map((candle) => ({ time: candle.time as UTCTimestamp, open: candle.open * scale, high: candle.high * scale, low: candle.low * scale, close: candle.close * scale })) as CandlestickData<UTCTimestamp>[]);
       volume.setData(candles.map((candle) => ({ time: candle.time as UTCTimestamp, value: candle.volume, color: candle.close >= candle.open ? "rgba(32,204,160,.3)" : "rgba(250,103,118,.3)" })) as HistogramData<UTCTimestamp>[]);
-      chart.timeScale().fitContent();
+      const visibleBars = Math.min(Math.max(candles.length, 12), 48);
+      chart.timeScale().setVisibleLogicalRange({ from: Math.max(0, candles.length - visibleBars - 1), to: candles.length + 1 });
     }
     void setup();
     return () => { disposed = true; chartRef.current?.remove(); chartRef.current = null; };
@@ -288,7 +296,45 @@ function SolanaPriceChart({ candles, loading, mode, solUsd }: { candles: MarketC
 
   if (loading) return <div className="solana-chart-state"><Loader2 className="spin" size={20}/> Loading live chart</div>;
   if (!candles.length || !solUsd) return <div className="solana-chart-state"><Activity size={20}/> Chart begins with the first market trades.</div>;
-  return <div className="solana-chart-canvas" ref={containerRef}/>;
+  return <div className="tv-chart solana-chart-canvas" ref={containerRef}/>;
+}
+
+function buildSolanaChartCandles(trades: SolanaTrade[], fallback: MarketCandle[], timeframe: "1m" | "5m" | "30m" | "1h") {
+  const intervalSeconds = timeframe === "1m" ? 60 : timeframe === "5m" ? 300 : timeframe === "30m" ? 1_800 : 3_600;
+  const buckets = new Map<number, MarketCandle>();
+  let lastAcceptedPrice = 0;
+  trades
+    .filter((trade) => trade.timestamp > 0 && trade.nativeAmount > .000001 && Number.isFinite(trade.priceNative) && trade.priceNative > 0)
+    .slice()
+    .sort((a, b) => a.timestamp - b.timestamp || a.slot - b.slot)
+    .forEach((trade) => {
+      if (lastAcceptedPrice > 0 && (trade.priceNative > lastAcceptedPrice * 8 || trade.priceNative < lastAcceptedPrice / 8)) return;
+      lastAcceptedPrice = trade.priceNative;
+      const time = Math.floor(trade.timestamp / intervalSeconds) * intervalSeconds;
+      const bucket = buckets.get(time);
+      if (!bucket) {
+        buckets.set(time, { time, open: trade.priceNative, high: trade.priceNative, low: trade.priceNative, close: trade.priceNative, volume: trade.nativeAmount });
+        return;
+      }
+      bucket.high = Math.max(bucket.high, trade.priceNative);
+      bucket.low = Math.min(bucket.low, trade.priceNative);
+      bucket.close = trade.priceNative;
+      bucket.volume += trade.nativeAmount;
+    });
+  const tradeCandles = Array.from(buckets.values()).sort((a, b) => a.time - b.time);
+  if (tradeCandles.length) return connectCandleOpens(tradeCandles);
+  const activeFallback = fallback.filter((candle) => candle.volume > 0 && Number.isFinite(candle.close) && candle.close > 0);
+  return connectCandleOpens(activeFallback.length ? activeFallback : fallback.slice(-1));
+}
+
+function connectCandleOpens(candles: MarketCandle[]) {
+  let previousClose = 0;
+  return candles.map((source) => {
+    const open = previousClose > 0 ? previousClose : source.open;
+    const candle = { ...source, open, high: Math.max(source.high, open, source.close), low: Math.min(source.low, open, source.close) };
+    previousClose = source.close;
+    return candle;
+  });
 }
 
 type Quote = { output: bigint; minimum: BN; poolState: Awaited<ReturnType<CpAmm["fetchPoolState"]>> };

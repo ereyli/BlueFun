@@ -127,7 +127,9 @@ function parseTrade(signature: SignatureInfo, transaction: ParsedTransaction | n
   if (nativeDelta === 0n) return;
   const tokenAmount = Number(abs(tokenDelta)) / 1e9;
   const nativeAmount = Number(abs(nativeDelta)) / 1e9;
-  if (!Number.isFinite(tokenAmount) || !Number.isFinite(nativeAmount) || tokenAmount <= 0 || nativeAmount <= 0) return;
+  // Pool initialization and account-closing transfers can look like swaps at
+  // one-lamport scale. They are not user market activity and distort candles.
+  if (!Number.isFinite(tokenAmount) || !Number.isFinite(nativeAmount) || tokenAmount <= 0 || nativeAmount <= 0.000001) return;
   return { signature: signature.signature, trader, side: tokenDelta > 0n ? "buy" : "sell", tokenAmount, nativeAmount, priceNative: nativeAmount / tokenAmount, timestamp: transaction.blockTime || signature.blockTime || 0, slot: signature.slot };
 }
 

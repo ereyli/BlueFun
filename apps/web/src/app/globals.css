@@ -6197,9 +6197,11 @@ textarea:focus-visible {
 .solana-token-terminal .solana-market-data { border: 0; border-radius: 0; border-top: 1px solid #24364a; }
 .solana-token-terminal .solana-swap-card { align-self: auto; border-radius: 18px; box-shadow: 0 18px 50px rgba(0,0,0,.18); gap: 0; padding: 10px; position: static; }
 .solana-token-terminal .solana-swap-card .form { gap: 8px; }
-.solana-token-terminal .swap-asset-pill img { border-radius: 50%; height: 100%; object-fit: cover; width: 100%; }
+.solana-token-terminal .swap-token-icon.token-avatar-image { border-radius: 50%; display: block; height: 31px; max-height: 31px; max-width: 31px; object-fit: cover; width: 31px; }
 .solana-token-terminal .swap-quick-row:not(.sell-grid) { grid-template-columns: repeat(3,minmax(0,1fr)); }
 .solana-token-terminal .reference-token-side-info { margin-top: 10px; }
+.solana-token-terminal .solana-chart-caption { align-items: center; border-top: 1px solid #252a34; color: #7f8a9d; display: flex; font-size: 9px; font-weight: 750; justify-content: space-between; min-height: 34px; padding: 0 12px; }
+.solana-token-terminal .solana-chart-caption span { align-items: center; display: inline-flex; gap: 5px; }
 @media (max-width: 880px) { .solana-token-terminal.reference-token-terminal.trade-layout { grid-template: "summary" auto "content" auto "trade" auto / minmax(0,1fr); }.solana-token-terminal .solana-chart-canvas,.solana-token-terminal .solana-chart-state { height: 280px; } }
 @media (max-width: 560px) { .solana-token-terminal .solana-market-art.profile-art { height: 44px; width: 44px; }.solana-token-terminal .solana-chart-card > header { align-items: flex-start; display: grid; gap: 8px; }.solana-token-terminal .solana-chart-toolbar { justify-content: flex-start; } }
 .launch-form-header { border-bottom: 1px solid #e7edf6; margin: -2px -2px 8px; padding: 0 2px 18px; }
