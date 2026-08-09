@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useAccount, useChainId, useSwitchChain } from "wagmi";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { Check, ChevronDown } from "@/components/bluefun-icons";
 import { baseChain } from "@/lib/base-chain";
 import { robinhoodChain } from "@/lib/robinhood-chain";
@@ -18,7 +18,6 @@ export function NetworkSelector() {
   const { isConnected } = useAccount();
   const chainId = useChainId();
   const { switchChainAsync, isPending } = useSwitchChain();
-  const router = useRouter();
   const pathname = usePathname();
   const nftMode = pathname.startsWith("/nft");
   const dexMode = pathname.startsWith("/dex");
@@ -61,19 +60,25 @@ export function NetworkSelector() {
     params.set("chain", chainSlug(nextChainId));
     params.delete("page");
     const destination = /^\/launch\/[^/]+$/.test(pathname) || /^\/token\/(base|robinhood|monad|stable|arc|solana)\//.test(pathname) ? "/" : pathname;
-    router.push(`${destination}?${params.toString()}`);
+    const target = `${destination}?${params.toString()}`;
 
-    if (nextChainId === SOLANA_CHAIN_ID) return;
+    if (nextChainId === SOLANA_CHAIN_ID) {
+      window.location.assign(target);
+      return;
+    }
     if (isConnected && chainId !== nextChainId) {
       try {
         await switchChainAsync({ chainId: nextChainId });
       } catch (error) {
+        setOptimisticChainId(undefined);
         const message = error instanceof Error ? error.message.toLowerCase() : "";
         setSwitchError(message.includes("rejected") || message.includes("denied")
           ? "Network switch was cancelled in your wallet."
           : "Your wallet could not switch networks. Try again from the wallet.");
+        return;
       }
     }
+    window.location.assign(target);
   }
 
   return (
