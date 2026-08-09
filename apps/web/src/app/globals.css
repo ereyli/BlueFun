@@ -6180,6 +6180,28 @@ textarea:focus-visible {
 @media (max-width: 1050px) { .solana-terminal-shell { grid-template-columns: 1fr; }.solana-swap-card { position: static; }.solana-stat-grid { grid-template-columns: repeat(2,1fr); } }
 @media (max-width: 760px) { .solana-chart-card > header { align-items: flex-start; gap: 12px; }.solana-chart-toolbar { justify-content: flex-start; }.solana-change { order: -1; }.solana-market-data .risk-workspace { grid-template-columns: 1fr; }.solana-market-data .risk-check-grid,.solana-market-data .position-workspace { grid-template-columns: 1fr; }.solana-market-data .reference-trade-data-tabs { min-width: max-content; }.solana-market-data .recent-trades-head { overflow-x: auto; } }
 @media (max-width: 650px) { .solana-token-header { align-items: start; grid-template-columns: auto 1fr; padding: 17px; }.solana-market-art { height: 64px; width: 64px; }.solana-market-links { grid-column: 1 / -1; }.solana-stat-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }.solana-chart-card > header { display: grid; }.solana-chart-canvas,.solana-chart-state { height: 280px; }.solana-swap-card { padding: 15px; }.solana-token-identity h1 { font-size: 25px; } }
+
+/* Solana uses the same workstation geometry and controls as EVM markets. */
+.solana-token-terminal .market-header-main { align-items: center; }
+.solana-token-terminal .solana-market-art.profile-art { border-radius: 14px; height: 62px; width: 62px; }
+.solana-token-terminal .market-description { -webkit-box-orient: vertical; -webkit-line-clamp: 1; display: -webkit-box; overflow: hidden; }
+.solana-token-terminal .market-route-pill { gap: 5px; }
+.solana-token-terminal .chart-panel { overflow: hidden; padding: 0; }
+.solana-token-terminal .curve-state.compact { gap: 0; }
+.solana-token-terminal .solana-chart-card { background: transparent; border: 0; border-radius: 0; box-shadow: none; }
+.solana-token-terminal .solana-chart-card > header { min-height: 58px; padding: 9px 12px; }
+.solana-token-terminal .solana-chart-card > header h2 { font-size: 17px; }
+.solana-token-terminal .solana-chart-canvas,
+.solana-token-terminal .solana-chart-state { height: 300px; }
+.solana-token-terminal .solana-chart-card > footer { min-height: 36px; }
+.solana-token-terminal .solana-market-data { border: 0; border-radius: 0; border-top: 1px solid #24364a; }
+.solana-token-terminal .solana-swap-card { align-self: auto; border-radius: 18px; box-shadow: 0 18px 50px rgba(0,0,0,.18); gap: 0; padding: 10px; position: static; }
+.solana-token-terminal .solana-swap-card .form { gap: 8px; }
+.solana-token-terminal .swap-asset-pill img { border-radius: 50%; height: 100%; object-fit: cover; width: 100%; }
+.solana-token-terminal .swap-quick-row:not(.sell-grid) { grid-template-columns: repeat(3,minmax(0,1fr)); }
+.solana-token-terminal .reference-token-side-info { margin-top: 10px; }
+@media (max-width: 880px) { .solana-token-terminal.reference-token-terminal.trade-layout { grid-template: "summary" auto "content" auto "trade" auto / minmax(0,1fr); }.solana-token-terminal .solana-chart-canvas,.solana-token-terminal .solana-chart-state { height: 280px; } }
+@media (max-width: 560px) { .solana-token-terminal .solana-market-art.profile-art { height: 44px; width: 44px; }.solana-token-terminal .solana-chart-card > header { align-items: flex-start; display: grid; gap: 8px; }.solana-token-terminal .solana-chart-toolbar { justify-content: flex-start; } }
 .launch-form-header { border-bottom: 1px solid #e7edf6; margin: -2px -2px 8px; padding: 0 2px 18px; }
 
 .launch-form-section-head {

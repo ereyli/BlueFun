@@ -33,28 +33,39 @@ export async function GET(request: NextRequest) {
   const timeframe = requestedTimeframe === "30m" || requestedTimeframe === "1h" ? requestedTimeframe : "5m";
   if (!SOLANA_ADDRESS.test(pool) || !SOLANA_ADDRESS.test(mint) || (creator && !SOLANA_ADDRESS.test(creator))) return NextResponse.json({ error: "Invalid Solana market." }, { status: 400 });
 
+  if (request.nextUrl.searchParams.get("section") === "activity") {
+    const poolPayload = await fetch(`https://damm-v2.datapi.meteora.ag/pools/${pool}`, { next: { revalidate: 30 }, signal: AbortSignal.timeout(5_000) })
+      .then(assertOk)
+      .then((response) => response.json() as Promise<MeteoraPool>)
+      .catch(() => undefined);
+    const tokenIsX = poolPayload?.token_x?.address === mint;
+    const tokenInfo = tokenIsX ? poolPayload?.token_x : poolPayload?.token_y;
+    const poolTokenBalance = numberOrNull(tokenIsX ? poolPayload?.token_x_amount : poolPayload?.token_y_amount);
+    const poolTokenVault = tokenIsX ? poolPayload?.vault_x : poolPayload?.vault_y;
+    const totalSupply = numberOrNull(tokenInfo?.total_supply) || 1_000_000_000;
+    const activity = await getSolanaActivity({ pool, mint, creator, poolTokenVault, poolTokenBalance, totalSupply, holderCount: numberOrNull(tokenInfo?.holders) })
+      .catch(() => ({ trades: [], holders: poolTokenBalance == null ? [] : [{ owner: pool, balance: poolTokenBalance, percent: poolTokenBalance / totalSupply * 100, role: "pool" as const, account: poolTokenVault }], holderCount: numberOrNull(tokenInfo?.holders) }));
+    return NextResponse.json(activity, { headers: { "cache-control": "public, s-maxage=30, stale-while-revalidate=120" } });
+  }
+
   const now = Math.floor(Date.now() / 1_000);
   const range = timeframe === "5m" ? 6 * 60 * 60 : timeframe === "30m" ? 24 * 60 * 60 : 48 * 60 * 60;
   const start = now - range;
-  const [dexResult, candleResult, poolResult] = await Promise.allSettled([
+  const [dexResult, candleResult] = await Promise.allSettled([
     fetch(`https://api.dexscreener.com/latest/dex/pairs/solana/${pool}`, { next: { revalidate: 15 }, signal: AbortSignal.timeout(8_000) }).then(assertOk).then((response) => response.json()),
-    fetch(`https://damm-v2.datapi.meteora.ag/pools/${pool}/ohlcv?timeframe=${timeframe}&start_time=${start}&end_time=${now}`, { next: { revalidate: 15 }, signal: AbortSignal.timeout(8_000) }).then(assertOk).then((response) => response.json()),
-    fetch(`https://damm-v2.datapi.meteora.ag/pools/${pool}`, { next: { revalidate: 15 }, signal: AbortSignal.timeout(8_000) }).then(assertOk).then((response) => response.json())
+    fetchMeteoraCandles(pool, timeframe, start, now)
   ]);
 
   const dexPayload = dexResult.status === "fulfilled" ? dexResult.value as { pair?: DexPair; pairs?: DexPair[] } : undefined;
   const pair = dexPayload?.pair || dexPayload?.pairs?.[0];
-  const candlePayload = candleResult.status === "fulfilled" ? candleResult.value as { data?: MeteoraCandle[] } : undefined;
-  const poolPayload = poolResult.status === "fulfilled" ? poolResult.value as MeteoraPool : undefined;
+  let candlePayload = candleResult.status === "fulfilled" ? candleResult.value : undefined;
+  if (!candlePayload?.data?.length && pair?.pairCreatedAt) {
+    const createdAt = Math.floor(pair.pairCreatedAt / 1_000);
+    candlePayload = await fetchMeteoraCandles(pool, timeframe, createdAt - 300, Math.min(now, createdAt + range)).catch(() => candlePayload);
+  }
   if (!pair && !candlePayload?.data?.length) return NextResponse.json({ error: "Market data is not available yet." }, { status: 502 });
 
   const candles = (candlePayload?.data || []).filter(validCandle).map((candle) => ({ time: candle.timestamp, open: candle.open, high: candle.high, low: candle.low, close: candle.close, volume: candle.volume }));
-  const tokenIsX = poolPayload?.token_x?.address === mint;
-  const tokenInfo = tokenIsX ? poolPayload?.token_x : poolPayload?.token_y;
-  const poolTokenBalance = numberOrNull(tokenIsX ? poolPayload?.token_x_amount : poolPayload?.token_y_amount);
-  const poolTokenVault = tokenIsX ? poolPayload?.vault_x : poolPayload?.vault_y;
-  const totalSupply = numberOrNull(tokenInfo?.total_supply) || 1_000_000_000;
-  const activity = await getSolanaActivity({ pool, mint, creator, poolTokenVault, poolTokenBalance, totalSupply, holderCount: numberOrNull(tokenInfo?.holders) }).catch(() => ({ trades: [], holders: poolTokenBalance == null ? [] : [{ owner: pool, balance: poolTokenBalance, percent: poolTokenBalance / totalSupply * 100, role: "pool" as const, account: poolTokenVault }], holderCount: numberOrNull(tokenInfo?.holders) }));
   const priceNative = numberOrNull(pair?.priceNative) ?? candles.at(-1)?.close ?? null;
   const priceUsd = numberOrNull(pair?.priceUsd);
 
@@ -64,7 +75,7 @@ export async function GET(request: NextRequest) {
     volume24h: numberOrNull(pair?.volume?.h24), priceChange24h: numberOrNull(pair?.priceChange?.h24),
     buys24h: numberOrNull(pair?.txns?.h24?.buys), sells24h: numberOrNull(pair?.txns?.h24?.sells),
     pairCreatedAt: numberOrNull(pair?.pairCreatedAt), pairUrl: pair?.url || `https://dexscreener.com/solana/${pool}`,
-    timeframe, candles, trades: activity.trades, holders: activity.holders, holderCount: activity.holderCount
+    timeframe, candles
   }, { headers: { "cache-control": "public, s-maxage=15, stale-while-revalidate=45" } });
 }
 
@@ -99,7 +110,7 @@ async function getSolanaActivity(input: { pool: string; mint: string; creator: s
   const holders = Array.from(holdersByOwner.values()).sort((a, b) => b.balance - a.balance).slice(0, 20);
   const value = { trades, holders, holderCount: input.holderCount };
   if (activityCache.size > 1_000) activityCache.clear();
-  activityCache.set(cacheKey, { expiresAt: Date.now() + 20_000, value });
+  activityCache.set(cacheKey, { expiresAt: Date.now() + 60_000, value });
   return value;
 }
 
@@ -167,5 +178,10 @@ async function rpcBatch<T>(url: string, calls: Array<{ method: string; params: u
 }
 
 function assertOk(response: Response) { if (!response.ok) throw new Error(`Market source returned ${response.status}.`); return response; }
+function fetchMeteoraCandles(pool: string, timeframe: string, start: number, end: number) {
+  return fetch(`https://damm-v2.datapi.meteora.ag/pools/${pool}/ohlcv?timeframe=${timeframe}&start_time=${start}&end_time=${end}`, { next: { revalidate: 15 }, signal: AbortSignal.timeout(6_000) })
+    .then(assertOk)
+    .then((response) => response.json() as Promise<{ data?: MeteoraCandle[] }>);
+}
 function numberOrNull(value: unknown) { const parsed = typeof value === "number" ? value : typeof value === "string" ? Number(value) : NaN; return Number.isFinite(parsed) ? parsed : null; }
 function validCandle(candle: MeteoraCandle) { return Number.isFinite(candle.timestamp) && Number.isFinite(candle.open) && Number.isFinite(candle.high) && Number.isFinite(candle.low) && Number.isFinite(candle.close) && Number.isFinite(candle.volume); }

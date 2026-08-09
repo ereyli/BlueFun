@@ -8,7 +8,7 @@ import { getAssociatedTokenAddressSync, NATIVE_MINT, TOKEN_PROGRAM_ID } from "@s
 import { PublicKey } from "@solana/web3.js";
 import { useConnection, useWallet } from "@solana/wallet-adapter-react";
 import type { CandlestickData, HistogramData, IChartApi, UTCTimestamp } from "lightweight-charts";
-import { Activity, CheckCircle2, ExternalLink, Loader2, RefreshCw, ShieldCheck, Wallet } from "@/components/bluefun-icons";
+import { Activity, ArrowDownUp, CheckCircle2, ExternalLink, Loader2, LockKeyhole, RefreshCw, Settings, ShieldCheck, Wallet } from "@/components/bluefun-icons";
 import { DexProviderIcon } from "@/components/dex-provider-icon";
 import { NetworkIcon } from "@/components/network-icon";
 import type { DeployedLaunch } from "@/lib/onchain-launches";
@@ -30,6 +30,8 @@ export function SolanaMarket({ launch }: { launch: DeployedLaunch }) {
   const [signature, setSignature] = useState("");
   const [chartMode, setChartMode] = useState<"marketCap" | "price">("marketCap");
   const [timeframe, setTimeframe] = useState<"5m" | "30m" | "1h">("5m");
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [slippageBps, setSlippageBps] = useState(200);
   const quoteRequestRef = useRef(0);
   const mint = useMemo(() => new PublicKey(launch.token), [launch.token]);
   const pool = useMemo(() => new PublicKey(launch.liquidityLocker!), [launch.liquidityLocker]);
@@ -46,6 +48,17 @@ export function SolanaMarket({ launch }: { launch: DeployedLaunch }) {
     refetchInterval: 15_000,
     staleTime: 10_000
   });
+  const activityQuery = useQuery<SolanaActivity>({
+    queryKey: ["solana-market-activity", launch.liquidityLocker, launch.token, launch.creator],
+    queryFn: async () => {
+      const params = new URLSearchParams({ pool: launch.liquidityLocker || "", mint: launch.token, creator: launch.creator, section: "activity" });
+      const response = await fetch(`/api/solana/market?${params}`);
+      if (!response.ok) throw new Error("Onchain activity is temporarily unavailable.");
+      return response.json() as Promise<SolanaActivity>;
+    },
+    refetchInterval: 30_000,
+    staleTime: 25_000
+  });
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   useEffect(() => { void refreshBalances(); }, [wallet.publicKey, mint, connection]);
@@ -58,7 +71,7 @@ export function SolanaMarket({ launch }: { launch: DeployedLaunch }) {
     const timer = window.setTimeout(() => void loadQuote(requestId), 250);
     return () => window.clearTimeout(timer);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [amountRaw, side, pool, mint, connection]);
+  }, [amountRaw, side, pool, mint, connection, slippageBps]);
 
   async function refreshBalances() {
     if (!wallet.publicKey) { setTokenBalance(0n); setSolBalance(0n); setRpcError(""); return; }
@@ -84,7 +97,7 @@ export function SolanaMarket({ launch }: { launch: DeployedLaunch }) {
       const currentSlot = await connection.getSlot("confirmed");
       const inputMint = side === "buy" ? NATIVE_MINT : mint;
       const result = cpAmm.getQuote({
-        inAmount: new BN(amountRaw.toString()), inputTokenMint: inputMint, slippage: 0.02,
+        inAmount: new BN(amountRaw.toString()), inputTokenMint: inputMint, slippage: slippageBps / 10_000,
         poolState, currentTime: Math.floor(Date.now() / 1_000), currentSlot,
         tokenADecimal: 9, tokenBDecimal: 9
       });
@@ -131,57 +144,73 @@ export function SolanaMarket({ launch }: { launch: DeployedLaunch }) {
   }
 
   const insufficient = side === "buy" ? amountRaw >= solBalance : amountRaw > tokenBalance;
-  const market = marketQuery.data;
+  const market = marketQuery.data ? { ...marketQuery.data, trades: activityQuery.data?.trades || [], holders: activityQuery.data?.holders || [], holderCount: activityQuery.data?.holderCount ?? null } : undefined;
   const changePositive = (market?.priceChange24h || 0) >= 0;
+  const connectedWallet = wallet.publicKey?.toBase58();
+  const walletTrades = connectedWallet ? (market?.trades || []).filter((trade) => trade.trader === connectedWallet) : [];
   const buttonLabel = !wallet.publicKey ? "Connect Solana wallet" : rpcError ? "RPC temporarily unavailable" : insufficient ? "Insufficient balance" : quoteLoading ? "Getting live quote" : busy ? "Confirming swap" : `${side === "buy" ? "Buy" : "Sell"} $${launch.symbol}`;
 
-  return <main className="solana-terminal-shell">
-    <section className="solana-terminal-main">
-      <header className="solana-token-header">
-        <div className="solana-market-art">{launch.imageURI ? <img alt={`${launch.name} logo`} src={ipfsUrl(launch.imageURI)} /> : <NetworkIcon chainId={101} size={40} />}</div>
-        <div className="solana-token-identity"><span className="launch-network-chip"><NetworkIcon chainId={101} size={16} />Solana <i/> <DexProviderIcon provider="meteora" size={16} /> Meteora</span><h1>{launch.name} <small>${launch.symbol}</small></h1><p>{launch.description || "A fixed-supply BlueFun Direct market on Solana."}</p></div>
-        <div className="solana-market-links"><a href={`https://solscan.io/token/${launch.token}`} rel="noreferrer" target="_blank">Token <ExternalLink size={13} /></a><a href={`https://app.meteora.ag/dammv2/${launch.liquidityLocker}`} rel="noreferrer" target="_blank">Pool <ExternalLink size={13} /></a></div>
-      </header>
-
-      <div className="solana-stat-grid">
-        <MarketStat label="Price" value={formatUsd(market?.priceUsd)} detail={market?.priceNative ? `${formatTiny(market.priceNative)} SOL` : "Live pool price"}/>
-        <MarketStat label="Market cap" value={compactUsd(market?.marketCap ?? market?.fdv)} detail="Fixed 1B supply"/>
-        <MarketStat label="Liquidity" value={compactUsd(market?.liquidityUsd)} detail="Permanently locked"/>
-        <MarketStat label="24h volume" value={compactUsd(market?.volume24h)} detail={market ? `${market.buys24h || 0} buys · ${market.sells24h || 0} sells` : "Loading activity"}/>
-      </div>
-
-      <section className="solana-chart-card">
-        <header>
-          <div><span>{launch.symbol} {chartMode === "marketCap" ? "MARKET CAP" : "PRICE / USD"}</span><h2>{chartMode === "marketCap" ? compactUsd(market?.marketCap ?? market?.fdv) : formatUsd(market?.priceUsd)}</h2></div>
-          <div className="solana-chart-toolbar">
-            <div className="solana-chart-segment"><button className={chartMode === "marketCap" ? "active" : ""} onClick={() => setChartMode("marketCap")} type="button">Market cap</button><button className={chartMode === "price" ? "active" : ""} onClick={() => setChartMode("price")} type="button">Price</button></div>
-            <div className="solana-chart-segment compact">{(["5m", "30m", "1h"] as const).map((value) => <button className={timeframe === value ? "active" : ""} key={value} onClick={() => setTimeframe(value)} type="button">{value}</button>)}</div>
-            <div className={`solana-change ${changePositive ? "positive" : "negative"}`}>{market?.priceChange24h == null ? "Live" : `${changePositive ? "+" : ""}${market.priceChange24h.toFixed(2)}%`} <small>24h</small></div>
+  return <div className="trade-layout reference-token-terminal solana-token-terminal">
+    <section className="market-summary-column">
+      <div className="market-header-card">
+        <div className="market-header-main">
+          <div className="solana-market-art profile-art">{launch.imageURI ? <img alt={`${launch.name} logo`} src={ipfsUrl(launch.imageURI)} /> : <NetworkIcon chainId={101} size={32} />}</div>
+          <div className="market-title-block">
+            <div className="market-title-row"><h1>{launch.name}</h1><span className="token-status live">Direct DEX</span></div>
+            <div className="market-meta"><span>${launch.symbol}</span><span>{launch.age} ago</span><span>{shortSolana(launch.creator)}</span></div>
+            {launch.description ? <p className="market-description">{launch.description}</p> : null}
+            <span className="market-route-pill trusted"><NetworkIcon chainId={101} size={13}/><DexProviderIcon provider="meteora" size={13}/>Solana · Meteora</span>
           </div>
-        </header>
-        <SolanaPriceChart candles={market?.candles || []} loading={marketQuery.isLoading} mode={chartMode} solUsd={market?.solUsd}/>
-        <footer><span><Activity size={14}/> Meteora DAMM v2 live market</span><button onClick={() => void marketQuery.refetch()} type="button"><RefreshCw className={marketQuery.isFetching ? "spin" : ""} size={14}/> Refresh</button></footer>
-      </section>
-
-      <SolanaMarketData launch={launch} market={market} wallet={wallet.publicKey?.toBase58()} loading={marketQuery.isLoading}/>
+          <div className="market-actions"><a className="market-icon-action" aria-label="Open token on Solscan" href={`https://solscan.io/token/${launch.token}`} rel="noreferrer" target="_blank"><ExternalLink size={16}/></a><a className="market-icon-action" aria-label="Open Meteora pool" href={`https://app.meteora.ag/dammv2/${launch.liquidityLocker}`} rel="noreferrer" target="_blank"><DexProviderIcon provider="meteora" size={16}/></a></div>
+        </div>
+        <div className="market-header-stats">
+          <div><span>Market cap</span><strong>{compactUsd(market?.marketCap ?? market?.fdv)}</strong></div>
+          <div><span>Price</span><strong>{formatUsd(market?.priceUsd)}</strong></div>
+          <div><span>Liquidity</span><strong>{compactUsd(market?.liquidityUsd)}</strong></div>
+          <div><span>24h volume</span><strong>{compactUsd(market?.volume24h)}</strong></div>
+          <div><span>Buys</span><strong className="reference-positive">{market?.buys24h ?? "–"}</strong></div>
+          <div><span>Sells</span><strong className="reference-negative">{market?.sells24h ?? "–"}</strong></div>
+        </div>
+        <span className="reference-lp-lock"><LockKeyhole size={14}/>LP locked</span>
+      </div>
     </section>
 
-    <aside className="solana-swap-card">
-      <header><div><h2>Swap</h2><span>1% total fee · LP permanently locked</span></div><DexProviderIcon provider="meteora" size={34} /></header>
-      <div className="solana-swap-tabs"><button className={side === "buy" ? "active buy" : ""} onClick={() => setSide("buy")} type="button">Buy ${launch.symbol}</button><button className={side === "sell" ? "active sell" : ""} onClick={() => setSide("sell")} type="button">Sell</button></div>
-      <div className="solana-amount-card"><label>{side === "buy" ? "YOU PAY" : "YOU SELL"}<span>{balanceLoading ? "Loading…" : `Balance ${formatNine(side === "buy" ? solBalance : tokenBalance)}`}</span></label><div><input inputMode="decimal" placeholder="0" value={amount} onChange={(event) => setAmount(sanitize(event.target.value))} /><strong>{side === "buy" ? "SOL" : launch.symbol}</strong></div>{side === "buy" ? <div className="solana-percent-row">{["0.01", "0.05", "0.1"].map((value) => <button key={value} onClick={() => setAmount(value)} type="button">{value}</button>)}</div> : <div className="solana-percent-row">{[25, 50, 75, 100].map((percent) => <button key={percent} onClick={() => setAmount(formatNine(tokenBalance * BigInt(percent) / 100n, 9))} type="button">{percent === 100 ? "Max" : `${percent}%`}</button>)}</div>}</div>
-      <div className="solana-swap-arrow">↕</div>
-      <div className="solana-amount-card output"><label>YOU RECEIVE</label><div><strong className="solana-quote">{quote ? formatNine(quote.output) : quoteLoading ? "…" : "–"}</strong><strong>{side === "buy" ? launch.symbol : "SOL"}</strong></div><small>Minimum {quote ? formatNine(BigInt(quote.minimum.toString())) : "–"} · 2% slippage</small></div>
-      {rpcError ? <p className="launch-notice danger">{rpcError}</p> : null}{error ? <p className="launch-notice danger">{error}</p> : null}{signature ? <p className="launch-notice success"><CheckCircle2 size={15} />Swap confirmed. <a href={`https://solscan.io/tx/${signature}`} rel="noreferrer" target="_blank">View transaction</a></p> : null}
-      <button className={`button primary wide solana-swap-submit ${side}`} disabled={!wallet.publicKey || !quote || amountRaw <= 0n || insufficient || busy || Boolean(rpcError)} onClick={() => void swap()} type="button">{busy || quoteLoading ? <Loader2 className="spin" size={17} /> : null}{buttonLabel}</button>
-      <div className="solana-route-line"><span><NetworkIcon chainId={101} size={14}/> Solana</span><i/><span><DexProviderIcon provider="meteora" size={14}/> Meteora</span><i/><span>Locked liquidity</span></div>
+    <section className="market-content-column">
+      <div className="chart-panel"><div className="curve-state compact">
+        <section className="solana-chart-card">
+          <header><div><span>{launch.symbol} {chartMode === "marketCap" ? "MARKET CAP" : "PRICE / USD"}</span><h2>{chartMode === "marketCap" ? compactUsd(market?.marketCap ?? market?.fdv) : formatUsd(market?.priceUsd)}</h2></div><div className="solana-chart-toolbar"><div className="solana-chart-segment"><button className={chartMode === "marketCap" ? "active" : ""} onClick={() => setChartMode("marketCap")} type="button">Market cap</button><button className={chartMode === "price" ? "active" : ""} onClick={() => setChartMode("price")} type="button">Price</button></div><div className="solana-chart-segment compact">{(["5m", "30m", "1h"] as const).map((value) => <button className={timeframe === value ? "active" : ""} key={value} onClick={() => setTimeframe(value)} type="button">{value}</button>)}</div><div className={`solana-change ${changePositive ? "positive" : "negative"}`}>{market?.priceChange24h == null ? "Live" : `${changePositive ? "+" : ""}${market.priceChange24h.toFixed(2)}%`} <small>24h</small></div></div></header>
+          <SolanaPriceChart candles={market?.candles || []} loading={marketQuery.isLoading} mode={chartMode} solUsd={market?.solUsd}/>
+          <footer><span><Activity size={14}/> Meteora DAMM v2 live market</span><button onClick={() => void marketQuery.refetch()} type="button"><RefreshCw className={marketQuery.isFetching ? "spin" : ""} size={14}/>Refresh</button></footer>
+        </section>
+        {marketQuery.isError ? <p className="launch-notice danger">Live chart data could not be refreshed. Trading remains available.</p> : null}
+        <SolanaMarketData launch={launch} market={market} wallet={connectedWallet} loading={activityQuery.isLoading}/>
+      </div></div>
+    </section>
+
+    <aside className="trade-box">
+      <section className="trade-card swap-terminal solana-swap-card">
+        <div className="trade-card-toolbar"><div><strong>Swap</strong><span>Meteora DAMM v2</span></div><button className={settingsOpen ? "swap-settings-trigger active" : "swap-settings-trigger"} onClick={() => setSettingsOpen((open) => !open)} type="button" aria-label="Slippage settings"><Settings size={17}/><span>{slippageBps / 100}%</span></button></div>
+        <div className="form">
+          <div className="trade-tabs trade-tabs-top" role="tablist"><button aria-selected={side === "buy"} className={side === "buy" ? "active" : ""} onClick={() => setSide("buy")} role="tab" type="button">Buy ${launch.symbol}</button><button aria-selected={side === "sell"} className={side === "sell" ? "active" : ""} onClick={() => setSide("sell")} role="tab" type="button">Sell</button></div>
+          {!wallet.publicKey ? <div className="wallet-trade-gate"><span className="wallet-status-dot"/>Connect Solana wallet to trade</div> : null}
+          <div className="swap-asset-stack">
+            <div className="swap-asset-panel swap-pay-panel"><div className="swap-panel-label"><span>{side === "buy" ? "You pay" : "You sell"}</span><button className="balance-button" onClick={() => side === "buy" ? setAmount(formatNine(solBalance > 5_000_000n ? solBalance - 5_000_000n : 0n, 6)) : setAmount(formatNine(tokenBalance, 9))} type="button">{balanceLoading ? "Loading…" : `Balance ${formatNine(side === "buy" ? solBalance : tokenBalance)}`}</button></div><div className="swap-asset-main"><input className="swap-amount-input" inputMode="decimal" placeholder="0" value={amount} onChange={(event) => setAmount(sanitize(event.target.value))}/><SolanaAssetPill launch={launch} native={side === "buy"}/></div><div className={side === "buy" ? "swap-quick-row" : "swap-quick-row sell-grid"}>{side === "buy" ? ["0.01", "0.05", "0.1"].map((value) => <button key={value} onClick={() => setAmount(value)} type="button">{value}</button>) : [25,50,75,100].map((percent) => <button key={percent} onClick={() => setAmount(formatNine(tokenBalance * BigInt(percent) / 100n, 9))} type="button">{percent === 100 ? "Max" : `${percent}%`}</button>)}</div></div>
+            <button className="swap-direction-button" onClick={() => setSide(side === "buy" ? "sell" : "buy")} type="button" aria-label="Reverse swap direction"><ArrowDownUp size={17}/></button>
+            <div className="swap-asset-panel swap-receive-panel"><div className="swap-panel-label"><span>{quoteLoading ? "Updating quote" : "You receive"}</span></div><div className="swap-asset-main"><strong className="swap-quote-value">{quote ? formatNine(quote.output) : quoteLoading ? "…" : "–"}</strong><SolanaAssetPill launch={launch} native={side === "sell"}/></div><div className="swap-detail-row"><span>Minimum <b>{quote ? formatNine(BigInt(quote.minimum.toString())) : "–"}</b></span><span>Slippage <b>{slippageBps / 100}%</b></span></div></div>
+          </div>
+          <div className="trade-meta-line"><span><NetworkIcon chainId={101} size={14}/>Solana</span><i/><span><DexProviderIcon provider="meteora" size={14}/>Meteora</span><i/>1% fee</div>
+          {settingsOpen ? <div className="trade-settings-panel"><div className="settings-panel-head"><strong>Trade settings</strong><span>Slippage</span></div><div className="slippage-row">{[50,100,200,300].map((value) => <button className={slippageBps === value ? "selected" : ""} key={value} onClick={() => setSlippageBps(value)} type="button">{value / 100}%</button>)}</div></div> : null}
+          {rpcError ? <p className="launch-notice danger">{rpcError}</p> : null}{error ? <p className="launch-notice danger">{error}</p> : null}{signature ? <p className="launch-notice success"><CheckCircle2 size={15}/>Swap confirmed. <a href={`https://solscan.io/tx/${signature}`} rel="noreferrer" target="_blank">View transaction</a></p> : null}
+          <button className={`button primary wide trade-submit ${side}`} disabled={!wallet.publicKey || !quote || amountRaw <= 0n || insufficient || busy || Boolean(rpcError)} onClick={() => void swap()} type="button">{busy || quoteLoading ? <Loader2 className="spin" size={17}/> : <ArrowDownUp size={17}/>} {buttonLabel}</button>
+        </div>
+      </section>
+      <section className="reference-order-summary" aria-label="Account trading summary"><div><span>Bought</span><strong>{walletTrades.filter((trade) => trade.side === "buy").length}</strong></div><div><span>Sold</span><strong>{walletTrades.filter((trade) => trade.side === "sell").length}</strong></div><div><span>Balance</span><strong>{formatNine(tokenBalance)}</strong></div><div><span>P/L</span><strong className="reference-positive">Live</strong></div></section>
+      <section className="reference-token-side-info"><h3>Token information</h3><div><span>Contract</span><strong>{shortSolana(launch.token)}</strong></div><div><span>Creator</span><strong>{shortSolana(launch.creator)}</strong></div><div><span>Total supply</span><strong>1B {launch.symbol}</strong></div><div><span>Liquidity</span><strong>Locked permanently</strong></div></section>
     </aside>
-  </main>;
+  </div>;
 }
 
-function MarketStat({ label, value, detail }: { label: string; value: string; detail: string }) {
-  return <article><small>{label}</small><strong>{value}</strong><span>{detail}</span></article>;
-}
+function SolanaAssetPill({ launch, native }: { launch: DeployedLaunch; native: boolean }) { return <span className="swap-asset-pill"><span className="swap-asset-icon">{native ? <NetworkIcon chainId={101} size={22}/> : launch.imageURI ? <img alt="" src={ipfsUrl(launch.imageURI)}/> : <NetworkIcon chainId={101} size={22}/>}</span><span><strong>{native ? "SOL" : launch.symbol}</strong><small>Solana</small></span></span>; }
 
 function SolanaMarketData({ launch, market, wallet, loading }: { launch: DeployedLaunch; market?: MarketSnapshot; wallet?: string; loading: boolean }) {
   const [tab, setTab] = useState<"trades" | "position" | "holders" | "security">("trades");
@@ -266,6 +295,7 @@ type Quote = { output: bigint; minimum: BN; poolState: Awaited<ReturnType<CpAmm[
 type MarketCandle = { time: number; open: number; high: number; low: number; close: number; volume: number };
 type SolanaTrade = { signature: string; trader: string; side: "buy" | "sell"; tokenAmount: number; nativeAmount: number; priceNative: number; timestamp: number; slot: number };
 type SolanaHolder = { owner: string; balance: number; percent: number; role: "pool" | "creator" | "holder"; account?: string };
+type SolanaActivity = { trades: SolanaTrade[]; holders: SolanaHolder[]; holderCount: number | null };
 type MarketSnapshot = { priceUsd: number | null; priceNative: number | null; solUsd: number | null; liquidityUsd: number | null; fdv: number | null; marketCap: number | null; volume24h: number | null; priceChange24h: number | null; buys24h: number | null; sells24h: number | null; pairUrl: string; candles: MarketCandle[]; trades: SolanaTrade[]; holders: SolanaHolder[]; holderCount: number | null };
 function parseNineDecimals(value: string) { const [whole = "0", decimals = ""] = (value || "0").split("."); return BigInt(whole || "0") * 1_000_000_000n + BigInt(decimals.padEnd(9, "0").slice(0, 9) || "0"); }
 function formatNine(value: bigint, digits = 4) { const whole = value / 1_000_000_000n; const fraction = (value % 1_000_000_000n).toString().padStart(9, "0").slice(0, digits).replace(/0+$/, ""); return fraction ? `${whole}.${fraction}` : whole.toString(); }
@@ -273,7 +303,6 @@ function sanitize(value: string) { const clean = value.replace(",", ".").replace
 function ipfsUrl(uri: string) { return uri.startsWith("ipfs://") ? `https://gateway.pinata.cloud/ipfs/${uri.slice(7)}` : uri; }
 function compactUsd(value?: number | null) { if (value == null) return "–"; return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", notation: "compact", maximumFractionDigits: 2 }).format(value); }
 function formatUsd(value?: number | null) { if (value == null) return "–"; if (value >= .01) return `$${value.toLocaleString("en-US", { maximumFractionDigits: 4 })}`; return `$${value.toPrecision(4)}`; }
-function formatTiny(value: number) { if (!Number.isFinite(value)) return "–"; return value >= .0001 ? value.toFixed(6).replace(/0+$/, "") : value.toPrecision(5); }
 function readableRpcError(error: unknown) { const message = error instanceof Error ? error.message : "Solana RPC is temporarily unavailable."; return /403|forbidden/i.test(message) ? "Solana RPC access is temporarily unavailable. Please retry shortly." : message; }
 function compactNumber(value: number) { return new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 2 }).format(value); }
 function formatSol(value: number) { return Math.abs(value) < .0001 && value !== 0 ? value.toPrecision(3) : value.toLocaleString("en-US", { maximumFractionDigits: 6 }); }
