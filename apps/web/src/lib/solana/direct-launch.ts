@@ -44,7 +44,6 @@ import {
   type Signer
 } from "@solana/web3.js";
 import bluefunIdl from "./bluefun-idl.json";
-import { confirmSolanaSignature } from "./confirm-signature";
 
 export const BLUEFUN_SOLANA_PROGRAM_ID = new PublicKey("CqjRfYuDzJgQUBF6BzRnNQfV5Gc4DT9a4pxrTQReX6f5");
 export const METEORA_DAMM_V2_PROGRAM_ID = new PublicKey("cpamdpZCGKUy5JxQXB4dcpGPiikHawvSWAd6mEn1sGG");
@@ -53,6 +52,11 @@ export const SOLANA_TOKEN_SUPPLY_RAW = 1_000_000_000_000_000_000n;
 export const SOLANA_MAX_INITIAL_BUY_RAW = SOLANA_TOKEN_SUPPLY_RAW / 20n;
 export const SOLANA_TOKEN_DECIMALS = 9;
 export const SOLANA_PLATFORM_SPLIT_NUMERATOR = 700_000_000;
+// Measured from a production Meteora DAMM v2 BlueFun launch. This covers the
+// mint/metadata, registry, pool, position and token-account rent deposits. The
+// accounts and SDK layout are fixed, but the UI deliberately labels it as an
+// estimate so a future Meteora layout change cannot understate the total.
+export const SOLANA_ACCOUNT_RENT_ESTIMATE_LAMPORTS = 55_908_161n;
 
 type BrowserWallet = {
   publicKey: PublicKey;
@@ -61,9 +65,18 @@ type BrowserWallet = {
 };
 
 export type SolanaLaunchProgress = {
-  key: "mint" | "metadata" | "registry" | "pool" | "split" | "buy" | "verify";
+  key: "approval" | "mint" | "metadata" | "registry" | "pool" | "split" | "buy" | "verify";
   label: string;
   signature?: string;
+};
+
+export type SolanaLaunchCostEstimate = {
+  transactionCount: number;
+  networkFeeLamports: bigint;
+  accountRentLamports: bigint;
+  launchFeeLamports: bigint;
+  initialBuyLamports: bigint;
+  minimumTotalLamports: bigint;
 };
 
 export type SolanaDirectLaunchInput = {
@@ -77,6 +90,7 @@ export type SolanaDirectLaunchInput = {
   initialBuyLamports: bigint;
   existingMint?: PublicKey;
   onProgress?: (progress: SolanaLaunchProgress) => void;
+  onEstimate?: (estimate: SolanaLaunchCostEstimate) => void;
 };
 
 export type SolanaDirectLaunchResult = {
@@ -129,7 +143,7 @@ export async function launchSolanaDirect(input: SolanaDirectLaunchInput): Promis
     isMutable: false,
     collectionDetails: none()
   });
-  let metadataSignature: string | undefined;
+  const prepared: PreparedLaunchTransaction[] = [];
   if (mintSigner) {
     const rent = await connection.getMinimumBalanceForRentExemption(MINT_SIZE);
     const mintTx = new Transaction().add(
@@ -145,10 +159,12 @@ export async function launchSolanaDirect(input: SolanaDirectLaunchInput): Promis
       createMintToInstruction(mint, creatorTokenAccount, creator, SOLANA_TOKEN_SUPPLY_RAW),
       ...metadataBuilder().getInstructions().map(toWeb3JsInstruction)
     );
-    const mintSignature = await sendTransaction(connection, wallet, mintTx, [mintSigner]);
-    input.onProgress?.({ key: "mint", label: "1B fixed supply minted", signature: mintSignature });
-    metadataSignature = mintSignature;
-    await waitForMint(connection, mint);
+    prepared.push({
+      key: "mint",
+      label: "1B fixed supply and immutable metadata created",
+      transaction: mintTx,
+      signers: [mintSigner]
+    });
   } else {
     const state = await getMint(connection, mint, "confirmed", TOKEN_PROGRAM_ID);
     if (state.decimals !== SOLANA_TOKEN_DECIMALS || state.supply !== SOLANA_TOKEN_SUPPLY_RAW) {
@@ -160,27 +176,11 @@ export async function launchSolanaDirect(input: SolanaDirectLaunchInput): Promis
     input.onProgress?.({ key: "mint", label: "Existing 1B mint recovered" });
   }
 
-  if (!metadataSignature) {
-    for (let attempt = 0; attempt < 5; attempt += 1) {
-      try {
-        const metadataResult = await metadataBuilder().sendAndConfirm(umi, { confirm: { commitment: "confirmed" } });
-        metadataSignature = base58Signature(metadataResult.signature);
-        break;
-      } catch (error) {
-        const metadataAccount = await connection.getAccountInfo(new PublicKey(metadata[0].toString()), "confirmed");
-        if (metadataAccount) break;
-        if (attempt === 4) throw error;
-        await new Promise((resolve) => setTimeout(resolve, 1_000 * (attempt + 1)));
-      }
-    }
-  }
-  input.onProgress?.({ key: "metadata", label: "Immutable token metadata created atomically", signature: metadataSignature });
-
   const revokeTx = new Transaction().add(
     createSetAuthorityInstruction(mint, creator, AuthorityType.MintTokens, null),
     createSetAuthorityInstruction(mint, creator, AuthorityType.FreezeAccount, null)
   );
-  await sendTransaction(connection, wallet, revokeTx);
+  prepared.push({ key: "metadata", label: "Mint and freeze authorities revoked", transaction: revokeTx });
 
   const [launchAddress] = PublicKey.findProgramAddressSync(
     [Buffer.from("launch"), mint.toBuffer()],
@@ -196,8 +196,7 @@ export async function launchSolanaDirect(input: SolanaDirectLaunchInput): Promis
       systemProgram: SystemProgram.programId
     })
     .transaction();
-  const reserveSignature = await sendTransaction(connection, wallet, reserveTx);
-  input.onProgress?.({ key: "registry", label: "BlueFun launch reserved", signature: reserveSignature });
+  prepared.push({ key: "registry", label: "BlueFun launch reserved", transaction: reserveTx });
 
   const tokenAAmount = new BN(SOLANA_TOKEN_SUPPLY_RAW.toString());
   const tokenBAmount = new BN(0);
@@ -246,8 +245,12 @@ export async function launchSolanaDirect(input: SolanaDirectLaunchInput): Promis
     tokenBProgram: TOKEN_PROGRAM_ID,
     isLockLiquidity: true
   });
-  const poolSignature = await sendTransaction(connection, wallet, poolCreation.tx, [creatorPositionNft]);
-  input.onProgress?.({ key: "pool", label: "Meteora market created and LP locked", signature: poolSignature });
+  prepared.push({
+    key: "pool",
+    label: "Meteora market created and LP locked",
+    transaction: poolCreation.tx,
+    signers: [creatorPositionNft]
+  });
 
   const platformPositionNft = Keypair.generate();
   const platformPosition = derivePositionAddress(platformPositionNft.publicKey);
@@ -258,7 +261,12 @@ export async function launchSolanaDirect(input: SolanaDirectLaunchInput): Promis
     pool: poolCreation.pool,
     positionNft: platformPositionNft.publicKey
   });
-  await sendTransaction(connection, wallet, createPlatformPositionTx, [platformPositionNft]);
+  prepared.push({
+    key: "split",
+    label: "Platform fee position created",
+    transaction: createPlatformPositionTx,
+    signers: [platformPositionNft]
+  });
 
   const creatorPositionNftAccount = derivePositionNftAccount(creatorPositionNft.publicKey);
   const splitTx = await cpAmm.splitPosition2({
@@ -271,7 +279,7 @@ export async function launchSolanaDirect(input: SolanaDirectLaunchInput): Promis
     secondPositionNftAccount: platformPositionNftAccount,
     numerator: SOLANA_PLATFORM_SPLIT_NUMERATOR
   });
-  await sendTransaction(connection, wallet, splitTx);
+  prepared.push({ key: "split", label: "Locked fee positions split 70/30", transaction: splitTx });
 
   const treasuryPositionNftAccount = getAssociatedTokenAddressSync(
     platformPositionNft.publicKey,
@@ -296,8 +304,36 @@ export async function launchSolanaDirect(input: SolanaDirectLaunchInput): Promis
       TOKEN_2022_PROGRAM_ID
     )
   );
-  const splitSignature = await sendTransaction(connection, wallet, transferPositionTx);
-  input.onProgress?.({ key: "split", label: "Locked fee positions split 70/30", signature: splitSignature });
+  prepared.push({ key: "split", label: "Platform fee position secured in treasury", transaction: transferPositionTx });
+
+  const finalizeTx = await program.methods.finalizeLaunch().accounts({
+    creator,
+    config: configAddress,
+    treasury: config.treasury,
+    launch: launchAddress,
+    mint,
+    pool: poolCreation.pool,
+    creatorPosition: poolCreation.position,
+    platformPosition,
+    poolTokenAVault: deriveTokenVaultAddress(mint, poolCreation.pool),
+    creatorPositionNft: creatorPositionNftAccount,
+    platformPositionNft: treasuryPositionNftAccount,
+    creatorTokenAccount,
+    systemProgram: SystemProgram.programId
+  }).transaction();
+  prepared.push({ key: "verify", label: "Onchain verification complete", transaction: finalizeTx });
+
+  input.onProgress?.({ key: "approval", label: `Review and approve ${prepared.length} launch transactions once` });
+  const batchResult = await signAndSendBatch(connection, wallet, prepared, {
+    launchFeeLamports: BigInt(config.launchFeeLamports.toString()),
+    initialBuyLamports: input.initialBuyLamports,
+    onEstimate: input.onEstimate,
+    onProgress: input.onProgress
+  });
+
+  // A first buy needs the newly-created pool state for its slippage-safe quote,
+  // so it is intentionally prepared only after the launch batch has landed.
+  // This is the sole optional second wallet approval in the launch flow.
 
   if (input.initialBuyLamports > 0n) {
     const poolState = await cpAmm.fetchPoolState(poolCreation.pool);
@@ -331,27 +367,12 @@ export async function launchSolanaDirect(input: SolanaDirectLaunchInput): Promis
       referralTokenAccount: null,
       poolState
     });
+    input.onProgress?.({ key: "approval", label: "Approve the optional creator first buy" });
     const buySignature = await sendTransaction(connection, wallet, buyTx);
     input.onProgress?.({ key: "buy", label: "Optional first buy completed", signature: buySignature });
   }
 
-  const finalizeTx = await program.methods.finalizeLaunch().accounts({
-    creator,
-    config: configAddress,
-    treasury: config.treasury,
-    launch: launchAddress,
-    mint,
-    pool: poolCreation.pool,
-    creatorPosition: poolCreation.position,
-    platformPosition,
-    poolTokenAVault: deriveTokenVaultAddress(mint, poolCreation.pool),
-    creatorPositionNft: creatorPositionNftAccount,
-    platformPositionNft: treasuryPositionNftAccount,
-    creatorTokenAccount,
-    systemProgram: SystemProgram.programId
-  }).transaction();
-  const signature = await sendTransaction(connection, wallet, finalizeTx);
-  input.onProgress?.({ key: "verify", label: "Onchain verification complete", signature });
+  const signature = batchResult.signatures.at(-1)!;
 
   return {
     mint: mint.toBase58(),
@@ -363,6 +384,121 @@ export async function launchSolanaDirect(input: SolanaDirectLaunchInput): Promis
   };
 }
 
+type PreparedLaunchTransaction = {
+  key: SolanaLaunchProgress["key"];
+  label: string;
+  transaction: Transaction;
+  signers?: Signer[];
+};
+
+type BatchOptions = {
+  launchFeeLamports: bigint;
+  initialBuyLamports: bigint;
+  onEstimate?: (estimate: SolanaLaunchCostEstimate) => void;
+  onProgress?: (progress: SolanaLaunchProgress) => void;
+};
+
+async function signAndSendBatch(
+  connection: Connection,
+  wallet: BrowserWallet,
+  prepared: PreparedLaunchTransaction[],
+  options: BatchOptions
+) {
+  if (typeof wallet.signAllTransactions !== "function") {
+    throw new Error("This wallet does not support one-tap batch signing. Use Phantom or Solflare, then try again.");
+  }
+  const latest = await connection.getLatestBlockhash("confirmed");
+  let networkFeeLamports = 0n;
+  for (const item of prepared) {
+    item.transaction.feePayer = wallet.publicKey;
+    item.transaction.recentBlockhash = latest.blockhash;
+    if (item.signers?.length) item.transaction.partialSign(...item.signers);
+    const fee = await connection.getFeeForMessage(item.transaction.compileMessage(), "confirmed");
+    networkFeeLamports += BigInt(fee.value ?? 5_000);
+  }
+  options.onEstimate?.({
+    transactionCount: prepared.length,
+    networkFeeLamports,
+    launchFeeLamports: options.launchFeeLamports,
+    initialBuyLamports: options.initialBuyLamports,
+    accountRentLamports: SOLANA_ACCOUNT_RENT_ESTIMATE_LAMPORTS,
+    minimumTotalLamports: networkFeeLamports + SOLANA_ACCOUNT_RENT_ESTIMATE_LAMPORTS + options.launchFeeLamports + options.initialBuyLamports
+  });
+  const signatures: string[] = [];
+  let completed = 0;
+  let currentBlockhash = latest;
+  while (completed < prepared.length) {
+    const remaining = prepared.slice(completed);
+    for (const item of remaining) {
+      item.transaction.feePayer = wallet.publicKey;
+      item.transaction.recentBlockhash = currentBlockhash.blockhash;
+      for (const signature of item.transaction.signatures) signature.signature = null;
+      if (item.signers?.length) item.transaction.partialSign(...item.signers);
+    }
+    if (completed > 0) {
+      options.onProgress?.({
+        key: "approval",
+        label: `The previous blockhash expired. Approve only the ${remaining.length} unfinished transactions to resume`
+      });
+    }
+    const signed = await wallet.signAllTransactions(remaining.map((item) => item.transaction));
+    let expired = false;
+    for (let index = 0; index < signed.length; index += 1) {
+      const item = remaining[index];
+      try {
+        const signature = await sendSignedTransaction(connection, signed[index], currentBlockhash.lastValidBlockHeight);
+        signatures.push(signature);
+        completed += 1;
+        options.onProgress?.({ key: item.key, label: item.label, signature });
+      } catch (error) {
+        if (!(error instanceof BatchBlockhashExpiredError)) throw error;
+        currentBlockhash = await connection.getLatestBlockhash("confirmed");
+        expired = true;
+        break;
+      }
+    }
+    if (!expired && completed < prepared.length) {
+      throw new Error("The Solana launch batch stopped before every transaction was submitted.");
+    }
+  }
+  return { signatures };
+}
+
+class BatchBlockhashExpiredError extends Error {}
+
+async function sendSignedTransaction(connection: Connection, transaction: Transaction, lastValidBlockHeight: number) {
+  const raw = transaction.serialize();
+  const knownSignature = transaction.signature ? base58Signature(transaction.signature) : undefined;
+  let signature = knownSignature;
+  let lastSend = 0;
+  while (await connection.getBlockHeight("confirmed") <= lastValidBlockHeight) {
+    if (Date.now() - lastSend > 2_500) {
+      try {
+        signature = await connection.sendRawTransaction(raw, { maxRetries: 4, skipPreflight: false });
+      } catch (error) {
+        const status = signature
+          ? (await connection.getSignatureStatuses([signature], { searchTransactionHistory: true })).value[0]
+          : null;
+        if (status?.err) throw new Error(`Solana transaction failed: ${JSON.stringify(status.err)}`);
+        if (!status && !isRetryableSendError(error)) throw error;
+      }
+      lastSend = Date.now();
+    }
+    if (signature) {
+      const status = (await connection.getSignatureStatuses([signature], { searchTransactionHistory: true })).value[0];
+      if (status?.err) throw new Error(`Solana transaction failed: ${JSON.stringify(status.err)}`);
+      if (status?.confirmationStatus === "confirmed" || status?.confirmationStatus === "finalized") return signature;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 700));
+  }
+  throw new BatchBlockhashExpiredError("The signed launch batch expired before every step landed.");
+}
+
+function isRetryableSendError(value: unknown) {
+  const message = value instanceof Error ? value.message : String(value);
+  return /blockhash|timeout|timed out|429|rate|fetch|network|already processed|node is behind/i.test(message);
+}
+
 async function sendTransaction(connection: Connection, wallet: BrowserWallet, transaction: Transaction, signers: Signer[] = []) {
   if (!wallet.publicKey) throw new Error("Solana wallet disconnected.");
   const latest = await connection.getLatestBlockhash("confirmed");
@@ -370,18 +506,7 @@ async function sendTransaction(connection: Connection, wallet: BrowserWallet, tr
   transaction.recentBlockhash = latest.blockhash;
   if (signers.length) transaction.partialSign(...signers);
   const signed = await wallet.signTransaction(transaction);
-  const signature = await connection.sendRawTransaction(signed.serialize(), { maxRetries: 4, skipPreflight: false });
-  await confirmSolanaSignature(connection, signature);
-  return signature;
-}
-
-async function waitForMint(connection: Connection, mint: PublicKey) {
-  for (let attempt = 0; attempt < 12; attempt += 1) {
-    const account = await connection.getAccountInfo(mint, "confirmed");
-    if (account?.owner.equals(TOKEN_PROGRAM_ID) && account.data.length >= MINT_SIZE) return;
-    await new Promise((resolve) => setTimeout(resolve, 500));
-  }
-  throw new Error("The minted token was not yet visible to the metadata RPC. Retry the launch recovery flow.");
+  return sendSignedTransaction(connection, signed as Transaction, latest.lastValidBlockHeight);
 }
 
 function base58Signature(signature: Uint8Array) {

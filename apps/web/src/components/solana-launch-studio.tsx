@@ -9,6 +9,7 @@ import { NetworkIcon } from "@/components/network-icon";
 import {
   SOLANA_LAUNCH_FEE,
   launchSolanaDirect,
+  type SolanaLaunchCostEstimate,
   type SolanaDirectLaunchResult,
   type SolanaLaunchProgress
 } from "@/lib/solana/direct-launch";
@@ -36,6 +37,7 @@ export function SolanaLaunchStudio() {
   const [status, setStatus] = useState("");
   const [error, setError] = useState("");
   const [progress, setProgress] = useState<SolanaLaunchProgress[]>([]);
+  const [costEstimate, setCostEstimate] = useState<SolanaLaunchCostEstimate>();
   const [result, setResult] = useState<SolanaDirectLaunchResult>();
 
   const identityReady = Boolean(name.trim() && symbol.trim() && imageUri && !isImageUploading);
@@ -86,6 +88,7 @@ export function SolanaLaunchStudio() {
     setError("");
     setResult(undefined);
     setProgress([]);
+    setCostEstimate(undefined);
     try {
       setStatus("Preparing immutable token metadata…");
       const metadataUri = await uploadMetadata({
@@ -100,6 +103,10 @@ export function SolanaLaunchStudio() {
         symbol: symbol.trim(),
         metadataUri,
         initialBuyLamports,
+        onEstimate: (estimate) => {
+          setCostEstimate(estimate);
+          setStatus(`Approve once to sign ${estimate.transactionCount} launch transactions…`);
+        },
         onProgress: (item) => {
           setProgress((current) => [...current.filter((entry) => entry.key !== item.key), item]);
           setStatus(item.label);
@@ -169,8 +176,10 @@ export function SolanaLaunchStudio() {
             <div><dt>Trading fee</dt><dd>1% total</dd></div>
             <div><dt>Claimable LP fees</dt><dd>70% platform · 30% creator</dd></div>
             <div><dt>Launch fee</dt><dd>{SOLANA_LAUNCH_FEE} SOL initially · timelocked</dd></div>
+            <div><dt>Wallet approvals</dt><dd>{initialBuyLamports > 0n ? "1 launch batch + 1 optional buy" : "1 launch batch"}</dd></div>
             <div><dt>Initial buy</dt><dd>{initialBuy || "0"} SOL</dd></div>
           </dl></div>
+          {costEstimate ? <div className="solana-cost-estimate"><span><strong>≈ {formatSolEstimate(costEstimate.minimumTotalLamports)} SOL total</strong><small>{costEstimate.transactionCount} transactions · one batch approval</small></span><small>{formatSolEstimate(costEstimate.launchFeeLamports)} launch fee · ≈ {formatSolEstimate(costEstimate.accountRentLamports)} account rent · {formatSolEstimate(costEstimate.networkFeeLamports)} network fee{costEstimate.initialBuyLamports > 0n ? ` · ${formatSolEstimate(costEstimate.initialBuyLamports)} first buy` : ""}</small></div> : null}
           {!anchorWallet ? <p className="launch-notice info">Connect a Solana wallet from the top-right corner.</p> : null}
           {progress.length ? <div className="solana-progress">{progress.map((item) => <span key={item.key}><CheckCircle2 size={14} />{item.label}</span>)}</div> : null}
           {error ? <p className="launch-notice danger">{error}</p> : status ? <p className="launch-notice info">{status}</p> : null}
@@ -202,6 +211,12 @@ function sanitizeSol(value: string) {
   const clean = value.replace(",", ".").replace(/[^0-9.]/g, "");
   const [whole, ...fraction] = clean.split(".");
   return fraction.length ? `${whole}.${fraction.join("").slice(0, 9)}` : whole;
+}
+
+function formatSolEstimate(lamports: bigint) {
+  const whole = lamports / 1_000_000_000n;
+  const fraction = (lamports % 1_000_000_000n).toString().padStart(9, "0").replace(/0+$/, "");
+  return fraction ? `${whole}.${fraction}` : whole.toString();
 }
 
 function friendlySolanaError(value: unknown) {
