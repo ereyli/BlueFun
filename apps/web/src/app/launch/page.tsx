@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { decodeEventLog, erc20Abi, formatEther, parseEther, keccak256, toBytes, zeroAddress } from "viem";
@@ -43,6 +43,7 @@ function EvmLaunchStudio({ requestedChain }: { requestedChain: string | null }) 
   const [discord, setDiscord] = useState("");
   const [uploadError, setUploadError] = useState("");
   const [isImageUploading, setIsImageUploading] = useState(false);
+  const imageUploadRequest = useRef(0);
   const [isMetadataUploading, setIsMetadataUploading] = useState(false);
   const [isStableApprovalLoading, setIsStableApprovalLoading] = useState(false);
   const [initialBuy, setInitialBuy] = useState("0");
@@ -117,6 +118,7 @@ function EvmLaunchStudio({ requestedChain }: { requestedChain: string | null }) 
     : "";
   const disabled = !selectedFactoryReady || !name.trim() || !symbol.trim() || !imageUri || Boolean(initialBuyError) || !directConfigReady;
   const disabledReason = getDisabledReason({
+    configReady: directConfigReady,
     hasFactory: selectedFactoryReady,
     hasName: Boolean(name.trim()),
     hasSymbol: Boolean(symbol.trim()),
@@ -294,6 +296,8 @@ function EvmLaunchStudio({ requestedChain }: { requestedChain: string | null }) 
   }
 
   async function selectImage(file?: File) {
+    const requestId = imageUploadRequest.current + 1;
+    imageUploadRequest.current = requestId;
     setUploadError("");
     setImageUri("");
     setMetadataUri("");
@@ -302,17 +306,20 @@ function EvmLaunchStudio({ requestedChain }: { requestedChain: string | null }) 
     setImagePreview("");
     if (!file) return;
 
+    setIsImageUploading(true);
     try {
       const validationError = await validateTokenImage(file);
       if (validationError) throw new Error(validationError);
+      if (requestId !== imageUploadRequest.current) return;
       setImagePreview(URL.createObjectURL(file));
-      setIsImageUploading(true);
       const uploadedImageUri = await uploadImage(file);
+      if (requestId !== imageUploadRequest.current) return;
       setImageUri(uploadedImageUri);
     } catch (imageError) {
+      if (requestId !== imageUploadRequest.current) return;
       setUploadError(imageError instanceof Error ? imageError.message : "Image could not be uploaded. Please try again.");
     } finally {
-      setIsImageUploading(false);
+      if (requestId === imageUploadRequest.current) setIsImageUploading(false);
     }
   }
 
@@ -423,8 +430,9 @@ function EvmLaunchStudio({ requestedChain }: { requestedChain: string | null }) 
                 <span className="field-help">{isImageUploading ? "Uploading image…" : imageUri ? "Image ready." : "1024 × 1024 px recommended · square · PNG, JPG or WEBP · max 5 MB"}</span>
               </div>
               <div className="launch-step-actions single">
-                <button className="button primary" disabled={!identityReady} onClick={() => setStep(2)} type="button">Continue <ChevronRight size={16} /></button>
+                <button className="button primary" disabled={!identityReady || isImageUploading} onClick={() => setStep(2)} type="button">{isImageUploading ? <Loader2 className="spin" size={16} /> : null}{isImageUploading ? "Uploading image…" : imageUri ? "Continue" : "Add an image to continue"}{!isImageUploading && imageUri ? <ChevronRight size={16} /> : null}</button>
               </div>
+              {uploadError ? <LaunchNotice tone="danger">{uploadError}</LaunchNotice> : null}
             </section>
           ) : null}
 
@@ -632,6 +640,7 @@ function getLaunchStatus(input: {
 }
 
 function getDisabledReason(input: {
+  configReady: boolean;
   hasFactory: boolean;
   hasName: boolean;
   hasSymbol: boolean;
@@ -643,6 +652,7 @@ function getDisabledReason(input: {
 }) {
   if (!input.isConnected) return "Connect your wallet to launch.";
   if (!input.hasFactory) return "Launch factory address is missing.";
+  if (!input.configReady) return "Loading launch contract configuration…";
   if (!input.hasName) return "Enter a token name.";
   if (!input.hasSymbol) return "Enter a token symbol.";
   if (!input.hasImage) return "Select a token image.";
@@ -776,5 +786,30 @@ function friendlyWalletError(message: string) {
   if (lower.includes("user rejected") || lower.includes("rejected") || lower.includes("denied")) {
     return "Request cancelled in wallet.";
   }
-  return "Launch could not be completed. Please check your wallet and try again.";
+  if (lower.includes("insufficient funds") || lower.includes("insufficient balance")) {
+    return "The wallet does not have enough balance for the launch fee, first buy and gas.";
+  }
+  if (lower.includes("chain mismatch") || lower.includes("wrong chain") || lower.includes("chain disconnected")) {
+    return "The wallet changed or disconnected from the selected network. Reconnect it to the launch network and try again.";
+  }
+  if (lower.includes("nonce") || lower.includes("replacement transaction")) {
+    return "The wallet nonce changed while launching. Refresh the wallet activity and try again.";
+  }
+  if (lower.includes("timeout") || lower.includes("timed out") || lower.includes("failed to fetch")) {
+    return "The network RPC did not respond in time. Your wallet was not charged unless a transaction hash was created; please try again.";
+  }
+  const detail = extractWalletErrorDetail(message);
+  return detail ? `Launch failed: ${detail}` : "Launch could not be completed. Please check your wallet and try again.";
+}
+
+function extractWalletErrorDetail(message: string) {
+  const detail = message
+    .replace(/\nRequest Arguments:[\s\S]*$/i, "")
+    .replace(/\nDetails:[\s\S]*$/i, "")
+    .replace(/\nVersion:[\s\S]*$/i, "")
+    .replace(/^ContractFunctionExecutionError:\s*/i, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!detail || /^An unknown RPC error occurred\.?$/i.test(detail)) return "";
+  return detail.length > 220 ? `${detail.slice(0, 217)}…` : detail;
 }

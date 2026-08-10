@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useAnchorWallet, useConnection, useWallet } from "@solana/wallet-adapter-react";
 import type { WalletAdapter } from "@solana/wallet-adapter-base";
 import { CheckCircle2, ExternalLink, ImagePlus, Loader2, Rocket } from "@/components/bluefun-icons";
@@ -30,25 +30,36 @@ export function SolanaLaunchStudio() {
   const [initialBuy, setInitialBuy] = useState("0");
   const [imagePreview, setImagePreview] = useState("");
   const [imageUri, setImageUri] = useState("");
+  const [isImageUploading, setIsImageUploading] = useState(false);
+  const imageUploadRequest = useRef(0);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState("");
   const [error, setError] = useState("");
   const [progress, setProgress] = useState<SolanaLaunchProgress[]>([]);
   const [result, setResult] = useState<SolanaDirectLaunchResult>();
 
-  const identityReady = Boolean(name.trim() && symbol.trim() && imageUri);
+  const identityReady = Boolean(name.trim() && symbol.trim() && imageUri && !isImageUploading);
   const initialBuyLamports = useMemo(() => parseSolToLamports(initialBuy), [initialBuy]);
   const adapter = solanaWallet.wallet?.adapter as WalletAdapter | undefined;
 
   async function selectImage(file?: File) {
-    if (!file) return;
+    const requestId = imageUploadRequest.current + 1;
+    imageUploadRequest.current = requestId;
     setError("");
+    setImageUri("");
+    if (imagePreview) URL.revokeObjectURL(imagePreview);
+    setImagePreview("");
+    if (!file) {
+      setStatus("");
+      return;
+    }
     if (!["image/png", "image/jpeg", "image/webp"].includes(file.type) || file.size > 5 * 1024 * 1024) {
       setError("Use a square PNG, JPG or WEBP image up to 5 MB.");
       return;
     }
     const localPreview = URL.createObjectURL(file);
     setImagePreview(localPreview);
+    setIsImageUploading(true);
     setStatus("Uploading artwork to IPFS…");
     try {
       const form = new FormData();
@@ -56,11 +67,16 @@ export function SolanaLaunchStudio() {
       const response = await fetch("/api/pinata/image", { method: "POST", body: form });
       const payload = await response.json() as { imageUri?: string; error?: string };
       if (!response.ok || !payload.imageUri) throw new Error(payload.error || "Image upload failed.");
+      if (requestId !== imageUploadRequest.current) return;
       setImageUri(payload.imageUri);
       setStatus("Artwork ready.");
     } catch (uploadError) {
+      if (requestId !== imageUploadRequest.current) return;
       setError(uploadError instanceof Error ? uploadError.message : "Image upload failed.");
       setImageUri("");
+      setStatus("");
+    } finally {
+      if (requestId === imageUploadRequest.current) setIsImageUploading(false);
     }
   }
 
@@ -71,6 +87,7 @@ export function SolanaLaunchStudio() {
     setResult(undefined);
     setProgress([]);
     try {
+      setStatus("Preparing immutable token metadata…");
       const metadataUri = await uploadMetadata({
         name: name.trim(), symbol: symbol.trim(), imageUri, description, website, twitter, telegram, discord
       });
@@ -127,8 +144,9 @@ export function SolanaLaunchStudio() {
             <div className="field"><label htmlFor="sol-name">Name <small>{name.length}/40</small></label><input id="sol-name" maxLength={40} placeholder="Token name" value={name} onChange={(event) => setName(event.target.value)} /></div>
             <div className="field"><label htmlFor="sol-symbol">Symbol <small>{symbol.length}/10</small></label><input id="sol-symbol" maxLength={10} placeholder="Ticker" value={symbol} onChange={(event) => setSymbol(event.target.value.toUpperCase().replace(/[^A-Z0-9]/g, ""))} /></div>
           </div>
-          <div className="field"><label htmlFor="sol-image">Token image</label><label className={imagePreview ? "upload-box has-preview" : "upload-box"} htmlFor="sol-image">{imagePreview ? <img alt="Token preview" src={imagePreview} /> : <span><ImagePlus size={22} />Select logo or meme image</span>}<input accept="image/png,image/jpeg,image/webp" id="sol-image" onChange={(event) => void selectImage(event.target.files?.[0])} type="file" /></label><span className="field-help">Square image · PNG, JPG or WEBP · max 5 MB</span></div>
-          <button className="button primary wide" disabled={!identityReady} onClick={() => setStep(2)} type="button">Continue</button>
+          <div className="field"><label htmlFor="sol-image">Token image</label><label className={imagePreview ? "upload-box has-preview" : "upload-box"} htmlFor="sol-image">{imagePreview ? <img alt="Token preview" src={imagePreview} /> : <span><ImagePlus size={22} />Select logo or meme image</span>}<input accept="image/png,image/jpeg,image/webp" disabled={isImageUploading} id="sol-image" onChange={(event) => void selectImage(event.target.files?.[0])} type="file" /></label><span className="field-help">{isImageUploading ? "Uploading image to IPFS…" : imageUri ? "Image ready on IPFS." : "Square image · PNG, JPG or WEBP · max 5 MB"}</span></div>
+          {error ? <p className="launch-notice danger">{error}</p> : null}
+          <button className="button primary wide" disabled={!identityReady || isImageUploading} onClick={() => setStep(2)} type="button">{isImageUploading ? <Loader2 className="spin" size={16} /> : null}{isImageUploading ? "Uploading image…" : imageUri ? "Continue" : "Add an image to continue"}</button>
         </section> : null}
 
         {step === 2 ? <section className="launch-step-panel">
@@ -157,7 +175,7 @@ export function SolanaLaunchStudio() {
           {progress.length ? <div className="solana-progress">{progress.map((item) => <span key={item.key}><CheckCircle2 size={14} />{item.label}</span>)}</div> : null}
           {error ? <p className="launch-notice danger">{error}</p> : status ? <p className="launch-notice info">{status}</p> : null}
           {result ? <div className="launch-notice success"><CheckCircle2 size={17} /><span>Market live. <a href={`https://solscan.io/token/${result.mint}`} rel="noreferrer" target="_blank">View token <ExternalLink size={12} /></a> · <a href={`https://solscan.io/tx/${result.signature}`} rel="noreferrer" target="_blank">transaction <ExternalLink size={12} /></a></span></div> : null}
-          <div className="launch-step-actions"><button className="button" disabled={busy} onClick={() => setStep(2)} type="button">Back</button><button className="button primary launch-submit" disabled={!anchorWallet || !identityReady || busy || Boolean(result)} onClick={() => void submit()} type="button">{busy ? <Loader2 className="spin" size={16} /> : <Rocket size={16} />}{busy ? "Launching on Solana" : result ? "Market is live" : "Launch direct to Meteora"}</button></div>
+          <div className="launch-step-actions"><button className="button" disabled={busy} onClick={() => setStep(2)} type="button">Back</button><button className="button primary launch-submit" disabled={!anchorWallet || !identityReady || busy || Boolean(result)} onClick={() => void submit()} type="button">{busy ? <Loader2 className="spin" size={16} /> : <Rocket size={16} />}{busy ? status || "Launching on Solana…" : result ? "Market is live" : "Launch direct to Meteora"}</button></div>
         </section> : null}
       </section>
     </div>
@@ -189,6 +207,15 @@ function sanitizeSol(value: string) {
 function friendlySolanaError(value: unknown) {
   const message = value instanceof Error ? value.message : "Solana launch failed.";
   if (/reject|cancel|denied/i.test(message)) return "Request cancelled in wallet.";
+  if (/wallet.*disconnect|not connected/i.test(message)) return "The Solana wallet disconnected. Reconnect the same wallet before continuing.";
   if (/insufficient|0x1/i.test(message)) return "Wallet does not have enough SOL for the launch fee, initial buy and Solana account rent.";
-  return message;
+  if (/blockhash|expired/i.test(message)) return "The Solana transaction expired before confirmation. Please try again.";
+  if (/403|forbidden/i.test(message)) return "The configured Solana RPC rejected the request. Check the Solana RPC environment variable and redeploy the web app.";
+  return compactError(message, "Solana launch failed. Please try again.");
+}
+
+function compactError(message: string, fallback: string) {
+  const clean = message.replace(/\s+/g, " ").trim();
+  if (!clean) return fallback;
+  return clean.length > 240 ? `${clean.slice(0, 237)}…` : clean;
 }

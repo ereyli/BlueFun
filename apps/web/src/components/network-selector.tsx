@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useAccount, useChainId, useSwitchChain } from "wagmi";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Check, ChevronDown } from "@/components/bluefun-icons";
 import { baseChain } from "@/lib/base-chain";
 import { robinhoodChain } from "@/lib/robinhood-chain";
@@ -19,6 +19,7 @@ export function NetworkSelector() {
   const chainId = useChainId();
   const { switchChainAsync, isPending } = useSwitchChain();
   const pathname = usePathname();
+  const router = useRouter();
   const nftMode = pathname.startsWith("/nft");
   const dexMode = pathname.startsWith("/dex");
   const searchParams = useSearchParams();
@@ -26,6 +27,7 @@ export function NetworkSelector() {
   const [optimisticChainId, setOptimisticChainId] = useState<number>();
   const [switchError, setSwitchError] = useState("");
   const rootRef = useRef<HTMLDivElement>(null);
+  const navigationFallback = useRef<number | undefined>(undefined);
   const requestedChain = nftMode ? "base" : searchParams.get("chain") || chainSlugFromPath(pathname);
   const routeChainId = requestedChain
     ? chainIdFromParam(requestedChain)
@@ -45,6 +47,7 @@ export function NetworkSelector() {
     return () => {
       document.removeEventListener("pointerdown", closeMenu);
       document.removeEventListener("keydown", closeOnEscape);
+      window.clearTimeout(navigationFallback.current);
     };
   }, []);
 
@@ -62,11 +65,7 @@ export function NetworkSelector() {
     const destination = /^\/launch\/[^/]+$/.test(pathname) || /^\/token\/(base|robinhood|monad|stable|arc|solana)\//.test(pathname) ? "/" : pathname;
     const target = `${destination}?${params.toString()}`;
 
-    if (nextChainId === SOLANA_CHAIN_ID) {
-      window.location.assign(target);
-      return;
-    }
-    if (isConnected && chainId !== nextChainId) {
+    if (nextChainId !== SOLANA_CHAIN_ID && isConnected && chainId !== nextChainId) {
       try {
         await switchChainAsync({ chainId: nextChainId });
       } catch (error) {
@@ -78,7 +77,17 @@ export function NetworkSelector() {
         return;
       }
     }
-    window.location.assign(target);
+    navigateWithoutDroppingWallet(target);
+  }
+
+  function navigateWithoutDroppingWallet(target: string) {
+    const currentUrl = window.location.href;
+    const destinationUrl = new URL(target, window.location.origin).href;
+    window.clearTimeout(navigationFallback.current);
+    router.push(target);
+    navigationFallback.current = window.setTimeout(() => {
+      if (window.location.href === currentUrl) window.location.assign(destinationUrl);
+    }, 1_500);
   }
 
   return (
