@@ -372,7 +372,7 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, chain
     const nativeUsd = nativeUsdByChain.get(launch.chainId) ?? null;
     const marketCap = previewRow ? launch.marketCap : solanaSummary?.marketCap ? compactUsd(solanaSummary.marketCap) : dexMarketCap ? compactUsd(dexMarketCap) : formatLaunchUsd(marketCapNative, nativeUsd);
     const liquidity = previewRow ? launch.raised : direct || launch.status === "Graduated" ? "Locked" : formatLaunchUsd(launch.raised, nativeUsd);
-    const volume = previewRow ? launch.volume : solanaSummary?.volume24h !== null && solanaSummary?.volume24h !== undefined ? compactUsd(solanaSummary.volume24h) : formatLaunchUsd(launch.volume, nativeUsd);
+    const volume = previewRow ? launch.volume : formatLaunchUsd(launch.volume, nativeUsd);
     const sparkline = marketSparklines.get(key);
     const tradeCount = solanaSummary ? (solanaSummary.buys24h ?? 0) + (solanaSummary.sells24h ?? 0) : (sparkline?.buys ?? 0) + (sparkline?.sells ?? 0);
     const changePercent = solanaSummary?.priceChange24h ?? sparkline?.changePercent;
@@ -495,7 +495,7 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, chain
           >
             <option value="Activity">Market activity</option>
             <option value="Newest">Newest</option>
-            <option value="Volume">24h volume</option>
+            <option value="Volume">Total volume</option>
             <option value="MarketCap">Market cap</option>
           </select>
           <ChevronDown size={12}/>
@@ -536,7 +536,7 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, chain
           ) : (
           <div className={`reference-market-table view-${view}${marketLoading ? " page-loading" : ""}`} aria-busy={marketLoading}>
             <div className="reference-market-table-head" aria-hidden="true">
-              <span>Token</span><span>Network</span><span>Age</span><span>24h chart</span><span>Market cap</span><span>Liquidity</span><span>24h volume</span><span>Venue</span>
+              <span>Token</span><span>Network</span><span>Age</span><span>24h chart</span><span>Market cap</span><span>Liquidity</span><span>Total volume</span><span>Venue</span>
             </div>
             {displayedLaunches.map((launch, index) => {
             const officialBlue = isOfficialBlue(launch);
@@ -553,7 +553,7 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, chain
               <Sparkline data={metrics.sparkline}/>
               <span className="reference-value-cell market-cap"><strong>{metrics.marketCap}</strong>{metrics.changePercent !== undefined && metrics.changePercent !== null ? <small className={metrics.positive ? "positive" : "negative"}>{metrics.positive ? "↗" : "↘"} {Math.abs(metrics.changePercent).toFixed(2)}% · 24h</small> : <small>Market cap</small>}</span>
               <span className="reference-value-cell liquidity"><strong>{metrics.liquidity}</strong><small>{metrics.direct || launch.status === "Graduated" ? "LP liquidity" : `${launch.progress}% bonding`}</small></span>
-              <span className="reference-value-cell volume"><strong>{metrics.volume}</strong><small>{metrics.tradeCount ? `${metrics.tradeCount} trades · 24h` : "Volume · 24h"}</small></span>
+              <span className="reference-value-cell volume"><strong>{metrics.volume}</strong><small>Total volume</small></span>
               <span className="reference-dex-cell">
                 {metrics.venue ? <><DexProviderIcon provider={metrics.venue} size={22} /><span><strong>{dexProviderName(metrics.venue)}</strong><small>{metrics.direct ? "Direct · LP locked" : "Graduated pool"}</small></span></> : <><BondingCurveIcon size={22} /><span><strong>Bonding</strong><small>Curve active</small></span></>}
               </span>
@@ -593,7 +593,7 @@ export function LaunchExplorer({ launches: initialLaunches, totalLaunches, chain
           <span><small>Total markets</small><b>{total.toLocaleString("en-US")}</b></span>
           <span><small>On this page</small><b>{displayedLaunches.length}</b></span>
           <span><small>Category</small><b>{category === "All" ? "All tokens" : category === "Progress" ? "Bonding" : "Direct DEX"}</b></span>
-          <span><small>Sort</small><b>{sort === "Activity" ? "Market activity" : sort === "Newest" ? "Newest" : sort === "Volume" ? "24h volume" : "Market cap"}</b></span>
+          <span><small>Sort</small><b>{sort === "Activity" ? "Market activity" : sort === "Newest" ? "Newest" : sort === "Volume" ? "Total volume" : "Market cap"}</b></span>
         </div>
         <div className="reference-footer-tools">
           <span className="reference-search-shortcut"><kbd>/</kbd> Search</span>
