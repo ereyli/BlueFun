@@ -41,6 +41,7 @@ import {
   cancelNFTPhase,
   cancelNFTListing,
   closeDatabase,
+  flushIndexerStates,
   getGraduatedLaunches,
   getIndexerState,
   getIndexerTextState,
@@ -149,6 +150,7 @@ async function mapWithConcurrency<T>(items: T[], concurrency: number, worker: (i
 
 async function checkpointIndexerState(key: string, nextBlock: bigint, isBackfilling = false) {
   await setIndexerState(key, nextBlock);
+  if (isBackfilling) await flushIndexerStates();
   // Backfills otherwise issue eth_getLogs requests in a tight loop and exhaust
   // every public provider in the fallback list within seconds. Never delay the
   // live-head pass: that path is latency-sensitive and already bounded to the
@@ -238,6 +240,7 @@ async function runIndexerPoll() {
   const pollStartedAt = Date.now();
   try {
     await backfillLoop();
+    await flushIndexerStates();
     lastSuccessfulPollAt = Date.now();
     lastPollError = "";
     consecutiveFailures = 0;

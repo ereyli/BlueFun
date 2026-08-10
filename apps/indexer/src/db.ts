@@ -8,6 +8,15 @@ import WebSocket from "ws";
 let pool = process.env.DATABASE_URL ? new pg.Pool({ connectionString: process.env.DATABASE_URL }) : undefined;
 let supabase: SupabaseClient | undefined;
 
+const configuredCheckpointFlushMs = Number(process.env.INDEXER_CHECKPOINT_FLUSH_MS || "5000");
+const checkpointFlushMs = Number.isFinite(configuredCheckpointFlushMs)
+  ? Math.max(1_000, Math.min(30_000, configuredCheckpointFlushMs))
+  : 5_000;
+const indexerStateCache = new Map<string, string | undefined>();
+const dirtyIndexerStates = new Map<string, string>();
+let lastCheckpointFlushAt = 0;
+let checkpointFlushPromise: Promise<void> | undefined;
+
 export const EXPECTED_SCHEMA_VERSION = "20260807_low_latency_realtime";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -782,27 +791,39 @@ export async function insertNFTOfferFill(input: {
 }
 
 export async function getIndexerState(key: string): Promise<bigint | undefined> {
+  if (indexerStateCache.has(key)) {
+    const value = indexerStateCache.get(key);
+    return value === undefined ? undefined : BigInt(value);
+  }
   if (hasSupabaseConfig()) {
     const { data, error } = await getSupabase().from("indexer_state").select("value").eq("key", key).maybeSingle();
     if (error) throw error;
-    return data?.value ? BigInt(data.value) : undefined;
+    const value = data?.value ? String(data.value) : undefined;
+    indexerStateCache.set(key, value);
+    return value === undefined ? undefined : BigInt(value);
   }
 
   if (!pool) throw new Error("Database client is not configured");
   const result = await pool.query("select value from indexer_state where key = $1", [key]);
-  if (!result.rowCount) return undefined;
-  return BigInt(result.rows[0].value);
+  const value = result.rowCount ? String(result.rows[0].value) : undefined;
+  indexerStateCache.set(key, value);
+  return value === undefined ? undefined : BigInt(value);
 }
 
 export async function getIndexerTextState(key: string): Promise<string | undefined> {
+  if (indexerStateCache.has(key)) return indexerStateCache.get(key);
   if (hasSupabaseConfig()) {
     const { data, error } = await getSupabase().from("indexer_state").select("value").eq("key", key).maybeSingle();
     if (error) throw error;
-    return data?.value ? String(data.value) : undefined;
+    const value = data?.value ? String(data.value) : undefined;
+    indexerStateCache.set(key, value);
+    return value;
   }
   if (!pool) throw new Error("Database client is not configured");
   const result = await pool.query("select value from indexer_state where key = $1", [key]);
-  return result.rows[0]?.value ? String(result.rows[0].value) : undefined;
+  const value = result.rows[0]?.value ? String(result.rows[0].value) : undefined;
+  indexerStateCache.set(key, value);
+  return value;
 }
 
 export async function getSchemaVersion(): Promise<string | undefined> {
@@ -823,37 +844,65 @@ export async function getSchemaVersion(): Promise<string | undefined> {
 }
 
 export async function setIndexerState(key: string, value: bigint) {
-  if (hasSupabaseConfig()) {
-    await runSupabase(
-      getSupabase()
-        .from("indexer_state")
-        .upsert({ key, value: value.toString(), updated_at: new Date().toISOString() }, { onConflict: "key" })
-    );
-    return;
-  }
-
-  if (!pool) throw new Error("Database client is not configured");
-  await pool.query(
-    `insert into indexer_state (key, value, updated_at)
-     values ($1, $2, now())
-     on conflict (key) do update set value = excluded.value, updated_at = now()`,
-    [key, value.toString()]
-  );
+  const serialized = value.toString();
+  indexerStateCache.set(key, serialized);
+  dirtyIndexerStates.set(key, serialized);
 }
 
 export async function setIndexerTextState(key: string, value: string) {
+  indexerStateCache.set(key, value);
+  dirtyIndexerStates.set(key, value);
+}
+
+export async function flushIndexerStates(force = false): Promise<void> {
+  if (!force && Date.now() - lastCheckpointFlushAt < checkpointFlushMs) return;
+  if (checkpointFlushPromise) {
+    await checkpointFlushPromise;
+    if (force && dirtyIndexerStates.size > 0) await flushIndexerStates(true);
+    return;
+  }
+  if (dirtyIndexerStates.size === 0) return;
+
+  const entries = [...dirtyIndexerStates.entries()];
+  dirtyIndexerStates.clear();
+  checkpointFlushPromise = persistIndexerStates(entries)
+    .then(() => {
+      lastCheckpointFlushAt = Date.now();
+    })
+    .catch((error) => {
+      // A newer in-memory checkpoint always wins over the failed snapshot.
+      for (const [key, value] of entries) {
+        if (!dirtyIndexerStates.has(key)) dirtyIndexerStates.set(key, value);
+      }
+      throw error;
+    })
+    .finally(() => {
+      checkpointFlushPromise = undefined;
+    });
+  await checkpointFlushPromise;
+}
+
+async function persistIndexerStates(entries: Array<[string, string]>) {
+  const updatedAt = new Date().toISOString();
   if (hasSupabaseConfig()) {
     await runSupabase(getSupabase().from("indexer_state").upsert(
-      { key, value, updated_at: new Date().toISOString() },
+      entries.map(([key, value]) => ({ key, value, updated_at: updatedAt })),
       { onConflict: "key" }
     ));
     return;
   }
   if (!pool) throw new Error("Database client is not configured");
+  const parameters: string[] = [];
+  const values: string[] = [];
+  for (const [key, value] of entries) {
+    const offset = parameters.length;
+    parameters.push(key, value);
+    values.push(`($${offset + 1},$${offset + 2},now())`);
+  }
   await pool.query(
-    `insert into indexer_state(key,value,updated_at) values($1,$2,now())
-     on conflict(key) do update set value=excluded.value,updated_at=now()`,
-    [key, value]
+    `insert into indexer_state(key,value,updated_at) values ${values.join(",")}
+     on conflict(key) do update set value=excluded.value,updated_at=excluded.updated_at`,
+    parameters
   );
 }
 
@@ -875,6 +924,7 @@ async function runSupabase<T>(query: PromiseLike<{ data: T | null; error: unknow
 }
 
 export async function closeDatabase() {
+  await flushIndexerStates(true);
   if (pool) await pool.end();
   pool = undefined;
   supabase = undefined;
