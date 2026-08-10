@@ -8,10 +8,10 @@ import WebSocket from "ws";
 let pool = process.env.DATABASE_URL ? new pg.Pool({ connectionString: process.env.DATABASE_URL }) : undefined;
 let supabase: SupabaseClient | undefined;
 
-const configuredCheckpointFlushMs = Number(process.env.INDEXER_CHECKPOINT_FLUSH_MS || "5000");
+const configuredCheckpointFlushMs = Number(process.env.INDEXER_CHECKPOINT_FLUSH_MS || "15000");
 const checkpointFlushMs = Number.isFinite(configuredCheckpointFlushMs)
   ? Math.max(1_000, Math.min(30_000, configuredCheckpointFlushMs))
-  : 5_000;
+  : 15_000;
 const indexerStateCache = new Map<string, string | undefined>();
 const dirtyIndexerStates = new Map<string, string>();
 let lastCheckpointFlushAt = 0;
