@@ -144,7 +144,7 @@ export function SolanaMarket({ launch }: { launch: DeployedLaunch }) {
   }
 
   const insufficient = side === "buy" ? amountRaw >= solBalance : amountRaw > tokenBalance;
-  const market = marketQuery.data ? { ...marketQuery.data, trades: activityQuery.data?.trades || [], holders: activityQuery.data?.holders || [], holderCount: activityQuery.data?.holderCount ?? null } : undefined;
+  const market = useMemo(() => mergeSolanaMarketSnapshot(marketQuery.data, activityQuery.data), [activityQuery.data, marketQuery.data]);
   const changePositive = (market?.priceChange24h || 0) >= 0;
   const connectedWallet = wallet.publicKey?.toBase58();
   const walletTrades = connectedWallet ? (market?.trades || []).filter((trade) => trade.trader === connectedWallet) : [];
@@ -325,6 +325,32 @@ function buildSolanaChartCandles(trades: SolanaTrade[], fallback: MarketCandle[]
   if (tradeCandles.length) return connectCandleOpens(tradeCandles);
   const activeFallback = fallback.filter((candle) => candle.volume > 0 && Number.isFinite(candle.close) && candle.close > 0);
   return connectCandleOpens(activeFallback.length ? activeFallback : fallback.slice(-1));
+}
+
+function mergeSolanaMarketSnapshot(snapshot?: MarketSnapshot, activity?: SolanaActivity): MarketSnapshot | undefined {
+  if (!snapshot) return;
+  const trades = activity?.trades || [];
+  const latestTrade = trades
+    .filter((trade) => trade.timestamp > 0 && Number.isFinite(trade.priceNative) && trade.priceNative > 0)
+    .sort((a, b) => b.timestamp - a.timestamp || b.slot - a.slot)[0];
+  const priceNative = snapshot.priceNative ?? latestTrade?.priceNative ?? null;
+  const priceUsd = snapshot.priceUsd ?? (priceNative && snapshot.solUsd ? priceNative * snapshot.solUsd : null);
+  const derivedMarketCap = priceUsd ? priceUsd * 1_000_000_000 : null;
+  const since = Math.floor(Date.now() / 1_000) - 24 * 60 * 60;
+  const recentTrades = trades.filter((trade) => trade.timestamp >= since);
+  return {
+    ...snapshot,
+    priceNative,
+    priceUsd,
+    fdv: snapshot.fdv ?? derivedMarketCap,
+    marketCap: snapshot.marketCap ?? derivedMarketCap,
+    volume24h: snapshot.volume24h ?? recentTrades.reduce((total, trade) => total + trade.nativeAmount * (snapshot.solUsd || 0), 0),
+    buys24h: snapshot.buys24h ?? recentTrades.filter((trade) => trade.side === "buy").length,
+    sells24h: snapshot.sells24h ?? recentTrades.filter((trade) => trade.side === "sell").length,
+    trades,
+    holders: activity?.holders || [],
+    holderCount: activity?.holderCount ?? null
+  };
 }
 
 function connectCandleOpens(candles: MarketCandle[]) {

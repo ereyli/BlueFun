@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getNativeUsdPrice } from "@/lib/native-usd";
 
 export const revalidate = 15;
 
@@ -63,14 +64,18 @@ export async function GET(request: NextRequest) {
     const createdAt = Math.floor(pair.pairCreatedAt / 1_000);
     candlePayload = await fetchMeteoraCandles(pool, timeframe, createdAt - 300, Math.min(now, createdAt + range)).catch(() => candlePayload);
   }
-  if (!pair && !candlePayload?.data?.length) return NextResponse.json({ error: "Market data is not available yet." }, { status: 502 });
-
   const candles = (candlePayload?.data || []).filter(validCandle).map((candle) => ({ time: candle.timestamp, open: candle.open, high: candle.high, low: candle.low, close: candle.close, volume: candle.volume }));
   const priceNative = numberOrNull(pair?.priceNative) ?? candles.at(-1)?.close ?? null;
   const priceUsd = numberOrNull(pair?.priceUsd);
+  // DexScreener does not index every new Meteora pool immediately, and
+  // Meteora legitimately returns an empty short-range candle set when a pool
+  // has not traded during that window. Neither condition makes the market
+  // invalid. Keep the endpoint healthy so the client can build candles from
+  // the independently fetched onchain swaps.
+  const solUsd = priceUsd && priceNative ? priceUsd / priceNative : await getNativeUsdPrice(101);
 
   return NextResponse.json({
-    priceUsd, priceNative, solUsd: priceUsd && priceNative ? priceUsd / priceNative : null,
+    priceUsd, priceNative, solUsd,
     liquidityUsd: numberOrNull(pair?.liquidity?.usd), fdv: numberOrNull(pair?.fdv), marketCap: numberOrNull(pair?.marketCap),
     volume24h: numberOrNull(pair?.volume?.h24), priceChange24h: numberOrNull(pair?.priceChange?.h24),
     buys24h: numberOrNull(pair?.txns?.h24?.buys), sells24h: numberOrNull(pair?.txns?.h24?.sells),
@@ -186,4 +191,4 @@ function fetchMeteoraCandles(pool: string, timeframe: string, start: number, end
     .then((response) => response.json() as Promise<{ data?: MeteoraCandle[] }>);
 }
 function numberOrNull(value: unknown) { const parsed = typeof value === "number" ? value : typeof value === "string" ? Number(value) : NaN; return Number.isFinite(parsed) ? parsed : null; }
-function validCandle(candle: MeteoraCandle) { return Number.isFinite(candle.timestamp) && Number.isFinite(candle.open) && Number.isFinite(candle.high) && Number.isFinite(candle.low) && Number.isFinite(candle.close) && Number.isFinite(candle.volume); }
+function validCandle(candle: MeteoraCandle) { return Number.isFinite(candle.timestamp) && Number.isFinite(candle.open) && candle.open > 0 && Number.isFinite(candle.high) && candle.high > 0 && Number.isFinite(candle.low) && candle.low > 0 && Number.isFinite(candle.close) && candle.close > 0 && Number.isFinite(candle.volume) && candle.volume >= 0; }
