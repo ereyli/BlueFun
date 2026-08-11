@@ -1,0 +1,475 @@
+/*
+ * B20 editorial simplicity layer.
+ * Information is grouped by spacing first, dividers second and containers last.
+ */
+
+:root {
+  --editorial-page: #101112;
+  --editorial-surface: #171819;
+  --editorial-raised: #1d1f21;
+  --editorial-line: rgba(255,255,255,.09);
+  --editorial-line-soft: rgba(255,255,255,.055);
+  --editorial-muted: #969b9f;
+  --editorial-radius: 14px;
+}
+
+html[data-theme="light"] {
+  --editorial-page: #f7f7f4;
+  --editorial-surface: #ffffff;
+  --editorial-raised: #f0f1ed;
+  --editorial-line: rgba(18,24,20,.11);
+  --editorial-line-soft: rgba(18,24,20,.065);
+  --editorial-muted: #717873;
+}
+
+/* One quiet application bar; navigation reads as navigation, not a row of cards. */
+.terminal-global-header {
+  background: color-mix(in srgb,var(--editorial-page) 94%,transparent) !important;
+  border: 0 !important;
+  border-bottom: 1px solid var(--editorial-line-soft) !important;
+  box-shadow: none !important;
+  gap: clamp(12px,1.35vw,24px) !important;
+  grid-template-columns: auto auto minmax(220px,1fr) 150px auto auto !important;
+  height: 64px !important;
+  min-height: 64px !important;
+  padding: 0 clamp(18px,2vw,32px) !important;
+}
+
+.terminal-page-identity {
+  gap: 10px !important;
+  min-width: 0 !important;
+}
+
+.terminal-page-title { display: none !important; }
+
+.terminal-home-link,
+.terminal-page-identity .brand-launchpad-menu > button,
+.terminal-global-header .network-trigger,
+.terminal-global-header > .wallet-control,
+.terminal-create-action,
+.terminal-global-search {
+  box-shadow: none !important;
+}
+
+.terminal-home-link {
+  background: transparent !important;
+  border: 0 !important;
+  height: 38px !important;
+  padding: 0 !important;
+  width: 38px !important;
+}
+
+.terminal-home-link img { border-radius: 10px !important; }
+
+.terminal-page-identity .brand-launchpad-menu > button {
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 9px !important;
+  gap: 7px !important;
+  min-height: 38px !important;
+  padding: 5px 7px !important;
+}
+
+.terminal-page-identity .brand-launchpad-menu > button:hover,
+.terminal-page-identity .brand-launchpad-menu.open > button {
+  background: var(--editorial-raised) !important;
+}
+
+.launchpad-product-mark {
+  background: transparent !important;
+  border: 0 !important;
+  height: 27px !important;
+  width: 27px !important;
+}
+
+.site-header-nav {
+  align-items: stretch !important;
+  align-self: stretch !important;
+  background: transparent !important;
+  border: 0 !important;
+  gap: 4px !important;
+  padding: 0 !important;
+}
+
+.site-header-nav a {
+  align-items: center !important;
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  color: var(--editorial-muted) !important;
+  display: inline-flex !important;
+  font-size: 12px !important;
+  padding: 0 8px !important;
+  position: relative;
+}
+
+.site-header-nav a:hover,
+.site-header-nav a[aria-current="page"] { color: var(--text) !important; }
+
+.site-header-nav a[aria-current="page"]::after {
+  background: var(--blue);
+  border-radius: 99px;
+  bottom: 0;
+  content: "";
+  height: 2px;
+  left: 8px;
+  position: absolute;
+  right: 8px;
+}
+
+.terminal-global-search {
+  background: var(--editorial-surface) !important;
+  border: 0 !important;
+  border-radius: 11px !important;
+  height: 40px !important;
+  min-height: 40px !important;
+}
+
+.terminal-global-search:focus-within { box-shadow: inset 0 0 0 1px rgba(96,120,255,.55) !important; }
+
+.terminal-global-header .network-trigger,
+.terminal-global-header > .wallet-control {
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 10px !important;
+  height: 40px !important;
+  min-height: 40px !important;
+}
+
+.terminal-global-header .network-trigger:hover,
+.terminal-global-header > .wallet-control:hover { background: var(--editorial-raised) !important; }
+
+.terminal-create-action {
+  border: 0 !important;
+  border-radius: 10px !important;
+  font-size: 12px !important;
+  height: 40px !important;
+  min-height: 40px !important;
+  padding: 0 14px !important;
+  width: auto !important;
+}
+
+/* Token profile: one identity row and one metric rail, without nested cards. */
+.content:has(.reference-token-terminal) > .main {
+  background: var(--editorial-page) !important;
+  padding: 0 clamp(16px,2vw,30px) 40px !important;
+}
+
+.reference-token-terminal.trade-layout {
+  background: transparent !important;
+  column-gap: clamp(16px,1.5vw,26px) !important;
+  row-gap: 0 !important;
+}
+
+.reference-token-terminal > .market-summary-column { padding: 0 !important; }
+
+.reference-token-terminal .market-header-card {
+  background: transparent !important;
+  border: 0 !important;
+  border-bottom: 1px solid var(--editorial-line) !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  gap: clamp(20px,2vw,34px) !important;
+  grid-template-columns: minmax(300px,.78fr) minmax(480px,1.22fr) !important;
+  min-height: 118px !important;
+  padding: 20px 2px !important;
+}
+
+.reference-token-terminal .profile-art.token-art {
+  border: 0 !important;
+  border-radius: 50% !important;
+  height: 64px !important;
+  min-height: 64px !important;
+  width: 64px !important;
+}
+
+.reference-token-terminal .market-header-main { gap: 14px !important; }
+.reference-token-terminal .market-title-row { gap: 8px !important; }
+.reference-token-terminal .market-title-row h1 { font-size: 25px !important; letter-spacing: -.045em !important; }
+.reference-token-terminal .market-meta { font-size: 10px !important; }
+.reference-token-terminal .market-description,
+.reference-token-terminal .reference-lp-lock { display: none !important; }
+
+.reference-token-terminal .market-actions { gap: 2px !important; }
+.reference-token-terminal .market-icon-action {
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 8px !important;
+  height: 34px !important;
+  width: 34px !important;
+}
+.reference-token-terminal .market-icon-action:hover { background: var(--editorial-raised) !important; }
+.reference-token-terminal .market-share-card-button span { display: none !important; }
+
+.reference-token-terminal .market-header-stats {
+  align-self: center !important;
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  gap: 0 !important;
+  height: auto !important;
+  min-height: 58px !important;
+}
+
+.reference-token-terminal .market-header-stats > div {
+  background: transparent !important;
+  border: 0 !important;
+  border-left: 1px solid var(--editorial-line) !important;
+  border-radius: 0 !important;
+  padding: 4px clamp(14px,1.5vw,25px) !important;
+}
+
+.reference-token-terminal .market-header-stats > div:first-child { border-left: 0 !important; padding-left: 0 !important; }
+.reference-token-terminal .market-header-stats span { color: var(--editorial-muted) !important; font-size: 9px !important; }
+.reference-token-terminal .market-header-stats strong { font-size: 16px !important; }
+
+.reference-token-terminal > .market-content-column { padding-top: 18px !important; }
+.reference-token-terminal .chart-panel { background: transparent !important; border: 0 !important; padding: 0 !important; }
+.reference-token-terminal .tv-chart-wrap {
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+.reference-token-terminal .tv-chart-header {
+  border: 0 !important;
+  min-height: 48px !important;
+  padding: 0 0 10px !important;
+}
+.reference-token-terminal .chart-activity-strip { display: none !important; }
+.reference-token-terminal .chart-controls { justify-content: space-between !important; width: 100% !important; }
+.reference-token-terminal .chart-interval-tabs,
+.reference-token-terminal .chart-mode-tabs {
+  background: transparent !important;
+  border: 0 !important;
+  gap: 3px !important;
+  padding: 0 !important;
+}
+.reference-token-terminal .chart-interval-tabs button,
+.reference-token-terminal .chart-mode-tabs button {
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 8px !important;
+  min-height: 32px !important;
+  padding: 0 11px !important;
+}
+.reference-token-terminal .chart-interval-tabs button.active,
+.reference-token-terminal .chart-mode-tabs button.active { background: var(--editorial-raised) !important; }
+
+.reference-token-terminal .recent-trades {
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  margin-top: 26px !important;
+}
+.reference-token-terminal .recent-trades-head { border-bottom: 1px solid var(--editorial-line) !important; padding-inline: 0 !important; }
+.reference-token-terminal .market-data-tabs { border-bottom: 1px solid var(--editorial-line-soft) !important; }
+
+/* Swap remains a single functional surface; fields provide the only nested grouping. */
+.reference-token-terminal > .trade-box { padding-top: 18px !important; }
+.reference-token-terminal .trade-box > section,
+.reference-token-terminal .trade-card {
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  padding: 0 !important;
+}
+.reference-token-terminal .trade-card-toolbar { border-bottom: 1px solid var(--editorial-line) !important; margin-bottom: 12px !important; padding: 0 0 12px !important; }
+.reference-token-terminal .trade-card-toolbar > div span { display: none !important; }
+.reference-token-terminal .trade-tabs-top {
+  background: var(--editorial-raised) !important;
+  border: 0 !important;
+  border-radius: 12px !important;
+  padding: 4px !important;
+}
+.reference-token-terminal .swap-asset-panel,
+.reference-token-terminal .swap-receive-panel {
+  background: var(--editorial-surface) !important;
+  border: 0 !important;
+  border-radius: var(--editorial-radius) !important;
+  box-shadow: none !important;
+}
+.reference-token-terminal .swap-direction-button { border-color: var(--editorial-line) !important; box-shadow: none !important; }
+.reference-token-terminal .trade-meta-line { color: var(--editorial-muted) !important; font-size: 9px !important; opacity: .8; }
+
+/* BLUE page: sections are editorial blocks, not boxes inside boxes. */
+.blue-transparency-page { gap: 0 !important; max-width: 1320px !important; }
+.blue-transparency-hero,
+.blue-staking-card,
+.blue-distribution-card {
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+.blue-transparency-hero { border-bottom: 1px solid var(--editorial-line) !important; }
+.blue-transparency-hero::after,
+.blue-hero-identity::after { display: none !important; }
+.blue-hero-grid { min-height: 260px !important; }
+.blue-hero-identity { padding: 34px 30px 30px !important; }
+.blue-identity-main { margin: auto 0 22px !important; }
+.blue-token-glyph {
+  background: transparent !important;
+  border: 0 !important;
+  border-radius: 16px !important;
+  box-shadow: none !important;
+  height: 72px !important;
+  transform: none !important;
+  width: 72px !important;
+}
+.blue-transparency-hero h1 { font-size: clamp(48px,6vw,76px) !important; line-height: .9 !important; }
+.blue-token-mark,
+.blue-lede { display: none !important; }
+.blue-identity-meta { border-top-color: var(--editorial-line) !important; }
+.blue-live-panel {
+  background: transparent !important;
+  border: 0 !important;
+  border-left: 1px solid var(--editorial-line) !important;
+  border-radius: 0 !important;
+}
+.blue-live-rule { background: var(--editorial-line) !important; }
+
+.blue-staking-card {
+  border-bottom: 1px solid var(--editorial-line) !important;
+  gap: 26px !important;
+  padding: 42px 30px !important;
+}
+.blue-staking-heading h2 { font-size: clamp(32px,4vw,48px) !important; }
+.blue-staking-stats {
+  border: 0 !important;
+  border-bottom: 1px solid var(--editorial-line) !important;
+  border-radius: 0 !important;
+  border-top: 1px solid var(--editorial-line) !important;
+}
+.blue-staking-stats article { background: transparent !important; border-right-color: var(--editorial-line) !important; padding: 18px 20px !important; }
+.blue-staking-user-card,
+.blue-pool-card {
+  background: var(--editorial-surface) !important;
+  border: 0 !important;
+  border-radius: var(--editorial-radius) !important;
+  box-shadow: none !important;
+}
+.blue-staking-empty { background: transparent !important; border: 0 !important; border-radius: 0 !important; padding: 12px 0 !important; }
+.blue-staker-list { background: transparent !important; border: 0 !important; border-radius: 0 !important; }
+.blue-staker-list > header { border-bottom-color: var(--editorial-line) !important; }
+.blue-staker-row { border-bottom-color: var(--editorial-line-soft) !important; }
+.blue-distribution-card { border-bottom: 1px solid var(--editorial-line) !important; padding: 38px 30px !important; }
+.blue-proof-grid { background: transparent !important; border: 0 !important; border-radius: 0 !important; gap: 0 !important; }
+.blue-proof-grid article {
+  background: transparent !important;
+  border: 0 !important;
+  border-bottom: 1px solid var(--editorial-line) !important;
+  border-radius: 0 !important;
+  padding: 24px 30px !important;
+}
+
+/* Mobile navigation is one fixed, aligned five-column rail. */
+@media (max-width: 760px) {
+  .terminal-global-header {
+    height: 56px !important;
+    min-height: 56px !important;
+    padding: 0 12px !important;
+  }
+  .terminal-global-header .terminal-page-identity { min-width: 0 !important; }
+  .terminal-page-identity .terminal-home-link { height: 34px !important; width: 34px !important; }
+  .terminal-page-identity .brand-launchpad-menu > button { min-height: 34px !important; }
+  .terminal-page-identity .brand-launchpad-menu > button > span:nth-child(2) { display: inline !important; font-size: 11px !important; }
+
+  .bottom-nav {
+    align-items: stretch !important;
+    background: color-mix(in srgb,var(--editorial-surface) 96%,transparent) !important;
+    border: 0 !important;
+    border-radius: 16px 16px 0 0 !important;
+    box-shadow: 0 -8px 30px rgba(0,0,0,.14) !important;
+    gap: 0 !important;
+    grid-template-columns: repeat(5,minmax(0,1fr)) !important;
+    left: 0 !important;
+    max-width: none !important;
+    min-height: calc(62px + env(safe-area-inset-bottom)) !important;
+    padding: 6px 6px calc(5px + env(safe-area-inset-bottom)) !important;
+    transform: none !important;
+    width: 100% !important;
+  }
+  .bottom-nav.nft-navigation { grid-template-columns: repeat(3,minmax(0,1fr)) !important; }
+  .bottom-nav a {
+    background: transparent !important;
+    border: 0 !important;
+    border-radius: 9px !important;
+    font-size: 9px !important;
+    gap: 2px !important;
+    min-height: 49px !important;
+    min-width: 0 !important;
+    padding: 4px 2px !important;
+  }
+  .bottom-nav a[aria-current="page"],
+  .bottom-nav a:last-child[aria-current="page"] {
+    background: transparent !important;
+    color: var(--blue) !important;
+  }
+  .bottom-nav a[aria-current="page"]::before {
+    background: var(--blue);
+    border-radius: 99px;
+    content: "";
+    height: 2px;
+    left: 28%;
+    position: absolute;
+    right: 28%;
+    top: -1px;
+  }
+  .bottom-nav a { position: relative; }
+  .bottom-nav .nav-icon { height: 19px !important; width: 19px !important; }
+
+  .content:has(.reference-token-terminal) > .main { padding: 0 12px 82px !important; }
+  .reference-token-terminal.trade-layout { gap: 0 !important; }
+  .reference-token-terminal .market-header-card {
+    gap: 16px !important;
+    grid-template-columns: 1fr !important;
+    padding: 16px 0 !important;
+  }
+  .reference-token-terminal .market-header-main {
+    align-items: center !important;
+    display: grid !important;
+    gap: 10px !important;
+    grid-template-columns: 54px minmax(0,1fr) auto !important;
+  }
+  .reference-token-terminal .profile-art.token-art { height: 54px !important; min-height: 54px !important; width: 54px !important; }
+  .reference-token-terminal .market-title-block { min-width: 0 !important; }
+  .reference-token-terminal .market-title-row { align-items: center !important; flex-wrap: wrap !important; }
+  .reference-token-terminal .market-title-row h1 { font-size: 22px !important; line-height: 1 !important; }
+  .reference-token-terminal .market-title-row .token-status { display: none !important; }
+  .reference-token-terminal .market-meta { gap: 5px !important; margin-top: 6px !important; }
+  .reference-token-terminal .market-actions { align-self: start !important; }
+  .reference-token-terminal .market-icon-action { height: 30px !important; width: 30px !important; }
+  .reference-token-terminal .market-header-stats { grid-template-columns: repeat(2,minmax(0,1fr)) !important; }
+  .reference-token-terminal .market-header-stats > div { border-bottom: 1px solid var(--editorial-line-soft) !important; min-height: 52px !important; padding: 8px 12px !important; }
+  .reference-token-terminal .market-header-stats > div:nth-child(odd) { border-left: 0 !important; padding-left: 0 !important; }
+  .reference-token-terminal > .trade-box { margin: 0 !important; padding: 18px 0 8px !important; }
+  .reference-token-terminal > .market-content-column { padding-top: 18px !important; }
+
+  .blue-hero-grid { grid-template-columns: 1fr !important; }
+  .blue-hero-identity,
+  .blue-staking-card,
+  .blue-distribution-card { padding: 28px 4px !important; }
+  .blue-live-panel { border-left: 0 !important; border-top: 1px solid var(--editorial-line) !important; padding: 24px 4px !important; }
+  .blue-staking-stats { grid-template-columns: 1fr 1fr !important; }
+  .blue-staking-stats article { min-height: 82px !important; padding: 14px 10px !important; }
+  .blue-staking-stats article:nth-child(2) { border-right: 0 !important; }
+  .blue-staking-dashboard { grid-template-columns: 1fr !important; }
+  .blue-staking-user-card,
+  .blue-pool-card { padding: 16px !important; }
+  .blue-proof-grid article { padding: 22px 4px !important; }
+}
+
+@media (min-width: 761px) and (max-width: 1120px) {
+  .terminal-global-header { grid-template-columns: auto auto minmax(180px,1fr) 132px auto !important; }
+  .terminal-global-header > .wallet-control { display: none !important; }
+  .site-header-nav a { padding-inline: 5px !important; }
+  .reference-token-terminal .market-header-card { grid-template-columns: 1fr !important; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .bottom-nav *,
+  .terminal-global-header * { transition: none !important; }
+}

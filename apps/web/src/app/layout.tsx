@@ -18,6 +18,7 @@ import "./minimal-market.css";
 import "./nft-modern.css";
 import "./bluedex.css";
 import "./shell-theme-refinement.css";
+import "./editorial-simplicity.css";
 import { Providers } from "@/components/providers";
 import { NavigationRecovery } from "@/components/navigation-recovery";
 import { SideNav } from "@/components/side-nav";

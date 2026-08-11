@@ -2311,8 +2311,6 @@ function TradeChart({ trades, status, symbol, ethUsd, nativeSymbol }: { trades: 
         <div className="chart-controls">
           <div className="chart-interval-tabs" role="tablist" aria-label="Candle interval">
             {[
-              { label: "1s", minutes: 1 / 60 },
-              { label: "30s", minutes: 0.5 },
               { label: "1m", minutes: 1 },
               { label: "5m", minutes: 5 },
               { label: "15m", minutes: 15 },
@@ -2335,7 +2333,6 @@ function TradeChart({ trades, status, symbol, ethUsd, nativeSymbol }: { trades: 
             ))}
             <button onClick={resetChart} type="button" aria-label="Reset chart view"><RotateCcw size={13} /></button>
           </div>
-          <span className="chart-indicators-label">Indicators</span>
           <div className="chart-mode-tabs" role="tablist" aria-label="Chart view">
             <button aria-selected={chartMode === "marketCap"} className={chartMode === "marketCap" ? "active" : ""} onClick={() => setChartMode("marketCap")} role="tab" type="button">
               Market Cap

@@ -40,7 +40,7 @@ export function BrandLaunchpadMenu() {
       <span className={`launchpad-product-mark ${nftMode ? "nft" : dexMode ? "dex" : "token"}`}>
         <ProductIcon product={nftMode ? "nft" : dexMode ? "dex" : "token"}/>
       </span>
-      <span>{nftMode ? "NFT markets" : dexMode ? "BlueDEX" : "Token markets"}</span>
+      <span>{nftMode ? "NFTs" : dexMode ? "DEX" : "Tokens"}</span>
       <ChevronDown aria-hidden="true" />
     </button>
     {open ? <div aria-label="Launchpads" className="brand-launchpad-popover" role="menu">

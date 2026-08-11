@@ -99,7 +99,6 @@ export function TerminalTopbar() {
         <ChainLink aria-current={isCreateScreen ? "page" : undefined} className="button primary terminal-create-action" href={context.actionHref}>
           {context.actionIcon === "collection" ? <ImagePlus size={15}/> : <Rocket size={15}/>}
           {context.actionLabel}
-          <b>+</b>
         </ChainLink>
       </Suspense>
       <Suspense fallback={<span className="terminal-wallet-placeholder"/>}><WalletButton /></Suspense>
