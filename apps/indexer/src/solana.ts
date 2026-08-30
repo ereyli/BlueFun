@@ -19,7 +19,9 @@ const programId = new PublicKey(process.env.SOLANA_PROGRAM_ID || "CqjRfYuDzJgQUB
 const scope = `solana:101:${programId.toBase58()}`;
 const pollMs = Math.max(2_000, Number(process.env.POLL_MS || "5000"));
 const healthPort = Number(process.env.HEALTH_PORT || "3000");
-const connection = new Connection(rpc, { commitment: "confirmed", disableRetryOnRateLimit: false });
+const tradeBackfillLimit = Math.max(1, Math.min(100, Number(process.env.SOLANA_TRADE_BACKFILL_LIMIT || "8")));
+const tradeRequestDelayMs = Math.max(200, Number(process.env.SOLANA_TRADE_REQUEST_DELAY_MS || "600"));
+const connection = new Connection(rpc, { commitment: "confirmed", disableRetryOnRateLimit: true });
 const provider = new AnchorProvider(connection, new Wallet(Keypair.generate()), { commitment: "confirmed" });
 const program = new Program(idl as Idl, provider);
 const launchClient = (program.account as unknown as {
@@ -76,7 +78,8 @@ async function poll() {
         seen.add(mint);
       }
       try {
-        await indexPoolTrades({ launchId, mint, pool: account.pool });
+        const failedTransactions = await indexPoolTrades({ launchId, mint, pool: account.pool });
+        if (failedTransactions > 0) tradeErrors.push(`${account.pool.toBase58()}: ${failedTransactions} trade transaction(s) deferred`);
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         tradeErrors.push(`${account.pool.toBase58()}: ${message}`);
@@ -118,18 +121,34 @@ async function indexPoolTrades(input: { launchId: bigint; mint: string; pool: Pu
     cursor = await getIndexerTextState(cursorKey);
     if (cursor) tradeCursors.set(poolAddress, cursor);
   }
-  const signatures = await readNewPoolSignatures(input.pool, cursor);
-  if (!signatures.length) return;
-  const successful = signatures.filter((item) => !item.err);
-  for (let offset = 0; offset < successful.length; offset += 50) {
-    const page = successful.slice(offset, offset + 50);
-    const transactions = await connection.getParsedTransactions(page.map((item) => item.signature), {
-      commitment: "confirmed",
-      maxSupportedTransactionVersion: 0
-    });
-    for (let index = 0; index < page.length; index += 1) {
-      const trade = parseMeteoraTrade(page[index], transactions[index], input.mint);
-      if (!trade) continue;
+  const signatures = await readNewPoolSignatures(input.pool, cursor, cursor ? 100 : tradeBackfillLimit);
+  if (!signatures.length) return 0;
+
+  // Advance and persist the cursor before transaction hydration. A rate-limited
+  // public RPC must not make every poll replay the same historical batch.
+  const latestSignature = signatures[0].signature;
+  tradeCursors.set(poolAddress, latestSignature);
+  await setIndexerTextState(cursorKey, latestSignature);
+  await flushIndexerStates();
+
+  let failedTransactions = 0;
+  const successful = signatures.filter((item) => !item.err).reverse();
+  for (const signature of successful) {
+    let transaction: ParsedTransactionWithMeta | null;
+    try {
+      transaction = await connection.getParsedTransaction(signature.signature, {
+        commitment: "confirmed",
+        maxSupportedTransactionVersion: 0
+      });
+    } catch (error) {
+      failedTransactions += 1;
+      const message = error instanceof Error ? error.message.split("\n", 1)[0] : String(error);
+      console.warn(`Solana trade hydration deferred for ${signature.signature}: ${message}`);
+      await delay(tradeRequestDelayMs);
+      continue;
+    }
+    const trade = parseMeteoraTrade(signature, transaction, input.mint);
+    if (trade) {
       const nativeAmount = trade.nativeAmount * SPL_TO_DATABASE_DECIMALS;
       const tokenAmount = trade.tokenAmount * SPL_TO_DATABASE_DECIMALS;
       await insertTrade(scope, {
@@ -140,28 +159,17 @@ async function indexPoolTrades(input: { launchId: bigint; mint: string; pool: Pu
         ethAmount: nativeAmount,
         tokenAmount,
         marketCapEth: tokenAmount > 0n ? nativeAmount * TOKEN_SUPPLY_RAW / trade.tokenAmount : undefined,
-        txHash: page[index].signature,
-        blockNumber: BigInt(page[index].slot)
+        txHash: signature.signature,
+        blockNumber: BigInt(signature.slot)
       });
     }
+    await delay(tradeRequestDelayMs);
   }
-  const latestSignature = signatures[0].signature;
-  tradeCursors.set(poolAddress, latestSignature);
-  await setIndexerTextState(cursorKey, latestSignature);
+  return failedTransactions;
 }
 
-async function readNewPoolSignatures(pool: PublicKey, until: string | undefined) {
-  const rows: ConfirmedSignatureInfo[] = [];
-  let before: string | undefined;
-  for (let pageIndex = 0; pageIndex < 25; pageIndex += 1) {
-    const page = await connection.getSignaturesForAddress(pool, { limit: 1_000, before, until }, "confirmed");
-    if (!page.length) break;
-    rows.push(...page);
-    const last = page.at(-1)!;
-    if (page.length < 1_000) break;
-    before = last.signature;
-  }
-  return rows;
+async function readNewPoolSignatures(pool: PublicKey, until: string | undefined, limit: number) {
+  return connection.getSignaturesForAddress(pool, { limit, until }, "confirmed");
 }
 
 function parseMeteoraTrade(signature: ConfirmedSignatureInfo, transaction: ParsedTransactionWithMeta | null, mint: string) {
@@ -197,6 +205,7 @@ function balanceAt(rows: TransactionTokenBalance[] | null | undefined, mint: str
   return BigInt((rows || []).find((row) => row.mint === mint && row.accountIndex === index)?.uiTokenAmount.amount || "0");
 }
 function absolute(value: bigint) { return value < 0n ? -value : value; }
+function delay(ms: number) { return new Promise((resolve) => setTimeout(resolve, ms)); }
 
 async function readMetadata(uri: string) {
   const empty: Metadata = {};
