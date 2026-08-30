@@ -3,7 +3,16 @@ import { createServer } from "node:http";
 import { AnchorProvider, Program, Wallet, type Idl } from "@coral-xyz/anchor";
 import { Connection, Keypair, PublicKey, type ConfirmedSignatureInfo, type ParsedTransactionWithMeta } from "@solana/web3.js";
 import idl from "../../../solana/idl/bluefun_solana.json" with { type: "json" };
-import { closeDatabase, ensureSchema, insertTrade, updateLaunchState, upsertLaunch } from "./db.js";
+import {
+  closeDatabase,
+  ensureSchema,
+  flushIndexerStates,
+  getIndexerTextState,
+  insertTrade,
+  setIndexerTextState,
+  updateLaunchState,
+  upsertLaunch
+} from "./db.js";
 
 const rpc = process.env.SOLANA_RPC_URL || process.env.RPC_URL || "https://api.mainnet-beta.solana.com";
 const programId = new PublicKey(process.env.SOLANA_PROGRAM_ID || "CqjRfYuDzJgQUBF6BzRnNQfV5Gc4DT9a4pxrTQReX6f5");
@@ -74,6 +83,7 @@ async function poll() {
         console.error(`Solana Meteora trade indexing failed for ${mint}`, error);
       }
     }
+    await flushIndexerStates();
     indexed = seen.size;
     lastSuccess = Date.now();
     lastError = tradeErrors.length ? `${tradeErrors.length} Meteora market(s) could not be refreshed: ${tradeErrors[0]}` : "";
@@ -102,7 +112,12 @@ type SolanaLaunchAccount = {
 
 async function indexPoolTrades(input: { launchId: bigint; mint: string; pool: PublicKey }) {
   const poolAddress = input.pool.toBase58();
-  const cursor = tradeCursors.get(poolAddress);
+  const cursorKey = `${scope}:meteora:${poolAddress}:last_signature`;
+  let cursor = tradeCursors.get(poolAddress);
+  if (cursor === undefined) {
+    cursor = await getIndexerTextState(cursorKey);
+    if (cursor) tradeCursors.set(poolAddress, cursor);
+  }
   const signatures = await readNewPoolSignatures(input.pool, cursor);
   if (!signatures.length) return;
   const successful = signatures.filter((item) => !item.err);
@@ -130,7 +145,9 @@ async function indexPoolTrades(input: { launchId: bigint; mint: string; pool: Pu
       });
     }
   }
-  tradeCursors.set(poolAddress, signatures[0].signature);
+  const latestSignature = signatures[0].signature;
+  tradeCursors.set(poolAddress, latestSignature);
+  await setIndexerTextState(cursorKey, latestSignature);
 }
 
 async function readNewPoolSignatures(pool: PublicKey, until: string | undefined) {

@@ -14,7 +14,12 @@ type DexPair = {
 };
 type MeteoraCandle = { timestamp: number; open: number; high: number; low: number; close: number; volume: number };
 type MeteoraToken = { address?: string; decimals?: number; holders?: number; total_supply?: number };
-type MeteoraPool = { token_x?: MeteoraToken; token_y?: MeteoraToken; token_x_amount?: number; token_y_amount?: number; vault_x?: string; vault_y?: string };
+type MeteoraPool = {
+  token_x?: MeteoraToken; token_y?: MeteoraToken;
+  token_x_amount?: number; token_y_amount?: number;
+  vault_x?: string; vault_y?: string;
+  current_price?: number; created_at?: number; tvl?: number;
+};
 type SignatureInfo = { signature: string; slot: number; blockTime?: number | null; err?: unknown };
 type TokenBalance = { accountIndex: number; mint: string; owner?: string; uiTokenAmount?: { amount?: string; decimals?: number } };
 type ParsedTransaction = {
@@ -52,34 +57,48 @@ export async function GET(request: NextRequest) {
   const now = Math.floor(Date.now() / 1_000);
   const range = timeframe === "5m" ? 6 * 60 * 60 : timeframe === "30m" ? 24 * 60 * 60 : 48 * 60 * 60;
   const start = now - range;
-  const [dexResult, candleResult] = await Promise.allSettled([
+  const [dexResult, candleResult, poolResult] = await Promise.allSettled([
     fetch(`https://api.dexscreener.com/latest/dex/pairs/solana/${pool}`, { next: { revalidate: 15 }, signal: AbortSignal.timeout(8_000) }).then(assertOk).then((response) => response.json()),
-    fetchMeteoraCandles(pool, timeframe, start, now)
+    fetchMeteoraCandles(pool, timeframe, start, now),
+    fetchMeteoraPool(pool)
   ]);
 
   const dexPayload = dexResult.status === "fulfilled" ? dexResult.value as { pair?: DexPair; pairs?: DexPair[] } : undefined;
   const pair = dexPayload?.pair || dexPayload?.pairs?.[0];
+  const meteoraPool = poolResult.status === "fulfilled" ? poolResult.value : undefined;
   let candlePayload = candleResult.status === "fulfilled" ? candleResult.value : undefined;
-  if (!candlePayload?.data?.length && pair?.pairCreatedAt) {
-    const createdAt = Math.floor(pair.pairCreatedAt / 1_000);
+  const poolCreatedAt = numberOrNull(pair?.pairCreatedAt) ?? numberOrNull(meteoraPool?.created_at);
+  if (!candlePayload?.data?.length && poolCreatedAt) {
+    const createdAt = Math.floor(poolCreatedAt / 1_000);
     candlePayload = await fetchMeteoraCandles(pool, timeframe, createdAt - 300, Math.min(now, createdAt + range)).catch(() => candlePayload);
   }
   const candles = (candlePayload?.data || []).filter(validCandle).map((candle) => ({ time: candle.timestamp, open: candle.open, high: candle.high, low: candle.low, close: candle.close, volume: candle.volume }));
-  const priceNative = numberOrNull(pair?.priceNative) ?? candles.at(-1)?.close ?? null;
-  const priceUsd = numberOrNull(pair?.priceUsd);
+  const poolPriceNative = meteoraPool ? meteoraPriceNative(meteoraPool, mint) : null;
+  const priceNative = numberOrNull(pair?.priceNative) ?? candles.at(-1)?.close ?? poolPriceNative;
   // DexScreener does not index every new Meteora pool immediately, and
   // Meteora legitimately returns an empty short-range candle set when a pool
   // has not traded during that window. Neither condition makes the market
   // invalid. Keep the endpoint healthy so the client can build candles from
   // the independently fetched onchain swaps.
-  const solUsd = priceUsd && priceNative ? priceUsd / priceNative : await getNativeUsdPrice(101);
+  const reportedPriceUsd = numberOrNull(pair?.priceUsd);
+  const solUsd = reportedPriceUsd && priceNative ? reportedPriceUsd / priceNative : await getNativeUsdPrice(101);
+  const priceUsd = reportedPriceUsd ?? (priceNative && solUsd ? priceNative * solUsd : null);
+  if (!candles.length && priceNative) {
+    const interval = timeframe === "30m" ? 1_800 : timeframe === "1h" ? 3_600 : 300;
+    const time = Math.floor(now / interval) * interval;
+    candles.push({ time, open: priceNative, high: priceNative, low: priceNative, close: priceNative, volume: 0 });
+  }
+  const tokenSupply = meteoraToken(meteoraPool, mint)?.total_supply;
+  const derivedMarketCap = priceUsd && tokenSupply ? priceUsd * tokenSupply : null;
 
   return NextResponse.json({
     priceUsd, priceNative, solUsd,
-    liquidityUsd: numberOrNull(pair?.liquidity?.usd), fdv: numberOrNull(pair?.fdv), marketCap: numberOrNull(pair?.marketCap),
+    liquidityUsd: numberOrNull(pair?.liquidity?.usd) ?? positiveNumber(meteoraPool?.tvl),
+    fdv: numberOrNull(pair?.fdv) ?? derivedMarketCap,
+    marketCap: numberOrNull(pair?.marketCap) ?? derivedMarketCap,
     volume24h: numberOrNull(pair?.volume?.h24), priceChange24h: numberOrNull(pair?.priceChange?.h24),
     buys24h: numberOrNull(pair?.txns?.h24?.buys), sells24h: numberOrNull(pair?.txns?.h24?.sells),
-    pairCreatedAt: numberOrNull(pair?.pairCreatedAt), pairUrl: pair?.url || `https://dexscreener.com/solana/${pool}`,
+    pairCreatedAt: poolCreatedAt, pairUrl: pair?.url || `https://app.meteora.ag/dammv2/${pool}`,
     timeframe, candles
   }, { headers: { "cache-control": "public, s-maxage=15, stale-while-revalidate=45" } });
 }
@@ -185,10 +204,28 @@ async function rpcBatch<T>(url: string, calls: Array<{ method: string; params: u
 }
 
 function assertOk(response: Response) { if (!response.ok) throw new Error(`Market source returned ${response.status}.`); return response; }
+function fetchMeteoraPool(pool: string) {
+  return fetch(`https://damm-v2.datapi.meteora.ag/pools/${pool}`, { next: { revalidate: 15 }, signal: AbortSignal.timeout(6_000) })
+    .then(assertOk)
+    .then((response) => response.json() as Promise<MeteoraPool>);
+}
 function fetchMeteoraCandles(pool: string, timeframe: string, start: number, end: number) {
   return fetch(`https://damm-v2.datapi.meteora.ag/pools/${pool}/ohlcv?timeframe=${timeframe}&start_time=${start}&end_time=${end}`, { next: { revalidate: 15 }, signal: AbortSignal.timeout(6_000) })
     .then(assertOk)
     .then((response) => response.json() as Promise<{ data?: MeteoraCandle[] }>);
 }
 function numberOrNull(value: unknown) { const parsed = typeof value === "number" ? value : typeof value === "string" ? Number(value) : NaN; return Number.isFinite(parsed) ? parsed : null; }
+function positiveNumber(value: unknown) { const parsed = numberOrNull(value); return parsed !== null && parsed > 0 ? parsed : null; }
+function meteoraToken(pool: MeteoraPool | undefined, mint: string) {
+  if (pool?.token_x?.address === mint) return pool.token_x;
+  if (pool?.token_y?.address === mint) return pool.token_y;
+  return undefined;
+}
+function meteoraPriceNative(pool: MeteoraPool, mint: string) {
+  const price = positiveNumber(pool.current_price);
+  if (!price) return null;
+  if (pool.token_x?.address === mint && pool.token_y?.address === WSOL) return price;
+  if (pool.token_y?.address === mint && pool.token_x?.address === WSOL) return 1 / price;
+  return null;
+}
 function validCandle(candle: MeteoraCandle) { return Number.isFinite(candle.timestamp) && Number.isFinite(candle.open) && candle.open > 0 && Number.isFinite(candle.high) && candle.high > 0 && Number.isFinite(candle.low) && candle.low > 0 && Number.isFinite(candle.close) && candle.close > 0 && Number.isFinite(candle.volume) && candle.volume >= 0; }
