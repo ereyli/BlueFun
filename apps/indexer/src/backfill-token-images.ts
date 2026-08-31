@@ -29,7 +29,9 @@ async function worker() {
     }
     const chainId = Number(row.scope.split(":", 1)[0]);
     try {
-      const cdnUrl = await mirrorTokenImage(imageUri, chainId, row.token);
+      // Historical IPFS providers can require a cold fetch. Keep the normal
+      // indexer timeout short, but allow this one-off recovery more time.
+      const cdnUrl = await mirrorTokenImage(imageUri, chainId, row.token, 45_000);
       if (!cdnUrl) {
         skipped += 1;
         continue;

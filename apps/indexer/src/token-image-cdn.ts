@@ -6,10 +6,10 @@ const MAX_SOURCE_BYTES = 6 * 1024 * 1024;
 let storage: SupabaseClient | undefined;
 let bucketReady: Promise<void> | undefined;
 
-export async function mirrorTokenImage(imageUri: string, chainId: number, token: string) {
+export async function mirrorTokenImage(imageUri: string, chainId: number, token: string, timeoutMs = 12_000) {
   if (!process.env.SUPABASE_URL || !process.env.SUPABASE_SERVICE_ROLE_KEY) return undefined;
 
-  const input = await downloadImage(imageUri);
+  const input = await downloadImage(imageUri, timeoutMs);
   if (!input) return undefined;
 
   const output = await sharp(input, { limitInputPixels: 20_000_000 })
@@ -69,9 +69,9 @@ function cdnHost() {
   }
 }
 
-async function downloadImage(uri: string) {
+async function downloadImage(uri: string, timeoutMs: number) {
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 12_000);
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
     return await Promise.any(gatewayUrls(uri).map(async (url) => {
       const response = await fetch(url, { signal: controller.signal, cache: "no-store" });
