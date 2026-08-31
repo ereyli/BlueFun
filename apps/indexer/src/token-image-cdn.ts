@@ -51,11 +51,21 @@ export async function readMetadataImage(contractUri: string) {
 export function isBlueFunCdnUrl(value: string | undefined) {
   try {
     const url = new URL(value || "");
+    const configuredHost = cdnHost();
     return url.protocol === "https:"
-      && url.hostname.endsWith(".supabase.co")
+      && Boolean(configuredHost)
+      && url.hostname.toLowerCase() === configuredHost
       && url.pathname.startsWith(`/storage/v1/object/public/${BUCKET}/`);
   } catch {
     return false;
+  }
+}
+
+function cdnHost() {
+  try {
+    return new URL(process.env.TOKEN_IMAGE_CDN_URL || process.env.SUPABASE_URL || "").hostname.toLowerCase();
+  } catch {
+    return "";
   }
 }
 

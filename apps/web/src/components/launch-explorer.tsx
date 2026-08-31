@@ -9,7 +9,7 @@ import { isOfficialBlue } from "@/lib/featured-launches";
 import { compactUsd, parseDisplayAmount } from "@/lib/market-math";
 import type { LaunchBuyActivity, MarketSparkline } from "@/lib/db-launches";
 import type { DeployedLaunch } from "@/lib/onchain-launches";
-import { optimizedTokenImageUrl } from "@/lib/token-metadata";
+import { useReliableTokenImage } from "@/lib/use-reliable-image";
 import { NetworkIcon, networkMeta } from "@/components/network-icon";
 import { chainIdFromParam, chainSlug } from "@/lib/chain-slug";
 import { tokenPath } from "@/lib/token-url";
@@ -741,18 +741,18 @@ function groupLaunchesByChain(launches: DeployedLaunch[]) {
 }
 
 function TokenAvatar({ hot, launch }: { hot?: boolean; launch: DeployedLaunch }) {
-  const [failedImage, setFailedImage] = useState("");
-  const showImage = Boolean(launch.imageURI) && failedImage !== launch.imageURI;
+  const image = useReliableTokenImage(launch.imageURI);
+
   return (
     <div className={hot ? "token-art hot" : "token-art"}>
-      {showImage ? (
+      {image.show ? (
         <img
+          key={`${launch.imageURI}:${image.attempt}`}
           className="token-image"
-          src={optimizedTokenImageUrl(launch.imageURI)}
+          src={image.url}
           alt={launch.name}
-          loading="lazy"
           decoding="async"
-          onError={() => setFailedImage(launch.imageURI || "")}
+          onError={image.onError}
         />
       ) : (
         <>

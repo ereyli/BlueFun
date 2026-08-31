@@ -158,15 +158,37 @@ async function readLimitedJson(response: Response, maxBytes: number) {
   return JSON.parse(body) as unknown;
 }
 
-function isBlueFunCdnUrl(uri?: string) {
+export function isBlueFunCdnUrl(uri?: string) {
   try {
     const url = new URL(uri || "");
     const configuredCdn = process.env.NEXT_PUBLIC_TOKEN_IMAGE_CDN_URL?.replace(/\/$/, "");
     if (configuredCdn && uri?.startsWith(`${configuredCdn}/`)) return true;
+    const configuredSupabaseHost = configuredHost(process.env.NEXT_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL);
     return url.protocol === "https:"
-      && url.hostname.endsWith(".supabase.co")
+      && Boolean(configuredSupabaseHost)
+      && url.hostname.toLowerCase() === configuredSupabaseHost
       && url.pathname.startsWith("/storage/v1/object/public/bluefun-token-images/");
   } catch {
     return false;
+  }
+}
+
+export function isLegacyBlueFunCdnUrl(uri?: string) {
+  try {
+    const url = new URL(uri || "");
+    return url.protocol === "https:"
+      && url.hostname.endsWith(".supabase.co")
+      && url.pathname.startsWith("/storage/v1/object/public/bluefun-token-images/")
+      && !isBlueFunCdnUrl(uri);
+  } catch {
+    return false;
+  }
+}
+
+function configuredHost(value?: string) {
+  try {
+    return new URL(value || "").hostname.toLowerCase();
+  } catch {
+    return "";
   }
 }

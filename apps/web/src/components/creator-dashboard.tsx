@@ -10,7 +10,7 @@ import { NetworkIcon, networkMeta } from "@/components/network-icon";
 import { arcUniswapV3Addresses, b20TokenAbi, bondingCurveAbi, deploymentsForChain, ekuboRouterAbi, feeSharingLockerAbi, indexerScopeForDeployment, isVNextLiquidityLocker, stableUniswapV3Addresses, unifiedFeeHookAbi } from "@/lib/contracts";
 import type { WalletDashboardData, WalletTradeSummary } from "@/lib/dashboard-types";
 import type { DeployedLaunch } from "@/lib/onchain-launches";
-import { optimizedTokenImageUrl } from "@/lib/token-metadata";
+import { useReliableTokenImage } from "@/lib/use-reliable-image";
 import { tokenPath } from "@/lib/token-url";
 import { BlueFunState } from "@/components/bluefun-state";
 
@@ -369,8 +369,8 @@ function HoldingRow({ holding }: { holding: WalletTradeSummary & { balance: bigi
 }
 
 function TokenAvatar({ launch }: { launch: DeployedLaunch }) {
-  const [failed, setFailed] = useState(false);
-  return <div className="dashboard-token-avatar">{launch.imageURI && !failed ? <img alt="" decoding="async" loading="lazy" onError={() => setFailed(true)} src={optimizedTokenImageUrl(launch.imageURI)} /> : <span>{launch.symbol.slice(0, 3)}</span>}</div>;
+  const image = useReliableTokenImage(launch.imageURI);
+  return <div className="dashboard-token-avatar">{image.show ? <img alt="" decoding="async" key={`${launch.imageURI}:${image.attempt}`} onError={image.onError} src={image.url} /> : <span>{launch.symbol.slice(0, 3)}</span>}</div>;
 }
 
 function EmptyCompact({ action, icon, text, title }: { action?: React.ReactNode; icon: React.ReactNode; text: string; title: string }) {

@@ -6,7 +6,7 @@ import { contractsForChain, indexerScopeForLaunch, indexerScopesForChain } from 
 import type { DeployedLaunch, DeployedTrade } from "@/lib/onchain-launches";
 import type { WalletDashboardData, WalletTradeSummary } from "@/lib/dashboard-types";
 import type { BlueStakingOverview } from "@/lib/blue-staking";
-import { readTokenMetadata } from "@/lib/token-metadata";
+import { isLegacyBlueFunCdnUrl, readTokenMetadata } from "@/lib/token-metadata";
 
 let pool: pg.Pool | undefined;
 let supabase: SupabaseClient | undefined;
@@ -869,7 +869,12 @@ async function mapRows(rows: Array<Record<string, unknown>>, chainId: number): P
     const volume = parseDbBigInt(row.volume_eth);
     const contractURI = String(row.contract_uri || "");
     const storedImage = cleanDbText(row.image_url);
-    const metadata = storedImage ? {} : await readTokenMetadata(contractURI);
+    // Older deployments mirrored images to a Supabase project that no longer
+    // resolves. Do not hand those dead URLs to the browser: recover the
+    // canonical IPFS image from contract metadata until the backfill replaces
+    // the database value with the current BlueFun CDN URL.
+    const usableStoredImage = storedImage && !isLegacyBlueFunCdnUrl(storedImage) ? storedImage : undefined;
+    const metadata = usableStoredImage ? {} : await readTokenMetadata(contractURI);
 
     return {
       chainId,
@@ -886,7 +891,7 @@ async function mapRows(rows: Array<Record<string, unknown>>, chainId: number): P
       symbol: String(row.symbol),
       contractURI,
       description: cleanDbText(row.description) || metadata.description,
-      imageURI: storedImage || metadata.imageURI,
+      imageURI: usableStoredImage || metadata.imageURI,
       website: cleanDbText(row.website_url) || metadata.website,
       twitter: cleanDbText(row.twitter_url) || metadata.twitter,
       telegram: cleanDbText(row.telegram_url) || metadata.telegram,

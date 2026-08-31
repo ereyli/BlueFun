@@ -35,6 +35,7 @@ import {
   Trash2,
   X
 } from "@/components/bluefun-icons";
+import { useReliableImage } from "@/lib/use-reliable-image";
 import {
   applySlippage,
   blueDexDeployment,
@@ -607,10 +608,9 @@ function TokenAmount({ label, token, value, onChange, onSelect, balance, onMax, 
 }
 
 function TokenLogo({ token }: { token: BlueDexToken }) {
-  const [imageFailed, setImageFailed] = useState(false);
-  useEffect(() => setImageFailed(false), [token.logo]);
+  const image = useReliableImage(token.logo);
   if (token.placeholder) return <span className="token-logo placeholder"><Plus size={15}/></span>;
-  if (token.logo && !imageFailed) return <span className="token-logo"><img alt="" onError={() => setImageFailed(true)} src={token.logo}/></span>;
+  if (image.show) return <span className="token-logo"><img alt="" key={`${token.logo}:${image.attempt}`} onError={image.onError} src={image.url}/></span>;
   if (token.native) return <span className="token-logo native">Ξ</span>;
   const hue = Number.parseInt(token.address.slice(2, 8), 16) % 360;
   return <span className="token-logo generated" style={{ "--token-hue": hue } as React.CSSProperties}>{token.symbol.slice(0, 2).toUpperCase()}</span>;

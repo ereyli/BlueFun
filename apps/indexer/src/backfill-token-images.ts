@@ -20,7 +20,9 @@ let skipped = 0;
 async function worker() {
   while (cursor < rows.length) {
     const row = rows[cursor++];
-    const imageUri = row.image_url || await readMetadataImage(row.contract_uri);
+    // Rows selected here may point at a retired BlueFun CDN. Prefer the
+    // immutable contract metadata source so a dead mirror is never copied.
+    const imageUri = await readMetadataImage(row.contract_uri) || row.image_url;
     if (!imageUri) {
       skipped += 1;
       continue;

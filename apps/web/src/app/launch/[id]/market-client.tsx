@@ -50,7 +50,7 @@ import {
 import { isOfficialBlue } from "@/lib/featured-launches";
 import type { DeployedLaunch, DeployedTrade } from "@/lib/onchain-launches";
 import { chainSlug } from "@/lib/chain-slug";
-import { optimizedTokenImageUrl } from "@/lib/token-metadata";
+import { useReliableTokenImage } from "@/lib/use-reliable-image";
 import { blueFunV4PoolKey, buildV4EthToTokenSwap, buildV4TokenToEthSwap } from "@/lib/uniswap-v4-swap";
 import { NetworkIcon } from "@/components/network-icon";
 import { chatMessageToSign } from "@/lib/chat-auth";
@@ -1995,16 +1995,16 @@ function formatChatAge(createdAt: number) {
 }
 
 function TokenAvatar({ launch, className }: { launch: DeployedLaunch; className: string }) {
-  const [failedImage, setFailedImage] = useState("");
-  if (launch.imageURI && failedImage !== launch.imageURI) {
+  const image = useReliableTokenImage(launch.imageURI);
+  if (image.show) {
     return (
       <img
+        key={`${launch.imageURI}:${image.attempt}`}
         className={`${className} token-avatar-image`}
-        src={optimizedTokenImageUrl(launch.imageURI)}
+        src={image.url}
         alt={launch.name}
-        loading="lazy"
         decoding="async"
-        onError={() => setFailedImage(launch.imageURI || "")}
+        onError={image.onError}
       />
     );
   }
