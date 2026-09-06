@@ -18,6 +18,10 @@ create table if not exists launches (
   pool_fee integer not null default 3000,
   tick_spacing integer not null default 60,
   liquidity_locker text,
+  quote_token text,
+  quote_symbol text,
+  quote_name text,
+  quote_price_usd18 numeric,
   raised_eth numeric not null default 0,
   graduation_target_eth numeric not null default 0,
   progress integer not null default 0,
@@ -45,6 +49,10 @@ alter table launches add column if not exists dex_provider text not null default
 alter table launches add column if not exists pool_fee integer not null default 3000;
 alter table launches add column if not exists tick_spacing integer not null default 60;
 alter table launches add column if not exists liquidity_locker text;
+alter table launches add column if not exists quote_token text;
+alter table launches add column if not exists quote_symbol text;
+alter table launches add column if not exists quote_name text;
+alter table launches add column if not exists quote_price_usd18 numeric;
 alter table launches add column if not exists description text;
 alter table launches add column if not exists image_url text;
 alter table launches add column if not exists website_url text;

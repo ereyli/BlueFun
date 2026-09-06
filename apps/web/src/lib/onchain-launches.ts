@@ -21,6 +21,10 @@ export type DeployedLaunch = {
   poolFee?: number;
   tickSpacing?: number;
   liquidityLocker?: `0x${string}`;
+  quoteToken?: `0x${string}`;
+  quoteSymbol?: string;
+  quoteName?: string;
+  quotePriceUsd18?: string;
   id: string;
   token: `0x${string}`;
   creator: `0x${string}`;

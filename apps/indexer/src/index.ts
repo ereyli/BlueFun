@@ -19,6 +19,7 @@ import {
   nftPFPFactoryAbi,
   nftPFPMarketplaceAbi,
   poolManagerAbi,
+  stockDirectLaunchFactoryAbi,
   uniswapV3PoolAbi
 } from "./abi.js";
 import {
@@ -403,7 +404,7 @@ async function backfillLaunchCreated(deployment: DeploymentContext, latest: bigi
 }
 
 async function backfillDirectLaunches(
-  deployment: ScopeContext & { launchFactory: `0x${string}`; liquidityLocker: `0x${string}`; eventKind?: "standard" | "arc" | "ekubo" },
+  deployment: ScopeContext & { launchFactory: `0x${string}`; liquidityLocker: `0x${string}`; eventKind?: "standard" | "arc" | "ekubo" | "stock" },
   latest: bigint
 ) {
   let fromBlock = (await getIndexerState(stateKey(deployment, "direct_launches_last_block"))) ?? deployment.startBlock;
@@ -438,6 +439,19 @@ async function backfillDirectLaunches(
       fromBlock = toBlock + 1n;
       continue;
     }
+    if (deployment.eventKind === "stock") {
+      const logs = await client.getContractEvents({
+        address: deployment.launchFactory,
+        abi: stockDirectLaunchFactoryAbi,
+        eventName: "StockDirectLaunchCreated",
+        fromBlock,
+        toBlock
+      });
+      for (const log of logs) await handleStockDirectLaunchCreated(deployment, log);
+      await checkpointIndexerState(stateKey(deployment, "direct_launches_last_block"), toBlock + 1n, toBlock < latest);
+      fromBlock = toBlock + 1n;
+      continue;
+    }
     const logs = await client.getContractEvents({
       address: deployment.launchFactory,
       abi: directLaunchFactoryAbi,
@@ -449,6 +463,45 @@ async function backfillDirectLaunches(
     await checkpointIndexerState(stateKey(deployment, "direct_launches_last_block"), toBlock + 1n, toBlock < latest);
     fromBlock = toBlock + 1n;
   }
+}
+
+const quoteTokenMetadataAbi = [
+  { type: "function", name: "name", stateMutability: "view", inputs: [], outputs: [{ name: "", type: "string" }] },
+  { type: "function", name: "symbol", stateMutability: "view", inputs: [], outputs: [{ name: "", type: "string" }] }
+] as const;
+
+async function handleStockDirectLaunchCreated(
+  deployment: ScopeContext & { launchFactory: `0x${string}`; liquidityLocker: `0x${string}` },
+  log: Awaited<ReturnType<typeof client.getContractEvents<typeof stockDirectLaunchFactoryAbi, "StockDirectLaunchCreated">>>[number]
+) {
+  const metadata: LaunchMetadata = await readLaunchMetadata(log.args.contractURI || "").catch(() => ({}));
+  const cdnImage = metadata.image
+    ? await mirrorTokenImage(metadata.image, chainId, log.args.token!).catch(() => undefined)
+    : undefined;
+  const [quoteName, quoteSymbol, launchConfig] = await Promise.all([
+    client.readContract({ address: log.args.quoteToken!, abi: quoteTokenMetadataAbi, functionName: "name" }).catch(() => "Stock Token"),
+    client.readContract({ address: log.args.quoteToken!, abi: quoteTokenMetadataAbi, functionName: "symbol" }).catch(() => "STOCK"),
+    client.readContract({ address: deployment.launchFactory, abi: stockDirectLaunchFactoryAbi, functionName: "launchConfig", blockNumber: log.blockNumber }).catch(() => [60, 120_000, 3_000n * 10n ** 18n] as const)
+  ]);
+  await upsertLaunch(deployment.scope, {
+    id: log.args.launchId!, token: log.args.token!, creator: log.args.creator!,
+    name: log.args.name!, symbol: log.args.symbol!, contractURI: log.args.contractURI!,
+    imageUri: cdnImage || metadata.image, description: metadata.description,
+    website: metadata.website, twitter: metadata.twitter, telegram: metadata.telegram, discord: metadata.discord,
+    launchMode: "direct", dexProvider: "uniswap", poolFee: 0x800000,
+    tickSpacing: Number(launchConfig[0]), liquidityLocker: deployment.liquidityLocker,
+    quoteToken: log.args.quoteToken!, quoteName, quoteSymbol,
+    quotePriceUsd18: log.args.stockPriceUsd18!, txHash: log.transactionHash, blockNumber: log.blockNumber
+  });
+  await markGraduated(deployment.scope, {
+    launchId: log.args.launchId!, token: log.args.token!, positionId: log.args.positionId!,
+    poolId: log.args.poolId!, txHash: log.transactionHash, blockNumber: log.blockNumber
+  });
+  const block = await client.getBlock({ blockNumber: log.blockNumber });
+  await updateLaunchState(deployment.scope, {
+    id: log.args.launchId!, status: "graduated", raisedEth: 0n, graduationTargetEth: 0n,
+    progress: 100, creatorAllocation: 0n, tokenCreatedAt: block.timestamp
+  });
 }
 
 async function handleEkuboDirectLaunchCreated(
@@ -930,11 +983,12 @@ async function backfillUniswapV4Swaps(deployment: ScopeContext, latest: bigint) 
   const graduated = await getGraduatedLaunches(deployment.scope);
   if (graduated.length === 0) return;
 
-  const poolMap = new Map<string, { launchId: bigint; token: `0x${string}` }>();
+  const poolMap = new Map<string, { launchId: bigint; token: `0x${string}`; quoteToken?: `0x${string}` }>();
   let firstGraduationBlock = latest;
   for (const launch of graduated) {
     const token = getAddress(launch.token) as `0x${string}`;
-    poolMap.set((launch.poolId || blueFunV4PoolId(token, deployment)).toLowerCase(), { launchId: launch.launchId, token });
+    const quoteToken = launch.quoteToken ? getAddress(launch.quoteToken) as `0x${string}` : undefined;
+    poolMap.set((launch.poolId || blueFunV4PoolId(token, deployment)).toLowerCase(), { launchId: launch.launchId, token, quoteToken });
     if (launch.blockNumber && launch.blockNumber < firstGraduationBlock) firstGraduationBlock = launch.blockNumber;
   }
 
@@ -957,7 +1011,7 @@ async function backfillUniswapV4Swaps(deployment: ScopeContext, latest: bigint) 
     for (const log of logs) {
       const pool = poolMap.get(String(log.args.id).toLowerCase());
       if (!pool) continue;
-      await handleUniswapV4Swap(deployment, log, pool.launchId);
+      await handleUniswapV4Swap(deployment, log, pool);
     }
 
     await checkpointIndexerState(stateKey(deployment, "uniswap_v4_swaps_v3_last_block"), toBlock + 1n, toBlock < latest);
@@ -1249,20 +1303,29 @@ async function handleGraduated(
 async function handleUniswapV4Swap(
   deployment: ScopeContext,
   log: Awaited<ReturnType<typeof client.getContractEvents<typeof poolManagerAbi, "Swap">>>[number],
-  launchId: bigint
+  launch: { launchId: bigint; token: `0x${string}`; quoteToken?: `0x${string}` }
 ) {
   const amount0 = log.args.amount0!;
   const amount1 = log.args.amount1!;
   if (amount0 === 0n || amount1 === 0n) return;
 
-  const side = amount0 < 0n ? "buy" : "sell";
-  const ethAmount = absBigInt(amount0);
-  const tokenAmount = absBigInt(amount1);
+  const quoteIsCurrency0 = !launch.quoteToken || launch.quoteToken.toLowerCase() < launch.token.toLowerCase();
+  const quoteDelta = quoteIsCurrency0 ? amount0 : amount1;
+  const tokenDelta = quoteIsCurrency0 ? amount1 : amount0;
+  const side = quoteDelta < 0n ? "buy" : "sell";
+  const ethAmount = absBigInt(quoteDelta);
+  const tokenAmount = absBigInt(tokenDelta);
   const trader = await readTransactionSender(log.transactionHash).catch(() => log.args.sender!);
-  const marketCapEth = marketCapWeiFromSqrtPrice(log.args.sqrtPriceX96!);
+  const sqrtPrice = log.args.sqrtPriceX96!;
+  const sqrtSquared = sqrtPrice * sqrtPrice;
+  const marketCapEth = launch.quoteToken
+    ? quoteIsCurrency0
+      ? (q192 * 10n ** 39n) / sqrtSquared
+      : (sqrtSquared * 10n ** 39n) / q192
+    : marketCapWeiFromSqrtPrice(sqrtPrice);
 
   await insertTrade(deployment.scope, {
-    launchId,
+    launchId: launch.launchId,
     trader,
     side,
     source: "uniswap_v4",

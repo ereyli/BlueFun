@@ -93,11 +93,11 @@ const VNEXT_BASE_DEPLOYMENT: ContractDeployment = {
   ekuboSwapRouter: (process.env.NEXT_PUBLIC_BASE_EKUBO_SWAP_ROUTER || "0x2d1e48fb40f00ed48f2e16df4a7a587fd063d177") as `0x${string}`,
   ekuboDeploymentBlock: BigInt(process.env.NEXT_PUBLIC_BASE_EKUBO_DEPLOYMENT_BLOCK || "49571565"),
   feeHook: "0xf0b8dde19510ee7d6d50be289c4257ecd14c60cc",
-  stockDirectLaunchFactory: (process.env.NEXT_PUBLIC_BASE_STOCK_DIRECT_LAUNCH_FACTORY || ZERO_ADDRESS) as `0x${string}`,
-  stockLiquidityLocker: (process.env.NEXT_PUBLIC_BASE_STOCK_LIQUIDITY_LOCKER || ZERO_ADDRESS) as `0x${string}`,
-  stockQuoteRegistry: (process.env.NEXT_PUBLIC_BASE_STOCK_QUOTE_REGISTRY || ZERO_ADDRESS) as `0x${string}`,
-  stockFeeHook: (process.env.NEXT_PUBLIC_BASE_STOCK_FEE_HOOK || ZERO_ADDRESS) as `0x${string}`,
-  stockDeploymentBlock: BigInt(process.env.NEXT_PUBLIC_BASE_STOCK_DEPLOYMENT_BLOCK || "0")
+  stockDirectLaunchFactory: (process.env.NEXT_PUBLIC_BASE_STOCK_DIRECT_LAUNCH_FACTORY || "0x8b083cc5109dbe56b5e8113837dd67ef1954ea00") as `0x${string}`,
+  stockLiquidityLocker: (process.env.NEXT_PUBLIC_BASE_STOCK_LIQUIDITY_LOCKER || "0x23f98c37948d85b79a26231369c202f44b23f8a5") as `0x${string}`,
+  stockQuoteRegistry: (process.env.NEXT_PUBLIC_BASE_STOCK_QUOTE_REGISTRY || "0x15b0622a01ed553f4e499d32db7d6f8a9f6f4eb5") as `0x${string}`,
+  stockFeeHook: (process.env.NEXT_PUBLIC_BASE_STOCK_FEE_HOOK || "0xee914f563a514bc4be50214a8d403981565aa0cc") as `0x${string}`,
+  stockDeploymentBlock: BigInt(process.env.NEXT_PUBLIC_BASE_STOCK_DEPLOYMENT_BLOCK || "50957728")
 };
 
 export const addresses = {
@@ -431,6 +431,21 @@ export function indexerScopesForChain(chainId: number | undefined) {
       }
     });
   }
+  const stock = resolvedChainId === robinhoodChain.id ? robinhoodAddresses : resolvedChainId === baseChain.id ? VNEXT_BASE_DEPLOYMENT : undefined;
+  if (stock?.stockDirectLaunchFactory && stock.stockDirectLaunchFactory !== ZERO_ADDRESS && stock.stockDeploymentBlock) {
+    contexts.push({
+      scope: `${resolvedChainId}:stock:${stock.stockDirectLaunchFactory.toLowerCase()}:${stock.stockDeploymentBlock.toString()}`,
+      deployment: {
+        ...stock,
+        launchFactory: stock.stockDirectLaunchFactory,
+        bondingCurveMarket: ZERO_ADDRESS,
+        graduationManager: ZERO_ADDRESS,
+        liquidityLocker: stock.stockLiquidityLocker || ZERO_ADDRESS,
+        deploymentBlock: stock.stockDeploymentBlock,
+        firstLaunchId: 2_000_001n
+      }
+    });
+  }
   return contexts;
 }
 
@@ -457,7 +472,8 @@ export function isVNextLiquidityLocker(chainId: number, locker?: string) {
     : chainId === robinhoodChain.id ? robinhoodAddresses : VNEXT_BASE_DEPLOYMENT;
   return value === deployment.liquidityLocker.toLowerCase()
     || value === deployment.directLiquidityLocker?.toLowerCase()
-    || value === deployment.ekuboLiquidityLocker?.toLowerCase();
+    || value === deployment.ekuboLiquidityLocker?.toLowerCase()
+    || value === deployment.stockLiquidityLocker?.toLowerCase();
 }
 
 export const FAIR_GRADUATION_TARGET_ETH = "5";
@@ -1267,6 +1283,13 @@ export const feeSharingLockerAbi = [
 export const liquidityLockerPoolAbi = [
   {
     type: "function",
+    name: "hook",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [{ name: "", type: "address" }]
+  },
+  {
+    type: "function",
     name: "hooks",
     stateMutability: "view",
     inputs: [],
@@ -1295,6 +1318,18 @@ export const unifiedFeeHookAbi = [
     stateMutability: "nonpayable",
     inputs: [{ name: "recipient", type: "address" }],
     outputs: [{ name: "amount", type: "uint256" }]
+  }
+] as const;
+
+export const stockFeeHookAbi = [
+  {
+    type: "function", name: "pendingRevenue", stateMutability: "view",
+    inputs: [{ name: "account", type: "address" }, { name: "currency", type: "address" }],
+    outputs: [{ name: "amount", type: "uint256" }]
+  },
+  {
+    type: "function", name: "claimRevenue", stateMutability: "nonpayable",
+    inputs: [{ name: "currency", type: "address" }], outputs: [{ name: "amount", type: "uint256" }]
   }
 ] as const;
 

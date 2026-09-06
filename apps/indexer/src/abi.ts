@@ -34,6 +34,39 @@ export const directLaunchFactoryAbi = [
   }
 ] as const;
 
+export const stockDirectLaunchFactoryAbi = [
+  {
+    type: "event",
+    name: "StockDirectLaunchCreated",
+    inputs: [
+      { indexed: true, name: "launchId", type: "uint256" },
+      { indexed: true, name: "token", type: "address" },
+      { indexed: true, name: "creator", type: "address" },
+      { indexed: false, name: "quoteToken", type: "address" },
+      { indexed: false, name: "poolId", type: "bytes32" },
+      { indexed: false, name: "positionId", type: "bytes32" },
+      { indexed: false, name: "initialSqrtPriceX96", type: "uint160" },
+      { indexed: false, name: "tickLower", type: "int24" },
+      { indexed: false, name: "tickUpper", type: "int24" },
+      { indexed: false, name: "stockPriceUsd18", type: "uint256" },
+      { indexed: false, name: "name", type: "string" },
+      { indexed: false, name: "symbol", type: "string" },
+      { indexed: false, name: "contractURI", type: "string" }
+    ]
+  },
+  {
+    type: "function",
+    name: "launchConfig",
+    stateMutability: "view",
+    inputs: [],
+    outputs: [
+      { name: "tickSpacing", type: "int24" },
+      { name: "rangeWidthTicks", type: "int24" },
+      { name: "targetFdvUsd18", type: "uint256" }
+    ]
+  }
+] as const;
+
 export const ekuboDirectLaunchFactoryAbi = [
   {
     type: "event",

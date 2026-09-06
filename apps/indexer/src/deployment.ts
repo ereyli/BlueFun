@@ -35,7 +35,7 @@ export type DirectIndexerDeployment = {
   dexVersion: "v3" | "v4";
   dexProvider?: "uniswap" | "ekubo";
   swapRouter?: `0x${string}`;
-  eventKind?: "standard" | "arc" | "ekubo";
+  eventKind?: "standard" | "arc" | "ekubo" | "stock";
 };
 
 export type NFTIndexerDeployment = {
@@ -175,10 +175,27 @@ const vNextDirectDeployment: DirectIndexerDeployment | undefined = arc || stable
 };
 
 export const directDeployments = Array.from(new Map(
-  [legacyCurrentDirectDeployment, configuredDirectDeployment, vNextDirectDeployment, configuredEkuboDeployment()]
+  [legacyCurrentDirectDeployment, configuredDirectDeployment, vNextDirectDeployment, configuredEkuboDeployment(), configuredStockDeployment()]
     .filter((deployment): deployment is DirectIndexerDeployment => Boolean(deployment))
     .map((deployment) => [deployment.scope, deployment])
 ).values());
+
+function configuredStockDeployment(): DirectIndexerDeployment | undefined {
+  if (!base && !robinhood) return undefined;
+  const launchFactory = (process.env.STOCK_DIRECT_LAUNCH_FACTORY || (base ? "0x8b083cc5109dbe56b5e8113837dd67ef1954ea00" : "")) as `0x${string}` | undefined;
+  const liquidityLocker = (process.env.STOCK_LIQUIDITY_LOCKER || (base ? "0x23f98c37948d85b79a26231369c202f44b23f8a5" : "")) as `0x${string}` | undefined;
+  const startBlock = BigInt(process.env.STOCK_DEPLOYMENT_BLOCK || (base ? "50957728" : "0"));
+  if (!launchFactory || !liquidityLocker || startBlock === 0n) return undefined;
+  return {
+    launchFactory,
+    liquidityLocker,
+    startBlock,
+    scope: `${chainId}:stock:${launchFactory.toLowerCase()}:${startBlock.toString()}`,
+    dexVersion: "v4",
+    dexProvider: "uniswap",
+    eventKind: "stock"
+  };
+}
 
 function configuredEkuboDeployment(): DirectIndexerDeployment | undefined {
   if (!base && !robinhood) return undefined;

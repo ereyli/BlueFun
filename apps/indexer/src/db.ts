@@ -17,7 +17,7 @@ const dirtyIndexerStates = new Map<string, string>();
 let lastCheckpointFlushAt = 0;
 let checkpointFlushPromise: Promise<void> | undefined;
 
-export const EXPECTED_SCHEMA_VERSION = "20260807_low_latency_realtime";
+export const EXPECTED_SCHEMA_VERSION = "20260906_stock_pair_launches";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -47,6 +47,10 @@ export async function upsertLaunch(scope: string, input: {
   poolFee?: number;
   tickSpacing?: number;
   liquidityLocker?: string;
+  quoteToken?: string;
+  quoteSymbol?: string;
+  quoteName?: string;
+  quotePriceUsd18?: bigint;
   txHash: string;
   blockNumber?: bigint;
 }) {
@@ -74,6 +78,10 @@ export async function upsertLaunch(scope: string, input: {
             pool_fee: input.poolFee ?? 3000,
             tick_spacing: input.tickSpacing ?? 60,
             liquidity_locker: input.liquidityLocker || null,
+            quote_token: input.quoteToken || null,
+            quote_symbol: input.quoteSymbol || null,
+            quote_name: input.quoteName || null,
+            quote_price_usd18: input.quotePriceUsd18?.toString() || null,
             created_tx: input.txHash,
             created_block: input.blockNumber?.toString()
           },
@@ -88,9 +96,9 @@ export async function upsertLaunch(scope: string, input: {
     `insert into launches (
        scope, id, token, creator, name, symbol, contract_uri, image_url, description,
        website_url, twitter_url, telegram_url, discord_url, launch_mode, dex_provider, pool_fee, tick_spacing,
-       liquidity_locker, created_tx, created_block
+       liquidity_locker, quote_token, quote_symbol, quote_name, quote_price_usd18, created_tx, created_block
      )
-     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+     values ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24)
      on conflict (scope, id) do update set
        token = excluded.token,
        creator = excluded.creator,
@@ -108,6 +116,10 @@ export async function upsertLaunch(scope: string, input: {
        pool_fee = excluded.pool_fee,
        tick_spacing = excluded.tick_spacing,
        liquidity_locker = excluded.liquidity_locker,
+       quote_token = excluded.quote_token,
+       quote_symbol = excluded.quote_symbol,
+       quote_name = excluded.quote_name,
+       quote_price_usd18 = excluded.quote_price_usd18,
        created_tx = excluded.created_tx,
        created_block = coalesce(excluded.created_block, launches.created_block)`,
     [
@@ -129,6 +141,10 @@ export async function upsertLaunch(scope: string, input: {
       input.poolFee ?? 3000,
       input.tickSpacing ?? 60,
       input.liquidityLocker || null,
+      input.quoteToken || null,
+      input.quoteSymbol || null,
+      input.quoteName || null,
+      input.quotePriceUsd18?.toString() || null,
       input.txHash,
       input.blockNumber?.toString()
     ]
@@ -391,31 +407,40 @@ export async function markGraduated(scope: string, input: { launchId: bigint; to
   ]);
 }
 
-export async function getGraduatedLaunches(scope: string): Promise<Array<{ launchId: bigint; token: string; poolId?: string; blockNumber?: bigint }>> {
+export async function getGraduatedLaunches(scope: string): Promise<Array<{ launchId: bigint; token: string; poolId?: string; blockNumber?: bigint; quoteToken?: string }>> {
   if (hasSupabaseConfig()) {
     const { data, error } = await getSupabase()
       .from("graduations")
       .select("launch_id, token, pool_id, block_number")
       .eq("scope", scope);
     if (error) throw error;
+    const { data: launchRows, error: launchError } = await getSupabase()
+      .from("launches")
+      .select("id, quote_token")
+      .eq("scope", scope);
+    if (launchError) throw launchError;
+    const quoteTokens = new Map((launchRows ?? []).map((row) => [String(row.id), row.quote_token ? String(row.quote_token) : undefined]));
     return (data ?? []).map((row) => ({
       launchId: BigInt(String(row.launch_id)),
       token: String(row.token),
       poolId: row.pool_id ? String(row.pool_id) : undefined,
-      blockNumber: row.block_number ? BigInt(String(row.block_number)) : undefined
+      blockNumber: row.block_number ? BigInt(String(row.block_number)) : undefined,
+      quoteToken: quoteTokens.get(String(row.launch_id))
     }));
   }
 
   if (!pool) throw new Error("Database client is not configured");
   const result = await pool.query(
-    "select launch_id, token, pool_id, block_number from graduations where scope = $1",
+    `select g.launch_id, g.token, g.pool_id, g.block_number, l.quote_token
+     from graduations g left join launches l on l.scope = g.scope and l.id = g.launch_id where g.scope = $1`,
     [scope]
   );
   return result.rows.map((row) => ({
     launchId: BigInt(String(row.launch_id)),
     token: String(row.token),
     poolId: row.pool_id ? String(row.pool_id) : undefined,
-    blockNumber: row.block_number ? BigInt(String(row.block_number)) : undefined
+    blockNumber: row.block_number ? BigInt(String(row.block_number)) : undefined,
+    quoteToken: row.quote_token ? String(row.quote_token) : undefined
   }));
 }
 

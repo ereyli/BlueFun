@@ -51,7 +51,7 @@ import { isOfficialBlue } from "@/lib/featured-launches";
 import type { DeployedLaunch, DeployedTrade } from "@/lib/onchain-launches";
 import { chainSlug } from "@/lib/chain-slug";
 import { useReliableTokenImage } from "@/lib/use-reliable-image";
-import { blueFunV4PoolKey, buildV4EthToTokenSwap, buildV4TokenToEthSwap } from "@/lib/uniswap-v4-swap";
+import { blueFunV4PoolKey, blueFunV4TokenPairPoolKey, buildV4EthToTokenSwap, buildV4TokenToEthSwap, buildV4TokenToTokenSwap } from "@/lib/uniswap-v4-swap";
 import { NetworkIcon } from "@/components/network-icon";
 import { chatMessageToSign } from "@/lib/chat-auth";
 import { TokenShareDialog } from "@/components/token-share-dialog";
@@ -101,9 +101,15 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
   const { addresses, chain, dexVersion, stableUniswapV3Addresses, uniswapV4Addresses } = contractsForLaunch(activeChainId, id);
   const isStableV3 = dexVersion === "v3";
   const isEkubo = launch?.dexProvider === "ekubo";
+  const isStockPair = Boolean(launch?.quoteToken);
+  const stockInputToken = mode === "buy" ? launch?.quoteToken ?? zeroAddress : launch?.token ?? zeroAddress;
+  const stockOutputToken = mode === "buy" ? launch?.token ?? zeroAddress : launch?.quoteToken ?? zeroAddress;
   const ekuboRouter = addresses.ekuboSwapRouter ?? zeroAddress;
   const isArcNativeV3 = activeChainId === 5042 && isStableV3;
   const nativeSymbol = chain.nativeCurrency.symbol;
+  const marketQuoteUsd = isStockPair && launch?.quotePriceUsd18
+    ? Number(launch.quotePriceUsd18) / 1e18
+    : ethUsd;
   const quickBuyAmounts = activeChainId === 143 ? ["50", "100", "500"] : activeChainId === 988 || activeChainId === 5042 ? ["1", "5", "10"] : ["0.01", "0.05", "0.1"];
   const wrongNetwork = Boolean(isConnected && chainId && chainId !== activeChainId);
   const previewMode = isUiPreviewLaunch(launch);
@@ -162,7 +168,13 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
     address: liquidityLockerAddress,
     abi: liquidityLockerPoolAbi,
     functionName: "initializationGuard",
-    query: { enabled: Boolean(!isEkubo && !isStableV3 && isGraduated && isDirect && liquidityLockerAddress) }
+    query: { enabled: Boolean(!isStockPair && !isEkubo && !isStableV3 && isGraduated && isDirect && liquidityLockerAddress) }
+  });
+  const stockPoolHook = useReadContract({
+    address: liquidityLockerAddress,
+    abi: liquidityLockerPoolAbi,
+    functionName: "hook",
+    query: { enabled: Boolean(isStockPair && isGraduated && liquidityLockerAddress) }
   });
   const graduatedPoolHook = useReadContract({
     address: liquidityLockerAddress,
@@ -170,7 +182,7 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
     functionName: "hooks",
     query: { enabled: Boolean(!isEkubo && !isStableV3 && isGraduated && !isDirect && liquidityLockerAddress) }
   });
-  const poolHooks = isDirect ? directPoolHook.data : graduatedPoolHook.data;
+  const poolHooks = isStockPair ? stockPoolHook.data : isDirect ? directPoolHook.data : graduatedPoolHook.data;
   const v4PoolConfig = { fee: launch?.poolFee, tickSpacing: launch?.tickSpacing, hooks: poolHooks };
   const ethBalance = useBalance({
     address,
@@ -206,6 +218,14 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
     args: [address ?? zeroAddress],
     query: { enabled: Boolean(!isArcNativeV3 && mode === "sell" && launch?.token && address) }
   });
+  const stockQuoteBalance = useReadContract({
+    chainId: activeChainId,
+    address: launch?.quoteToken,
+    abi: b20TokenAbi,
+    functionName: "balanceOf",
+    args: [address ?? zeroAddress],
+    query: { enabled: Boolean(isStockPair && mode === "buy" && launch?.quoteToken && address) }
+  });
   const arcTokenAccount = useQuery({
     queryKey: ["arc-token-account", launch?.token, address],
     queryFn: async () => {
@@ -230,13 +250,13 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
     staleTime: 2_000
   });
   const graduatedTokenPermit2Allowance = useReadContract({
-    address: launch?.token,
+    address: isStockPair ? stockInputToken : launch?.token,
     abi: b20TokenAbi,
     functionName: "allowance",
     args: [address ?? zeroAddress, uniswapV4Addresses.permit2],
     query: {
-      enabled: Boolean(!isStableV3 && isGraduated && mode === "sell" && launch?.token && address),
-      refetchInterval: mode === "sell" ? 4_000 : false,
+      enabled: Boolean(!isStableV3 && isGraduated && (isStockPair || mode === "sell") && stockInputToken !== zeroAddress && address),
+      refetchInterval: 4_000,
       refetchOnWindowFocus: true
     }
   });
@@ -244,10 +264,10 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
     address: uniswapV4Addresses.permit2,
     abi: permit2Abi,
     functionName: "allowance",
-    args: [address ?? zeroAddress, launch?.token ?? zeroAddress, uniswapV4Addresses.universalRouter],
+    args: [address ?? zeroAddress, isStockPair ? stockInputToken : launch?.token ?? zeroAddress, uniswapV4Addresses.universalRouter],
     query: {
-      enabled: Boolean(!isStableV3 && isGraduated && mode === "sell" && launch?.token && address),
-      refetchInterval: mode === "sell" ? 4_000 : false,
+      enabled: Boolean(!isStableV3 && isGraduated && (isStockPair || mode === "sell") && stockInputToken !== zeroAddress && address),
+      refetchInterval: 4_000,
       refetchOnWindowFocus: true
     }
   });
@@ -257,14 +277,18 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
     functionName: "quoteExactInputSingle",
     args: [
       {
-        poolKey: blueFunV4PoolKey(launch?.token ?? zeroAddress, v4PoolConfig),
-        zeroForOne: mode === "buy",
+        poolKey: isStockPair
+          ? blueFunV4TokenPairPoolKey(launch?.token ?? zeroAddress, launch?.quoteToken ?? zeroAddress, v4PoolConfig)
+          : blueFunV4PoolKey(launch?.token ?? zeroAddress, v4PoolConfig),
+        zeroForOne: isStockPair
+          ? stockInputToken.toLowerCase() === blueFunV4TokenPairPoolKey(launch?.token ?? zeroAddress, launch?.quoteToken ?? zeroAddress, v4PoolConfig).currency0.toLowerCase()
+          : mode === "buy",
         exactAmount: parsedAmount,
         hookData: "0x"
       }
     ],
     query: {
-      enabled: Boolean(!isEkubo && !isStableV3 && isGraduated && launch?.token && poolHooks && parsedAmount > 0n),
+      enabled: Boolean(!isEkubo && !isStableV3 && isGraduated && launch?.token && (!isStockPair || launch.quoteToken) && poolHooks && parsedAmount > 0n),
       refetchOnWindowFocus: false,
       retry: 1,
       staleTime: 8_000
@@ -378,7 +402,9 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
   const hasSellAllowance = mode !== "sell" || Boolean(tokenAllowance.data && tokenAllowance.data >= parsedAmount);
   const needsSellApproval = mode === "sell" && parsedAmount > 0n && !hasSellAllowance;
   const exceedsSellBalance = mode === "sell" && parsedAmount > sellBalance;
-  const exceedsEthBalance = mode === "buy" && Boolean(ethBalance.data) && parsedAmount > (ethBalance.data?.value ?? 0n);
+  const exceedsEthBalance = mode === "buy" && (isStockPair
+    ? Boolean(stockQuoteBalance.data !== undefined && parsedAmount > stockQuoteBalance.data)
+    : Boolean(ethBalance.data) && parsedAmount > (ethBalance.data?.value ?? 0n));
   const tradeDisabled = !addresses.bondingCurveMarket || !isConnected || wrongNetwork || isWorking || parsedAmount === 0n || exceedsEthBalance || exceedsSellBalance || (!needsSellApproval && minOut === 0n);
   const permit2Amount = graduatedPermit2RouterAllowance.data?.[0] ?? 0n;
   const permit2Expiration = graduatedPermit2RouterAllowance.data?.[1] ?? 0;
@@ -391,14 +417,14 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
     ? Boolean(mode === "sell" && parsedAmount > 0n && (ekuboSellAllowance.data ?? 0n) < parsedAmount)
     : isStableV3
     ? stableNeedsApproval
-    : Boolean(isGraduated && mode === "sell" && parsedAmount > 0n && (graduatedTokenPermit2Allowance.data ?? 0n) < parsedAmount);
-  const needsGraduatedPermit2Signature = Boolean(!isEkubo && !isStableV3 && isGraduated && mode === "sell" && parsedAmount > 0n && !needsGraduatedTokenApproval && (permit2Amount < parsedAmount || BigInt(permit2Expiration) <= BigInt(Math.floor(Date.now() / 1000) + 900)));
+    : Boolean(isGraduated && (isStockPair || mode === "sell") && parsedAmount > 0n && (graduatedTokenPermit2Allowance.data ?? 0n) < parsedAmount);
+  const needsGraduatedPermit2Signature = Boolean(!isEkubo && !isStableV3 && isGraduated && (isStockPair || mode === "sell") && parsedAmount > 0n && !needsGraduatedTokenApproval && (permit2Amount < parsedAmount || BigInt(permit2Expiration) <= BigInt(Math.floor(Date.now() / 1000) + 900)));
   const graduatedApprovalLoading = isEkubo
     ? ekuboSellAllowance.isLoading
     : isStableV3
     ? isArcNativeV3 ? arcTokenAccount.isLoading : stableAllowance.isLoading
-    : Boolean(mode === "sell" && (graduatedTokenPermit2Allowance.isLoading || graduatedPermit2RouterAllowance.isLoading));
-  const graduatedBuyDisabled = !launch || !isConnected || wrongNetwork || isWorking || mode !== "buy" || parsedAmount === 0n || exceedsEthBalance || graduatedMinOut === 0n;
+    : Boolean((isStockPair || mode === "sell") && (graduatedTokenPermit2Allowance.isLoading || graduatedPermit2RouterAllowance.isLoading));
+  const graduatedBuyDisabled = !launch || !isConnected || wrongNetwork || isWorking || graduatedApprovalLoading || mode !== "buy" || parsedAmount === 0n || exceedsEthBalance || (!needsGraduatedTokenApproval && graduatedMinOut === 0n);
   const graduatedSellDisabled = !launch || !isConnected || wrongNetwork || isWorking || graduatedApprovalLoading || mode !== "sell" || parsedAmount === 0n || exceedsSellBalance || (!needsGraduatedTokenApproval && graduatedMinOut === 0n);
   const latestMarketCapEth = useMemo(() => {
     return trades
@@ -423,19 +449,19 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
     : launchPriceEth ?? estimatedCurve?.price ?? "Live";
   const isEstimatedCurveData = Boolean(!isGraduated && !latestMarketCapEth && !launchMarketCapEth);
   const displayMarketCapText = latestMarketCapEth
-    ? formatUsdFromEthText(displayMarketCap, ethUsd)
+    ? formatUsdFromEthText(displayMarketCap, marketQuoteUsd)
     : isGraduated
       ? dexPair?.marketCap ? compactUsd(dexPair.marketCap) : marketDataState === "loading" ? "Loading…" : "Unavailable"
-      : formatUsdFromEthText(displayMarketCap, ethUsd);
+      : formatUsdFromEthText(displayMarketCap, marketQuoteUsd);
   const displayPriceText = latestPriceEth > 0
-    ? formatUsdFromEthText(displayPrice, ethUsd, true)
+    ? formatUsdFromEthText(displayPrice, marketQuoteUsd, true)
     : isGraduated
       ? dexPair?.priceUsd ? formatUsdPrice(dexPair.priceUsd) : marketDataState === "loading" ? "Loading…" : "Unavailable"
-      : formatUsdFromEthText(displayPrice, ethUsd, true);
+      : formatUsdFromEthText(displayPrice, marketQuoteUsd, true);
   const headerMarketCap = previewMode ? "$2.38M" : displayMarketCapText;
   const headerPrice = previewMode ? "$0.02131" : displayPriceText;
   const headerLiquidity = previewMode ? "$1.33M" : isDirect ? "Permanently locked" : launch?.raised;
-  const headerVolume = previewMode ? "$40.56K" : formatUsdFromEthText(launch?.volume || "0", ethUsd);
+  const headerVolume = previewMode ? "$40.56K" : formatUsdFromEthText(launch?.volume || "0", marketQuoteUsd);
   const headerBuys = previewMode ? "1,615" : trades.filter((trade) => trade.side === "buy").length.toLocaleString("en-US");
   const headerSells = previewMode ? "982" : trades.filter((trade) => trade.side === "sell").length.toLocaleString("en-US");
 
@@ -449,6 +475,7 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
         refreshes.push(isArcNativeV3 ? arcStableQuote.refetch() : stableQuote.refetch());
       }
       else {
+        if (isStockPair) refreshes.push(stockQuoteBalance.refetch());
         refreshes.push(
           graduatedTokenPermit2Allowance.refetch(),
           graduatedPermit2RouterAllowance.refetch(),
@@ -619,7 +646,7 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
     });
   }
 
-  function buyGraduated() {
+  async function buyGraduated() {
     if (!launch || !address || parsedAmount === 0n || graduatedMinOut === 0n) return;
     if (isEkubo) {
       writeContract({
@@ -663,6 +690,29 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
       });
       return;
     }
+    if (isStockPair) {
+      setTradeFlowError("");
+      try {
+        const now = Math.floor(Date.now() / 1000);
+        const permit = needsGraduatedPermit2Signature ? await createPermit2Signature({
+          account: address, amount: MAX_UINT160, chainId: activeChainId,
+          expiration: now + PERMIT2_SESSION_SECONDS,
+          nonce: Number(graduatedPermit2RouterAllowance.data?.[2] ?? 0),
+          permit2: uniswapV4Addresses.permit2, sigDeadline: BigInt(now + 900),
+          spender: uniswapV4Addresses.universalRouter, token: stockInputToken, signTypedDataAsync
+        }) : undefined;
+        const swap = buildV4TokenToTokenSwap({
+          amountIn: parsedAmount, amountOutMinimum: graduatedMinOut,
+          inputToken: stockInputToken, outputToken: stockOutputToken,
+          poolFee: launch.poolFee, tickSpacing: launch.tickSpacing, hooks: poolHooks, permit
+        });
+        writeContract({ chainId: activeChainId, address: uniswapV4Addresses.universalRouter, abi: universalRouterAbi,
+          functionName: "execute", args: [swap.commands, swap.inputs, BigInt(now + 900)] });
+      } catch (buyError) {
+        setTradeFlowError(buyError instanceof Error ? buyError.message : "Permit signature could not be completed.");
+      }
+      return;
+    }
     const swap = buildV4EthToTokenSwap({
       amountIn: parsedAmount,
       amountOutMinimum: graduatedMinOut,
@@ -700,7 +750,7 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
     }
     writeContract({
       chainId: activeChainId,
-      address: launch.token,
+      address: isStockPair ? stockInputToken : launch.token,
       abi: b20TokenAbi,
       functionName: "approve",
       args: [uniswapV4Addresses.permit2, maxUint256]
@@ -734,6 +784,24 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
             sqrtPriceLimitX96: 0n
           }]
         });
+        return;
+      }
+      if (isStockPair) {
+        const now = Math.floor(Date.now() / 1000);
+        const permit = needsGraduatedPermit2Signature ? await createPermit2Signature({
+          account: address, amount: MAX_UINT160, chainId: activeChainId,
+          expiration: now + PERMIT2_SESSION_SECONDS,
+          nonce: Number(graduatedPermit2RouterAllowance.data?.[2] ?? 0),
+          permit2: uniswapV4Addresses.permit2, sigDeadline: BigInt(now + 900),
+          spender: uniswapV4Addresses.universalRouter, token: stockInputToken, signTypedDataAsync
+        }) : undefined;
+        const swap = buildV4TokenToTokenSwap({
+          amountIn: parsedAmount, amountOutMinimum: graduatedMinOut,
+          inputToken: stockInputToken, outputToken: stockOutputToken,
+          poolFee: launch.poolFee, tickSpacing: launch.tickSpacing, hooks: poolHooks, permit
+        });
+        writeContract({ chainId: activeChainId, address: uniswapV4Addresses.universalRouter, abi: universalRouterAbi,
+          functionName: "execute", args: [swap.commands, swap.inputs, BigInt(now + 900)] });
         return;
       }
       const now = Math.floor(Date.now() / 1000);
@@ -885,7 +953,7 @@ export function MarketClient({ id, launch, trades: initialTrades }: { id: string
         </div>
         <div className="chart-panel">
           <div className="curve-state compact">
-            <TradeChart trades={trades} status={launch.status} symbol={launch.symbol} ethUsd={ethUsd} nativeSymbol={nativeSymbol} />
+            <TradeChart trades={trades} status={launch.status} symbol={launch.symbol} ethUsd={marketQuoteUsd} nativeSymbol={launch.quoteSymbol || nativeSymbol} />
             <MarketDataPanel launch={launch} poolAddress={dexPair?.pairAddress} trades={trades} walletAddress={address} />
             <CommunityBurnCard launch={launch} />
           </div>
@@ -1322,8 +1390,8 @@ function GraduatedTradeCard({
   const isStableV3 = dexVersion === "v3";
   const isEkubo = launch.dexProvider === "ekubo";
   const routeName = isEkubo ? "Ekubo" : `Uniswap ${dexVersion}`;
-  const nativeSymbol = chain.nativeCurrency.symbol;
-  const quickBuyAmounts = launch.chainId === 143 ? ["50", "100", "500"] : launch.chainId === 988 || launch.chainId === 5042 ? ["1", "5", "10"] : ["0.01", "0.05", "0.1"];
+  const nativeSymbol = launch.quoteSymbol || chain.nativeCurrency.symbol;
+  const quickBuyAmounts = launch.quoteToken ? ["0.01", "0.05", "0.1"] : launch.chainId === 143 ? ["50", "100", "500"] : launch.chainId === 988 || launch.chainId === 5042 ? ["1", "5", "10"] : ["0.01", "0.05", "0.1"];
   return (
     <section className="graduated-trade-card swap-terminal">
       <div className="trade-card-toolbar graduated-trade-toolbar">
@@ -1465,7 +1533,7 @@ function GraduatedTradeCard({
       {!isEkubo ? <a className="button wide trade-external-link" href={uniswapSwapUrl(
         launch.token,
         uniswapChainName,
-        isStableV3 ? stableUniswapV3Addresses.quoteToken : undefined
+        isStableV3 ? stableUniswapV3Addresses.quoteToken : launch.quoteToken
       )} target="_blank" rel="noreferrer">
         <ExternalLink size={16} />
         Trade on Uniswap
@@ -2013,16 +2081,17 @@ function TokenAvatar({ launch, className }: { launch: DeployedLaunch; className:
 
 function SwapAssetPill({ chainId, launch, native }: { chainId: number; launch: DeployedLaunch; native: boolean }) {
   const { chain } = contractsForChain(chainId);
+  const isQuote = native && Boolean(launch.quoteToken);
   return (
     <span className="swap-token-pill">
       {native ? (
-        <span className="swap-token-icon native"><NetworkIcon chainId={chainId} size={28} /></span>
+        <span className="swap-token-icon native">{isQuote ? (launch.quoteSymbol || "STK").slice(0, 2) : <NetworkIcon chainId={chainId} size={28} />}</span>
       ) : (
         <TokenAvatar className="swap-token-icon" launch={launch} />
       )}
       <span className="swap-token-copy">
-        <strong>{native ? chain.nativeCurrency.symbol : launch.symbol}</strong>
-        <small>{chain.name}</small>
+        <strong>{native ? launch.quoteSymbol || chain.nativeCurrency.symbol : launch.symbol}</strong>
+        <small>{isQuote ? launch.quoteName || "Stock Token" : chain.name}</small>
       </span>
     </span>
   );

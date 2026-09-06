@@ -1,3 +1,5 @@
+import baseStockCatalog from "../../../../config/stock-assets.base.json";
+
 export type StockPriceMode = "chainlink" | "attested";
 
 export type StockAsset = {
@@ -88,4 +90,3 @@ export async function getStockAssets(chainId: number) {
   if (chainId === 4663) return getRobinhoodStockAssets();
   return [];
 }
-import baseStockCatalog from "../../../../config/stock-assets.base.json";

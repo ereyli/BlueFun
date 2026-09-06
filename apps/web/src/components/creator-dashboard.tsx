@@ -7,7 +7,7 @@ import { formatEther, formatUnits, zeroAddress } from "viem";
 import { useAccount, useReadContracts, useSwitchChain, useWriteContract } from "wagmi";
 import { ArrowUpRight, BarChart3, Coins, ExternalLink, Flame, Layers3, Loader2, LockKeyhole, RefreshCw, Rocket, Sparkles, Wallet, WalletCards } from "@/components/bluefun-icons";
 import { NetworkIcon, networkMeta } from "@/components/network-icon";
-import { arcUniswapV3Addresses, b20TokenAbi, bondingCurveAbi, deploymentsForChain, ekuboRouterAbi, feeSharingLockerAbi, indexerScopeForDeployment, isVNextLiquidityLocker, stableUniswapV3Addresses, unifiedFeeHookAbi } from "@/lib/contracts";
+import { arcUniswapV3Addresses, b20TokenAbi, bondingCurveAbi, contractsForChain, deploymentsForChain, ekuboRouterAbi, feeSharingLockerAbi, indexerScopeForDeployment, isVNextLiquidityLocker, stableUniswapV3Addresses, stockFeeHookAbi, unifiedFeeHookAbi } from "@/lib/contracts";
 import type { WalletDashboardData, WalletTradeSummary } from "@/lib/dashboard-types";
 import type { DeployedLaunch } from "@/lib/onchain-launches";
 import { useReliableTokenImage } from "@/lib/use-reliable-image";
@@ -119,6 +119,19 @@ export function CreatorDashboard() {
     });
   }, [data.created]);
 
+  const stockFeeSources = useMemo(() => {
+    const seen = new Set<string>();
+    return data.created.flatMap((launch) => {
+      if (!launch.quoteToken || !launch.quoteSymbol) return [];
+      const hook = contractsForChain(launch.chainId).addresses.stockFeeHook;
+      if (!hook || hook === zeroAddress) return [];
+      const key = `${launch.chainId}:${hook.toLowerCase()}:${launch.quoteToken.toLowerCase()}`;
+      if (seen.has(key)) return [];
+      seen.add(key);
+      return [{ chainId: launch.chainId, address: hook, currency: launch.quoteToken, symbol: launch.quoteSymbol }];
+    });
+  }, [data.created]);
+
   const bondFees = useReadContracts({
     contracts: feeSources.map((source) => ({ chainId: source.chainId, address: source.address, abi: bondingCurveAbi, functionName: "pendingFees", args: [address!] })),
     query: { enabled: Boolean(address && feeSources.length) }
@@ -134,6 +147,10 @@ export function CreatorDashboard() {
   const ekuboCreatorFees = useReadContracts({
     contracts: ekuboSources.map((source) => ({ chainId: source.chainId, address: source.address, abi: ekuboRouterAbi, functionName: "pendingCreatorRevenue", args: [address!] })),
     query: { enabled: Boolean(address && ekuboSources.length) }
+  });
+  const stockCreatorFees = useReadContracts({
+    contracts: stockFeeSources.map((source) => ({ chainId: source.chainId, address: source.address, abi: stockFeeHookAbi, functionName: "pendingRevenue", args: [address!, source.currency] })),
+    query: { enabled: Boolean(address && stockFeeSources.length) }
   });
   const balances = useReadContracts({
     contracts: data.traded.map(({ launch }) => ({ chainId: launch.chainId, address: launch.token, abi: b20TokenAbi, functionName: "balanceOf", args: [address!] })),
@@ -160,9 +177,10 @@ export function CreatorDashboard() {
   }, 0n);
   const pendingHookCreator = sumReadResults(hookCreatorFees.data);
   const pendingEkuboCreator = sumReadResults(ekuboCreatorFees.data);
-  const totalPending = pendingBond + pendingLpNative + pendingHookCreator + pendingEkuboCreator;
+  const pendingStockCreator = sumReadResults(stockCreatorFees.data);
+  const totalPending = pendingBond + pendingLpNative + pendingHookCreator + pendingEkuboCreator + pendingStockCreator;
   const totalVolume = data.created.reduce((sum, launch) => sum + parseDisplayEth(launch.volume), 0);
-  const nativeSymbols = new Set(data.created.map((launch) => networkMeta(launch.chainId).symbol));
+  const nativeSymbols = new Set(data.created.map((launch) => launch.quoteSymbol || networkMeta(launch.chainId).symbol));
   const portfolioSymbol = nativeSymbols.size === 1 ? Array.from(nativeSymbols)[0] : undefined;
 
   const { switchChainAsync } = useSwitchChain();
@@ -179,6 +197,7 @@ export function CreatorDashboard() {
         void lockerNativeFees.refetch();
         void hookCreatorFees.refetch();
         void ekuboCreatorFees.refetch();
+        void stockCreatorFees.refetch();
         void feeRevenue.refetch();
         void tokenPending.refetch();
       }, 5000);
@@ -258,6 +277,12 @@ export function CreatorDashboard() {
                   if (amount === 0n) return null;
                   const key = `ekubo:${source.chainId}:${source.address}`;
                   return <FeeRow key={key} chainId={source.chainId} label="Creator buy fees" detail="Ekubo · native currency" amount={`${formatNative(amount)} ${networkMeta(source.chainId).symbol}`} pending={action.key === key} onClaim={() => submitAction(key, source.chainId, { chainId: source.chainId, address: source.address, abi: ekuboRouterAbi, functionName: "claimCreatorRevenue", args: [address] })} />;
+                })}
+                {stockFeeSources.map((source, index) => {
+                  const amount = readBigInt(stockCreatorFees.data?.[index]);
+                  if (amount === 0n) return null;
+                  const key = `stock:${source.chainId}:${source.address}:${source.currency}`;
+                  return <FeeRow key={key} chainId={source.chainId} label="Creator buy fees" detail="Stock Token quote" amount={`${formatNative(amount)} ${source.symbol}`} pending={action.key === key} onClaim={() => submitAction(key, source.chainId, { chainId: source.chainId, address: source.address, abi: stockFeeHookAbi, functionName: "claimRevenue", args: [source.currency] })} />;
                 })}
                 {totalPending === 0n ? <EmptyCompact icon={<LockKeyhole size={19} />} title="No fees ready yet" text="New creator fees will appear here as trades happen." /> : null}
               </div>

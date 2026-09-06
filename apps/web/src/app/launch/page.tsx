@@ -153,7 +153,7 @@ function EvmLaunchStudio({ requestedChain }: { requestedChain: string | null }) 
       ? !selectedStock ? "Select a stock pair."
         : selectedStockEnabled.isLoading ? "Verifying the stock in the onchain registry…"
         : selectedStockEnabled.data !== true ? "This stock is not enabled in the onchain registry."
-        : !stockEligibilityAccepted ? "Confirm eligibility to use a tokenized-stock pair."
+        : !stockEligibilityAccepted ? "Confirm eligibility to use this Stock Token pair."
         : ""
       : ""
   });
@@ -481,7 +481,7 @@ function EvmLaunchStudio({ requestedChain }: { requestedChain: string | null }) 
                 <span className="launch-control-label">Market pair</span>
                 <div className="launch-dex-picker" role="radiogroup" aria-label="Market quote asset">
                   <button aria-checked={pairType === "native"} className={pairType === "native" ? "active" : ""} disabled={isWorking} onClick={() => setPairType("native")} role="radio" type="button"><span><NetworkIcon chainId={activeChainId} size={22} /><strong>{nativeSymbol} <small>native pair</small></strong></span>{pairType === "native" ? <CheckCircle2 size={15} /> : null}</button>
-                  <button aria-checked={pairType === "stock"} className={pairType === "stock" ? "active" : ""} disabled={isWorking} onClick={() => { setPairType("stock"); setDexProvider("uniswap"); }} role="radio" type="button"><span><span className="stock-pair-glyph">STK</span><strong>Stock <small>tokenized pair</small></strong></span>{pairType === "stock" ? <CheckCircle2 size={15} /> : null}</button>
+                  <button aria-checked={pairType === "stock"} className={pairType === "stock" ? "active" : ""} disabled={isWorking} onClick={() => { setPairType("stock"); setDexProvider("uniswap"); }} role="radio" type="button"><span><span className="stock-pair-glyph">STK</span><strong>Stock Token <small>quoted pair</small></strong></span>{pairType === "stock" ? <CheckCircle2 size={15} /> : null}</button>
                 </div>
               </div>
             ) : null}
@@ -495,8 +495,8 @@ function EvmLaunchStudio({ requestedChain }: { requestedChain: string | null }) 
                 {isStockCatalogLoading ? <span className="field-help">Loading the official stock catalog…</span> : null}
                 {stockCatalogError ? <LaunchNotice tone="danger">{stockCatalogError}</LaunchNotice> : null}
                 {selectedStock && selectedStockEnabled.data === false ? <LaunchNotice tone="danger">This asset is not enabled in the onchain BlueFun registry.</LaunchNotice> : null}
-                <label className="stock-eligibility"><input checked={stockEligibilityAccepted} onChange={(event) => setStockEligibilityAccepted(event.target.checked)} type="checkbox" /><span>I confirm I am eligible to access and trade this tokenized security in my jurisdiction.</span></label>
-                <p className="field-help">Tokenized stocks may be restricted by jurisdiction and do not necessarily provide direct ownership or shareholder rights in the underlying company.</p>
+                <label className="stock-eligibility"><input checked={stockEligibilityAccepted} onChange={(event) => setStockEligibilityAccepted(event.target.checked)} type="checkbox" /><span>I confirm I am eligible to access and trade this Stock Token in my jurisdiction.</span></label>
+                <p className="field-help">Stock Tokens are tokenised debt securities that provide economic exposure to an underlying asset. They may be jurisdiction-restricted and do not grant ownership or shareholder rights in that underlying asset.</p>
               </div>
             ) : null}
             {launchMode === "direct" && !isStockPair && ekuboSupported ? (

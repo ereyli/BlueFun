@@ -134,7 +134,7 @@ export async function getDbBlueStakingOverview(chainId: number, vault: string): 
   }
 }
 
-const launchColumns = "scope, id, token, creator, name, symbol, contract_uri, image_url, description, website_url, twitter_url, telegram_url, discord_url, status, launch_mode, dex_provider, pool_fee, tick_spacing, liquidity_locker, raised_eth, graduation_target_eth, progress, volume_eth, current_market_cap_eth, last_trade_block, token_created_at, created_block, position_id";
+const launchColumns = "scope, id, token, creator, name, symbol, contract_uri, image_url, description, website_url, twitter_url, telegram_url, discord_url, status, launch_mode, dex_provider, pool_fee, tick_spacing, liquidity_locker, quote_token, quote_symbol, quote_name, quote_price_usd18, raised_eth, graduation_target_eth, progress, volume_eth, current_market_cap_eth, last_trade_block, token_created_at, created_block, position_id";
 const legacyLaunchColumns = "scope, id, token, creator, name, symbol, contract_uri, status, raised_eth, graduation_target_eth, progress, volume_eth, token_created_at, created_block";
 
 export async function getDbWalletDashboard(wallet: `0x${string}`): Promise<WalletDashboardData | undefined> {
@@ -337,7 +337,7 @@ export async function getDbLaunchPage(
     const result = await withTimeout(pool.query(
       `select scope, id, token, creator, name, symbol, contract_uri, image_url, description,
               website_url, twitter_url, telegram_url, discord_url, status, launch_mode, pool_fee,
-              tick_spacing, liquidity_locker, raised_eth,
+              tick_spacing, liquidity_locker, quote_token, quote_symbol, quote_name, quote_price_usd18, raised_eth,
               graduation_target_eth, progress, volume_eth, current_market_cap_eth, last_trade_block, token_created_at, created_block, position_id,
               count(*) over() as total_count
        from launches
@@ -410,7 +410,7 @@ export async function getDbLaunches(chainId = 8453, options: { cursor?: string; 
     const result = await withTimeout(pool.query(
       `select scope, id, token, creator, name, symbol, contract_uri, image_url, description,
               website_url, twitter_url, telegram_url, discord_url, status, launch_mode, pool_fee,
-              tick_spacing, liquidity_locker, raised_eth,
+              tick_spacing, liquidity_locker, quote_token, quote_symbol, quote_name, quote_price_usd18, raised_eth,
               graduation_target_eth, progress, volume_eth, current_market_cap_eth, last_trade_block, token_created_at, position_id
        from launches
        where scope = any($1::text[])
@@ -459,7 +459,7 @@ export async function getDbLaunch(launchId: string, chainId = 8453): Promise<Dep
     const result = await withTimeout(pool.query(
       `select scope, id, token, creator, name, symbol, contract_uri, image_url, description,
               website_url, twitter_url, telegram_url, discord_url, status, launch_mode, pool_fee,
-              tick_spacing, liquidity_locker, raised_eth,
+              tick_spacing, liquidity_locker, quote_token, quote_symbol, quote_name, quote_price_usd18, raised_eth,
               graduation_target_eth, progress, volume_eth, current_market_cap_eth, last_trade_block, token_created_at, created_block, position_id
        from launches
        where scope = any($1::text[]) and id = $2 and created_block >= $3
@@ -507,7 +507,7 @@ export async function getDbLaunchByTokenSuffix(tokenSuffix: string, chainId = 84
       const result = await withTimeout(pool.query(
         `select scope, id, token, creator, name, symbol, contract_uri, image_url, description,
                 website_url, twitter_url, telegram_url, discord_url, status, launch_mode, pool_fee,
-                tick_spacing, liquidity_locker, raised_eth,
+                tick_spacing, liquidity_locker, quote_token, quote_symbol, quote_name, quote_price_usd18, raised_eth,
                 graduation_target_eth, progress, volume_eth, current_market_cap_eth, last_trade_block, token_created_at, created_block, position_id
          from launches
          where scope = any($1::text[])
@@ -632,7 +632,7 @@ export async function getDbLaunchMetrics(chainId = 8453): Promise<DbLaunchMetric
 
 function isMissingSocialColumnError(error: { message?: string; details?: string }) {
   const text = `${error.message || ""} ${error.details || ""}`.toLowerCase();
-  return ["image_url", "description", "website_url", "twitter_url", "telegram_url", "discord_url", "position_id", "launch_mode", "dex_provider", "pool_fee", "tick_spacing", "liquidity_locker", "current_market_cap_eth", "last_trade_block"].some((column) => text.includes(column));
+  return ["image_url", "description", "website_url", "twitter_url", "telegram_url", "discord_url", "position_id", "launch_mode", "dex_provider", "pool_fee", "tick_spacing", "liquidity_locker", "quote_token", "quote_symbol", "quote_name", "quote_price_usd18", "current_market_cap_eth", "last_trade_block"].some((column) => text.includes(column));
 }
 
 function isMissingTradeColumnError(error: { message?: string; details?: string }) {
@@ -884,6 +884,10 @@ async function mapRows(rows: Array<Record<string, unknown>>, chainId: number): P
       poolFee: Number(row.pool_fee || 3000),
       tickSpacing: Number(row.tick_spacing || 60),
       liquidityLocker: row.liquidity_locker ? (chainId === 101 ? String(row.liquidity_locker) : getAddress(String(row.liquidity_locker))) as `0x${string}` : undefined,
+      quoteToken: row.quote_token ? getAddress(String(row.quote_token)) as `0x${string}` : undefined,
+      quoteSymbol: cleanDbText(row.quote_symbol),
+      quoteName: cleanDbText(row.quote_name),
+      quotePriceUsd18: row.quote_price_usd18 === null || row.quote_price_usd18 === undefined ? undefined : String(row.quote_price_usd18),
       id: String(row.id),
       token: (chainId === 101 ? String(row.token) : getAddress(String(row.token))) as `0x${string}`,
       creator: (chainId === 101 ? String(row.creator) : getAddress(String(row.creator))) as `0x${string}`,
@@ -903,12 +907,12 @@ async function mapRows(rows: Array<Record<string, unknown>>, chainId: number): P
       target: `${trimEth(formatEther(target))} ${nativeSymbol}`,
       progress: Number(row.progress || 0),
       holders: "indexed",
-      volume: `${trimEth(formatEther(volume))} ${nativeSymbol}`,
+      volume: `${trimEth(formatEther(volume))} ${cleanDbText(row.quote_symbol) || nativeSymbol}`,
       age: formatAge(Number(row.token_created_at || 0)),
       risk: row.launch_mode === "direct" ? `${row.dex_provider === "meteora" ? "Meteora" : row.dex_provider === "ekubo" ? "Ekubo" : "Uniswap"} · LP locked` : status === "Graduated" ? "Adminless" : chainId === 8453 ? "B20 gated" : "Fixed-supply ERC-20",
       price: "Live",
       marketCap: parseDbBigInt(row.current_market_cap_eth) > 0n
-        ? `${trimEth(formatEther(parseDbBigInt(row.current_market_cap_eth)))} ${nativeSymbol}`
+        ? `${trimEth(formatEther(parseDbBigInt(row.current_market_cap_eth)))} ${cleanDbText(row.quote_symbol) || nativeSymbol}`
         : "Live"
     };
   }));
