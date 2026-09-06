@@ -12,7 +12,8 @@
     "dev:web": "npm run dev -w apps/web",
     "dev:indexer": "npm run dev -w apps/indexer",
     "build": "npm run build -w apps/web",
-    "build:all": "npm run build --workspaces --if-present"
+    "build:all": "npm run build --workspaces --if-present",
+    "stocks:plan": "node scripts/sync-stock-registry.mjs"
   },
   "dependencies": {
     "@rainbow-me/rainbowkit": "^2.2.11",

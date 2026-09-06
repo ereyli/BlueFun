@@ -6,13 +6,15 @@ import dynamic from "next/dynamic";
 import { decodeEventLog, erc20Abi, formatEther, parseEther, keccak256, toBytes, zeroAddress } from "viem";
 import { useAccount, usePublicClient, useReadContract, useWaitForTransactionReceipt, useWriteContract } from "wagmi";
 import { Check, CheckCircle2, ChevronLeft, ChevronRight, Copy, ExternalLink, ImagePlus, Info, LayoutDashboard, Loader2, Rocket, TimerReset, UploadCloud, X, Zap } from "@/components/bluefun-icons";
-import { ARC_FEE_POLICY, arcDirectLaunchFactoryAbi, arcFeePolicyAbi, contractsForChain, directLaunchFactoryAbi, ekuboDirectLaunchFactoryAbi, launchEconomics, launchFactoryAbi } from "@/lib/contracts";
+import { ARC_FEE_POLICY, arcDirectLaunchFactoryAbi, arcFeePolicyAbi, contractsForChain, directLaunchFactoryAbi, ekuboDirectLaunchFactoryAbi, launchEconomics, launchFactoryAbi, stockDirectLaunchFactoryAbi, stockQuoteRegistryAbi } from "@/lib/contracts";
 import { useSearchParams } from "next/navigation";
 import { NetworkIcon } from "@/components/network-icon";
 import { chainIdFromParam } from "@/lib/chain-slug";
 import { tokenPath } from "@/lib/token-url";
 import { BlueFunState } from "@/components/bluefun-state";
 import { DexProviderIcon } from "@/components/dex-provider-icon";
+import type { StockAsset } from "@/lib/stock-assets";
+import type { PublicClient } from "viem";
 
 const SolanaLaunchStudio = dynamic(
   () => import("@/components/solana-launch-studio").then((module) => module.SolanaLaunchStudio),
@@ -49,6 +51,12 @@ function EvmLaunchStudio({ requestedChain }: { requestedChain: string | null }) 
   const [initialBuy, setInitialBuy] = useState("0");
   const [launchMode, setLaunchMode] = useState<"bond" | "direct">("bond");
   const [dexProvider, setDexProvider] = useState<"uniswap" | "ekubo">("uniswap");
+  const [pairType, setPairType] = useState<"native" | "stock">("native");
+  const [stockAssets, setStockAssets] = useState<StockAsset[]>([]);
+  const [selectedStockToken, setSelectedStockToken] = useState("");
+  const [stockCatalogError, setStockCatalogError] = useState("");
+  const [isStockCatalogLoading, setIsStockCatalogLoading] = useState(false);
+  const [stockEligibilityAccepted, setStockEligibilityAccepted] = useState(false);
   const [confirmedLaunchId, setConfirmedLaunchId] = useState("");
   const [confirmedToken, setConfirmedToken] = useState("");
   const [showSuccess, setShowSuccess] = useState(false);
@@ -63,25 +71,30 @@ function EvmLaunchStudio({ requestedChain }: { requestedChain: string | null }) 
   const ekuboSupported = activeChainId === 8453 || activeChainId === 4663;
   const ekuboReady = Boolean(addresses.ekuboDirectLaunchFactory && addresses.ekuboDirectLaunchFactory !== zeroAddress);
   const useEkubo = launchMode === "direct" && dexProvider === "ekubo";
+  const stockNetworkSupported = activeChainId === 8453 || activeChainId === 4663;
+  const isStockPair = launchMode === "direct" && pairType === "stock" && stockNetworkSupported;
+  const stockFactoryReady = Boolean(addresses.stockDirectLaunchFactory && addresses.stockDirectLaunchFactory !== zeroAddress);
+  const selectedStock = stockAssets.find((asset) => asset.token.toLowerCase() === selectedStockToken.toLowerCase());
   const selectedFactory = launchMode === "direct"
-    ? useEkubo ? addresses.ekuboDirectLaunchFactory : addresses.directLaunchFactory
+    ? isStockPair ? addresses.stockDirectLaunchFactory : useEkubo ? addresses.ekuboDirectLaunchFactory : addresses.directLaunchFactory
     : addresses.launchFactory;
   const selectedFactoryReady = Boolean(selectedFactory && selectedFactory !== zeroAddress);
   const { data: hash, error, writeContract, isPending } = useWriteContract();
   const stableApproval = useWriteContract();
+  const stockApproval = useWriteContract();
   const publicClient = usePublicClient({ chainId: activeChainId });
   const receipt = useWaitForTransactionReceipt({ hash });
   const directLaunchFee = useReadContract({
     chainId: activeChainId,
     address: selectedFactory,
-    abi: useEkubo ? ekuboDirectLaunchFactoryAbi : directLaunchFactoryAbi,
+    abi: isStockPair ? stockDirectLaunchFactoryAbi : useEkubo ? ekuboDirectLaunchFactoryAbi : directLaunchFactoryAbi,
     functionName: "launchFee",
     query: { enabled: launchMode === "direct" && Boolean(selectedFactory && selectedFactory !== zeroAddress) }
   });
   const directLaunchConfigHash = useReadContract({
     chainId: activeChainId,
     address: selectedFactory,
-    abi: useEkubo ? ekuboDirectLaunchFactoryAbi : directLaunchFactoryAbi,
+    abi: isStockPair ? stockDirectLaunchFactoryAbi : useEkubo ? ekuboDirectLaunchFactoryAbi : directLaunchFactoryAbi,
     functionName: "launchConfigHash",
     query: { enabled: !isArc && launchMode === "direct" && Boolean(selectedFactory && selectedFactory !== zeroAddress) }
   });
@@ -90,7 +103,15 @@ function EvmLaunchStudio({ requestedChain }: { requestedChain: string | null }) 
     address: addresses.directLaunchFactory,
     abi: directLaunchFactoryAbi,
     functionName: "launchConfig",
-    query: { enabled: !isArc && launchMode === "direct" && addresses.directLaunchFactory !== zeroAddress }
+    query: { enabled: !isArc && !isStockPair && launchMode === "direct" && addresses.directLaunchFactory !== zeroAddress }
+  });
+  const selectedStockEnabled = useReadContract({
+    chainId: activeChainId,
+    address: addresses.stockQuoteRegistry,
+    abi: stockQuoteRegistryAbi,
+    functionName: "isEnabled",
+    args: selectedStock ? [selectedStock.token] : undefined,
+    query: { enabled: isStockPair && stockFactoryReady && Boolean(selectedStock) }
   });
   const arcPause = useReadContract({
     chainId: 5042,
@@ -105,9 +126,9 @@ function EvmLaunchStudio({ requestedChain }: { requestedChain: string | null }) 
   const salt = useMemo(() => keccak256(toBytes(`${name}:${symbol}:${Date.now()}`)), [name, symbol]);
   const initialBuyEth = parsePositiveEther(initialBuy);
   const estimatedInitialTokens = useMemo(() => {
-    if (isArc || useEkubo || launchMode !== "direct" || !directLaunchConfig.data || initialBuyEth === 0n) return 0n;
+    if (isArc || useEkubo || isStockPair || launchMode !== "direct" || !directLaunchConfig.data || initialBuyEth === 0n) return 0n;
     return estimateDirectInitialBuyTokens(initialBuyEth, directLaunchConfig.data[2], directLaunchConfig.data[3]);
-  }, [directLaunchConfig.data, initialBuyEth, isArc, launchMode, useEkubo]);
+  }, [directLaunchConfig.data, initialBuyEth, isArc, isStockPair, launchMode, useEkubo]);
   const initialBuyError = launchMode === "direct"
     ? (activeChainId === 988 || isArc) && initialBuyEth % 1_000_000_000_000n !== 0n
       ? `${nativeSymbol} first buys support no more than 6 decimal places.`
@@ -116,7 +137,8 @@ function EvmLaunchStudio({ requestedChain }: { requestedChain: string | null }) 
   const metadataKey = imageUri
     ? `${name.trim()}:${symbol.trim()}:${imageUri}:${description.trim()}:${website.trim()}:${twitter.trim()}:${telegram.trim()}:${discord.trim()}`
     : "";
-  const disabled = !selectedFactoryReady || !name.trim() || !symbol.trim() || !imageUri || Boolean(initialBuyError) || !directConfigReady;
+  const stockSelectionReady = !isStockPair || Boolean(selectedStock && selectedStockEnabled.data === true && stockEligibilityAccepted);
+  const disabled = !selectedFactoryReady || !name.trim() || !symbol.trim() || !imageUri || Boolean(initialBuyError) || !directConfigReady || !stockSelectionReady;
   const disabledReason = getDisabledReason({
     configReady: directConfigReady,
     hasFactory: selectedFactoryReady,
@@ -126,14 +148,21 @@ function EvmLaunchStudio({ requestedChain }: { requestedChain: string | null }) 
     imageReady: Boolean(imageUri),
     imageUploading: isImageUploading,
     initialBuyError,
-    isConnected
+    isConnected,
+    stockReason: isStockPair
+      ? !selectedStock ? "Select a stock pair."
+        : selectedStockEnabled.isLoading ? "Verifying the stock in the onchain registry…"
+        : selectedStockEnabled.data !== true ? "This stock is not enabled in the onchain registry."
+        : !stockEligibilityAccepted ? "Confirm eligibility to use a tokenized-stock pair."
+        : ""
+      : ""
   });
   const isWorking = isImageUploading || isMetadataUploading || isStableApprovalLoading
-    || stableApproval.isPending || isPending || receipt.isLoading;
+    || stableApproval.isPending || stockApproval.isPending || isPending || receipt.isLoading;
   const launchFeeEth = launchMode === "direct"
     ? directLaunchFee.data ?? parseEther(economics.launchFeeFallback)
     : parseEther(economics.launchFeeFallback);
-  const totalLaunchValue = launchFeeEth + initialBuyEth;
+  const totalLaunchValue = isStockPair ? launchFeeEth : launchFeeEth + initialBuyEth;
   const identityReady = Boolean(name.trim() && symbol.trim() && imageUri && !isImageUploading);
   const launchStatus = getLaunchStatus({
     disabledReason,
@@ -160,16 +189,51 @@ function EvmLaunchStudio({ requestedChain }: { requestedChain: string | null }) 
   }, [bondEnabled, launchMode]);
 
   useEffect(() => {
+    if (!stockNetworkSupported && pairType === "stock") setPairType("native");
+  }, [pairType, stockNetworkSupported]);
+
+  useEffect(() => {
+    if (!stockNetworkSupported) return;
+    const controller = new AbortController();
+    setIsStockCatalogLoading(true);
+    setStockCatalogError("");
+    fetch(`/api/stock-assets?chainId=${activeChainId}`, { signal: controller.signal })
+      .then(async (response) => {
+        const payload = await response.json() as { assets?: StockAsset[]; error?: string };
+        if (!response.ok) throw new Error(payload.error || "Stock catalog is unavailable.");
+        const nextAssets = payload.assets || [];
+        setStockAssets(nextAssets);
+        setSelectedStockToken((current) => nextAssets.some((asset) => asset.token.toLowerCase() === current.toLowerCase())
+          ? current
+          : nextAssets[0]?.token || "");
+      })
+      .catch((catalogError) => {
+        if (catalogError instanceof DOMException && catalogError.name === "AbortError") return;
+        setStockAssets([]);
+        setSelectedStockToken("");
+        setStockCatalogError(catalogError instanceof Error ? catalogError.message : "Stock catalog is unavailable.");
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setIsStockCatalogLoading(false);
+      });
+    return () => controller.abort();
+  }, [activeChainId, stockNetworkSupported]);
+
+  useEffect(() => {
+    setStockEligibilityAccepted(false);
+  }, [activeChainId, selectedStockToken]);
+
+  useEffect(() => {
     if (!receipt.isSuccess || !receipt.data?.logs.length || confirmedLaunchId) return;
 
     for (const log of receipt.data.logs) {
       try {
         const decoded = decodeEventLog({
-          abi: launchMode === "direct" ? (isArc ? arcDirectLaunchFactoryAbi : useEkubo ? ekuboDirectLaunchFactoryAbi : directLaunchFactoryAbi) : launchFactoryAbi,
+          abi: launchMode === "direct" ? (isStockPair ? stockDirectLaunchFactoryAbi : isArc ? arcDirectLaunchFactoryAbi : useEkubo ? ekuboDirectLaunchFactoryAbi : directLaunchFactoryAbi) : launchFactoryAbi,
           data: log.data,
           topics: log.topics
         });
-        if (decoded.eventName === "LaunchCreated" || decoded.eventName === "DirectLaunchCreated" || decoded.eventName === "ArcDirectLaunchCreated" || decoded.eventName === "EkuboDirectLaunchCreated") {
+        if (decoded.eventName === "LaunchCreated" || decoded.eventName === "DirectLaunchCreated" || decoded.eventName === "StockDirectLaunchCreated" || decoded.eventName === "ArcDirectLaunchCreated" || decoded.eventName === "EkuboDirectLaunchCreated") {
           const launchId = decoded.args.launchId.toString();
           setConfirmedLaunchId(launchId);
           setConfirmedToken(decoded.args.token);
@@ -179,7 +243,7 @@ function EvmLaunchStudio({ requestedChain }: { requestedChain: string | null }) 
         // Ignore unrelated logs.
       }
     }
-  }, [receipt.isSuccess, receipt.data?.logs, confirmedLaunchId, isArc, launchMode, useEkubo]);
+  }, [receipt.isSuccess, receipt.data?.logs, confirmedLaunchId, isArc, isStockPair, launchMode, useEkubo]);
 
   async function submit() {
     if (!selectedFactory || !selectedFactoryReady || disabled || !isConnected) return;
@@ -205,6 +269,40 @@ function EvmLaunchStudio({ requestedChain }: { requestedChain: string | null }) 
     const metadata = { name: name.trim(), symbol: symbol.trim(), contractURI: launchMetadataUri, salt };
     if (launchMode === "direct") {
       const deadline = BigInt(Math.floor(Date.now() / 1000) + 20 * 60);
+      if (isStockPair) {
+        if (!selectedStock || !addresses.stockQuoteRegistry || !publicClient || !directLaunchConfigHash.data) return;
+        try {
+          const priceProof = await loadStockPriceProof(activeChainId, selectedStock, addresses.stockQuoteRegistry, publicClient);
+          const minimumStockPrice18 = priceProof.price18 * 99n / 100n;
+          const maximumStockPrice18 = priceProof.price18 * 101n / 100n;
+          if (initialBuyEth > 0n) {
+            const approvalHash = await stockApproval.writeContractAsync({
+              chainId: activeChainId,
+              address: selectedStock.token,
+              abi: erc20Abi,
+              functionName: "approve",
+              args: [selectedFactory, initialBuyEth]
+            });
+            const approvalReceipt = await publicClient.waitForTransactionReceipt({ hash: approvalHash });
+            if (approvalReceipt.status !== "success") throw new Error(`${selectedStock.symbol} approval failed.`);
+          }
+          writeContract({
+            chainId: activeChainId,
+            address: selectedFactory,
+            abi: stockDirectLaunchFactoryAbi,
+            functionName: initialBuyEth > 0n ? "createLaunchWithInitialBuy" : "createLaunch",
+            args: initialBuyEth > 0n
+              ? [metadata, selectedStock.token, directLaunchConfigHash.data, minimumStockPrice18, maximumStockPrice18,
+                  { attestedPrice18: priceProof.attestedPrice18, validUntil: priceProof.validUntil, signature: priceProof.signature }, deadline, initialBuyEth, 0n]
+              : [metadata, selectedStock.token, directLaunchConfigHash.data, minimumStockPrice18, maximumStockPrice18,
+                  { attestedPrice18: priceProof.attestedPrice18, validUntil: priceProof.validUntil, signature: priceProof.signature }, deadline],
+            value: launchFeeEth
+          });
+        } catch (stockError) {
+          setUploadError(stockError instanceof Error ? stockError.message : "Stock opening price could not be verified.");
+        }
+        return;
+      }
       if (isArc) {
         writeContract({
           chainId: activeChainId,
@@ -349,7 +447,7 @@ function EvmLaunchStudio({ requestedChain }: { requestedChain: string | null }) 
               <small>{symbol.trim() ? `$${symbol.trim()}` : isErc20 ? "ERC-20" : "B20"}</small>
               <strong>{name.trim() || "Your token"}</strong>
             </div>
-            <span className="launch-hero-route">{launchMode === "direct" ? useEkubo ? "Ekubo" : `Uniswap ${dexVersion}` : "Bond"}</span>
+            <span className="launch-hero-route">{launchMode === "direct" ? isStockPair ? `${selectedStock?.symbol || "Stock"} pair` : useEkubo ? "Ekubo" : `Uniswap ${dexVersion}` : "Bond"}</span>
           </div>
           <div className="launch-hero-facts"><span>1B supply</span><span>0% allocation</span><span>{launchMode === "direct" ? "LP locked" : "Fair curve"}</span></div>
         </div>
@@ -378,7 +476,30 @@ function EvmLaunchStudio({ requestedChain }: { requestedChain: string | null }) 
                 <TimerReset size={18} /><span><strong>Bond</strong><small>Fair curve → DEX</small></span>{launchMode === "bond" ? <CheckCircle2 size={16} /> : null}
               </button>
             </div>
-            {launchMode === "direct" && ekuboSupported ? (
+            {launchMode === "direct" && stockNetworkSupported && stockFactoryReady ? (
+              <div className="launch-dex-control">
+                <span className="launch-control-label">Market pair</span>
+                <div className="launch-dex-picker" role="radiogroup" aria-label="Market quote asset">
+                  <button aria-checked={pairType === "native"} className={pairType === "native" ? "active" : ""} disabled={isWorking} onClick={() => setPairType("native")} role="radio" type="button"><span><NetworkIcon chainId={activeChainId} size={22} /><strong>{nativeSymbol} <small>native pair</small></strong></span>{pairType === "native" ? <CheckCircle2 size={15} /> : null}</button>
+                  <button aria-checked={pairType === "stock"} className={pairType === "stock" ? "active" : ""} disabled={isWorking} onClick={() => { setPairType("stock"); setDexProvider("uniswap"); }} role="radio" type="button"><span><span className="stock-pair-glyph">STK</span><strong>Stock <small>tokenized pair</small></strong></span>{pairType === "stock" ? <CheckCircle2 size={15} /> : null}</button>
+                </div>
+              </div>
+            ) : null}
+            {isStockPair ? (
+              <div className="stock-quote-picker">
+                <label htmlFor="stock-quote">Stock quote</label>
+                <select disabled={isWorking || isStockCatalogLoading} id="stock-quote" onChange={(event) => setSelectedStockToken(event.target.value)} value={selectedStockToken}>
+                  {stockAssets.map((asset) => <option key={asset.token} value={asset.token}>{asset.symbol} — {asset.name}</option>)}
+                </select>
+                {selectedStock ? <div className="stock-quote-summary">{selectedStock.logoUrl ? <img alt="" src={selectedStock.logoUrl} /> : <span>{selectedStock.symbol.slice(0, 2)}</span>}<div><strong>{selectedStock.name}</strong><small>{selectedStock.symbol} · Verified {activeChainId === 8453 ? "Base B20" : "Robinhood"} asset</small></div><em>{selectedStock.priceMode === "chainlink" ? "Chainlink price" : "Signed live price"}</em></div> : null}
+                {isStockCatalogLoading ? <span className="field-help">Loading the official stock catalog…</span> : null}
+                {stockCatalogError ? <LaunchNotice tone="danger">{stockCatalogError}</LaunchNotice> : null}
+                {selectedStock && selectedStockEnabled.data === false ? <LaunchNotice tone="danger">This asset is not enabled in the onchain BlueFun registry.</LaunchNotice> : null}
+                <label className="stock-eligibility"><input checked={stockEligibilityAccepted} onChange={(event) => setStockEligibilityAccepted(event.target.checked)} type="checkbox" /><span>I confirm I am eligible to access and trade this tokenized security in my jurisdiction.</span></label>
+                <p className="field-help">Tokenized stocks may be restricted by jurisdiction and do not necessarily provide direct ownership or shareholder rights in the underlying company.</p>
+              </div>
+            ) : null}
+            {launchMode === "direct" && !isStockPair && ekuboSupported ? (
               <div className="launch-dex-control">
                 <span className="launch-control-label">Liquidity venue</span>
                 <div className="launch-dex-picker" role="radiogroup" aria-label="DEX provider">
@@ -388,7 +509,7 @@ function EvmLaunchStudio({ requestedChain }: { requestedChain: string | null }) 
               </div>
             ) : null}
           </div>
-          {launchMode === "direct" && addresses.directLaunchFactory === zeroAddress ? <LaunchNotice tone="info">Direct DEX contracts are ready in the codebase but are not configured for {chain.name} yet.</LaunchNotice> : null}
+          {launchMode === "direct" && !isStockPair && addresses.directLaunchFactory === zeroAddress ? <LaunchNotice tone="info">Direct DEX contracts are ready in the codebase but are not configured for {chain.name} yet.</LaunchNotice> : null}
           <div className="launch-stepper" aria-label="Launch progress">
             {([1, 2, 3] as const).map((item) => {
               const complete = item === 1 ? identityReady : item === 2 ? step === 3 : receipt.isSuccess;
@@ -462,7 +583,7 @@ function EvmLaunchStudio({ requestedChain }: { requestedChain: string | null }) 
           {step === 3 ? (
             <section className="launch-step-panel" aria-labelledby="launch-step-review">
               <div className="launch-form-section-head launch-form-section-head-compact"><div><strong id="launch-step-review">Review launch</strong></div></div>
-              <div className="field"><label htmlFor="initial-buy">Optional creator first buy</label><input aria-describedby="initial-buy-help" id="initial-buy" inputMode="decimal" placeholder="0" value={initialBuy} onChange={(event) => setInitialBuy(sanitizeDecimal(event.target.value))} /><span className="field-help" id="initial-buy-help">{nativeSymbol} · {launchMode === "direct" ? initialBuyEth > 0n && estimatedInitialTokens > 0n ? `≈ ${formatTokenEstimate(estimatedInitialTokens)} $${symbol.trim() || "TOKEN"} · Max 50M` : "Max 50M tokens (5%)" : `Maximum ${economics.graduationTarget} ${nativeSymbol}`}</span></div>
+              <div className="field"><label htmlFor="initial-buy">Optional creator first buy</label><input aria-describedby="initial-buy-help" id="initial-buy" inputMode="decimal" placeholder="0" value={initialBuy} onChange={(event) => setInitialBuy(sanitizeDecimal(event.target.value))} /><span className="field-help" id="initial-buy-help">{isStockPair ? selectedStock?.symbol || "Stock" : nativeSymbol} · {launchMode === "direct" ? isStockPair ? "Maximum 5% of supply; ERC-20 approval is only requested when this amount is above zero." : initialBuyEth > 0n && estimatedInitialTokens > 0n ? `≈ ${formatTokenEstimate(estimatedInitialTokens)} $${symbol.trim() || "TOKEN"} · Max 50M` : "Max 50M tokens (5%)" : `Maximum ${economics.graduationTarget} ${nativeSymbol}`}</span></div>
               {launchMode === "direct" ? <LaunchNotice tone="info">1% trade fee · Automatic sell burn · Liquidity locked.</LaunchNotice> : null}
               <div className="launch-review-card">
                 <div className="launch-review-head"><strong>{name} <span>${symbol}</span></strong><span><NetworkIcon chainId={activeChainId} size={16} />{chain.name}</span></div>
@@ -470,11 +591,11 @@ function EvmLaunchStudio({ requestedChain }: { requestedChain: string | null }) 
                   <div><dt>Token standard</dt><dd>{isErc20 ? "ERC-20" : "B20"}</dd></div>
                   <div><dt>Supply / creator allocation</dt><dd>1B / 0%</dd></div>
                   <div><dt>Trading fee</dt><dd>1% total</dd></div>
-                  <div><dt>Launch route</dt><dd>{launchMode === "direct" ? `Immediate locked ${useEkubo ? "Ekubo" : `Uniswap ${dexVersion}`} pool` : `${economics.graduationTarget} ${nativeSymbol} bond → Uniswap v4`}</dd></div>
+                  <div><dt>Launch route</dt><dd>{launchMode === "direct" ? `Immediate locked ${isStockPair ? `Uniswap ${dexVersion} · ${selectedStock?.symbol || "stock"} pair` : useEkubo ? "Ekubo" : `Uniswap ${dexVersion}`} pool` : `${economics.graduationTarget} ${nativeSymbol} bond → Uniswap v4`}</dd></div>
                   <div><dt>Launch fee</dt><dd>{formatEth(launchFeeEth)} {nativeSymbol}</dd></div>
-                  <div><dt>Initial buy</dt><dd>{formatEth(initialBuyEth)} {nativeSymbol}{launchMode === "direct" && estimatedInitialTokens > 0n ? ` · ≈ ${formatTokenEstimate(estimatedInitialTokens)} $${symbol.trim() || "TOKEN"}` : ""}</dd></div>
+                  <div><dt>Initial buy</dt><dd>{formatEth(initialBuyEth)} {isStockPair ? selectedStock?.symbol || "stock" : nativeSymbol}{launchMode === "direct" && estimatedInitialTokens > 0n ? ` · ≈ ${formatTokenEstimate(estimatedInitialTokens)} $${symbol.trim() || "TOKEN"}` : ""}</dd></div>
                 </dl>
-                <div className="launch-review-total"><span>Total wallet confirmation</span><strong>{formatEth(totalLaunchValue)} {nativeSymbol}</strong></div>
+                <div className="launch-review-total"><span>{isStockPair && initialBuyEth > 0n ? "Launch fee (stock first buy approved separately)" : "Total wallet confirmation"}</span><strong>{formatEth(totalLaunchValue)} {nativeSymbol}</strong></div>
               </div>
               {initialBuyError ? <p className="danger-text">{initialBuyError}</p> : null}
               <div className="launch-step-actions"><button className="button" disabled={isWorking} onClick={() => setStep(2)} type="button"><ChevronLeft size={16} />Back</button><button className="button primary launch-submit" disabled={disabled || isWorking || !isConnected} onClick={submit}>{isWorking ? <Loader2 className="spin" size={16} /> : metadataUri ? <Rocket size={16} /> : <UploadCloud size={16} />}{isImageUploading || isMetadataUploading ? "Preparing launch" : isPending ? "Confirm in wallet" : receipt.isLoading ? "Launching" : launchMode === "direct" ? "Launch direct to DEX" : isErc20 ? "Launch ERC-20" : "Launch B20"}</button></div>
@@ -649,6 +770,7 @@ function getDisabledReason(input: {
   imageUploading: boolean;
   initialBuyError: string;
   isConnected: boolean;
+  stockReason: string;
 }) {
   if (!input.isConnected) return "Connect your wallet to launch.";
   if (!input.hasFactory) return "Launch factory address is missing.";
@@ -659,6 +781,7 @@ function getDisabledReason(input: {
   if (input.imageUploading) return "Preparing your image.";
   if (!input.imageReady) return "Image is being prepared.";
   if (input.initialBuyError) return input.initialBuyError;
+  if (input.stockReason) return input.stockReason;
   return "";
 }
 
@@ -708,6 +831,32 @@ function formatTokenEstimate(value: bigint) {
     notation: amount >= 1_000 ? "compact" : "standard",
     maximumFractionDigits: amount >= 1_000 ? 2 : 4
   }).format(amount);
+}
+
+async function loadStockPriceProof(
+  chainId: number,
+  asset: StockAsset,
+  registry: `0x${string}`,
+  publicClient: PublicClient
+) {
+  if (asset.priceMode === "chainlink") {
+    const price18 = await publicClient.readContract({
+      address: registry,
+      abi: stockQuoteRegistryAbi,
+      functionName: "validatedPrice18",
+      args: [asset.token]
+    });
+    return { price18, attestedPrice18: 0n, validUntil: 0n, signature: "0x" as `0x${string}` };
+  }
+  const response = await fetch(`/api/stock-price-proof?chainId=${chainId}&token=${asset.token}`, { cache: "no-store" });
+  const payload = await response.json() as { price18?: string; validUntil?: string; signature?: `0x${string}`; error?: string };
+  if (!response.ok || !payload.price18 || !payload.validUntil || !payload.signature) {
+    throw new Error(payload.error || "Stock opening price could not be verified.");
+  }
+  const validUntil = BigInt(payload.validUntil);
+  if (validUntil <= BigInt(Math.floor(Date.now() / 1000) + 15)) throw new Error("Stock price proof expired. Try again.");
+  const price18 = BigInt(payload.price18);
+  return { price18, attestedPrice18: price18, validUntil, signature: payload.signature };
 }
 
 async function validateTokenImage(file: File) {

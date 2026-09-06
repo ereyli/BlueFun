@@ -10,6 +10,7 @@ BlueFun is a multichain launchpad for Base-native B20 `ASSET` tokens and fixed-s
 - Sell fee: `0.7%` platform ETH plus `0.3%` of token input sent to `0x0000…dEaD`.
 - Creator revenue comes only from buys.
 - Bond, Direct DEX and graduated Bond pools share the same `FeePolicy` and `UnifiedFeeHook` behavior.
+- Base and Robinhood stock-quoted Direct markets use a separate fail-closed registry and locked-liquidity suite; see [docs/STOCK_PAIR_LAUNCHES.md](docs/STOCK_PAIR_LAUNCHES.md).
 - Uniswap v4 LP fee is overridden to zero so the protocol fee is never charged twice.
 - LP principal and position custody are permanent; there is no principal withdrawal or NFT transfer path.
 - Mutable parameters are bounded and controlled by a rotatable two-key, seven-day timelock.

@@ -35,6 +35,11 @@ export type ContractDeployment = {
   ekuboSwapRouter?: `0x${string}`;
   ekuboDeploymentBlock?: bigint;
   feeHook?: `0x${string}`;
+  stockDirectLaunchFactory?: `0x${string}`;
+  stockLiquidityLocker?: `0x${string}`;
+  stockQuoteRegistry?: `0x${string}`;
+  stockFeeHook?: `0x${string}`;
+  stockDeploymentBlock?: bigint;
 };
 
 const LEGACY_BASE_DEPLOYMENT: ContractDeployment = {
@@ -87,7 +92,12 @@ const VNEXT_BASE_DEPLOYMENT: ContractDeployment = {
   ekuboLiquidityLocker: (process.env.NEXT_PUBLIC_BASE_EKUBO_LIQUIDITY_LOCKER || "0xf6545a701a8cbe80d573043e8ffb8210de913d28") as `0x${string}`,
   ekuboSwapRouter: (process.env.NEXT_PUBLIC_BASE_EKUBO_SWAP_ROUTER || "0x2d1e48fb40f00ed48f2e16df4a7a587fd063d177") as `0x${string}`,
   ekuboDeploymentBlock: BigInt(process.env.NEXT_PUBLIC_BASE_EKUBO_DEPLOYMENT_BLOCK || "49571565"),
-  feeHook: "0xf0b8dde19510ee7d6d50be289c4257ecd14c60cc"
+  feeHook: "0xf0b8dde19510ee7d6d50be289c4257ecd14c60cc",
+  stockDirectLaunchFactory: (process.env.NEXT_PUBLIC_BASE_STOCK_DIRECT_LAUNCH_FACTORY || ZERO_ADDRESS) as `0x${string}`,
+  stockLiquidityLocker: (process.env.NEXT_PUBLIC_BASE_STOCK_LIQUIDITY_LOCKER || ZERO_ADDRESS) as `0x${string}`,
+  stockQuoteRegistry: (process.env.NEXT_PUBLIC_BASE_STOCK_QUOTE_REGISTRY || ZERO_ADDRESS) as `0x${string}`,
+  stockFeeHook: (process.env.NEXT_PUBLIC_BASE_STOCK_FEE_HOOK || ZERO_ADDRESS) as `0x${string}`,
+  stockDeploymentBlock: BigInt(process.env.NEXT_PUBLIC_BASE_STOCK_DEPLOYMENT_BLOCK || "0")
 };
 
 export const addresses = {
@@ -103,6 +113,11 @@ export const addresses = {
   ekuboLiquidityLocker: VNEXT_BASE_DEPLOYMENT.ekuboLiquidityLocker,
   ekuboSwapRouter: VNEXT_BASE_DEPLOYMENT.ekuboSwapRouter,
   ekuboDeploymentBlock: VNEXT_BASE_DEPLOYMENT.ekuboDeploymentBlock,
+  stockDirectLaunchFactory: VNEXT_BASE_DEPLOYMENT.stockDirectLaunchFactory,
+  stockLiquidityLocker: VNEXT_BASE_DEPLOYMENT.stockLiquidityLocker,
+  stockQuoteRegistry: VNEXT_BASE_DEPLOYMENT.stockQuoteRegistry,
+  stockFeeHook: VNEXT_BASE_DEPLOYMENT.stockFeeHook,
+  stockDeploymentBlock: VNEXT_BASE_DEPLOYMENT.stockDeploymentBlock,
   activationRegistry: "0x8453000000000000000000000000000000000001" as `0x${string}`,
   deploymentBlock: VNEXT_BASE_DEPLOYMENT.deploymentBlock,
   firstLaunchId: VNEXT_BASE_DEPLOYMENT.firstLaunchId
@@ -158,7 +173,12 @@ export const robinhoodAddresses: ContractDeployment = {
   ekuboLiquidityLocker: (process.env.NEXT_PUBLIC_ROBINHOOD_EKUBO_LIQUIDITY_LOCKER || "0x5fe8c58a281e687a7a081f1e37033309578dc419") as `0x${string}`,
   ekuboSwapRouter: (process.env.NEXT_PUBLIC_ROBINHOOD_EKUBO_SWAP_ROUTER || "0xc98dbb07aeaa256012eff79a4739b1c80d39d61e") as `0x${string}`,
   ekuboDeploymentBlock: BigInt(process.env.NEXT_PUBLIC_ROBINHOOD_EKUBO_DEPLOYMENT_BLOCK || "28414685"),
-  feeHook: "0x4c77a461669c0345960dd33d415747c8932f60cc"
+  feeHook: "0x4c77a461669c0345960dd33d415747c8932f60cc",
+  stockDirectLaunchFactory: (process.env.NEXT_PUBLIC_ROBINHOOD_STOCK_DIRECT_LAUNCH_FACTORY || ZERO_ADDRESS) as `0x${string}`,
+  stockLiquidityLocker: (process.env.NEXT_PUBLIC_ROBINHOOD_STOCK_LIQUIDITY_LOCKER || ZERO_ADDRESS) as `0x${string}`,
+  stockQuoteRegistry: (process.env.NEXT_PUBLIC_ROBINHOOD_STOCK_QUOTE_REGISTRY || ZERO_ADDRESS) as `0x${string}`,
+  stockFeeHook: (process.env.NEXT_PUBLIC_ROBINHOOD_STOCK_FEE_HOOK || ZERO_ADDRESS) as `0x${string}`,
+  stockDeploymentBlock: BigInt(process.env.NEXT_PUBLIC_ROBINHOOD_STOCK_DEPLOYMENT_BLOCK || "0")
 };
 
 export const monadAddresses: ContractDeployment = {
@@ -717,6 +737,87 @@ export const directLaunchFactoryAbi = [
       { name: "positionId", type: "bytes32" }
     ]
   }
+] as const;
+
+export const stockDirectLaunchFactoryAbi = [
+  {
+    type: "event",
+    name: "StockDirectLaunchCreated",
+    inputs: [
+      { indexed: true, name: "launchId", type: "uint256" },
+      { indexed: true, name: "token", type: "address" },
+      { indexed: true, name: "creator", type: "address" },
+      { indexed: false, name: "quoteToken", type: "address" },
+      { indexed: false, name: "poolId", type: "bytes32" },
+      { indexed: false, name: "positionId", type: "bytes32" },
+      { indexed: false, name: "initialSqrtPriceX96", type: "uint160" },
+      { indexed: false, name: "tickLower", type: "int24" },
+      { indexed: false, name: "tickUpper", type: "int24" },
+      { indexed: false, name: "stockPriceUsd18", type: "uint256" },
+      { indexed: false, name: "name", type: "string" },
+      { indexed: false, name: "symbol", type: "string" },
+      { indexed: false, name: "contractURI", type: "string" }
+    ]
+  },
+  { type: "function", name: "launchFee", stateMutability: "view", inputs: [], outputs: [{ name: "", type: "uint256" }] },
+  { type: "function", name: "launchConfigHash", stateMutability: "view", inputs: [], outputs: [{ name: "", type: "bytes32" }] },
+  {
+    type: "function",
+    name: "createLaunch",
+    stateMutability: "payable",
+    inputs: [
+      { name: "metadata", type: "tuple", components: [
+        { name: "name", type: "string" }, { name: "symbol", type: "string" },
+        { name: "contractURI", type: "string" }, { name: "salt", type: "bytes32" }
+      ] },
+      { name: "quoteToken", type: "address" },
+      { name: "expectedConfigHash", type: "bytes32" },
+      { name: "minimumStockPrice18", type: "uint256" },
+      { name: "maximumStockPrice18", type: "uint256" },
+      { name: "priceProof", type: "tuple", components: [
+        { name: "attestedPrice18", type: "uint256" },
+        { name: "validUntil", type: "uint64" },
+        { name: "signature", type: "bytes" }
+      ] },
+      { name: "deadline", type: "uint256" }
+    ],
+    outputs: [
+      { name: "launchId", type: "uint256" }, { name: "token", type: "address" },
+      { name: "poolId", type: "bytes32" }, { name: "positionId", type: "bytes32" }
+    ]
+  },
+  {
+    type: "function",
+    name: "createLaunchWithInitialBuy",
+    stateMutability: "payable",
+    inputs: [
+      { name: "metadata", type: "tuple", components: [
+        { name: "name", type: "string" }, { name: "symbol", type: "string" },
+        { name: "contractURI", type: "string" }, { name: "salt", type: "bytes32" }
+      ] },
+      { name: "quoteToken", type: "address" },
+      { name: "expectedConfigHash", type: "bytes32" },
+      { name: "minimumStockPrice18", type: "uint256" },
+      { name: "maximumStockPrice18", type: "uint256" },
+      { name: "priceProof", type: "tuple", components: [
+        { name: "attestedPrice18", type: "uint256" },
+        { name: "validUntil", type: "uint64" },
+        { name: "signature", type: "bytes" }
+      ] },
+      { name: "deadline", type: "uint256" },
+      { name: "quoteAmount", type: "uint256" },
+      { name: "minimumTokensOut", type: "uint256" }
+    ],
+    outputs: [
+      { name: "launchId", type: "uint256" }, { name: "token", type: "address" },
+      { name: "poolId", type: "bytes32" }, { name: "positionId", type: "bytes32" }
+    ]
+  }
+] as const;
+
+export const stockQuoteRegistryAbi = [
+  { type: "function", name: "isEnabled", stateMutability: "view", inputs: [{ name: "token", type: "address" }], outputs: [{ name: "", type: "bool" }] },
+  { type: "function", name: "validatedPrice18", stateMutability: "view", inputs: [{ name: "token", type: "address" }], outputs: [{ name: "price18", type: "uint256" }] }
 ] as const;
 
 export const ekuboDirectLaunchFactoryAbi = [
